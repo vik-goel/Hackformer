@@ -3,12 +3,12 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.31101.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "hackformer", "hackformer.exe", "{AC63561C-F6B4-4E07-A4B7-F18CB2275D55}"
+Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "hackformer", "hackformer.exe", "{32267617-6359-450E-8878-196F52B384B4}"
 	ProjectSection(DebuggerProjectSystem) = preProject
 		PortSupplier = 00000000-0000-0000-0000-000000000000
-		Executable = w:\c++former\build\hackformer.exe
+		Executable = W:\c++former\build\hackformer.exe
 		RemoteMachine = COMPUTER
-		StartingDirectory = w:\c++former
+		StartingDirectory = W:\c++former
 		Environment = Default
 		LaunchingEngine = 00000000-0000-0000-0000-000000000000
 		UseLegacyDebugEngines = No
@@ -18,10 +18,10 @@ Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "hackformer", "hackformer.ex
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{AC63561C-F6B4-4E07-A4B7-F18CB2275D55}.Debug|x64.ActiveCfg = Debug|x64
+		{32267617-6359-450E-8878-196F52B384B4}.Debug|x86.ActiveCfg = Debug|x86
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

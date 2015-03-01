@@ -233,6 +233,15 @@ void debugPrintRectangle(R2 rect) {
 	printf("x: %f, y: %f, width: %f, height: %f\n", rect.min.x, rect.min.y, getRectWidth(rect), getRectHeight(rect));
 }
 
+bool isPointInsideRect(R2 rect, V2 point) {
+	bool result = point.x >= rect.min.x &&
+				  point.y >= rect.min.y &&
+				  point.x <= rect.max.x &&
+				  point.y <= rect.max.y;
+				  
+	return result;
+}
+
 //NOTE: Scalar operations here
 
 float square(float a) {
