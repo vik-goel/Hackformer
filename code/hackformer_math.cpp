@@ -4,6 +4,7 @@
 #define E  2.71828182
 
 #define max(a, b) a > b ? a : b
+#define min(a, b) a < b ? a : b
 
 struct V2 {
 	float x, y;
@@ -22,6 +23,16 @@ V2 v2(float x, float y) {
 	result.x = x;
 	result.y = y;
 
+	return result;
+}
+
+bool operator==(V2 &a, V2 &b) {
+	bool result = a.x == b.x && a.y == b.y;
+	return result;
+}
+
+bool operator!=(V2 &a, V2 &b) {
+	bool result = !(a == b);
 	return result;
 }
 
@@ -165,7 +176,7 @@ V2 rotate(V2& a, float degrees) {
 }
 
 V2 rotate90(V2& a) {
-	V2 result = {};
+	V2 result = {};	
 
 	result.x = -a.y;
 	result.y = a.x;
@@ -181,6 +192,15 @@ float innerProduct(V2& a, V2& b) {
 
 
 //NOTE: R2 operations here
+
+R2 r2(V2 p1, V2 p2) {
+	R2 result = {};
+
+	result.min = v2(min(p1.x, p2.x), min(p1.y, p2.y));
+	result.max = v2(max(p1.x, p2.x), max(p1.y, p2.y));
+
+	return result;
+}
 
 R2 rectCenterRadius(V2 center, V2 radius) {
 	R2 result = {};
@@ -220,6 +240,12 @@ float getRectHeight(R2 rect) {
 	return result;
 }
 
+V2 getRectCenter(R2 rect) {
+	V2 result = {};
+	result = (rect.min + rect.max) / 2;
+	return result;
+}
+
 R2 subtractFromRect(R2 rect, V2 amt) {
 	R2 result = {};
 
@@ -241,6 +267,120 @@ bool isPointInsideRect(R2 rect, V2 point) {
 				  
 	return result;
 }
+
+
+
+//NOTE: Polygonal operations here
+
+bool raycastLine(V2 p, V2 dP, V2 lp1, V2 lp2, float* collisionTime) {
+	float time = 100000;
+
+	if (lp2.x == lp1.x) { //Vertical Line
+		if (dP.x == 0) { //Not moving horizontally
+
+		} else {
+			time = (lp2.x - p.x) / dP.x;
+		}
+	} else {
+		float m = (lp2.y - lp1.y) / (lp2.x - lp1.x);
+		float b = lp1.y - m * lp1.x;
+
+		float denominator = dP.y - m * dP.x;
+
+		if (denominator == 0) { //Not moving at all or moving colinearly to the line
+
+		} else {
+			time = (m * p.x + b - p.y) / denominator;
+		}
+	}
+
+	bool hitLine = false;
+
+	if (time >= 0) {
+		V2 newP = p + time * dP;
+		if (time < *collisionTime && isPointInsideRect(r2(lp1, lp2), newP)) {
+			*collisionTime = time;
+			hitLine = true;
+		}
+	}
+
+	return hitLine;
+}
+
+void addPolygons(V2 translation, V2* a, int aCount, V2* b, int bCount, V2* dst, int dstSize, int* dstCount) {
+	int minkowskiSumCount = aCount * bCount;
+	//TODO: Use transient storage
+	V2* minkowskiSum = (V2*)malloc(sizeof(V2) * minkowskiSumCount);
+
+	for(int aIndex = 0; aIndex < aCount; aIndex++) {
+		for(int bIndex = 0; bIndex < bCount; bIndex++) {
+			int pointIndex = bIndex + aIndex * aCount;
+			minkowskiSum[pointIndex] = a[aIndex] + b[bIndex] + translation;
+		}
+	}
+
+	float lowestX = 5000000000;
+	int currentPointIndex, firstPointIndex;
+
+	for (int pointIndex = 0; pointIndex < minkowskiSumCount; pointIndex++) {
+		V2* point = minkowskiSum + pointIndex;
+
+		if (point->x < lowestX) {
+			lowestX = point->x;
+			*dst = *point;
+			currentPointIndex = firstPointIndex = pointIndex;
+		}
+	}
+
+	*dstCount = 1;
+
+	while (true) {
+		V2 previousPoint = minkowskiSum[currentPointIndex];
+		V2 nextPoint;
+		bool foundPoint = false;
+		int nextPointIndex = 0;
+
+		for (;nextPointIndex < minkowskiSumCount; nextPointIndex++) {
+			if(nextPointIndex == currentPointIndex) continue;
+
+			V2 linePoint = minkowskiSum[nextPointIndex];
+			bool validPoint = true;
+
+			V2 lineNormal = normalize(rotate90(previousPoint - linePoint));
+			V2 lineMid = (linePoint + previousPoint) / 2;
+
+			for (int testPointIndex = 0; testPointIndex < minkowskiSumCount && validPoint; testPointIndex++) {
+				if(testPointIndex == nextPointIndex || testPointIndex == currentPointIndex) continue;
+				V2 testPoint = minkowskiSum[testPointIndex];
+
+				V2 pointToMid = normalize(testPoint - lineMid);
+				float dot = innerProduct(lineNormal, pointToMid);
+				validPoint &= dot >= 0;
+			}
+
+			if (validPoint) {
+				foundPoint = true;
+				nextPoint = linePoint;
+				break;
+			}
+		}
+
+		assert(foundPoint);
+
+		if (nextPointIndex == firstPointIndex) {
+			break;
+		} else {
+			currentPointIndex = nextPointIndex;
+			dst[*dstCount] = nextPoint;
+			(*dstCount)++;
+			assert(*dstCount < dstSize);
+		}
+	}
+
+	free(minkowskiSum);
+	minkowskiSum = NULL;
+}
+
 
 //NOTE: Scalar operations here
 
