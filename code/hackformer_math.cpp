@@ -1,19 +1,6 @@
-#include <math.h>
 
-#define PI 3.14159265
-#define E  2.71828182
 
-#define max(a, b) a > b ? a : b
-#define min(a, b) a < b ? a : b
 
-struct V2 {
-	float x, y;
-};
-
-struct R2 {
-	V2 min;
-    V2 max;
-};
 
 //NOTE: V2 operations here
 
@@ -63,7 +50,6 @@ V2 operator-(V2 &a, V2 &b) {
 	return result;
 }
 
-//Hadamard product
 V2 hadamard(V2 &a, V2& b) {
 	V2 result = {};
 
@@ -277,7 +263,7 @@ bool raycastLine(V2 p, V2 dP, V2 lp1, V2 lp2, float* collisionTime) {
 
 	if (lp2.x == lp1.x) { //Vertical Line
 		if (dP.x == 0) { //Not moving horizontally
-
+			//TODO: If on line then time should equal 0
 		} else {
 			time = (lp2.x - p.x) / dP.x;
 		}
@@ -288,7 +274,7 @@ bool raycastLine(V2 p, V2 dP, V2 lp1, V2 lp2, float* collisionTime) {
 		float denominator = dP.y - m * dP.x;
 
 		if (denominator == 0) { //Not moving at all or moving colinearly to the line
-
+			//TODO: If on line then time should equal 0
 		} else {
 			time = (m * p.x + b - p.y) / denominator;
 		}
@@ -309,15 +295,30 @@ bool raycastLine(V2 p, V2 dP, V2 lp1, V2 lp2, float* collisionTime) {
 
 void addPolygons(V2 translation, V2* a, int aCount, V2* b, int bCount, V2* dst, int dstSize, int* dstCount) {
 	int minkowskiSumCount = aCount * bCount;
+	int numDuplicatePoints = 0;
 	//TODO: Use transient storage
 	V2* minkowskiSum = (V2*)malloc(sizeof(V2) * minkowskiSumCount);
 
 	for(int aIndex = 0; aIndex < aCount; aIndex++) {
 		for(int bIndex = 0; bIndex < bCount; bIndex++) {
-			int pointIndex = bIndex + aIndex * aCount;
-			minkowskiSum[pointIndex] = a[aIndex] + b[bIndex] + translation;
+			int pointIndex = bIndex + aIndex * aCount - numDuplicatePoints;
+			V2 point = a[aIndex] + b[bIndex] + translation;
+
+			bool addPoint = true;
+
+			for (int testIndex = 0; testIndex < pointIndex && addPoint; testIndex++) {
+				if (minkowskiSum[testIndex] == point) addPoint = false;
+			}
+
+			if (addPoint) {
+				minkowskiSum[pointIndex] = point;
+			} else {
+				numDuplicatePoints++;
+			}
 		}
 	}
+
+	minkowskiSumCount -= numDuplicatePoints;
 
 	float lowestX = 5000000000;
 	int currentPointIndex, firstPointIndex;
@@ -339,7 +340,7 @@ void addPolygons(V2 translation, V2* a, int aCount, V2* b, int bCount, V2* dst, 
 		V2 nextPoint;
 		bool foundPoint = false;
 		int nextPointIndex = 0;
-
+										
 		for (;nextPointIndex < minkowskiSumCount; nextPointIndex++) {
 			if(nextPointIndex == currentPointIndex) continue;
 
