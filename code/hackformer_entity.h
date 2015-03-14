@@ -1,6 +1,3 @@
-#ifndef HACKFORMER_ENTITY_H
-#define HACKFORMER_ENTITY_H
-
 enum ConsoleFieldType {
 	ConsoleField_float,
 	ConsoleField_string,
@@ -22,13 +19,17 @@ enum EntityType {
 	EntityType_tile,
 	EntityType_background,
 	EntityType_blueEnergy,
+	EntityType_text,
+	EntityType_virus,
 };
 
 enum DrawOrder {
-	DrawOrder_player = 10000,
-	DrawOrder_blueEnergy = 10,
-	DrawOrder_tile = 0,
 	DrawOrder_background = -10000,
+	DrawOrder_text = -50,
+	DrawOrder_tile = 0,
+	DrawOrder_blueEnergy = 10,
+	DrawOrder_virus = 100,
+	DrawOrder_player = 10000,
 };
 
 enum EntityFlag {
@@ -42,7 +43,7 @@ enum EntityFlag {
 
 struct Entity {
 	EntityType type;
-	uint flags;
+	uint32 flags;
 	int entityIndex;
 
 	V2 p;
@@ -59,5 +60,3 @@ struct Entity {
 	ConsoleField fields[4];
 	int numFields;
 };
-
-#endif

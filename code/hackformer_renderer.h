@@ -1,6 +1,3 @@
-#ifndef HACKFORMER_RENDERER_H
-#define HACKFORMER_RENDERER_H
-
 struct Texture {
 	SDL_Texture* tex;
 	SDL_Rect srcRect;
@@ -8,8 +5,6 @@ struct Texture {
 
 struct Animation {
 	Texture* frames;
-	uint numFrames;
+	uint32 numFrames;
 	float secondsPerFrame;
 };
-
-#endif

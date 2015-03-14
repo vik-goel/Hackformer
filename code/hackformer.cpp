@@ -1,124 +1,167 @@
-#include "SDL.h"
-#include "SDL_image.h"
-#include <stdio.h>
-#include <cassert>
-#include <cstdlib>
-#include <cstring>
-#include "SDL_ttf.h"
-
 #include "hackformer.h"
 
-#include "hackformer_math.cpp"
 #include "hackformer_renderer.cpp"
 #include "hackformer_entity.cpp"
 
-char* loadDelmittedStringIntoBuffer(char* src, char* dest, int* length) {
-	*length = 0;
-
-	for (char* c = src; *c != ','; c++) {
-		dest[(*length)++] = c[0];
-	}
-
-	dest[*(length)++] = 0;
-	return dest;
+bool stringsMatch(char* a, char * b) {
+	int len = strlen(b);
+	bool result = strncmp(a, b, len) == 0;
+	return result;
 }
 
-void loadTiledMap(GameState* gameState, char* fileName) {
+char* findFirstStringOccurrence(char* str, int strSize, char* subStr, int subStrSize) {
+	int strPos = 0;
+	int maxStrPos = strSize - subStrSize;
+
+	for (; strPos < maxStrPos; strPos++) {
+		if (strncmp(str + strPos, subStr, subStrSize) == 0) {
+			return str + strPos;
+		}
+	}
+
+	return 0;
+}
+
+bool extractIntFromLine(char* line, int lineLen, char* intName, int* result) {
+	int nameLength = strlen(intName);
+	char* occurrence = findFirstStringOccurrence(line, lineLen, intName, nameLength);
+
+	if (occurrence) {
+		//Need to add two to go past the ="
+		occurrence += nameLength + 2;
+		*result = atoi(occurrence);
+		return true;
+	}
+
+	return false;
+}
+
+bool extractStringFromLine(char* line, int lineLen, char* intName, char* result, int maxResultSize) {
+	int nameLength = strlen(intName);
+	char* occurrence = findFirstStringOccurrence(line, lineLen, intName, nameLength);
+
+	if (occurrence) {
+		//Need to add two to go past the ="
+		occurrence += nameLength + 2;
+		int resultSize = 0;
+
+		while (*occurrence != '"') {
+			result[resultSize] = *occurrence;
+			occurrence++;
+			resultSize++;
+			assert(resultSize < maxResultSize - 1);
+		}
+
+		result[resultSize] = 0;
+		return true;
+	}
+
+	return false;
+}
+
+void loadTmxMap(GameState* gameState, char* fileName) {
 	FILE* file;
 	fopen_s(&file, fileName, "r");
 	assert(file);
 
-	int width = -1;
-	int height = -1;
-	bool encounteredTileData = false;
+	int mapWidthTiles, mapHeightTiles;
+	bool foundMapSizeTiles = false;
 
+	int tileWidth, tileHeight, tileSpacing;
+	bool foundTilesetInfo = false;
 	Texture* textures = NULL;
-	int y = 0;
+	uint32 numTextures;
 
-	float tileSize = gameState->tileSize;
+	bool loadingTileData = false;
+	bool doneLoadingTiles = false;
+	int tileX, tileY;
 
-	char buffer[512];
-    while (fgets (buffer, sizeof(buffer), file)) {
-		if (width == -1) {
-			if (strncmp(buffer, "width", 5) == 0) {
-				width = atoi(buffer + 6);
+	char line[1024];
+	char buffer[1024];
+
+	while (fgets (line, sizeof(line), file)) {
+		int lineLength = strlen(line);
+
+		if (!foundMapSizeTiles) {
+			if (extractIntFromLine(line, lineLength, "width", &mapWidthTiles)) {
+				extractIntFromLine(line, lineLength, "height", &mapHeightTiles);
+				foundMapSizeTiles = true;
+
+				gameState->mapSize = v2((float)mapWidthTiles, (float)mapHeightTiles) * gameState->tileSize;
 			}
 		}
-		else if (height == -1) {
-			if (strncmp(buffer, "height", 6) == 0) {
-				height = atoi(buffer + 7);
-				y = height;
+		else if(!foundTilesetInfo) {
+			if (extractIntFromLine(line, lineLength, "tilewidth", &tileWidth)) {
+				extractIntFromLine(line, lineLength, "tileheight", &tileHeight);
+				extractIntFromLine(line, lineLength, "spacing", &tileSpacing);
+				foundTilesetInfo = true;
 			}
 		}
-		else if (textures == NULL) {
-			if (strncmp(buffer, "tileset", 7) == 0) {
-				char strBuf[50];
-				int length = 0;
-				int startPoint = 8;
-
-				loadDelmittedStringIntoBuffer(buffer + startPoint, strBuf, &length);
-				SDL_Texture* atlas = loadPNGTexture(gameState->renderer, strBuf);
-
-				startPoint += length + 1;
-				int tileWidth = atoi(loadDelmittedStringIntoBuffer(buffer + startPoint, strBuf, &length));
-
-				startPoint += length + 1;
-				int tileHeight = atoi(loadDelmittedStringIntoBuffer(buffer + startPoint, strBuf, &length));
-
-				int atlasWidth, atlasHeight;
-				SDL_QueryTexture(atlas, NULL, NULL, &atlasWidth, &atlasHeight);
-
-				int tileCols = atlasWidth / tileWidth;
-				int tileRows = atlasHeight / tileHeight;
-
-				textures = (Texture*)pushArray(&gameState->permanentStorage, Texture, tileCols * tileRows);
-
-				for (int rowIndex = 0; rowIndex < tileRows; rowIndex++) {
-					for (int colIndex = 0; colIndex < tileCols; colIndex++) {
-						Texture* tile = textures + (rowIndex * tileCols) + colIndex;
-						tile->tex = atlas;
-						tile->srcRect.x = colIndex * tileWidth + 3 * (colIndex + 1);
-						tile->srcRect.y = rowIndex * tileHeight - 3 * (colIndex + 1);
-						tile->srcRect.w = tileWidth;
-						tile->srcRect.h = tileHeight;
-					}
-				}
-
+		else if(textures == NULL) {
+			if (extractStringFromLine(line, lineLength, "image source", buffer, arrayCount(buffer))) {
+				textures = extractTextures(gameState, buffer, tileWidth, tileHeight, tileSpacing, &numTextures);
 			}
 		}
-		else if (!encounteredTileData) {
-			encounteredTileData = strncmp(buffer, "data=", 5) == 0;
-		} else {
-			char numBuffer[5];
-			int numSize = 0;
-			int x = 0;
+		else if(!loadingTileData && !doneLoadingTiles) {
+			char* beginLoadingStr = "<data encoding=\"csv\">";
+			if (findFirstStringOccurrence(line, lineLength, beginLoadingStr, strlen(beginLoadingStr))) {
+				loadingTileData = true;
+				tileX = 0;
+				tileY = mapHeightTiles - 1;
+			}
+		}
+		else if(loadingTileData) {
+			char* endLoadingStr = "</data>";
+			if (findFirstStringOccurrence(line, lineLength, endLoadingStr, strlen(endLoadingStr))) {
+				loadingTileData = false;
+				doneLoadingTiles = true;
+			} else {
+				char* linePtr = line;
+				tileX = 0;
 
-			for (char* c = buffer; *c != '\n'; c++) {
-				if (*c == ',') {
-					numBuffer[numSize] = 0;
-					int tileIndex = atoi(numBuffer) - 1;
+				while(*linePtr) {
+					int tileIndex = atoi(linePtr) - 1;
 
 					if (tileIndex >= 0) {
-						V2 tileP = v2((x + 0.5f) * tileSize, (y - 0.5f) * tileSize);
-						Texture* tileTexture = textures + tileIndex;
-						addTile(gameState, tileP, tileTexture);
+						V2 tileP = v2(tileX + 0.5f, tileY + 0.5f) * gameState->tileSize;
+						addTile(gameState, tileP, textures + tileIndex);
 					}
 
-					x++;
-					numSize = 0;
-				} else {
-					numBuffer[numSize++] = *c;
+					tileX++;
+
+					while(*linePtr && *linePtr != ',') linePtr++;
+					linePtr++;
+				}
+
+				tileY--;
+			}
+		}
+		else if (doneLoadingTiles) {
+			if (extractStringFromLine(line, lineLength, "name", buffer, arrayCount(buffer))) {
+				int entityX, entityY;
+				extractIntFromLine(line, lineLength, "\" x", &entityX);
+				extractIntFromLine(line, lineLength, "\" y", &entityY);
+
+				V2 p = v2((float)entityX, (float)entityY) / 120.0f * gameState->tileSize;
+				p.y = gameState->windowHeight / gameState->pixelsPerMeter - p.y;
+
+				if (stringsMatch(buffer, "player")) {
+					addPlayer(gameState, p);
+				}
+				else if (stringsMatch(buffer, "blue energy")) {
+					addBlueEnergy(gameState, p);
+				}
+				else if (stringsMatch(buffer, "virus")) {
+					addVirus(gameState, p);
+				}
+				else if (stringsMatch(buffer, "background")) {
+					addBackground(gameState);
 				}
 			}
-
-			y--;
 		}
-   	}
+	}
 
 	fclose(file);
-
-	gameState->mapWidth = width * tileSize;
-	gameState->mapHeight = height * tileSize;
 }
 
 void pollInput(GameState* gameState, bool* running) {
@@ -147,9 +190,9 @@ void pollInput(GameState* gameState, bool* running) {
 				int mouseY = event.motion.y;
 
 				input->mouseInPixels.x = (float)mouseX;
-				input->mouseInPixels.y = (float)(WINDOW_HEIGHT - mouseY);
+				input->mouseInPixels.y = (float)(gameState->windowHeight - mouseY);
 
-				input->mouseInMeters = input->mouseInPixels / (float)PIXELS_PER_METER;
+				input->mouseInMeters = input->mouseInPixels / gameState->pixelsPerMeter;
 				input->mouseInWorld = input->mouseInMeters + gameState->cameraP;
 
 				} break;
@@ -164,7 +207,7 @@ void pollInput(GameState* gameState, bool* running) {
 	}
 }
 
-SDL_Renderer* initGameForRendering() {
+SDL_Renderer* initGameForRendering(int windowWidth, int windowHeight) {
 //TODO: Proper error handling if any of these libraries does not load
 //TODO: Only initialize what is needed
 	if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
@@ -182,14 +225,14 @@ SDL_Renderer* initGameForRendering() {
 
 	SDL_Window *window = SDL_CreateWindow("C++former", 
 										  SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
-										  WINDOW_WIDTH, WINDOW_HEIGHT, 
+										  windowWidth, windowHeight, 
 										  SDL_WINDOW_ALLOW_HIGHDPI);
 
 	if (!window) {
 		fprintf(stderr, "Failed to create window. Error: %s", SDL_GetError());
 		assert(false);
 	}
-	SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+	SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
 
 	if (!renderer) {
 		fprintf(stderr, "Failed to create renderer. Error: %s", SDL_GetError());
@@ -205,7 +248,9 @@ SDL_Renderer* initGameForRendering() {
 }
 
 int main(int argc, char *argv[]) {
-	SDL_Renderer* renderer = initGameForRendering();
+	int windowWidth = 1280, windowHeight = 720;
+
+	SDL_Renderer* renderer = initGameForRendering(windowWidth, windowHeight);
 
 	int gameStateSize = sizeof(GameState); 
 
@@ -214,34 +259,50 @@ int main(int argc, char *argv[]) {
 	arena_.base = (char*)calloc(arena_.size, 1);
 
 	GameState* gameState = (GameState*)pushStruct(&arena_, GameState);
-	gameState->numEntities = 1; //NOTE: 0 is for the null entity
 	gameState->permanentStorage = arena_;
 	gameState->renderer = renderer;
+
+	gameState->pixelsPerMeter = 70.0f;
+	gameState->windowWidth = windowWidth;
+	gameState->windowHeight = windowHeight;
+	gameState->gravity = v2(0, -9.81f);
+
+	gameState->numEntities = 1; //NOTE: 0 is for the null entity
 	gameState->entities->type = EntityType_null;
 
 	gameState->font = loadFont("fonts/Roboto-Regular.ttf", 64);
 
-	loadPNGTexture(&gameState->playerStand, renderer, "res/player/stand.png");
-	loadPNGTexture(&gameState->playerJump, renderer, "res/player/jump.png");
+	gameState->playerStand = loadPNGTexture(renderer, "res/player/stand.png");
+	gameState->playerJump = loadPNGTexture(renderer, "res/player/jump.png");
 	gameState->playerWalk = loadAnimation(gameState, "res/player/walk.png", 128, 128, 0.04f);
-	loadPNGTexture(&gameState->background, renderer, "res/SunsetCityBackground.png");
-	loadPNGTexture(&gameState->blueEnergy, renderer, "res/blue_energy.png");
 
-	addPlayer(gameState, v2(2, 8));
-	addBlueEnergy(gameState, v2(4, 6));
+	gameState->virus1Stand = loadPNGTexture(renderer, "res/virus1/stand.png");
 
-	gameState->tileSize = 0.8f;
-	loadTiledMap(gameState, "maps/map1.txt");
+	gameState->sunsetCityBg = loadPNGTexture(renderer, "res/backgrounds/sunset city bg.png");
+	gameState->sunsetCityMg = loadPNGTexture(renderer, "res/backgrounds/sunset city mg.png");
 
-	addBackground(gameState);
+	gameState->blueEnergy = loadPNGTexture(renderer, "res/blue energy.png");
+
+	addText(gameState, v2(4, 6), "Hello, World");
+
+	//addPlayer(gameState, v2(2, 8));
+	//addBlueEnergy(gameState, v2(4, 6));
+	//addVirus(gameState, v2(6, 6));
+
+	gameState->tileSize = 0.9f;
+	//loadTiledMap(gameState, "maps/map1.txt");
+	loadTmxMap(gameState, "res/testmap.tmx");
+
+	//addBackground(gameState);
+	//addText(gameState, v2(10, 6), "Buffer");
 
 	bool running = true;
 	double frameTime = 1.0 / 60.0;
-	uint fpsCounterTimer = SDL_GetTicks();
-	uint fps = 0;
+	uint32 fpsCounterTimer = SDL_GetTicks();
+	uint32 fps = 0;
 	float dtForFrame = 0;
-	uint lastTime = SDL_GetTicks();
-	uint currentTime;
+	uint32 lastTime = SDL_GetTicks();
+	uint32 currentTime;
 	
 	while (running) {
 		gameState->input.leftMouseJustPressed = false;
@@ -271,7 +332,7 @@ int main(int argc, char *argv[]) {
 			dtForFrame = 0;
 		}
 
-		SDL_Delay(1);
+		//SDL_Delay(1);
 	}
 
 	return 0;

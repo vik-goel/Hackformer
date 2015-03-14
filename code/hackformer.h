@@ -1,21 +1,21 @@
-#ifndef HACKFORMER_H
-#define HACKFORMER_H
+#define arrayCount(array) sizeof(array) / sizeof(array[0])
+#define SHOW_COLLISION_BOUNDS 0
 
-#define uint unsigned int
-#define uint16 unsigned short
+#define uint32 unsigned int
 
-#define ARRAY_COUNT(array) sizeof(array) / sizeof(array[0])
+#include <cstdlib>
+#include <cstring>
+#include <cmath>
+#include <cstdio>
+#include <cassert>
+
+#include "SDL.h"
+#include "SDL_image.h"
+#include "SDL_ttf.h"
 
 #include "hackformer_math.h"
 #include "hackformer_renderer.h"
 #include "hackformer_entity.h"
-
-#define WINDOW_WIDTH 1280
-#define WINDOW_HEIGHT 720
-
-#define PIXELS_PER_METER 70.0f
-
-#define SHOW_COLLISION_BOUNDS 0
 
 struct Input {
 	V2 mouseInPixels;
@@ -28,18 +28,19 @@ struct Input {
 
 struct MemoryArena {
 	char* base;
-	uint allocated;
-	uint size;
+	uint32 allocated;
+	uint32 size;
 };
 
 struct DrawCall {
-	DrawOrder drawOrder;
+	int drawOrder;
 	Texture* texture;
 	R2 bounds;
 	bool flipX;
 
 #if SHOW_COLLISION_BOUNDS
-	V2** collisionPoints;
+	V2* collisionPoints;
+	V2 p;
 	int numCollisionPoints;
 #endif
 };
@@ -59,25 +60,32 @@ struct GameState {
 
 	Texture playerStand, playerJump;
 	Animation playerWalk;
-	Texture blueEnergy;
-	Texture background;
-	DrawCall drawCalls[5000];
 
-	float tileSize;
-	float mapWidth, mapHeight;
+	Texture virus1Stand;
+	Texture sunsetCityBg, sunsetCityMg;
+	Texture blueEnergy;
+
+	DrawCall drawCalls[5000];
+	int numDrawCalls;
 
 	V2 polygonSum[1024];
+
+	float tileSize;
+	V2 mapSize;
+
+	float pixelsPerMeter;
+	int windowWidth, windowHeight;
+
+	V2 gravity;
 };
 
 #define pushArray(arena, type, count) pushIntoArena_(arena, count * sizeof(type))
 #define pushStruct(arena, type) pushIntoArena_(arena, sizeof(type))
 
-char* pushIntoArena_(MemoryArena* arena, uint amt) {
+char* pushIntoArena_(MemoryArena* arena, uint32 amt) {
 	arena->allocated += amt;
 	assert(arena->allocated < arena->size);
 
 	char* result = arena->base + arena->allocated - amt;
 	return result;
 }
-
-#endif
