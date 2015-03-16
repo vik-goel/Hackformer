@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.0" orientation="orthogonal" renderorder="right-down" width="80" height="11" tilewidth="120" tileheight="120">
+ <tileset firstgid="1" name="tiles" tilewidth="120" tileheight="120" spacing="6" margin="3">
+  <image source="res/tiles.png" width="378" height="252"/>
+ </tileset>
+ <tileset firstgid="7" name="objects" tilewidth="100" tileheight="100">
+  <image source="res/items.png" width="1000" height="1000"/>
+ </tileset>
+ <layer name="solid" width="80" height="11">
+  <data encoding="csv">
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,4,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,4,4,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,4,4,4,3,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,
+1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0,2,4,4,4,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,2,4,4,4,3,0,0,0,0,0,0,1,3,0,0,0,0,0,0,0,0,0,0,1,1,1,
+2,4,4,3,0,0,0,0,0,0,0,1,1,1,0,2,4,4,3,0,2,4,4,4,3,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,0,0,2,4,4,4,4,3,0,0,2,4,4,4,3,0,0,0,1,0,1,4,3,0,0,1,1,1,1,1,1,1,1,4,4,4,
+2,4,4,3,0,0,1,1,1,1,0,2,4,3,0,0,0,0,0,0,2,4,4,4,3,2,4,4,4,4,4,4,4,4,4,3,0,0,0,2,4,4,4,3,0,0,0,0,0,0,0,0,0,0,2,4,4,4,3,0,0,0,2,0,2,4,3,0,0,2,4,4,4,4,4,4,4,4,4,4,
+2,4,4,3,0,0,2,4,4,3,0,0,0,0,0,0,0,0,0,0,2,4,4,4,3,2,4,4,4,4,4,4,4,4,4,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,4,4,4,3,0,0,0,2,0,2,4,3,0,0,2,4,4,4,4,4,4,4,4,4,4
+</data>
+ </layer>
+ <objectgroup name="objects">
+  <object name="player" gid="9" x="206" y="784"/>
+  <object name="red energy" gid="8" x="1490" y="944"/>
+  <object name="blue energy" gid="7" x="824" y="1044"/>
+  <object name="virus" gid="10" x="3622" y="910"/>
+  <object name="end portal" gid="11" x="9390" y="798"/>
+  <object name="virus" gid="10" x="8644" y="930"/>
+  <object name="red energy" gid="8" x="7430" y="934"/>
+  <object name="blue energy" gid="7" x="6728" y="436"/>
+  <object name="virus" gid="10" x="4900" y="938"/>
+  <object name="red energy" gid="8" x="5124" y="940"/>
+  <object name="blue energy" gid="7" x="4720" y="940"/>
+  <object name="text" x="622" y="658" width="398" height="76">
+   <properties>
+    <property name="0" value="Good Luck!"/>
+    <property name="1" value="Try not to die"/>
+    <property name="2" value="Batman"/>
+    <property name="selected index" value="0"/>
+   </properties>
+  </object>
+  <object name="text" x="3336" y="536" width="542" height="48">
+   <properties>
+    <property name="0" value="Viruses can kill you"/>
+    <property name="1" value="Batman"/>
+    <property name="2" value="Try hacking them"/>
+    <property name="selected index" value="0"/>
+   </properties>
+  </object>
+  <object name="blue energy" gid="7" x="1870" y="802"/>
+  <object name="blue energy" gid="7" x="2066" y="802"/>
+  <object name="red energy" gid="8" x="2546" y="674"/>
+  <object name="blue energy" gid="7" x="1006" y="1054"/>
+  <object name="blue energy" gid="7" x="3090" y="914"/>
+  <object name="background" x="56" y="120" width="152" height="160">
+   <properties>
+    <property name="type" value="marine"/>
+   </properties>
+  </object>
+ </objectgroup>
+</map>

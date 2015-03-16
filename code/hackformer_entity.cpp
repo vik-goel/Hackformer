@@ -13,15 +13,19 @@ ConsoleField createFloatField(char* name, float* values, int numValues, int init
 	return result;
 }
 
-void addFlags(Entity* entity, uint32 flags) {
+void addFlags(Entity* entity, uint flags) {
 	entity->flags |= flags;
 } 
 
-void clearFlags(Entity* entity, uint32 flags) {
+void clearFlags(Entity* entity, uint flags) {
 	entity->flags &= ~flags;
 } 
 
-bool isSet(Entity* entity, uint32 flags) {
+void toggleFlags(Entity* entity, uint toggle) {
+	entity->flags ^= toggle;
+}
+
+bool isSet(Entity* entity, uint flags) {
 	bool result = (entity->flags & flags) != 0;
 	return result;
 }
@@ -43,153 +47,246 @@ void giveEntityRectangularCollisionBounds(Entity* entity, float xOffset, float y
 	entity->collisionPoints[3].y = -height / 2 + yOffset;
 }
 
+EntityReference* getEntityReferenceBucket(GameState* gameState, int ref) {
+	int bucketIndex = (ref % (arrayCount(gameState->entityRefs_) - 1)) + 1;
+	EntityReference* result = gameState->entityRefs_ + bucketIndex;
+	return result;
+}
+
+EntityReference* getPreciseEntityReferenceBucket(GameState* gameState, int ref) {
+	EntityReference* bucket = getEntityReferenceBucket(gameState, ref);
+
+	EntityReference* result = NULL;
+	
+	while(bucket) {
+		if (bucket->entity->ref == ref) {
+			result = bucket;
+			break;
+		}
+
+		bucket = bucket->next;
+	}
+
+	return result;
+}
+
+Entity* getEntityByRef(GameState* gameState, int ref) {
+	EntityReference* bucket = getPreciseEntityReferenceBucket(gameState, ref);
+
+	Entity* result = NULL;
+	if (bucket) result = bucket->entity;
+
+	return result;
+}
+
+void removeEntities(GameState* gameState) {
+	//NOTE: Entities are removed here if their remove flag is set
+	//NOTE: There is a memory leak here if the entity allocated anything
+	//		Ensure this is cleaned up, the console is a big place where leaks can happen
+	for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+		Entity* entity = gameState->entities + entityIndex;
+
+		if (isSet(entity, EntityFlag_remove)) {
+			switch(entity->type) {
+				case EntityType_text: {
+					SDL_DestroyTexture(entity->texture->tex);
+					//TODO: A free list could be used here instead
+					free(entity->texture);
+				} break;
+			}
+
+			EntityReference* bucket = getEntityReferenceBucket(gameState, entity->ref);
+			EntityReference* previousBucket = bucket;
+
+			while (bucket) {
+				if (bucket->entity->ref == entity->ref) {
+					break;
+				}
+
+				previousBucket = bucket;
+				bucket = bucket->next;
+			}
+
+			if (bucket != NULL) previousBucket->next = bucket->next;
+			else previousBucket->next = NULL;
+
+			bucket->next = gameState->entityRefFreeList;
+			gameState->entityRefFreeList = bucket;
+
+			for (int srcEntityIndex = entityIndex + 1; srcEntityIndex < gameState->numEntities; srcEntityIndex++) {
+				Entity* src = gameState->entities + srcEntityIndex;
+				Entity* dst = gameState->entities + srcEntityIndex - 1;
+				*dst = *src;
+				getPreciseEntityReferenceBucket(gameState, dst->ref)->entity--;
+			}
+
+			gameState->entities[gameState->numEntities] = {};
+
+			gameState->numEntities--;
+			entityIndex--;
+		}
+	}
+}
+
 Entity* addEntity(GameState* gameState, EntityType type, DrawOrder drawOrder, V2 p, V2 renderSize) {
 	assert(gameState->numEntities < arrayCount(gameState->entities));
 
 	Entity* result = gameState->entities + gameState->numEntities;
 
+	for (int testIndex = 0; testIndex < gameState->numEntities; testIndex++) {
+		Entity* testEntity = gameState->entities + testIndex;
+
+		if (testEntity->drawOrder >= drawOrder) {
+			result = testEntity;
+
+			for (int moveSrcIndex = gameState->numEntities - 1; moveSrcIndex >= testIndex; moveSrcIndex--) {
+				Entity* src = gameState->entities + moveSrcIndex;
+				Entity* dst = gameState->entities + moveSrcIndex + 1;
+				*dst = *src;
+				getPreciseEntityReferenceBucket(gameState, dst->ref)->entity++;
+			}
+
+			break;
+		}
+	}
+
 	*result = {};
-	result->entityIndex = gameState->numEntities;
+	result->ref = gameState->refCount;
 	result->type = type;
 	result->drawOrder = drawOrder;
 	result->p = p;
 	result->renderSize = renderSize;
 
+	EntityReference* bucket = getEntityReferenceBucket(gameState, result->ref);
+	while(bucket->next) bucket = bucket->next;
+
+	if (bucket->entity) {
+		if (gameState->entityRefFreeList) {
+			bucket->next = gameState->entityRefFreeList;
+			gameState->entityRefFreeList = gameState->entityRefFreeList->next;
+		} else {
+			bucket->next = (EntityReference*) pushStruct(&gameState->permanentStorage, EntityReference);
+		}
+
+		bucket = bucket->next;
+		bucket->next = NULL;
+	}
+
+	bucket->entity = result;
+
 	gameState->numEntities++;
+	gameState->refCount++;
 
 	return result;
 }
 
 Entity* addPlayer(GameState* gameState, V2 p) {
-	Entity* player = addEntity(gameState, EntityType_player, DrawOrder_player, p, v2(1.4f, 1.4f));
+	Entity* result = addEntity(gameState, EntityType_player, DrawOrder_player, p, v2(1.4f, 1.4f));
 
-	giveEntityRectangularCollisionBounds(player, 0, 0,
-										 player->renderSize.x * 0.4f, player->renderSize.y);
+	assert(!gameState->playerRef);
+	gameState->playerRef = result->ref;
 
-	player->texture = &gameState->playerStand;
+	giveEntityRectangularCollisionBounds(result, 0, 0,
+										 result->renderSize.x * 0.4f, result->renderSize.y);
 
-	addFlags(player, EntityFlag_moveable|
+	result->texture = &gameState->playerStand;
+
+	addFlags(result, EntityFlag_moveable|
 					 EntityFlag_collidable|
 					 EntityFlag_solid|
 					 EntityFlag_facesLeft);
 
-	player->numFields = 1;
-	assert(arrayCount(player->fields) > player->numFields);
+	result->numFields = 1;
+	assert(arrayCount(result->fields) > result->numFields);
 
 	float playerSpeedValues[] = {3, 8, 13, 18, 23};
-	player->fields[0] = createFloatField("speed", playerSpeedValues, arrayCount(playerSpeedValues), 2);
+	result->fields[0] = createFloatField("speed", playerSpeedValues, arrayCount(playerSpeedValues), 2);
 
-	player->p += player->renderSize / 2;
+	result->p += result->renderSize / 2;
 
-	return player;
+	return result;
 }
 
 Entity* addVirus(GameState* gameState, V2 p) {
-	Entity* virus = addEntity(gameState, EntityType_virus, DrawOrder_virus, p, v2(2.5f, 2.5f));
+	Entity* result = addEntity(gameState, EntityType_virus, DrawOrder_virus, p, v2(2.5f, 2.5f));
 
-	giveEntityRectangularCollisionBounds(virus, -0.025f, 0.1f,
-										 virus->renderSize.x * 0.55f, virus->renderSize.y * 0.75f);
+	giveEntityRectangularCollisionBounds(result, -0.025f, 0.1f,
+										 result->renderSize.x * 0.55f, result->renderSize.y * 0.75f);
 
-	virus->texture = &gameState->virus1Stand;
+	result->texture = &gameState->virus1Stand;
 
-	addFlags(virus, EntityFlag_moveable|
-					EntityFlag_collidable);
+	addFlags(result, EntityFlag_moveable|
+					 EntityFlag_collidable|
+					 EntityFlag_facesLeft);
 
-	virus->p += virus->renderSize / 2;
+	result->p += result->renderSize / 2;
 
-	return virus;
+	return result;
 }
 
 Entity* addBlueEnergy(GameState* gameState, V2 p) {
-	Entity* blueEnergy = addEntity(gameState, EntityType_blueEnergy, DrawOrder_blueEnergy, p, v2(0.8f, 0.8f));
+	Entity* result = addEntity(gameState, EntityType_blueEnergy, DrawOrder_blueEnergy, p, v2(0.8f, 0.8f));
 
-	giveEntityRectangularCollisionBounds(blueEnergy, 0, 0, 
-										 blueEnergy->renderSize.x * 0.5f, blueEnergy->renderSize.y * 0.65f);
+	giveEntityRectangularCollisionBounds(result, 0, 0, 
+										 result->renderSize.x * 0.5f, result->renderSize.y * 0.65f);
 
-	blueEnergy->texture = &gameState->blueEnergy;
+	result->texture = &gameState->blueEnergy;
 
-	addFlags(blueEnergy, EntityFlag_moveable|
-						 EntityFlag_collidable);
+	addFlags(result, EntityFlag_moveable|
+					 EntityFlag_collidable);
 
-	blueEnergy->p += blueEnergy->renderSize / 2;
+	result->p += result->renderSize / 2;
 
-	return blueEnergy;
+	return result;
 }
 
 Entity* addBackground(GameState* gameState) {
-	Entity* background = addEntity(gameState, EntityType_background, DrawOrder_background, 
+	Entity* result = addEntity(gameState, EntityType_background, DrawOrder_background, 
 								  v2(0, 0), v2(gameState->mapSize.x, 
 								(float)gameState->windowHeight / (float)gameState->pixelsPerMeter));
 
-	background->p = background->renderSize / 2.0f;
+	result->p = result->renderSize / 2.0f;
 
-	return background;
+	return result;
 }
 
 Entity* addTile(GameState* gameState, V2 p, Texture* texture) {
-	Entity* tile = addEntity(gameState, EntityType_tile, DrawOrder_tile, p, v2(gameState->tileSize, gameState->tileSize));
+	Entity* result = addEntity(gameState, EntityType_tile, DrawOrder_tile, p, v2(gameState->tileSize, gameState->tileSize));
 
-	giveEntityRectangularCollisionBounds(tile, 0, 0, 
-										 tile->renderSize.x, tile->renderSize.y);
+	giveEntityRectangularCollisionBounds(result, 0, 0, 
+										 result->renderSize.x, result->renderSize.y);
 
-	tile->texture = texture;
+	result->texture = texture;
 
-	addFlags(tile, EntityFlag_collidable| 
-				   EntityFlag_solid);
+	addFlags(result, EntityFlag_collidable| 
+				     EntityFlag_solid);
 
-	return tile;
+	return result;
 }
 
 Entity* addText(GameState* gameState, V2 p, char* msg) {
-	Entity* text = addEntity(gameState, EntityType_text, DrawOrder_text, p, v2(0, 0));
-	text->texture = (Texture*)malloc(sizeof(Texture));
-	*(text->texture) = createText(gameState, gameState->font, msg);
-	text->renderSize = v2((float)text->texture->srcRect.w, (float)text->texture->srcRect.h) / gameState->pixelsPerMeter;
-	return text;
+	Entity* result = addEntity(gameState, EntityType_text, DrawOrder_text, p, v2(0, 0));
+	result->texture = (Texture*)malloc(sizeof(Texture));
+	*(result->texture) = createText(gameState, gameState->font, msg);
+	result->renderSize = v2((float)result->texture->srcRect.w, (float)result->texture->srcRect.h) / gameState->pixelsPerMeter;
+	return result;
 }
 
-int renderOrderCompare(const void* elem1, const void* elem2) {
-	//TODO: This should do something when comparing entities with the same 
-	//		draw order so that removing an entity from the list doesn't cause
-	//		other entities to suddenly change their z order 
-	//		for example if two viruses are overlapping, the one which is on top
-	//		should be consistent
+Entity* addLaserBolt(GameState* gameState, V2 p, V2 target) {
+	Entity* result = addEntity(gameState, EntityType_laserBolt, DrawOrder_laserBolt, p, v2(1, 1));
+	result->texture = &gameState->laserBolt;
 
-	DrawCall* a = (DrawCall*)elem1;
-	DrawCall* b = (DrawCall*)elem2;
+	giveEntityRectangularCollisionBounds(result, 0, 0, 
+										 result->renderSize.x * 0.3f, result->renderSize.y * 0.3f);
 
-	if (a->drawOrder < b->drawOrder) return -1;
-	if (a->drawOrder > b->drawOrder) return 1;
+	float speed = 3.0f;
+	result->dP = normalize(target - p) * speed;
 
-	return 0;
-}
-
-void drawEntities(GameState* gameState) {
-	qsort(gameState->drawCalls, gameState->numDrawCalls, sizeof(DrawCall), renderOrderCompare);
-
-	for (int drawIndex = 0; drawIndex < gameState->numDrawCalls; drawIndex++) {
-		DrawCall* draw = gameState->drawCalls + drawIndex;
-		drawTexture(gameState, draw->texture, 
-					subtractFromRect(draw->bounds, gameState->cameraP), draw->flipX);
-
-		#if SHOW_COLLISION_BOUNDS
-			if (draw->numCollisionPoints) {
-				drawPolygon(gameState, draw->collisionPoints, draw->numCollisionPoints,
-							 hadamard(getPolygonCenter(draw->collisionPoints, draw->numCollisionPoints), v2(1, -2))
-							 + draw->p - gameState->cameraP);
-			}
-		#endif
-	}
-
-	if (gameState->consoleEntity) {
-		for (int fieldIndex = 0; fieldIndex < gameState->consoleEntity->numFields; fieldIndex++) {
-			ConsoleField* field = gameState->consoleEntity->fields + fieldIndex;
-
-			char strBuffer[100];
-			_itoa_s((int)(gameState->consoleEntity->dP.y * 1000000), strBuffer, 10);
-			drawText(gameState, gameState->font, strBuffer, 3, 3, gameState->cameraP);
-		}
-	}
+	addFlags(result, EntityFlag_moveable|
+					 EntityFlag_collidable|
+					 EntityFlag_ignoresGravity);
+					 
+	return result;
 }
 
 bool collidesWith(Entity* a, Entity* b) {
@@ -199,6 +296,15 @@ bool collidesWith(Entity* a, Entity* b) {
 		case EntityType_player: {
 			if (b->type == EntityType_virus) result = false;
 		} break;
+		case EntityType_laserBolt: {
+			if (b->type == EntityType_blueEnergy ||
+				b->type == EntityType_virus ||
+				b->type == EntityType_laserBolt) result = false;
+		} break;
+		case EntityType_blueEnergy: {
+			if (b->type != EntityType_player &&
+				b->type != EntityType_tile) result = false;
+		}
 	}
 
 	return result;
@@ -211,6 +317,10 @@ void onCollide(Entity* entity, Entity* hitEntity) {
 				addFlags(entity, EntityFlag_remove);
 				clearFlags(entity, EntityFlag_collidable);
 			}
+		} break;
+		case EntityType_laserBolt: {
+			addFlags(entity, EntityFlag_remove);
+			clearFlags(entity, EntityFlag_collidable);
 		} break;
 	}
 }
@@ -229,9 +339,10 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 	R2 entityDrawBox = rectCenterDiameter(entity->p, entity->renderSize);
 	entityDrawBox = addRadiusTo(entityDrawBox, v2(abs(delta.x), abs(delta.y)));
 
-	for (int colliderIndex = 1; colliderIndex < gameState->numEntities; colliderIndex++) {
-		if (colliderIndex != entity->entityIndex) {
-			Entity* collider = gameState->entities + colliderIndex;
+	for (int colliderIndex = 0; colliderIndex < gameState->numEntities; colliderIndex++) {
+		Entity* collider = gameState->entities + colliderIndex;
+		
+		if (collider != entity) {
 
 			if (isSet(collider, EntityFlag_collidable) &&
 				collidesWith(entity, collider) && collidesWith(collider, entity)) {
@@ -271,15 +382,26 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 	return result;
 }
 
-bool onGround(Entity* entity, GameState* gameState, float dt) {
-	V2 gravityDelta = 0.5f * dt * dt * gameState->gravity;
-	GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, gravityDelta);
+V2 getVelocity(float dt, V2 dP, V2 ddP) {
+	V2 result = dt * dP + 0.5f * dt * dt * ddP;
+	return result;
+}
+
+bool onGround(Entity* entity, GameState* gameState, float dt, V2 dP, V2 ddP) {
+	V2 delta = getVelocity(dt, dP, ddP);
+	GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, delta);
 	return collisionResult.hitSolidEntity;
+}
+
+bool onGround(Entity* entity, GameState* gameState, float dt) {
+	bool result = onGround(entity, gameState, dt, v2(0, 0), gameState->gravity);
+	return result;
 }
 
 void move(Entity* entity, float dt, GameState* gameState, V2 ddP) {
 	if (isSet(entity, EntityFlag_moveable)) {
-		V2 delta = entity->dP * dt + (float)0.5 * ddP * dt * dt;
+		V2 delta = getVelocity(dt, entity->dP, ddP);
+		entity->dP * dt + (float)0.5 * ddP * dt * dt;
 		
 		float maxCollisionTime = 1;
 
@@ -311,78 +433,28 @@ void move(Entity* entity, float dt, GameState* gameState, V2 ddP) {
 	}
 }
 
-void removeEntities(GameState* gameState) {
-	//NOTE: Entities are removed here if their remove flag is set
-	//		This may change the order of the entities in the arra
-	//NOTE: There is a memory leak here if the entity allocated anything
-	//		Ensure this is cleaned up, the console is a big place where leaks can happen
-	for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-		Entity* entity = gameState->entities + entityIndex;
-		Entity* last = gameState->entities + (gameState->numEntities - 1);
-
-		if (isSet(entity, EntityFlag_remove)) {
-			switch(entity->type) {
-				case EntityType_text: {
-					SDL_DestroyTexture(entity->texture->tex);
-					free(entity->texture);
-				} break;
-			}
-
-			*entity = *last;
-			entity->entityIndex = entityIndex;
-			last->type = EntityType_null;
-
-			gameState->numEntities--;
-			entityIndex--;
-		}
-	}
-}
-
-void drawTexture(Entity* entity, GameState* gameState, Texture* texture, R2 bounds, int drawOrder) {
-	assert(getRectWidth(bounds) > 0 && getRectHeight(bounds) > 0);
-
-	DrawCall* draw = gameState->drawCalls + gameState->numDrawCalls++;
-	assert(gameState->numDrawCalls < arrayCount(gameState->drawCalls));
-
-	draw->drawOrder = drawOrder;
-	draw->flipX = isSet(entity, EntityFlag_facesLeft);
-	draw->texture = texture;
-	draw->bounds = bounds;
-
-	#if SHOW_COLLISION_BOUNDS
-		draw->p = entity->p;
-		draw->collisionPoints = entity->collisionPoints;
-		draw->numCollisionPoints = entity->numCollisionPoints;
-	#endif
-}
-
-void drawTexture(Entity* entity, GameState* gameState, Texture* texture) {
-	drawTexture(entity, gameState, texture, rectCenterDiameter(entity->p, entity->renderSize), entity->drawOrder);
-}
-
 void updateAndRenderEntities(GameState* gameState, float dtForFrame) {
-	float dt = gameState->consoleEntity ? dtForFrame / 5.0f : dtForFrame;
-	gameState->numDrawCalls = 0;
-
+	float dt = gameState->consoleEntityRef ? 0 : dtForFrame;
 	V2 oldCameraP = gameState->cameraP;
 
-	for (int entityIndex = 1; entityIndex < gameState->numEntities; entityIndex++) {
+	for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 		Entity* entity = gameState->entities + entityIndex;
 		entity->animTime += dt;
 
-		V2 ddP = gameState->gravity;
+		V2 ddP = {};
+		if (!isSet(entity, EntityFlag_ignoresGravity)) ddP = gameState->gravity;
 
 		if(entity->numFields) {
 			if (gameState->input.leftMouseJustPressed) {
 				R2 clickBox = rectCenterDiameter(entity->p, entity->renderSize);
-				bool mouseInside = isPointInsideRect(clickBox, gameState->input.mouseInWorld);
+				bool mouseInside = pointInsideRect(clickBox, gameState->input.mouseInWorld);
 
 				if (mouseInside) {
 					addFlags(entity, EntityFlag_consoleSelected);
-					gameState->consoleEntity = entity;
+					gameState->consoleEntityRef = entity->ref;
 				} else {
 					if (isSet(entity, EntityFlag_consoleSelected)) {
-						gameState->consoleEntity = NULL;
+						gameState->consoleEntityRef = 0;
 						clearFlags(entity, EntityFlag_consoleSelected);
 					}
 				}
@@ -391,6 +463,7 @@ void updateAndRenderEntities(GameState* gameState, float dtForFrame) {
 
 		switch(entity->type) {
 			case EntityType_player: {
+				//NOTE: This controls the player with keyboard input
 				float xMove = 0;
 				float xMoveAcceleration = 60.0f;
 
@@ -404,29 +477,86 @@ void updateAndRenderEntities(GameState* gameState, float dtForFrame) {
 
 				entity->dP.x *= (float)pow(E, -15.0 * dt);
 
+				if (onGround(entity, gameState, dt) && gameState->input.upPressed) {
+					entity->dP.y = 4.5f;
+				}
+
+				//NOTE: This centers the player with the camera on x
 				float windowWidth = (float)(gameState->windowWidth / gameState->pixelsPerMeter);
 				float maxCameraX = gameState->mapSize.x - windowWidth;
 				gameState->cameraP.x = clamp((float)(entity->p.x - windowWidth / 2.0), 0, maxCameraX);
 
-				if (onGround(entity, gameState, dt)) {
-					if (gameState->input.upPressed) {
-						entity->dP.y = 4.5f;
-						entity->texture = &gameState->playerJump;
-					} else {
-						if (abs(entity->dP.x) < 0.25f) {
-							entity->texture = &gameState->playerStand;
-							entity->animTime = 0;
-						} else {
-							entity->texture = getAnimationFrame(&gameState->playerWalk, entity->animTime);
-						}
-					}
-				} else {
-					entity->texture = &gameState->playerJump;
+
+				//NOTE: This handles changing the player's texture based on his state
+				if (entity->dP.y != 0) {
 					entity->animTime = 0;
+					entity->texture = &gameState->playerJump;
 				}
+				else if (abs(entity->dP.x) > 0.25f) {
+					entity->texture = getAnimationFrame(&gameState->playerWalk, entity->animTime);
+				} else {
+					entity->animTime = 0;
+					entity->texture = &gameState->playerStand;
+				}
+
 			} break;
 			case EntityType_virus: {
-				
+				//NOTE: This shoots a projectile using the player as a target if the target is nearby
+				Entity* player = getEntityByRef(gameState, gameState->playerRef);
+
+				float dstToPlayer = dstSq(player->p, entity->p);
+				float shootRadius = square(2.0f);
+
+				bool shouldShoot = isSet(entity, EntityFlag_shooting) ||
+								   isSet(entity, EntityFlag_unchargingAfterShooting) || 
+								   dstToPlayer <= shootRadius;
+
+				if (shouldShoot) {
+					if (player->p.x > entity->p.x) addFlags(entity, EntityFlag_facesLeft);
+					else clearFlags(entity, EntityFlag_facesLeft);
+
+					if (isSet(entity, EntityFlag_unchargingAfterShooting)) {
+						//NOTE: Two has to be subtracted here because the dt is added once above
+						//		This ensure that animTime is decreasing by dt every frame
+						entity->animTime -= 2 * dt;
+
+						if (entity->animTime <= 0) {
+							entity->animTime = 0;
+							clearFlags(entity, EntityFlag_unchargingAfterShooting);
+						} 
+					} else if (!isSet(entity, EntityFlag_shooting)) {
+						entity->animTime = 0;
+						addFlags(entity, EntityFlag_shooting);
+					}
+
+					entity->texture = getAnimationFrame(&gameState->virus1Shoot, entity->animTime);
+					float animationDuration = getAnimationDuration(&gameState->virus1Shoot);
+
+					if (entity->animTime >= animationDuration) {
+						addLaserBolt(gameState, entity->p, player->p);
+						entity->animTime = animationDuration;
+						clearFlags(entity, EntityFlag_shooting);
+						addFlags(entity, EntityFlag_unchargingAfterShooting);
+					}
+				} else {
+					//TODO: Move the entity back and forth horizontally
+
+					float xMoveAcceration = 60.0f;
+					float friction = -15.0f;
+					
+					entity->dP.x *= (float)pow(E, friction * dt);
+
+					ddP.x = xMoveAcceration;
+					if (!isSet(entity, EntityFlag_facesLeft)) ddP.x *= -1;
+
+					if (entity->dP.x == 0 || !onGround(entity, gameState, dt, entity->dP, ddP)) {
+						ddP.x *= -1;
+						entity->dP.x = 0;
+						toggleFlags(entity, EntityFlag_facesLeft);
+					}
+
+				}
+
 			} break;
 			case EntityType_background: {
 				Texture* bg = &gameState->sunsetCityBg;
@@ -438,14 +568,17 @@ void updateAndRenderEntities(GameState* gameState, float dtForFrame) {
 
 				float bgScrollRate = bgTexWidth / mgTexWidth;
 				float bgHeight = gameState->windowHeight / gameState->pixelsPerMeter;
-				float mgWidth = gameState->mapSize.x;//max(gameState->mapSize.x, bgHeight * (mgTexWidth / mgTexHeight));
+				float mgWidth = max(gameState->mapSize.x, bgHeight * (mgTexWidth / mgTexHeight));
 								
 				float bgWidth = mgWidth / bgScrollRate - 1;
 
 				float bgX = gameState->cameraP.x * (1 -  bgScrollRate);
 
-				drawTexture(entity, gameState, bg, r2(v2(bgX, 0), v2(bgWidth, bgHeight)), entity->drawOrder - 1);
-				drawTexture(entity, gameState, mg, r2(v2(0, 0), v2(mgWidth, bgHeight)), entity->drawOrder);
+				R2 bgBounds = r2(v2(bgX, 0), v2(bgWidth, bgHeight));
+				R2 mgBounds = r2(v2(0, 0), v2(mgWidth, bgHeight));
+
+				drawTexture(gameState, bg, translateRect(bgBounds, -gameState->cameraP), false);
+				drawTexture(gameState, mg, translateRect(mgBounds, -gameState->cameraP), false);
 			} break;
 
 			case EntityType_blueEnergy:
@@ -463,10 +596,31 @@ void updateAndRenderEntities(GameState* gameState, float dtForFrame) {
 		}*/
 
 		if (!isSet(entity, EntityFlag_remove) && entity->texture != NULL) { 
-			drawTexture(entity, gameState, entity->texture);
+			drawTexture(gameState, entity->texture, 
+						translateRect(rectCenterDiameter(entity->p, entity->renderSize), -gameState->cameraP), 
+						isSet(entity, EntityFlag_facesLeft));
+		}
+
+		#if SHOW_COLLISION_BOUNDS
+			if (entity->numCollisionPoints) {
+				drawPolygon(gameState, entity->collisionPoints, entity->numCollisionPoints,
+							 hadamard(getPolygonCenter(entity->collisionPoints, entity->numCollisionPoints), v2(1, -2))
+							 + entity->p - gameState->cameraP);
+			}
+		#endif
+
+		if (gameState->consoleEntityRef) {
+			Entity* consoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef);
+
+			for (int fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
+				ConsoleField* field = consoleEntity->fields + fieldIndex;
+
+				char strBuffer[100];
+				_itoa_s((int)(consoleEntity->dP.y * 1000000), strBuffer, 10);
+				drawText(gameState, gameState->font, strBuffer, 3, 3, gameState->cameraP);
+			}
 		}
 	}
 
 	removeEntities(gameState);
-	drawEntities(gameState);	
 }

@@ -1,7 +1,7 @@
 #define arrayCount(array) sizeof(array) / sizeof(array[0])
-#define SHOW_COLLISION_BOUNDS 0
+#define SHOW_COLLISION_BOUNDS 1
 
-#define uint32 unsigned int
+#define uint unsigned int
 
 #include <cstdlib>
 #include <cstring>
@@ -28,26 +28,23 @@ struct Input {
 
 struct MemoryArena {
 	char* base;
-	uint32 allocated;
-	uint32 size;
+	uint allocated;
+	uint size;
 };
 
-struct DrawCall {
-	int drawOrder;
-	Texture* texture;
-	R2 bounds;
-	bool flipX;
-
-#if SHOW_COLLISION_BOUNDS
-	V2* collisionPoints;
-	V2 p;
-	int numCollisionPoints;
-#endif
+struct EntityReference {
+	Entity* entity;
+	EntityReference* next;
 };
 
 struct GameState {
 	Entity entities[1000];
 	int numEntities;
+
+	//NOTE: 0 is the null reference
+	EntityReference entityRefs_[1000];
+	EntityReference* entityRefFreeList;
+	int refCount;
 
 	MemoryArena permanentStorage;
 	SDL_Renderer* renderer;
@@ -55,18 +52,19 @@ struct GameState {
 	Input input;
 	V2 cameraP;
 
-	Entity* consoleEntity;
+	int playerRef;
+	int consoleEntityRef;
 	TTF_Font* font;
 
 	Texture playerStand, playerJump;
 	Animation playerWalk;
 
 	Texture virus1Stand;
+	Animation virus1Shoot;
+
 	Texture sunsetCityBg, sunsetCityMg;
 	Texture blueEnergy;
-
-	DrawCall drawCalls[5000];
-	int numDrawCalls;
+	Texture laserBolt;
 
 	V2 polygonSum[1024];
 
@@ -82,7 +80,7 @@ struct GameState {
 #define pushArray(arena, type, count) pushIntoArena_(arena, count * sizeof(type))
 #define pushStruct(arena, type) pushIntoArena_(arena, sizeof(type))
 
-char* pushIntoArena_(MemoryArena* arena, uint32 amt) {
+char* pushIntoArena_(MemoryArena* arena, uint amt) {
 	arena->allocated += amt;
 	assert(arena->allocated < arena->size);
 

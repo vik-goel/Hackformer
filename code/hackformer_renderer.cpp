@@ -31,7 +31,7 @@ TTF_Font* loadFont(char* fileName, int fontSize) {
 }
 
 Texture* extractTextures(GameState* gameState, char* fileName, 
-						int frameWidth, int frameHeight, int frameSpacing, uint32* numFrames) {
+						int frameWidth, int frameHeight, int frameSpacing, uint* numFrames) {
 
 	SDL_Texture* tex = loadPNGTexture_(gameState->renderer, fileName);
 
@@ -87,6 +87,11 @@ Texture* getAnimationFrame(Animation* animation, float animTime) {
 	return result;
 }
 
+float getAnimationDuration(Animation* animation) {
+	float result = animation->numFrames * animation->secondsPerFrame;
+	return result;
+}
+
 SDL_Rect getPixelSpaceRect(GameState* gameState, R2 rect) {
 	SDL_Rect result = {};
 
@@ -109,7 +114,7 @@ void drawTexture(GameState* gameState, Texture* texture, R2 bounds, bool flipX) 
 }
 
 void drawFilledRect(GameState* gameState, R2 rect, V2 cameraP = v2(0, 0)) {
-	R2 r = subtractFromRect(rect, cameraP);
+	R2 r = translateRect(rect, -cameraP);
 	SDL_Rect dstRect = getPixelSpaceRect(gameState, r);
 	SDL_SetRenderDrawColor(gameState->renderer, 0, 255, 0, 255);
 	SDL_RenderFillRect(gameState->renderer, &dstRect);

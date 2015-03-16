@@ -21,6 +21,7 @@ enum EntityType {
 	EntityType_blueEnergy,
 	EntityType_text,
 	EntityType_virus,
+	EntityType_laserBolt,
 };
 
 enum DrawOrder {
@@ -29,6 +30,7 @@ enum DrawOrder {
 	DrawOrder_tile = 0,
 	DrawOrder_blueEnergy = 10,
 	DrawOrder_virus = 100,
+	DrawOrder_laserBolt = 250,
 	DrawOrder_player = 10000,
 };
 
@@ -39,12 +41,15 @@ enum EntityFlag {
 	EntityFlag_facesLeft = 1 << 3,
 	EntityFlag_consoleSelected = 1 << 4,
 	EntityFlag_remove = 1 << 5,
+	EntityFlag_ignoresGravity = 1 << 6,
+	EntityFlag_shooting = 1 << 7,
+	EntityFlag_unchargingAfterShooting = 1 << 8,
 };
 
 struct Entity {
 	EntityType type;
-	uint32 flags;
-	int entityIndex;
+	uint flags;
+	int ref;
 
 	V2 p;
 	V2 dP;

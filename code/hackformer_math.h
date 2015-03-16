@@ -143,6 +143,16 @@ float length(V2 &a) {
 	return result;
 }
 
+float dst(V2 a, V2 b) {
+	float result = length(b - a);
+	return result;
+}
+
+float dstSq(V2 a, V2 b) {
+	float result = lengthSq(b - a);
+	return result;
+}
+
 V2 normalize(V2 &a) {
 	float len = length(a);
 	if (len != 0) a /= len;
@@ -258,11 +268,11 @@ V2 getRectCenter(R2 rect) {
 	return result;
 }
 
-R2 subtractFromRect(R2 rect, V2 amt) {
+R2 translateRect(R2 rect, V2 amt) {
 	R2 result = {};
 
-	result.min = rect.min - amt;
-	result.max = rect.max - amt;
+	result.min = rect.min + amt;
+	result.max = rect.max + amt;
 
 	return result;
 }
@@ -272,7 +282,7 @@ void debugPrintRectangle(R2 rect) {
 		    rect.min.x, rect.min.y, getRectWidth(rect), getRectHeight(rect));
 }
 
-bool isPointInsideRect(R2 rect, V2 point) {
+bool pointInsideRect(R2 rect, V2 point) {
 	bool result = point.x >= rect.min.x &&
 				  point.y >= rect.min.y &&
 				  point.x <= rect.max.x &&
@@ -335,7 +345,8 @@ float raycastLine(V2 p, V2 dP, V2 lp1, V2 lp2) {
 
 	if (time >= 0) {
 		V2 newP = p + time * dP;
-		if (isPointInsideRect(r2(lp1, lp2), newP)) {
+		if (pointInsideRect(r2(lp1, lp2), newP)) {
+			//TODO: Do not collide if the result is 0, but we are trying to escape
 			result = time;
 		}
 	}

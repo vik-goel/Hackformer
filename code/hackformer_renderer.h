@@ -5,6 +5,6 @@ struct Texture {
 
 struct Animation {
 	Texture* frames;
-	uint32 numFrames;
+	uint numFrames;
 	float secondsPerFrame;
 };

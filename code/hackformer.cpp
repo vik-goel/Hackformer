@@ -70,7 +70,7 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 	int tileWidth, tileHeight, tileSpacing;
 	bool foundTilesetInfo = false;
 	Texture* textures = NULL;
-	uint32 numTextures;
+	uint numTextures;
 
 	bool loadingTileData = false;
 	bool doneLoadingTiles = false;
@@ -266,9 +266,8 @@ int main(int argc, char *argv[]) {
 	gameState->windowWidth = windowWidth;
 	gameState->windowHeight = windowHeight;
 	gameState->gravity = v2(0, -9.81f);
-
-	gameState->numEntities = 1; //NOTE: 0 is for the null entity
-	gameState->entities->type = EntityType_null;
+	gameState->tileSize = 0.9f;
+	gameState->refCount = 1; //NOTE: This is for the null reference
 
 	gameState->font = loadFont("fonts/Roboto-Regular.ttf", 64);
 
@@ -277,32 +276,27 @@ int main(int argc, char *argv[]) {
 	gameState->playerWalk = loadAnimation(gameState, "res/player/walk.png", 128, 128, 0.04f);
 
 	gameState->virus1Stand = loadPNGTexture(renderer, "res/virus1/stand.png");
+	gameState->virus1Shoot = loadAnimation(gameState, "res/virus1/shoot.png", 1024, 1024, 0.04f);
 
 	gameState->sunsetCityBg = loadPNGTexture(renderer, "res/backgrounds/sunset city bg.png");
 	gameState->sunsetCityMg = loadPNGTexture(renderer, "res/backgrounds/sunset city mg.png");
 
 	gameState->blueEnergy = loadPNGTexture(renderer, "res/blue energy.png");
+	gameState->laserBolt = loadPNGTexture(renderer, "res/virus1/laser bolt.png");
 
 	addText(gameState, v2(4, 6), "Hello, World");
 
-	//addPlayer(gameState, v2(2, 8));
-	//addBlueEnergy(gameState, v2(4, 6));
-	//addVirus(gameState, v2(6, 6));
+	loadTmxMap(gameState, "map3.tmx");
 
-	gameState->tileSize = 0.9f;
-	//loadTiledMap(gameState, "maps/map1.txt");
-	loadTmxMap(gameState, "res/testmap.tmx");
-
-	//addBackground(gameState);
-	//addText(gameState, v2(10, 6), "Buffer");
+	printf("Allocated: %d bytes\n", arena_.allocated);
 
 	bool running = true;
 	double frameTime = 1.0 / 60.0;
-	uint32 fpsCounterTimer = SDL_GetTicks();
-	uint32 fps = 0;
+	uint fpsCounterTimer = SDL_GetTicks();
+	uint fps = 0;
 	float dtForFrame = 0;
-	uint32 lastTime = SDL_GetTicks();
-	uint32 currentTime;
+	uint lastTime = SDL_GetTicks();
+	uint currentTime;
 	
 	while (running) {
 		gameState->input.leftMouseJustPressed = false;
