@@ -2,6 +2,7 @@
 
 #include "hackformer_renderer.cpp"
 #include "hackformer_entity.cpp"
+#include "hackformer_consoleField.cpp"
 
 bool stringsMatch(char* a, char * b) {
 	int len = strlen(b);
@@ -165,6 +166,8 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 }
 
 void pollInput(GameState* gameState, bool* running) {
+	gameState->input.dMouseMeters = v2(0, 0);
+
 	SDL_Event event;
 	while(SDL_PollEvent(&event) > 0) {
 		Input* input = &gameState->input;
@@ -192,15 +195,22 @@ void pollInput(GameState* gameState, bool* running) {
 				input->mouseInPixels.x = (float)mouseX;
 				input->mouseInPixels.y = (float)(gameState->windowHeight - mouseY);
 
-				input->mouseInMeters = input->mouseInPixels / gameState->pixelsPerMeter;
+				V2 mouseInMeters = input->mouseInPixels / gameState->pixelsPerMeter;
+
+				input->dMouseMeters = mouseInMeters - input->mouseInMeters;
+
+				input->mouseInMeters = mouseInMeters;
 				input->mouseInWorld = input->mouseInMeters + gameState->cameraP;
 
 				} break;
 			case SDL_MOUSEBUTTONDOWN:
 			case SDL_MOUSEBUTTONUP:
 				if (event.button.button == SDL_BUTTON_LEFT) {
-					if (event.button.state == SDL_PRESSED) 
+					if (event.button.state == SDL_PRESSED) {
 						input->leftMousePressed = input->leftMouseJustPressed = true;
+					} else {
+						input->leftMousePressed = input->leftMouseJustPressed = false;
+					}
 				}
 				break;
 		}
@@ -269,14 +279,16 @@ int main(int argc, char *argv[]) {
 	gameState->tileSize = 0.9f;
 	gameState->refCount = 1; //NOTE: This is for the null reference
 
-	gameState->font = loadFont("fonts/Roboto-Regular.ttf", 64);
+	gameState->consoleFont = loadFont("fonts/Roboto-Regular.ttf", 16);
+	gameState->textFont = loadFont("fonts/Roboto-Regular.ttf", 64);
 
 	gameState->playerStand = loadPNGTexture(renderer, "res/player/stand.png");
 	gameState->playerJump = loadPNGTexture(renderer, "res/player/jump.png");
 	gameState->playerWalk = loadAnimation(gameState, "res/player/walk.png", 128, 128, 0.04f);
 
 	gameState->virus1Stand = loadPNGTexture(renderer, "res/virus1/stand.png");
-	gameState->virus1Shoot = loadAnimation(gameState, "res/virus1/shoot.png", 1024, 1024, 0.04f);
+	gameState->virus1Shoot = loadAnimation(gameState, "res/virus1/shoot.png", 256, 256, 0.04f);
+	gameState->shootDelay = getAnimationDuration(&gameState->virus1Shoot);
 
 	gameState->sunsetCityBg = loadPNGTexture(renderer, "res/backgrounds/sunset city bg.png");
 	gameState->sunsetCityMg = loadPNGTexture(renderer, "res/backgrounds/sunset city mg.png");
@@ -284,7 +296,32 @@ int main(int argc, char *argv[]) {
 	gameState->blueEnergy = loadPNGTexture(renderer, "res/blue energy.png");
 	gameState->laserBolt = loadPNGTexture(renderer, "res/virus1/laser bolt.png");
 
+	gameState->consoleTriangle = loadPNGTexture(renderer, "res/triangle.png");
+	gameState->consoleTriangleSelected = loadPNGTexture(renderer, "res/grey triangle.png");
+
 	addText(gameState, v2(4, 6), "Hello, World");
+
+	float playerSpeedFieldValues[] = {20, 40, 60, 80, 100}; 
+	gameState->playerSpeedField = createFloatField(gameState, "speed", playerSpeedFieldValues, 
+												   arrayCount(playerSpeedFieldValues), 2);
+
+	float playerJumpHeightFieldValues[] = {0, 1, 2, 3, 4}; 
+	gameState->playerJumpHeightField = createFloatField(gameState, "jump_height", playerJumpHeightFieldValues, 
+													    arrayCount(playerJumpHeightFieldValues), 2);
+
+	gameState->keyboardControlledField = 
+		createConsoleField(gameState, "keyboard_controlled", ConsoleField_keyboardControlled);
+
+	gameState->movesBackAndForthField = 
+		createConsoleField(gameState, "patrols", ConsoleField_movesBackAndForth);
+
+	gameState->shootsAtTargetField = 
+		createConsoleField(gameState, "shoots", ConsoleField_shootsAtTarget);
+
+	gameState->isShootTargetField = 
+		createConsoleField(gameState, "is_target", ConsoleField_isShootTarget);
+
+	gameState->tileMoveableField = createBoolField(gameState, "moveable", false);
 
 	loadTmxMap(gameState, "map3.tmx");
 
@@ -308,7 +345,7 @@ int main(int argc, char *argv[]) {
 
 		if (currentTime - fpsCounterTimer > 1000) {
 			fpsCounterTimer += 1000;
-			//printf("Fps: %d\n", fps);
+			printf("Fps: %d\n", fps);
 			fps = 0;
 		}
 
@@ -321,6 +358,7 @@ int main(int argc, char *argv[]) {
 			SDL_RenderClear(renderer);
 
 			updateAndRenderEntities(gameState, dtForFrame);
+			updateConsole(gameState);
 
 			SDL_RenderPresent(renderer); //Swap the buffers
 			dtForFrame = 0;

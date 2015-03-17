@@ -113,11 +113,37 @@ void drawTexture(GameState* gameState, Texture* texture, R2 bounds, bool flipX) 
 	SDL_RenderCopyEx(gameState->renderer, texture->tex, &texture->srcRect, &dstRect, 0, NULL, flip);
 }
 
+void setColor(SDL_Renderer* renderer, int r, int g, int b, int a) {
+	SDL_SetRenderDrawColor(renderer, r, g, b, a);
+}
+
+//TODO: Since the cameraP is in the gameState, this could be used instead
 void drawFilledRect(GameState* gameState, R2 rect, V2 cameraP = v2(0, 0)) {
 	R2 r = translateRect(rect, -cameraP);
 	SDL_Rect dstRect = getPixelSpaceRect(gameState, r);
-	SDL_SetRenderDrawColor(gameState->renderer, 0, 255, 0, 255);
 	SDL_RenderFillRect(gameState->renderer, &dstRect);
+}
+
+void drawRect(GameState* gameState, R2 rect, float thickness, V2 cameraP = v2(0, 0)) {
+	V2 halfThickness = v2(thickness, thickness) / 2.0f;
+	float width = getRectWidth(rect);
+	float height = getRectHeight(rect);
+
+	V2 p1 = rect.min - halfThickness;
+	V2 p2 = v2(rect.max.x, rect.min.y) + halfThickness;
+	drawFilledRect(gameState, r2(p1, p2), cameraP);
+
+	p1.y += height;
+	p2.y += height;
+	drawFilledRect(gameState, r2(p1, p2), cameraP);
+
+	p1 = rect.min - halfThickness;
+	p2 = v2(rect.min.x, rect.max.y) + halfThickness;
+	drawFilledRect(gameState, r2(p1, p2), cameraP);
+
+	p1.x += width;
+	p2.x += width;
+	drawFilledRect(gameState, r2(p1, p2), cameraP);
 }
 
 void drawLine(GameState* gameState, V2 p1, V2 p2) {
@@ -155,15 +181,18 @@ Texture createText(GameState* gameState, TTF_Font* font, char* msg) {
 	return result;
 }
 
-void drawText(GameState* gameState, TTF_Font* font, char* msg, float x, float y, V2 camera = v2(0, 0)) {
-	Texture texture = createText(gameState, font, msg);
+void drawText(GameState* gameState, Texture* texture, TTF_Font* font, float x, float y, float maxWidth, V2 camera = v2(0, 0)) {
+	V2 defaultSize = v2((float)texture->srcRect.w, (float)texture->srcRect.h) / gameState->pixelsPerMeter;
 
-	float widthInMeters = (float)texture.srcRect.w / (float)gameState->pixelsPerMeter;
-	float heightInMeters = (float)texture.srcRect.h / (float)gameState->pixelsPerMeter;
+	float width = min(defaultSize.x, maxWidth);
+	float height = width * (float)texture->srcRect.h / (float)texture->srcRect.w;
 
-	R2 fontBounds = rectCenterDiameter(v2(x + widthInMeters / 2, y + heightInMeters / 2) - camera, 
-									   v2(widthInMeters, heightInMeters));
-	SDL_Rect dstRect = getPixelSpaceRect(gameState, fontBounds);
+	R2 fontBounds = rectCenterDiameter(v2(x, y), v2(width, height));
+	fontBounds = translateRect(fontBounds, -camera);
 
-	SDL_RenderCopy(gameState->renderer, texture.tex, NULL, &dstRect);
+//	SDL_Rect dstRect = getPixelSpaceRect(gameState, fontBounds);
+
+	drawTexture(gameState, texture, fontBounds, false);
 }	
+
+

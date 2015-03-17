@@ -204,7 +204,7 @@ V2 rotate90(V2& a) {
 	result.y = a.x;
 
 	return result;
-}
+}	
 
 float innerProduct(V2& a, V2& b) {
 	float result = a.x * b.x + a.y * b.y;

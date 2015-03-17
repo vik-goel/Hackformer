@@ -1,5 +1,5 @@
 #define arrayCount(array) sizeof(array) / sizeof(array[0])
-#define SHOW_COLLISION_BOUNDS 1
+#define SHOW_COLLISION_BOUNDS 0
 
 #define uint unsigned int
 
@@ -15,12 +15,14 @@
 
 #include "hackformer_math.h"
 #include "hackformer_renderer.h"
+#include "hackformer_consoleField.h"
 #include "hackformer_entity.h"
 
 struct Input {
 	V2 mouseInPixels;
 	V2 mouseInMeters;
 	V2 mouseInWorld;
+	V2 dMouseMeters;
 	bool upPressed, leftPressed, rightPressed;
 	bool upJustPressed;
 	bool leftMousePressed, leftMouseJustPressed;
@@ -30,11 +32,6 @@ struct MemoryArena {
 	char* base;
 	uint allocated;
 	uint size;
-};
-
-struct EntityReference {
-	Entity* entity;
-	EntityReference* next;
 };
 
 struct GameState {
@@ -48,13 +45,14 @@ struct GameState {
 
 	MemoryArena permanentStorage;
 	SDL_Renderer* renderer;
+	TTF_Font* textFont;
+	TTF_Font* consoleFont;
 
 	Input input;
 	V2 cameraP;
 
-	int playerRef;
-	int consoleEntityRef;
-	TTF_Font* font;
+	int shootTargetRef;
+	int numConsoleEntities;
 
 	Texture playerStand, playerJump;
 	Animation playerWalk;
@@ -66,8 +64,17 @@ struct GameState {
 	Texture blueEnergy;
 	Texture laserBolt;
 
-	V2 polygonSum[1024];
+	Texture consoleTriangle, consoleTriangleSelected;
 
+	ConsoleField playerSpeedField;
+	ConsoleField playerJumpHeightField;
+	ConsoleField keyboardControlledField;
+	ConsoleField movesBackAndForthField;
+	ConsoleField shootsAtTargetField;
+	ConsoleField isShootTargetField;
+	ConsoleField tileMoveableField;
+	
+	float shootDelay;
 	float tileSize;
 	V2 mapSize;
 
