@@ -71,7 +71,7 @@ Texture* extractTextures(GameState* gameState, char* fileName,
 }
 
 Animation loadAnimation(GameState* gameState, char* fileName, 
-						int frameWidth, int frameHeight, float secondsPerFrame) {
+						int frameWidth, int frameHeight, double secondsPerFrame) {
 	Animation result = {};
 
 	assert(secondsPerFrame > 0);
@@ -81,22 +81,22 @@ Animation loadAnimation(GameState* gameState, char* fileName,
 	return result;
 }
 
-Texture* getAnimationFrame(Animation* animation, float animTime) {
+Texture* getAnimationFrame(Animation* animation, double animTime) {
 	int frameIndex = (int)(animTime / animation->secondsPerFrame) % animation->numFrames;
 	Texture* result = animation->frames + frameIndex;
 	return result;
 }
 
-float getAnimationDuration(Animation* animation) {
-	float result = animation->numFrames * animation->secondsPerFrame;
+double getAnimationDuration(Animation* animation) {
+	double result = animation->numFrames * animation->secondsPerFrame;
 	return result;
 }
 
 SDL_Rect getPixelSpaceRect(GameState* gameState, R2 rect) {
 	SDL_Rect result = {};
 
-	float width = getRectWidth(rect);
-	float height = getRectHeight(rect);
+	double width = getRectWidth(rect);
+	double height = getRectHeight(rect);
 
 	result.w = (int)ceil(width * gameState->pixelsPerMeter + 0.5f);
 	result.h = (int)ceil(height * gameState->pixelsPerMeter + 0.5f);
@@ -124,10 +124,10 @@ void drawFilledRect(GameState* gameState, R2 rect, V2 cameraP = v2(0, 0)) {
 	SDL_RenderFillRect(gameState->renderer, &dstRect);
 }
 
-void drawRect(GameState* gameState, R2 rect, float thickness, V2 cameraP = v2(0, 0)) {
+void drawRect(GameState* gameState, R2 rect, double thickness, V2 cameraP = v2(0, 0)) {
 	V2 halfThickness = v2(thickness, thickness) / 2.0f;
-	float width = getRectWidth(rect);
-	float height = getRectHeight(rect);
+	double width = getRectWidth(rect);
+	double height = getRectHeight(rect);
 
 	V2 p1 = rect.min - halfThickness;
 	V2 p2 = v2(rect.max.x, rect.min.y) + halfThickness;
@@ -181,11 +181,11 @@ Texture createText(GameState* gameState, TTF_Font* font, char* msg) {
 	return result;
 }
 
-void drawText(GameState* gameState, Texture* texture, TTF_Font* font, float x, float y, float maxWidth, V2 camera = v2(0, 0)) {
-	V2 defaultSize = v2((float)texture->srcRect.w, (float)texture->srcRect.h) / gameState->pixelsPerMeter;
+void drawText(GameState* gameState, Texture* texture, TTF_Font* font, double x, double y, double maxWidth, V2 camera = v2(0, 0)) {
+	V2 defaultSize = v2((double)texture->srcRect.w, (double)texture->srcRect.h) / gameState->pixelsPerMeter;
 
-	float width = min(defaultSize.x, maxWidth);
-	float height = width * (float)texture->srcRect.h / (float)texture->srcRect.w;
+	double width = min(defaultSize.x, maxWidth);
+	double height = width * (double)texture->srcRect.h / (double)texture->srcRect.w;
 
 	R2 fontBounds = rectCenterDiameter(v2(x, y), v2(width, height));
 	fontBounds = translateRect(fontBounds, -camera);

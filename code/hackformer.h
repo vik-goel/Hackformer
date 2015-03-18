@@ -1,16 +1,22 @@
 /*TODO:
 
-- Custom UI for moving tiles
-- Move tiles smoothly when their offsets are changed
-
 - Make console fields much smoother (moving around the fields, fading them in and out)
 - Make camera change much smoother
 
 - Player death animation
 
+- Load in more entities from the tmx file
 - End portals which allow you to go to the next level
 - Flying virus enemy
 - Laser enemy
+
+- Use 1 triangle image and rotate it in the console, 4 images are unecessary
+- Show single triangle indicating direction of tile movement
+
+- Make energy necessary for tweaking values
+- Collision with left and right edges of the map
+
+- Tile pushing another tile to the side
 
 */
 
@@ -83,10 +89,12 @@ struct GameState {
 
 	Texture consoleTriangle, consoleTriangleSelected;
 	Texture consoleTriangleDown, consoleTriangleDownSelected;
+	Texture consoleTriangleUp, consoleTriangleUpSelected;
 
-	ConsoleField playerSpeedField;
-	ConsoleField playerJumpHeightField;
+	ConsoleField keyboardSpeedField;
+	ConsoleField keyboardJumpHeightField;
 	ConsoleField keyboardControlledField;
+	ConsoleField patrolSpeedField;
 	ConsoleField movesBackAndForthField;
 	ConsoleField shootsAtTargetField;
 	ConsoleField isShootTargetField;
@@ -97,12 +105,14 @@ struct GameState {
 	ConsoleField* swapField;
 	V2 swapFieldP;
 
-	float shootDelay;
-	float tileSize;
+	RefNode* refNodeFreeList;
+
+	double shootDelay;
+	double tileSize;
 	V2 mapSize;
 	V2 worldSize;
 
-	float pixelsPerMeter;
+	double pixelsPerMeter;
 	int windowWidth, windowHeight;
 	V2 windowSize;
 

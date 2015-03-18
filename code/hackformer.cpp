@@ -88,7 +88,7 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 				extractIntFromLine(line, lineLength, "height", &mapHeightTiles);
 				foundMapSizeTiles = true;
 
-				gameState->mapSize = v2((float)mapWidthTiles, (float)mapHeightTiles) * gameState->tileSize;
+				gameState->mapSize = v2((double)mapWidthTiles, (double)mapHeightTiles) * gameState->tileSize;
 				gameState->worldSize = v2(max(gameState->mapSize.x, gameState->windowWidth), 
 										  max(gameState->mapSize.y, gameState->windowHeight));
 			}
@@ -145,7 +145,7 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 				extractIntFromLine(line, lineLength, "\" x", &entityX);
 				extractIntFromLine(line, lineLength, "\" y", &entityY);
 
-				V2 p = v2((float)entityX, (float)entityY) / 120.0f * gameState->tileSize;
+				V2 p = v2((double)entityX, (double)entityY) / 120.0f * gameState->tileSize;
 				p.y = gameState->windowHeight / gameState->pixelsPerMeter - p.y;
 
 				if (stringsMatch(buffer, "player")) {
@@ -194,8 +194,8 @@ void pollInput(GameState* gameState, bool* running) {
 				int mouseX = event.motion.x;
 				int mouseY = event.motion.y;
 
-				input->mouseInPixels.x = (float)mouseX;
-				input->mouseInPixels.y = (float)(gameState->windowHeight - mouseY);
+				input->mouseInPixels.x = (double)mouseX;
+				input->mouseInPixels.y = (double)(gameState->windowHeight - mouseY);
 
 				V2 mouseInMeters = input->mouseInPixels / gameState->pixelsPerMeter;
 
@@ -277,7 +277,7 @@ int main(int argc, char *argv[]) {
 	gameState->pixelsPerMeter = 70.0f;
 	gameState->windowWidth = windowWidth;
 	gameState->windowHeight = windowHeight;
-	gameState->windowSize = v2((float)windowWidth, (float)windowHeight) / gameState->pixelsPerMeter;
+	gameState->windowSize = v2((double)windowWidth, (double)windowHeight) / gameState->pixelsPerMeter;
 	gameState->gravity = v2(0, -9.81f);
 	gameState->tileSize = 0.9f;
 	gameState->refCount = 1; //NOTE: This is for the null reference
@@ -303,18 +303,20 @@ int main(int argc, char *argv[]) {
 	gameState->consoleTriangleSelected = loadPNGTexture(renderer, "res/grey triangle.png");
 	gameState->consoleTriangleDown = loadPNGTexture(renderer, "res/triangle down.png");
 	gameState->consoleTriangleDownSelected = loadPNGTexture(renderer, "res/grey triangle down.png");
+	gameState->consoleTriangleUp = loadPNGTexture(renderer, "res/triangle up.png");
+	gameState->consoleTriangleUpSelected = loadPNGTexture(renderer, "res/grey triangle up.png");
 
-	addText(gameState, v2(4, 6), "Hello, World");
+	double keyboardSpeedFieldValues[] = {20, 40, 60, 80, 100}; 
+	gameState->keyboardSpeedField = createDoubleField(gameState, "speed", keyboardSpeedFieldValues, 
+												   arrayCount(keyboardSpeedFieldValues), 2);
 
-	float playerSpeedFieldValues[] = {20, 40, 60, 80, 100}; 
-	gameState->playerSpeedField = createFloatField(gameState, "speed", playerSpeedFieldValues, 
-												   arrayCount(playerSpeedFieldValues), 2);
+	double keyboardJumpHeightFieldValues[] = {1, 3, 5, 7, 9}; 
+	gameState->keyboardJumpHeightField = createDoubleField(gameState, "jump_height", keyboardJumpHeightFieldValues, 
+													    arrayCount(keyboardJumpHeightFieldValues), 2);
 
-	float playerJumpHeightFieldValues[] = {1, 3, 5, 7, 9}; 
-	gameState->playerJumpHeightField = createFloatField(gameState, "jump_height", playerJumpHeightFieldValues, 
-													    arrayCount(playerJumpHeightFieldValues), 2);
-
-	ConsoleField* movementFields[] = {&gameState->playerSpeedField, &gameState->playerJumpHeightField}; 
+	double patrolSpeedFieldValues[] = {10, 20, 30, 40, 50}; 
+	gameState->patrolSpeedField = createDoubleField(gameState, "speed", patrolSpeedFieldValues, 
+												   arrayCount(patrolSpeedFieldValues), 2);
 
 	gameState->keyboardControlledField = 
 		createConsoleField(gameState, "keyboard_controlled", ConsoleField_keyboardControlled);
@@ -337,15 +339,14 @@ int main(int argc, char *argv[]) {
 
 	int mapFileIndex = 0;
 
+	addText(gameState, v2(4, 6), "Hello, World");
 	loadTmxMap(gameState, mapFileNames[mapFileIndex]);
-
-	printf("Allocated: %d bytes\n", gameState->permanentStorage.allocated);
 
 	bool running = true;
 	double frameTime = 1.0 / 60.0;
 	uint fpsCounterTimer = SDL_GetTicks();
 	uint fps = 0;
-	float dtForFrame = 0;
+	double dtForFrame = 0;
 	uint lastTime = SDL_GetTicks();
 	uint currentTime;
 	
@@ -354,12 +355,12 @@ int main(int argc, char *argv[]) {
 		gameState->input.upJustPressed = false;
 
 		currentTime = SDL_GetTicks();
-		dtForFrame += (float)((currentTime - lastTime) / 1000.0); 
+		dtForFrame += (double)((currentTime - lastTime) / 1000.0); 
 		lastTime = currentTime;
 
 		if (currentTime - fpsCounterTimer > 1000) {
 			fpsCounterTimer += 1000;
-			printf("Fps: %d\n", fps);
+			//printf("Fps: %d\n", fps);
 			fps = 0;
 		}
 
@@ -378,6 +379,7 @@ int main(int argc, char *argv[]) {
 			SDL_RenderPresent(renderer); //Swap the buffers
 			dtForFrame = 0;
 
+			//NOTE: This reloads the game
 			if (!getEntityByRef(gameState, gameState->playerRef)) {
 				gameState->shootTargetRef = 0;
 				gameState->consoleEntityRef = 0;

@@ -20,17 +20,21 @@ enum DrawOrder {
 };
 
 enum EntityFlag {
-	EntityFlag_collidable = 1 << 0,
-	EntityFlag_solid = 1 << 1,
-	EntityFlag_facesLeft = 1 << 2,
-	EntityFlag_noMovementByDefault = 1 << 3,
-	EntityFlag_dragging = 1 << 4,	
-	EntityFlag_remove = 1 << 5,
-	EntityFlag_removeWhenOutsideLevel = 1 << 6,
-	EntityFlag_ignoresGravity = 1 << 7,
-	EntityFlag_ignoresFriction = 1 << 8,
-	EntityFlag_shooting = 1 << 9,
-	EntityFlag_unchargingAfterShooting = 1 << 10,
+	EntityFlag_facesLeft = 1 << 0,
+	EntityFlag_noMovementByDefault = 1 << 1,
+	EntityFlag_hackable = 1 << 2,
+	EntityFlag_remove = 1 << 3,
+	EntityFlag_removeWhenOutsideLevel = 1 << 4,
+	EntityFlag_ignoresGravity = 1 << 5,
+	EntityFlag_ignoresFriction = 1 << 6,
+	EntityFlag_shooting = 1 << 7,
+	EntityFlag_unchargingAfterShooting = 1 << 8,
+	EntityFlag_grounded = 1 << 9,
+};
+
+struct RefNode {
+	int ref;
+	RefNode* next;
 };
 
 struct Entity {
@@ -43,7 +47,7 @@ struct Entity {
 
 	V2 renderSize;
 	Texture* texture;
-	float animTime;
+	double animTime;
 	DrawOrder drawOrder;
 
 	V2 collisionSize;
@@ -52,13 +56,16 @@ struct Entity {
 	ConsoleField* fields[8];
 	int numFields;
 
+	RefNode* groundReferenceList;
+
 	//Used by any entity that shoots
-	float shootTimer;
+	double shootTimer;
 
 	//Used by projectiles
 	int shooterRef;
 
 	//Used by tiles
+	V2 tileStartPos;
 	int tileXOffset;
 	int tileYOffset;
 };
@@ -68,11 +75,21 @@ struct EntityReference {
 	EntityReference* next;
 };
 
+struct TileMove {
+	Entity* tile;
+	Entity** children;
+	int numChildren;
+	int numParents;
+};
+
 struct GetCollisionTimeResult {
-	float collisionTime;
+	double collisionTime;
 	Entity* hitEntity;
-	bool hitSolidEntity;
 	bool horizontalCollision;
+
+	Entity* solidEntity;
+	double solidCollisionTime;
+	bool solidHorizontalCollision;
 };
 
 void setFlags(Entity* entity, uint flags) {

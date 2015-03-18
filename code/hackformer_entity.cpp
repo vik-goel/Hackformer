@@ -1,4 +1,4 @@
-void giveEntityRectangularCollisionBounds(Entity* entity, float xOffset, float yOffset, float width, float height) {
+void giveEntityRectangularCollisionBounds(Entity* entity, double xOffset, double yOffset, double width, double height) {
 	entity->collisionSize = v2(width, height);
 	entity->collisionOffset = v2(xOffset, yOffset);
 }
@@ -235,7 +235,7 @@ ConsoleField* createField(GameState* gameState) {
 		gameState->consoleFreeList = gameState->consoleFreeList->next;
 		result->next = NULL;
 	} else {
-		result = (ConsoleField*)malloc(sizeof(ConsoleField));
+		result = (ConsoleField*)pushStruct(&gameState->permanentStorage, ConsoleField);
 	}
 
 	return result;
@@ -262,8 +262,8 @@ ConsoleField* createKeyboardField(GameState* gameState) {
 	ConsoleField* result = createField(gameState, &gameState->keyboardControlledField);
 	addChildrenToConsoleField(result, 2);
 	
-	result->children[0] = createField(gameState, &gameState->playerSpeedField);
-	result->children[1] = createField(gameState, &gameState->playerJumpHeightField);
+	result->children[0] = createField(gameState, &gameState->keyboardSpeedField);
+	result->children[1] = createField(gameState, &gameState->keyboardJumpHeightField);
 
 	return result;
 }
@@ -272,7 +272,7 @@ ConsoleField* createPatrolField(GameState* gameState) {
 	ConsoleField* result = createField(gameState, &gameState->movesBackAndForthField);
 	addChildrenToConsoleField(result, 1);
 	
-	result->children[0] = createField(gameState, &gameState->playerSpeedField);
+	result->children[0] = createField(gameState, &gameState->patrolSpeedField);
 
 	return result;
 }
@@ -290,9 +290,8 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 
 	result->texture = &gameState->playerStand;
 
-	setFlags(result, EntityFlag_collidable|
-					 EntityFlag_solid|
-					 EntityFlag_facesLeft);
+	setFlags(result, EntityFlag_facesLeft|
+					 EntityFlag_hackable);
 
 	addField(result, gameState, createKeyboardField(gameState));
 	addField(result, gameState, createField(gameState, &gameState->isShootTargetField));
@@ -310,8 +309,8 @@ Entity* addVirus(GameState* gameState, V2 p) {
 
 	result->texture = &gameState->virus1Stand;
 
-	setFlags(result, EntityFlag_collidable|
-					 EntityFlag_facesLeft);
+	setFlags(result, EntityFlag_facesLeft|
+					 EntityFlag_hackable);
 
 	addField(result, gameState, createPatrolField(gameState));
 	addField(result, gameState, createField(gameState, &gameState->shootsAtTargetField));
@@ -329,7 +328,7 @@ Entity* addBlueEnergy(GameState* gameState, V2 p) {
 
 	result->texture = &gameState->blueEnergy;
 
-	setFlags(result, EntityFlag_collidable);
+	setFlags(result, EntityFlag_hackable);
 
 	result->p += result->renderSize / 2;
 
@@ -339,7 +338,7 @@ Entity* addBlueEnergy(GameState* gameState, V2 p) {
 Entity* addBackground(GameState* gameState) {
 	Entity* result = addEntity(gameState, EntityType_background, DrawOrder_background, 
 								  v2(0, 0), v2(gameState->mapSize.x, 
-								(float)gameState->windowHeight / (float)gameState->pixelsPerMeter));
+								(double)gameState->windowHeight / (double)gameState->pixelsPerMeter));
 
 	result->p = result->renderSize / 2.0f;
 	setFlags(result, EntityFlag_noMovementByDefault);
@@ -355,9 +354,9 @@ Entity* addTile(GameState* gameState, V2 p, Texture* texture) {
 
 	result->texture = texture;
 
-	setFlags(result, EntityFlag_collidable|
-					 EntityFlag_noMovementByDefault| 
-				     EntityFlag_solid);
+	setFlags(result, EntityFlag_noMovementByDefault|
+					 EntityFlag_hackable|
+					 EntityFlag_removeWhenOutsideLevel);
 
 	addField(result, gameState, createField(gameState, &gameState->tileXOffsetField));
 	addField(result, gameState, createField(gameState, &gameState->tileYOffsetField));
@@ -369,9 +368,13 @@ Entity* addText(GameState* gameState, V2 p, char* msg) {
 	Entity* result = addEntity(gameState, EntityType_text, DrawOrder_text, p, v2(0, 0));
 	result->texture = (Texture*)malloc(sizeof(Texture));
 	*(result->texture) = createText(gameState, gameState->textFont, msg);
-	result->renderSize = v2((float)result->texture->srcRect.w, (float)result->texture->srcRect.h) / gameState->pixelsPerMeter;
+	result->renderSize = v2((double)result->texture->srcRect.w, (double)result->texture->srcRect.h) / gameState->pixelsPerMeter;
 	
-	setFlags(result, EntityFlag_noMovementByDefault);
+	giveEntityRectangularCollisionBounds(result, 0, 0, 
+										 result->renderSize.x, result->renderSize.y);
+
+	setFlags(result, EntityFlag_noMovementByDefault|
+					 EntityFlag_hackable);
 
 	return result;
 }
@@ -383,15 +386,28 @@ Entity* addLaserBolt(GameState* gameState, V2 p, V2 target, int shooterRef) {
 	giveEntityRectangularCollisionBounds(result, 0, 0, 
 										 result->renderSize.x * 0.3f, result->renderSize.y * 0.3f);
 
-	float speed = 3.0f;
+	double speed = 3.0f;
 	result->dP = normalize(target - p) * speed;
 	result->shooterRef = shooterRef;
 
-	setFlags(result, EntityFlag_collidable|
-					 EntityFlag_ignoresFriction|
+	setFlags(result, EntityFlag_ignoresFriction|
 					 EntityFlag_ignoresGravity|
 					 EntityFlag_removeWhenOutsideLevel);
 					 
+	return result;
+}
+
+ConsoleField* getMovementField(Entity* entity) {
+	ConsoleField* result = NULL;
+
+	for (int fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+		ConsoleField* testField = entity->fields[fieldIndex];
+		if (isConsoleFieldMovementType(testField)) {
+			result = testField;
+			break;
+		}
+	}
+
 	return result;
 }
 
@@ -400,11 +416,13 @@ bool collidesWith(Entity* a, Entity* b) {
 
 	switch(a->type) {
 		case EntityType_null:
-		case EntityType_background:
-		case EntityType_text: {
+		case EntityType_background: {
 			result = false;
 		} break;
 
+		case EntityType_text: {
+			result = getMovementField(a) != NULL;
+		} break;
 		case EntityType_player: {
 			if (b->type == EntityType_virus) result = false;
 		} break;
@@ -412,11 +430,40 @@ bool collidesWith(Entity* a, Entity* b) {
 			if (b->ref == a->shooterRef) result = false;
 		} break;
 		case EntityType_blueEnergy: {
-			if (b->type != EntityType_player &&
-				b->type != EntityType_tile) result = false;
-		}
+			if (b->type == EntityType_virus ||
+				b->type == EntityType_laserBolt) result = false;
+		} break;
 	}
 
+	return result;
+}
+
+bool isSolidCollisionRaw(Entity* a, Entity* b) {
+	bool result = true;
+
+	switch(a->type) {
+		case EntityType_laserBolt: {
+			result = false;
+		} break;
+
+		case EntityType_player:
+		case EntityType_virus: {
+			result = b->type == EntityType_tile ||
+					 b->type == EntityType_text;
+		} break;
+
+		case EntityType_blueEnergy: {
+			if (b->type == EntityType_player ||
+				b->type == EntityType_virus) return false;
+				
+		} break;
+	}
+
+	return result;
+}
+
+bool isSolidCollision(Entity* a, Entity* b) {
+	bool result = isSolidCollisionRaw(a, b) && isSolidCollisionRaw(b, a);
 	return result;
 }
 
@@ -425,14 +472,22 @@ void onCollide(Entity* entity, Entity* hitEntity) {
 		case EntityType_blueEnergy: {
 			if (hitEntity->type == EntityType_player) {
 				setFlags(entity, EntityFlag_remove);
-				clearFlags(entity, EntityFlag_collidable);
 			}
 		} break;
 		case EntityType_laserBolt: {
 			setFlags(entity, EntityFlag_remove);
-			clearFlags(entity, EntityFlag_collidable);
 		} break;
 	}
+}
+
+void freeRefNode(RefNode* node, GameState* gameState) {
+	if (node->next) {
+		freeRefNode(node->next, gameState);
+	}
+
+	node->ref = 0;
+	node->next = gameState->refNodeFreeList;
+	gameState->refNodeFreeList = node;
 }
 
 R2 getEntityHitbox(Entity* entity) {
@@ -440,10 +495,10 @@ R2 getEntityHitbox(Entity* entity) {
 	return result;
 }
 
-void getLineCollisionTime(float lx1, float lx2, float ly, float posX, float posY, 
-						  float dPosX, float dPosY, bool top, 
-						  GetCollisionTimeResult* result, bool* changed, bool horizontalCollision) {
-	float collisionTime;
+void getLineCollisionTime(double lx1, double lx2, double ly, double posX, double posY, 
+						  double dPosX, double dPosY, bool top, 
+						  GetCollisionTimeResult* result, bool* hit, bool* solidHit, bool horizontalCollision) {
+	double collisionTime;
 
 	if (dPosY == 0) {
 		collisionTime = -1;
@@ -463,50 +518,59 @@ void getLineCollisionTime(float lx1, float lx2, float ly, float posX, float posY
 		}
 	}
 
+	if (collisionTime >= 0 && collisionTime < result->solidCollisionTime && horizontalCollision) {
+		result->solidCollisionTime = collisionTime;
+		result->solidHorizontalCollision = horizontalCollision;
+		*solidHit = true;
+	}
+
 	if (collisionTime >= 0 && collisionTime < result->collisionTime) {
 		result->collisionTime = collisionTime;
 		result->horizontalCollision = horizontalCollision;
-		*changed = true;
+		*hit = true;
 	}
 }
 
 GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2 delta) {
 	GetCollisionTimeResult result = {};
 	result.collisionTime = 1;
+	result.solidCollisionTime = 1;
 
-	if (isSet(entity, EntityFlag_collidable)) {
-		for (int colliderIndex = 0; colliderIndex < gameState->numEntities; colliderIndex++) {
-			Entity* collider = gameState->entities + colliderIndex;
-			
-			if (collider != entity && isSet(collider, EntityFlag_collidable) &&
-				collidesWith(entity, collider) && collidesWith(collider, entity)) {
+	for (int colliderIndex = 0; colliderIndex < gameState->numEntities; colliderIndex++) {
+		Entity* collider = gameState->entities + colliderIndex;
+		
+		double centerX = entity->p.x + entity->collisionOffset.x;
+		double centerY = entity->p.y + entity->collisionOffset.y;
 
-				R2 colliderHitbox = getEntityHitbox(collider);
+		if (collider != entity &&
+			collidesWith(entity, collider) && collidesWith(collider, entity)) {
 
-				//Minkowski sum
-				R2 sum = addDiameterTo(colliderHitbox, entity->collisionSize);
+			R2 colliderHitbox = getEntityHitbox(collider);
 
-				bool changed = false;
+			//Minkowski sum
+			R2 sum = addDiameterTo(colliderHitbox, entity->collisionSize);
 
-				float centerX = entity->p.x + entity->collisionOffset.x;
-				float centerY = entity->p.y + entity->collisionOffset.y;
+			bool hit = false;
+			bool solidHit = false;
 
-				getLineCollisionTime(sum.min.x, sum.max.x, sum.min.y, centerX, centerY, 
-									 delta.x, delta.y, false, &result, &changed, true);
+			getLineCollisionTime(sum.min.x, sum.max.x, sum.min.y, centerX, centerY, 
+								 delta.x, delta.y, false, &result, &hit, &solidHit, true);
 
-				getLineCollisionTime(sum.min.x, sum.max.x, sum.max.y, centerX, centerY, 
-									 delta.x, delta.y, true, &result, &changed, true);
+			getLineCollisionTime(sum.min.x, sum.max.x, sum.max.y, centerX, centerY, 
+								 delta.x, delta.y, true, &result, &hit, &solidHit, true);
 
-				getLineCollisionTime(sum.min.y, sum.max.y, sum.min.x, centerY, centerX, 
-					 				 delta.y, delta.x, false, &result, &changed, false);
+			getLineCollisionTime(sum.min.y, sum.max.y, sum.min.x, centerY, centerX, 
+				 				 delta.y, delta.x, false, &result, &hit, &solidHit, false);
 
-				getLineCollisionTime(sum.min.y, sum.max.y, sum.max.x, centerY, centerX, 
-			 						 delta.y, delta.x, true, &result, &changed, false);
+			getLineCollisionTime(sum.min.y, sum.max.y, sum.max.x, centerY, centerX, 
+		 						 delta.y, delta.x, true, &result, &hit, &solidHit, false);
 
-				if (changed) {
-					result.hitEntity = collider;
-					result.hitSolidEntity |= isSet(collider, EntityFlag_solid);
-				}
+			if (hit) {
+				result.hitEntity = collider;
+			}
+
+			if (solidHit && isSolidCollision(entity, collider)) { 
+				result.solidEntity = collider;
 			}
 		}
 	}
@@ -514,48 +578,94 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 	return result;
 }
 
-V2 getVelocity(float dt, V2 dP, V2 ddP) {
+V2 getVelocity(double dt, V2 dP, V2 ddP) {
 	V2 result = dt * dP + 0.5f * dt * dt * ddP;
 	return result;
 }
 
-bool onGround(Entity* entity, GameState* gameState, float dt, V2 dP, V2 ddP) {
+Entity* onGround(Entity* entity, GameState* gameState, double dt, V2 dP, V2 ddP) {
 	V2 delta = getVelocity(dt, dP, ddP);
 	GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, delta);
-	return collisionResult.hitSolidEntity;
+	return collisionResult.solidEntity;
 }
 
-bool onGround(Entity* entity, GameState* gameState, float dt) {
-	bool result = onGround(entity, gameState, dt, v2(0, 0), gameState->gravity);
+Entity* onGround(Entity* entity, GameState* gameState) {
+	double moveTime = 1.0 / 60.0;
+	Entity* result = onGround(entity, gameState, moveTime, v2(0, 0), gameState->gravity);
 	return result;
 }
 
-void move(Entity* entity, float dt, GameState* gameState, V2 ddP) {
-	V2 delta = getVelocity(dt, entity->dP, ddP);
-	entity->dP * dt + (float)0.5 * ddP * dt * dt;
-	
-	float maxCollisionTime = 1;
+void moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP = 0) {
+	double maxCollisionTime = 1;
+	V2 totalMovement = {};
 
 	for (int moveIteration = 0; moveIteration < 4 && maxCollisionTime > 0; moveIteration++) {
 		GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, delta);
-		float collisionTime = min(maxCollisionTime, collisionResult.collisionTime);
+		double collisionTime = min(maxCollisionTime, collisionResult.collisionTime);
+
+		double collisionTimeEpsilon = 0.00f; //TODO: More exact collision detection
+		double moveTime = max(0, collisionTime - collisionTimeEpsilon);
 
 		maxCollisionTime -= collisionTime;
-		float collisionTimeEpsilon = 0.001f; //TODO: More exact collision detection
-		float moveTime = max(0, collisionTime - collisionTimeEpsilon);
 
-		entity->p += delta * moveTime;
+		V2 movement = delta * moveTime;
+		entity->p += movement;
+		totalMovement += movement;
+
+		bool hitTile = false;
 
 		if (collisionResult.hitEntity) {
-			if (isSet(collisionResult.hitEntity, EntityFlag_solid)) {
+			if (isSolidCollision(collisionResult.hitEntity, entity)) {
     			if (collisionResult.horizontalCollision) {
-    				delta.y = 0;
-    				entity->dP.y = 0;
-    				ddP.y = 0;
+    				//NOTE: If moving would could you to hit an entity which is using you as ground
+    				//		then we try moving that entity first. Then retrying this move. 
+					RefNode* nextTopEntity = entity->groundReferenceList;
+					RefNode* prevTopEntity = NULL;
+
+					bool hitGround = false;
+
+    				while (nextTopEntity) {
+						if (nextTopEntity->ref == collisionResult.hitEntity->ref) {
+							V2 pushAmount = maxCollisionTime * delta;
+							moveRaw(collisionResult.hitEntity, gameState, pushAmount);
+
+							if (prevTopEntity) {
+								prevTopEntity->next = nextTopEntity->next;
+							} else {
+								entity->groundReferenceList = NULL;
+							}
+
+							nextTopEntity->next = NULL;
+							freeRefNode(nextTopEntity, gameState);
+
+							hitGround = true;
+							break;
+						}
+
+						prevTopEntity = nextTopEntity;
+						nextTopEntity = nextTopEntity->next;
+					}
+
+					if (!hitGround) {
+						delta.y = 0;
+	    				entity->dP.y = 0;
+	    				if (ddP) ddP->y = 0;
+	    			} 
     			} else {
-					delta.x = 0;
-    				entity->dP.x = 0;
-    				ddP.x = 0;
+    				if (collisionResult.hitEntity->type == EntityType_tile &&
+    					entity->type == EntityType_tile && !hitTile &&
+    					getMovementField(collisionResult.hitEntity) == NULL &&
+    					getMovementField(entity) == NULL) {
+
+    					hitTile = true;
+
+						V2 pushAmount = maxCollisionTime * delta;
+						moveRaw(collisionResult.hitEntity, gameState, pushAmount);
+    				} else {
+						delta.x = 0;
+	    				entity->dP.x = 0;
+	    				if (ddP) ddP->x = 0;
+    				}
     			}
 			}
 
@@ -564,7 +674,45 @@ void move(Entity* entity, float dt, GameState* gameState, V2 ddP) {
 		}
 	}
 
+	//NOTE: This moves all of the entities which are supported by this one (as the ground)
+	RefNode* nextTopEntity = entity->groundReferenceList;
+
+	if (lengthSq(totalMovement) > 0) {
+		while (nextTopEntity) {
+			Entity* top = getEntityByRef(gameState, nextTopEntity->ref);
+			if (top) {
+				moveRaw(top, gameState, totalMovement);
+			}
+			nextTopEntity = nextTopEntity->next;
+		}
+	}
+}
+
+void move(Entity* entity, double dt, GameState* gameState, V2 ddP) {
+	V2 delta = getVelocity(dt, entity->dP, ddP);
+	moveRaw(entity, gameState, delta, &ddP);
 	entity->dP += ddP * dt;
+}
+
+bool moveTowardsTarget(Entity* entity, GameState* gameState, double dt,
+					   V2 target, double initialDstToTarget, double maxSpeed) {
+	V2 delta = target - entity->p;
+	double dstToTarget = length(delta);
+
+	double percentageToTarget = (initialDstToTarget - dstToTarget) / initialDstToTarget;
+
+	double initialTime = 0.1;
+	double speedEquationCoefficient = maxSpeed / ((0.5 + initialTime) * (-0.5 - initialTime));
+	double speed = speedEquationCoefficient * (percentageToTarget + initialTime) * (percentageToTarget - 1 - initialTime);
+
+	if (speed * dt > dstToTarget) {
+		entity->dP = delta / dt;
+	} else {
+		entity->dP = speed * normalize(delta);
+	}
+
+	move(entity, dt, gameState, v2(0, 0));
+	return entity->p == target;
 }
 
 bool containsField(Entity* entity, ConsoleFieldType type) {
@@ -573,20 +721,6 @@ bool containsField(Entity* entity, ConsoleFieldType type) {
 	for (int fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
 		if (entity->fields[fieldIndex]->type == type) {
 			result = true;
-			break;
-		}
-	}
-
-	return result;
-}
-
-ConsoleField* getMovementField(Entity* entity) {
-	ConsoleField* result = NULL;
-
-	for (int fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
-		ConsoleField* testField = entity->fields[fieldIndex];
-		if (isConsoleFieldMovementType(testField)) {
-			result = testField;
 			break;
 		}
 	}
@@ -605,10 +739,50 @@ bool isMouseInside(Entity* entity, Input* input) {
 	return result;
 }
 
-void updateAndRenderEntities(GameState* gameState, float dtForFrame) {
-	float dt = gameState->consoleEntityRef ? 0 : dtForFrame;
-	V2 oldCameraP = gameState->cameraP;
+void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
+	double dt = gameState->consoleEntityRef ? 0 : dtForFrame;
 
+	//NOTE: This is to reset all of the entities ground reference lists
+	for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+		Entity* entity = gameState->entities + entityIndex;
+
+		if (entity->groundReferenceList) {
+			freeRefNode(entity->groundReferenceList, gameState);
+			entity->groundReferenceList = NULL;
+		}
+	}
+
+	//NOTE: This loops though all the entities to set if they are on the ground at the beginning of the frame
+	//		and to setup their groundReferenceList's
+	for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+		Entity* entity = gameState->entities + entityIndex;
+
+		Entity* ground = onGround(entity, gameState);
+
+		if (ground) {
+			setFlags(entity, EntityFlag_grounded);
+
+			RefNode* append = NULL;
+
+			if (gameState->refNodeFreeList) {
+				append = gameState->refNodeFreeList;
+				gameState->refNodeFreeList = gameState->refNodeFreeList->next;
+				append->next = NULL;
+			} else {
+				append = (RefNode*)pushStruct(&gameState->permanentStorage, RefNode);
+			}
+
+			assert(append);
+
+			append->ref = entity->ref;
+			append->next = ground->groundReferenceList;
+			ground->groundReferenceList = append;
+		} else {
+			clearFlags(entity, EntityFlag_grounded);
+		}
+	}
+
+	//NOTE: This loops through all of the entities in the game state to update and render them
 	for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 		Entity* entity = gameState->entities + entityIndex;
 		entity->animTime += dt;
@@ -618,21 +792,12 @@ void updateAndRenderEntities(GameState* gameState, float dtForFrame) {
 		bool shootingState = false;
 		bool shootsAtTarget = containsField(entity, ConsoleField_shootsAtTarget); 
 
-		if ((gameState->input.leftMouseJustPressed ||
-		    (gameState->input.leftMousePressed && isSet(entity, EntityFlag_dragging))) &&
-			 isMouseInside(entity, &gameState->input)) {
-
-			setFlags(entity, EntityFlag_dragging);
-		} else {
-			clearFlags(entity, EntityFlag_dragging);
-		}
-
 		//NOTE:This handles shooting if the entity should shoot
 		if (shootsAtTarget && gameState->shootTargetRef) {
 			Entity* target = getEntityByRef(gameState, gameState->shootTargetRef);
 
-			float dstToTarget = dstSq(target->p, entity->p);
-			float shootRadius = square(5.0f);
+			double dstToTarget = dstSq(target->p, entity->p);
+			double shootRadius = square(5.0f);
 
 			//TODO: Set this depending on the entitytype
 			V2 spawnOffset = v2(0, -0.3f);
@@ -676,8 +841,8 @@ void updateAndRenderEntities(GameState* gameState, float dtForFrame) {
 		}
 
 		if (!isSet(entity, EntityFlag_ignoresFriction)) {
-			float friction = -15.0f;
-			entity->dP.x *= (float)pow(E, friction * dt);
+			double friction = -15.0f;
+			entity->dP.x *= (double)pow(E, friction * dt);
 		}
 
 		ConsoleField* movementField = getMovementField(entity);
@@ -686,17 +851,17 @@ void updateAndRenderEntities(GameState* gameState, float dtForFrame) {
 		if (movementField) {
 			switch(movementField->type) {
 				case ConsoleField_keyboardControlled: {
-					float windowWidth = gameState->windowSize.x;
-					float maxCameraX = gameState->mapSize.x - windowWidth;
-					gameState->cameraP.x = clamp((float)(entity->p.x - windowWidth / 2.0), 0, maxCameraX);
+					double windowWidth = gameState->windowSize.x;
+					double maxCameraX = gameState->mapSize.x - windowWidth;
+					gameState->cameraP.x = clamp((double)(entity->p.x - windowWidth / 2.0), 0, maxCameraX);
 
-					float xMove = 0;
+					double xMove = 0;
 
 					ConsoleField* speedField = movementField->children[0];
-					float xMoveAcceleration = ((float*)speedField->values)[speedField->selectedIndex];
+					double xMoveAcceleration = ((double*)speedField->values)[speedField->selectedIndex];
 
 					ConsoleField* jumpField = movementField->children[1];
-					float jumpHeight = ((float*)jumpField->values)[jumpField->selectedIndex];
+					double jumpHeight = ((double*)jumpField->values)[jumpField->selectedIndex];
 
 					if (gameState->input.rightPressed) xMove += xMoveAcceleration;
 					if (gameState->input.leftPressed) xMove -= xMoveAcceleration;
@@ -706,7 +871,7 @@ void updateAndRenderEntities(GameState* gameState, float dtForFrame) {
 					if (xMove > 0) clearFlags(entity, EntityFlag_facesLeft);
 					else if (xMove < 0) setFlags(entity, EntityFlag_facesLeft);
 
-					if (onGround(entity, gameState, dt) && gameState->input.upPressed) {
+					if (isSet(entity, EntityFlag_grounded) && gameState->input.upPressed) {
 						entity->dP.y = jumpHeight;	
 					}
 
@@ -715,13 +880,13 @@ void updateAndRenderEntities(GameState* gameState, float dtForFrame) {
 
 				case ConsoleField_movesBackAndForth: {
 					ConsoleField* speedField = movementField->children[0];
-					float xMoveAcceleration = ((float*)speedField->values)[speedField->selectedIndex];
+					double xMoveAcceleration = ((double*)speedField->values)[speedField->selectedIndex];
 					
 					V2 oldP = entity->p;
 					V2 oldCollisionSize = entity->collisionSize;
 					V2 oldCollisionOffset = entity->collisionOffset;
 
-					bool initiallyOnGround = onGround(entity, gameState, dt);
+					bool initiallyOnGround = isSet(entity, EntityFlag_grounded);
 
 					if (isSet(entity, EntityFlag_facesLeft)) {
 						xMoveAcceleration *= -1;
@@ -736,7 +901,7 @@ void updateAndRenderEntities(GameState* gameState, float dtForFrame) {
 					move(entity, dt, gameState, ddP);
 
 					if (initiallyOnGround) {
-						bool offOfGround = !onGround(entity, gameState, dt);
+						bool offOfGround = onGround(entity, gameState) == NULL;
 
 						if (offOfGround) {
 							entity->p = oldP;
@@ -804,17 +969,17 @@ void updateAndRenderEntities(GameState* gameState, float dtForFrame) {
 				Texture* bg = &gameState->sunsetCityBg;
 				Texture* mg = &gameState->sunsetCityMg;
 
-				float bgTexWidth = (float)bg->srcRect.w;
-				float mgTexWidth = (float)mg->srcRect.w;
-				float mgTexHeight = (float)mg->srcRect.h;
+				double bgTexWidth = (double)bg->srcRect.w;
+				double mgTexWidth = (double)mg->srcRect.w;
+				double mgTexHeight = (double)mg->srcRect.h;
 
-				float bgScrollRate = bgTexWidth / mgTexWidth;
-				float bgHeight = gameState->windowHeight / gameState->pixelsPerMeter;
-				float mgWidth = max(gameState->mapSize.x, mgTexWidth / gameState->pixelsPerMeter);
+				double bgScrollRate = bgTexWidth / mgTexWidth;
+				double bgHeight = gameState->windowHeight / gameState->pixelsPerMeter;
+				double mgWidth = max(gameState->mapSize.x, mgTexWidth / gameState->pixelsPerMeter);
 								
-				float bgWidth = mgWidth / bgScrollRate - 1;
+				double bgWidth = mgWidth / bgScrollRate - 1;
 
-				float bgX = gameState->cameraP.x * (1 -  bgScrollRate);
+				double bgX = gameState->cameraP.x * (1 -  bgScrollRate);
 
 				R2 bgBounds = r2(v2(bgX, 0), v2(bgWidth, bgHeight));
 				R2 mgBounds = r2(v2(0, 0), v2(mgWidth, bgHeight));
@@ -828,17 +993,28 @@ void updateAndRenderEntities(GameState* gameState, float dtForFrame) {
 				assert(entity->fields[0]->type == ConsoleField_unlimitedInt && 
 					   entity->fields[1]->type == ConsoleField_unlimitedInt);
 
-				int fieldXOffset =  entity->fields[0]->selectedIndex;
-				int fieldYOffset =  entity->fields[1]->selectedIndex;
+				int fieldXOffset = entity->fields[0]->selectedIndex;
+				int fieldYOffset = entity->fields[1]->selectedIndex;
+
+				if(movementField) {
+					entity->tileXOffset = fieldXOffset;
+					entity->tileYOffset = fieldYOffset;
+				}
 
 				int dXOffset = fieldXOffset - entity->tileXOffset;
 				int dYOffset = fieldYOffset - entity->tileYOffset;
 
 				//TODO: Smooth movement with collision detection
-				entity->p += hadamard(v2((float)dXOffset, (float)dYOffset), entity->renderSize);
+				if (dXOffset != 0 || dYOffset != 0) {
+					V2 target = entity->tileStartPos + hadamard(v2((double)dXOffset, (double)dYOffset), entity->renderSize);
 
-				entity->tileXOffset = fieldXOffset;
-				entity->tileYOffset = fieldYOffset;
+					if (moveTowardsTarget(entity, gameState, dtForFrame, target, entity->renderSize.x, 6.0f)) {
+						entity->tileXOffset = fieldXOffset;
+						entity->tileYOffset = fieldYOffset;
+					}
+				} else {
+					entity->tileStartPos = entity->p;
+				}
 			} break;
 		}
 

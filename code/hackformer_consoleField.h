@@ -3,7 +3,7 @@ enum ConsoleFieldType {
 	ConsoleField_movesBackAndForth,
 	ConsoleField_isShootTarget,
 	ConsoleField_shootsAtTarget,
-	ConsoleField_float,
+	ConsoleField_double,
 	ConsoleField_unlimitedInt,
 	ConsoleField_bool,
 };

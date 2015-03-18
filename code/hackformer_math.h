@@ -5,7 +5,7 @@
 #define min(a, b) a < b ? a : b
 
 struct V2 {
-	float x, y;
+	double x, y;
 };
 
 struct R2 {
@@ -15,12 +15,12 @@ struct R2 {
 
 //NOTE: Scalar operations here
 
-float square(float a) {
+double square(double a) {
 	return a * a;
 }
 
-float clamp(float value, float min, float max) {
-	float result = value;
+double clamp(double value, double min, double max) {
+	double result = value;
 
 	if (value < min) result = min;
 	else if (value > max) result = max;
@@ -30,7 +30,7 @@ float clamp(float value, float min, float max) {
 
 //NOTE: V2 operations here
 
-V2 v2(float x, float y) {
+V2 v2(double x, double y) {
 	V2 result = {};
 
 	result.x = x;
@@ -85,7 +85,7 @@ V2 hadamard(V2 &a, V2& b) {
 	return result;
 }
 
-V2 operator*(V2 &a, float b) {
+V2 operator*(V2 &a, double b) {
 	V2 result = {};
 
 	result.x = a.x * b;
@@ -94,13 +94,13 @@ V2 operator*(V2 &a, float b) {
 	return result;
 }
 
-V2 operator*(float b, V2 &a) {
+V2 operator*(double b, V2 &a) {
 	V2 result = {};
 	result = a * b;
 	return result;
 }
 
-V2 operator/(V2 &a, float b) {
+V2 operator/(V2 &a, double b) {
 	V2 result = {};
 
 	result.x = a.x / b;
@@ -119,77 +119,77 @@ void operator-=(V2 &a, V2 &b) {
 	a.y -= b.y;
 }
 
-void operator*=(V2 &a, float b) {
+void operator*=(V2 &a, double b) {
 	a.x *= b;
 	a.y *= b;
 }
 
-void operator*=(float b, V2 &a) {
+void operator*=(double b, V2 &a) {
 	a *= b;
 }
 
-void operator/=(V2 &a, float b) {
+void operator/=(V2 &a, double b) {
 	a.x /= b;
 	a.y /= b;
 }
 
-float lengthSq(V2 &a) {
-	float result = a.x * a.x + a.y * a.y;
+double lengthSq(V2 &a) {
+	double result = a.x * a.x + a.y * a.y;
 	return result;
 }
 
-float length(V2 &a) {
-	float result = sqrt(lengthSq(a));
+double length(V2 &a) {
+	double result = sqrt(lengthSq(a));
 	return result;
 }
 
-float dst(V2 a, V2 b) {
-	float result = length(b - a);
+double dst(V2 a, V2 b) {
+	double result = length(b - a);
 	return result;
 }
 
-float dstSq(V2 a, V2 b) {
-	float result = lengthSq(b - a);
+double dstSq(V2 a, V2 b) {
+	double result = lengthSq(b - a);
 	return result;
 }
 
 V2 normalize(V2 &a) {
-	float len = length(a);
+	double len = length(a);
 	if (len != 0) a /= len;
 	return a;
 }
 
-float toRadians(float degrees) {
-	float result = (float)(degrees * PI / 180.0);
+double toRadians(double degrees) {
+	double result = (double)(degrees * PI / 180.0);
 	return result;
 }
 
-float toDegrees(float radians) {
-	float result = (float)(radians / PI * 180.0);
+double toDegrees(double radians) {
+	double result = (double)(radians / PI * 180.0);
 	return result;
 }
 
-V2 getVecInDir(float degrees) {
-	float radians = toRadians(degrees);
+V2 getVecInDir(double degrees) {
+	double radians = toRadians(degrees);
 
 	V2 result = {};
-	result.x = (float)cos(radians);
-	result.y = (float)sin(radians);
+	result.x = (double)cos(radians);
+	result.y = (double)sin(radians);
 
 	return result;
 }
 
-float getDir(V2 &a) {
-	float result = toDegrees(atan2(a.y, a.x));
+double getDir(V2 &a) {
+	double result = toDegrees(atan2(a.y, a.x));
 	return result;
 }
 
-V2 rotate(V2& a, float degrees) {
+V2 rotate(V2& a, double degrees) {
 	V2 result = {};
 
-	float rad = toRadians(degrees);
-	float cosAngle = (float)cos(rad);
-	float sinAngle = (float)sin(rad);
+	double rad = toRadians(degrees);
+	double cosAngle = (double)cos(rad);
+	double sinAngle = (double)sin(rad);
 
 	result.x = a.x * cosAngle - a.y * sinAngle;
     result.y = a.x * sinAngle + a.y * cosAngle;
@@ -206,8 +206,8 @@ V2 rotate90(V2& a) {
 	return result;
 }	
 
-float innerProduct(V2& a, V2& b) {
-	float result = a.x * b.x + a.y * b.y;
+double innerProduct(V2& a, V2& b) {
+	double result = a.x * b.x + a.y * b.y;
 	return result;
 }
 
@@ -252,13 +252,13 @@ R2 addDiameterTo(R2 a, V2 diameter) {
 	return result;
 }
 
-float getRectWidth(R2 rect) {
-	float result = rect.max.x - rect.min.x;
+double getRectWidth(R2 rect) {
+	double result = rect.max.x - rect.min.x;
 	return result;
 }
 
-float getRectHeight(R2 rect) {
-	float result = rect.max.y - rect.min.y;
+double getRectHeight(R2 rect) {
+	double result = rect.max.y - rect.min.y;
 	return result;
 }
 
@@ -314,13 +314,13 @@ V2 getPolygonCenter(V2* vertices, int verticesCount) {
 		result += vertices[vertexIndex];
 	}
 
-	result /= (float)verticesCount;
+	result /= (double)verticesCount;
 
 	return result;
 }
 
-float raycastLine(V2 p, V2 dP, V2 lp1, V2 lp2) {
-	float time = 100000;
+double raycastLine(V2 p, V2 dP, V2 lp1, V2 lp2) {
+	double time = 100000;
 
 	if (lp2.x == lp1.x) { //Vertical Line
 		if (dP.x == 0) { //Not moving horizontally
@@ -329,10 +329,10 @@ float raycastLine(V2 p, V2 dP, V2 lp1, V2 lp2) {
 			time = (lp2.x - p.x) / dP.x;
 		}
 	} else {
-		float m = (lp2.y - lp1.y) / (lp2.x - lp1.x);
-		float b = lp1.y - m * lp1.x;
+		double m = (lp2.y - lp1.y) / (lp2.x - lp1.x);
+		double b = lp1.y - m * lp1.x;
 
-		float denominator = dP.y - m * dP.x;
+		double denominator = dP.y - m * dP.x;
 
 		if (denominator == 0) { //Not moving at all or moving colinearly to the line
 			//TODO: If on line then time should equal 0
@@ -341,7 +341,7 @@ float raycastLine(V2 p, V2 dP, V2 lp1, V2 lp2) {
 		}
 	}
 
-	float result = -1;
+	double result = -1;
 
 	if (time >= 0) {
 		V2 newP = p + time * dP;
@@ -381,7 +381,7 @@ void addPolygons(V2 translation, V2* a, int aCount, V2* b, int bCount, V2* dst, 
 
 	minkowskiSumCount -= numDuplicatePoints;
 
-	float lowestX = 5000000000;
+	double lowestX = 5000000000;
 	int currentPointIndex, firstPointIndex;
 
 	for (int pointIndex = 0; pointIndex < minkowskiSumCount; pointIndex++) {
@@ -416,7 +416,7 @@ void addPolygons(V2 translation, V2* a, int aCount, V2* b, int bCount, V2* dst, 
 				V2 testPoint = minkowskiSum[testPointIndex];
 
 				V2 pointToMid = testPoint - lineMid;
-				float dot = innerProduct(lineNormal, pointToMid);
+				double dot = innerProduct(lineNormal, pointToMid);
 				validPoint &= dot >= 0;
 			}
 
