@@ -23,25 +23,18 @@ enum EntityFlag {
 	EntityFlag_collidable = 1 << 0,
 	EntityFlag_solid = 1 << 1,
 	EntityFlag_facesLeft = 1 << 2,
-	EntityFlag_dragging = 1 << 3,	
-	EntityFlag_consoleSelected = 1 << 4,
+	EntityFlag_noMovementByDefault = 1 << 3,
+	EntityFlag_dragging = 1 << 4,	
 	EntityFlag_remove = 1 << 5,
-	EntityFlag_ignoresGravity = 1 << 6,
-	EntityFlag_ignoresFriction = 1 << 7,
-	EntityFlag_shooting = 1 << 8,
-	EntityFlag_unchargingAfterShooting = 1 << 9,
-};
-
-enum EntityMovement {
-	EntityMovement_defaultMovement,
-	EntityMovement_fixed,
-	EntityMovement_keyboard,
-	EntityMovement_backAndForth,
+	EntityFlag_removeWhenOutsideLevel = 1 << 6,
+	EntityFlag_ignoresGravity = 1 << 7,
+	EntityFlag_ignoresFriction = 1 << 8,
+	EntityFlag_shooting = 1 << 9,
+	EntityFlag_unchargingAfterShooting = 1 << 10,
 };
 
 struct Entity {
 	EntityType type;
-	EntityMovement movementType;
 	uint flags;
 	int ref;
 
@@ -59,12 +52,27 @@ struct Entity {
 	ConsoleField* fields[8];
 	int numFields;
 
+	//Used by any entity that shoots
 	float shootTimer;
+
+	//Used by projectiles
+	int shooterRef;
+
+	//Used by tiles
+	int tileXOffset;
+	int tileYOffset;
 };
 
 struct EntityReference {
 	Entity* entity;
 	EntityReference* next;
+};
+
+struct GetCollisionTimeResult {
+	float collisionTime;
+	Entity* hitEntity;
+	bool hitSolidEntity;
+	bool horizontalCollision;
 };
 
 void setFlags(Entity* entity, uint flags) {

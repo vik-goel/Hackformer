@@ -89,6 +89,8 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 				foundMapSizeTiles = true;
 
 				gameState->mapSize = v2((float)mapWidthTiles, (float)mapHeightTiles) * gameState->tileSize;
+				gameState->worldSize = v2(max(gameState->mapSize.x, gameState->windowWidth), 
+										  max(gameState->mapSize.y, gameState->windowHeight));
 			}
 		}
 		else if(!foundTilesetInfo) {
@@ -275,6 +277,7 @@ int main(int argc, char *argv[]) {
 	gameState->pixelsPerMeter = 70.0f;
 	gameState->windowWidth = windowWidth;
 	gameState->windowHeight = windowHeight;
+	gameState->windowSize = v2((float)windowWidth, (float)windowHeight) / gameState->pixelsPerMeter;
 	gameState->gravity = v2(0, -9.81f);
 	gameState->tileSize = 0.9f;
 	gameState->refCount = 1; //NOTE: This is for the null reference
@@ -298,6 +301,8 @@ int main(int argc, char *argv[]) {
 
 	gameState->consoleTriangle = loadPNGTexture(renderer, "res/triangle.png");
 	gameState->consoleTriangleSelected = loadPNGTexture(renderer, "res/grey triangle.png");
+	gameState->consoleTriangleDown = loadPNGTexture(renderer, "res/triangle down.png");
+	gameState->consoleTriangleDownSelected = loadPNGTexture(renderer, "res/grey triangle down.png");
 
 	addText(gameState, v2(4, 6), "Hello, World");
 
@@ -305,9 +310,11 @@ int main(int argc, char *argv[]) {
 	gameState->playerSpeedField = createFloatField(gameState, "speed", playerSpeedFieldValues, 
 												   arrayCount(playerSpeedFieldValues), 2);
 
-	float playerJumpHeightFieldValues[] = {0, 1, 2, 3, 4}; 
+	float playerJumpHeightFieldValues[] = {1, 3, 5, 7, 9}; 
 	gameState->playerJumpHeightField = createFloatField(gameState, "jump_height", playerJumpHeightFieldValues, 
 													    arrayCount(playerJumpHeightFieldValues), 2);
+
+	ConsoleField* movementFields[] = {&gameState->playerSpeedField, &gameState->playerJumpHeightField}; 
 
 	gameState->keyboardControlledField = 
 		createConsoleField(gameState, "keyboard_controlled", ConsoleField_keyboardControlled);
@@ -321,11 +328,18 @@ int main(int argc, char *argv[]) {
 	gameState->isShootTargetField = 
 		createConsoleField(gameState, "is_target", ConsoleField_isShootTarget);
 
-	gameState->tileMoveableField = createBoolField(gameState, "moveable", false);
+	gameState->tileXOffsetField = createUnlimitedIntField(gameState, "x_offset", 0);
+	gameState->tileYOffsetField = createUnlimitedIntField(gameState, "y_offset", 0);
 
-	loadTmxMap(gameState, "map3.tmx");
+	char* mapFileNames[] = {
+		"map3.tmx",
+	};
 
-	printf("Allocated: %d bytes\n", arena_.allocated);
+	int mapFileIndex = 0;
+
+	loadTmxMap(gameState, mapFileNames[mapFileIndex]);
+
+	printf("Allocated: %d bytes\n", gameState->permanentStorage.allocated);
 
 	bool running = true;
 	double frameTime = 1.0 / 60.0;
@@ -351,6 +365,7 @@ int main(int argc, char *argv[]) {
 
 		if (dtForFrame > frameTime) {
 			fps++;
+			gameState->swapFieldP = gameState->windowSize / 2 + v2(0, 3);
 
 			pollInput(gameState, &running);
 
@@ -362,9 +377,30 @@ int main(int argc, char *argv[]) {
 
 			SDL_RenderPresent(renderer); //Swap the buffers
 			dtForFrame = 0;
-		}
 
-		//SDL_Delay(1);
+			if (!getEntityByRef(gameState, gameState->playerRef)) {
+				gameState->shootTargetRef = 0;
+				gameState->consoleEntityRef = 0;
+				gameState->playerRef = 0;
+
+				for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+					freeEntity(gameState->entities + entityIndex, gameState);
+				}
+
+				gameState->numEntities = 0;
+
+				for (int refIndex = 0; refIndex < arrayCount(gameState->entityRefs_); refIndex++) {
+					freeEntityReference(gameState->entityRefs_ + refIndex, gameState);
+				}
+
+				gameState->refCount = 1; //NOTE: This is for the null reference
+
+				if (gameState->swapField) freeConsoleField(gameState->swapField, gameState);
+
+
+				loadTmxMap(gameState, mapFileNames[mapFileIndex]);
+			}
+		}
 	}
 
 	return 0;

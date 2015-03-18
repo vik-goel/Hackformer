@@ -1,3 +1,19 @@
+/*TODO:
+
+- Custom UI for moving tiles
+- Move tiles smoothly when their offsets are changed
+
+- Make console fields much smoother (moving around the fields, fading them in and out)
+- Make camera change much smoother
+
+- Player death animation
+
+- End portals which allow you to go to the next level
+- Flying virus enemy
+- Laser enemy
+
+*/
+
 #define arrayCount(array) sizeof(array) / sizeof(array[0])
 #define SHOW_COLLISION_BOUNDS 0
 
@@ -39,7 +55,7 @@ struct GameState {
 	int numEntities;
 
 	//NOTE: 0 is the null reference
-	EntityReference entityRefs_[1000];
+	EntityReference entityRefs_[300];
 	EntityReference* entityRefFreeList;
 	int refCount;
 
@@ -52,7 +68,8 @@ struct GameState {
 	V2 cameraP;
 
 	int shootTargetRef;
-	int numConsoleEntities;
+	int consoleEntityRef;
+	int playerRef;
 
 	Texture playerStand, playerJump;
 	Animation playerWalk;
@@ -65,6 +82,7 @@ struct GameState {
 	Texture laserBolt;
 
 	Texture consoleTriangle, consoleTriangleSelected;
+	Texture consoleTriangleDown, consoleTriangleDownSelected;
 
 	ConsoleField playerSpeedField;
 	ConsoleField playerJumpHeightField;
@@ -72,14 +90,21 @@ struct GameState {
 	ConsoleField movesBackAndForthField;
 	ConsoleField shootsAtTargetField;
 	ConsoleField isShootTargetField;
-	ConsoleField tileMoveableField;
-	
+	ConsoleField tileXOffsetField;
+	ConsoleField tileYOffsetField;
+
+	ConsoleField* consoleFreeList;
+	ConsoleField* swapField;
+	V2 swapFieldP;
+
 	float shootDelay;
 	float tileSize;
 	V2 mapSize;
+	V2 worldSize;
 
 	float pixelsPerMeter;
 	int windowWidth, windowHeight;
+	V2 windowSize;
 
 	V2 gravity;
 };

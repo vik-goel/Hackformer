@@ -98,8 +98,8 @@ SDL_Rect getPixelSpaceRect(GameState* gameState, R2 rect) {
 	float width = getRectWidth(rect);
 	float height = getRectHeight(rect);
 
-	result.w = (int)ceil(width * gameState->pixelsPerMeter);
-	result.h = (int)ceil(height * gameState->pixelsPerMeter);
+	result.w = (int)ceil(width * gameState->pixelsPerMeter + 0.5f);
+	result.h = (int)ceil(height * gameState->pixelsPerMeter + 0.5f);
 	result.x = (int)ceil(rect.min.x * gameState->pixelsPerMeter);
 	result.y = (int)ceil(gameState->windowHeight - rect.max.y * gameState->pixelsPerMeter);
 
