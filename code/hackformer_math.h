@@ -1,5 +1,6 @@
 #define PI 3.14159265
 #define E  2.71828182
+#define SQRT2 1.41421356237
 
 #define max(a, b) a > b ? a : b
 #define min(a, b) a < b ? a : b

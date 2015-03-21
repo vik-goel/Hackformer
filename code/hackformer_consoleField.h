@@ -1,6 +1,7 @@
 enum ConsoleFieldType {
 	ConsoleField_keyboardControlled,
 	ConsoleField_movesBackAndForth,
+	ConsoleField_seeksTarget,
 	ConsoleField_isShootTarget,
 	ConsoleField_shootsAtTarget,
 	ConsoleField_double,
@@ -44,7 +45,8 @@ struct ConsoleField {
 
 bool isConsoleFieldMovementType(ConsoleField* field) {
 	bool result = field->type == ConsoleField_keyboardControlled ||
-				  field->type == ConsoleField_movesBackAndForth;
+				  field->type == ConsoleField_movesBackAndForth ||
+				  field->type == ConsoleField_seeksTarget;
 	return result;
 }
 

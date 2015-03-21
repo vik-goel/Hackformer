@@ -157,14 +157,75 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 				else if (stringsMatch(buffer, "virus")) {
 					addVirus(gameState, p);
 				}
+				else if (stringsMatch(buffer, "end portal")) {
+					addEndPortal(gameState, p);
+				}
+				else if (stringsMatch(buffer, "flyer")) {
+					addFlyingVirus(gameState, p);
+				}
+				else if (stringsMatch(buffer, "text")) {
+					fgets(line, sizeof(line), file);
+					fgets(line, sizeof(line), file);
+					extractStringFromLine(line, lineLength, "value", buffer, arrayCount(buffer));
+					addText(gameState, p, buffer);
+				}
 				else if (stringsMatch(buffer, "background")) {
+					fgets(line, sizeof(line), file);
+					fgets(line, sizeof(line), file);
+					extractStringFromLine(line, lineLength, "value", buffer, arrayCount(buffer));
+
+					if (stringsMatch(buffer, "marine")) {
+						gameState->bgTex = gameState->marineCityBg;
+						gameState->mgTex = gameState->marineCityMg;
+					}
+					else if (stringsMatch(buffer, "sunset")) {
+						gameState->bgTex = gameState->sunsetCityBg;
+						gameState->mgTex = gameState->sunsetCityMg;
+					}
+
 					addBackground(gameState);
+				}
+				else if (stringsMatch(buffer, "laser base")) {
+					fgets(line, sizeof(line), file);
+					fgets(line, sizeof(line), file);
+					extractStringFromLine(line, lineLength, "value", buffer, arrayCount(buffer));
+					double height = atof(buffer);
+
+					height = 5;
+
+					addLaserController(gameState, p, height);
 				}
 			}
 		}
 	}
 
 	fclose(file);
+
+	if (gameState->solidGrid) {
+		for (int rowIndex = 0; rowIndex < gameState->solidGridWidth; rowIndex++) {
+			free(gameState->solidGrid[rowIndex]);
+		}
+
+		free(gameState->solidGrid);
+		gameState->solidGrid = NULL;
+	}
+
+	gameState->solidGridWidth = (int)ceil(gameState->windowSize.x / gameState->solidGridSquareSize);
+	gameState->solidGridHeight = (int)ceil(gameState->windowSize.y / gameState->solidGridSquareSize);
+
+	gameState->solidGrid = (PathNode**)calloc(1, gameState->solidGridWidth * sizeof(PathNode*));
+
+	for (int rowIndex = 0; rowIndex < gameState->solidGridWidth; rowIndex++) {
+		gameState->solidGrid[rowIndex] = (PathNode*)calloc(1, gameState->solidGridHeight * sizeof(PathNode));
+
+		for (int colIndex = 0; colIndex < gameState->solidGridHeight; colIndex++) {
+			PathNode* node = gameState->solidGrid[rowIndex] + colIndex;
+
+			node->p = v2(rowIndex + 0.5, colIndex + 0.5) * gameState->solidGridSquareSize;
+			node->tileX = rowIndex;
+			node->tileY = colIndex;
+		}
+	}
 }
 
 void pollInput(GameState* gameState, bool* running) {
@@ -279,6 +340,7 @@ int main(int argc, char *argv[]) {
 	gameState->windowHeight = windowHeight;
 	gameState->windowSize = v2((double)windowWidth, (double)windowHeight) / gameState->pixelsPerMeter;
 	gameState->gravity = v2(0, -9.81f);
+	gameState->solidGridSquareSize = 0.1;
 	gameState->tileSize = 0.9f;
 	gameState->refCount = 1; //NOTE: This is for the null reference
 
@@ -293,11 +355,18 @@ int main(int argc, char *argv[]) {
 	gameState->virus1Shoot = loadAnimation(gameState, "res/virus1/shoot.png", 256, 256, 0.04f);
 	gameState->shootDelay = getAnimationDuration(&gameState->virus1Shoot);
 
+	//TODO: Make shoot animation time per frame be set by the shootDelay
+	gameState->flyingVirus = loadPNGTexture(renderer, "res/virus2/full.png");
+	gameState->flyingVirusShoot = loadAnimation(gameState, "res/virus2/shoot.png", 256, 256, 0.04f);
+
 	gameState->sunsetCityBg = loadPNGTexture(renderer, "res/backgrounds/sunset city bg.png");
 	gameState->sunsetCityMg = loadPNGTexture(renderer, "res/backgrounds/sunset city mg.png");
+	gameState->marineCityBg = loadPNGTexture(renderer, "res/backgrounds/marine city bg.png");
+	gameState->marineCityMg = loadPNGTexture(renderer, "res/backgrounds/marine city mg.png");
 
 	gameState->blueEnergy = loadPNGTexture(renderer, "res/blue energy.png");
 	gameState->laserBolt = loadPNGTexture(renderer, "res/virus1/laser bolt.png");
+	gameState->endPortal = loadPNGTexture(renderer, "res/end portal.png");
 
 	gameState->consoleTriangle = loadPNGTexture(renderer, "res/triangle.png");
 	gameState->consoleTriangleSelected = loadPNGTexture(renderer, "res/grey triangle.png");
@@ -306,6 +375,12 @@ int main(int argc, char *argv[]) {
 	gameState->consoleTriangleUp = loadPNGTexture(renderer, "res/triangle up.png");
 	gameState->consoleTriangleUpSelected = loadPNGTexture(renderer, "res/grey triangle up.png");
 
+	gameState->laserBaseOff = loadPNGTexture(renderer, "res/virus3/base off.png");
+	gameState->laserBaseOn = loadPNGTexture(renderer, "res/virus3/base on.png");
+	gameState->laserTopOff = loadPNGTexture(renderer, "res/virus3/top off.png");
+	gameState->laserTopOn = loadPNGTexture(renderer, "res/virus3/top on.png");
+	gameState->laserBeam = loadPNGTexture(renderer, "res/virus3/laser beam.png");
+
 	double keyboardSpeedFieldValues[] = {20, 40, 60, 80, 100}; 
 	gameState->keyboardSpeedField = createDoubleField(gameState, "speed", keyboardSpeedFieldValues, 
 												   arrayCount(keyboardSpeedFieldValues), 2);
@@ -313,6 +388,8 @@ int main(int argc, char *argv[]) {
 	double keyboardJumpHeightFieldValues[] = {1, 3, 5, 7, 9}; 
 	gameState->keyboardJumpHeightField = createDoubleField(gameState, "jump_height", keyboardJumpHeightFieldValues, 
 													    arrayCount(keyboardJumpHeightFieldValues), 2);
+
+	gameState->keyboardDoubleJumpField = createBoolField(gameState, "double_jump", false);
 
 	double patrolSpeedFieldValues[] = {10, 20, 30, 40, 50}; 
 	gameState->patrolSpeedField = createDoubleField(gameState, "speed", patrolSpeedFieldValues, 
@@ -327,20 +404,38 @@ int main(int argc, char *argv[]) {
 	gameState->shootsAtTargetField = 
 		createConsoleField(gameState, "shoots", ConsoleField_shootsAtTarget);
 
+	double shootRadiusFieldValues[] = {1, 3, 5, 7, 9}; 
+	gameState->shootRadiusField = createDoubleField(gameState, "detect radius", shootRadiusFieldValues, 
+													    arrayCount(shootRadiusFieldValues), 2);
+
+	double bulletSpeedFieldValues[] = {1, 2, 3, 4, 5}; 
+	gameState->bulletSpeedField = createDoubleField(gameState, "bullet speed", bulletSpeedFieldValues, 
+													    arrayCount(bulletSpeedFieldValues), 2);
+
 	gameState->isShootTargetField = 
 		createConsoleField(gameState, "is_target", ConsoleField_isShootTarget);
+
+	gameState->seeksTargetField = createConsoleField(gameState, "seeks_target", ConsoleField_seeksTarget);
+
+	double seekTargetSpeedFieldValues[] = {5, 10, 15, 20, 25}; 
+	gameState->seekTargetSpeedField = createDoubleField(gameState, "speed", seekTargetSpeedFieldValues, 
+													    arrayCount(seekTargetSpeedFieldValues), 2);
+
+	double seekTargetRadiusFieldValues[] = {2, 4, 6, 8, 10}; 
+	gameState->seekTargetRadiusField = createDoubleField(gameState, "sight radius", seekTargetRadiusFieldValues, 
+													    arrayCount(seekTargetRadiusFieldValues), 2);
 
 	gameState->tileXOffsetField = createUnlimitedIntField(gameState, "x_offset", 0);
 	gameState->tileYOffsetField = createUnlimitedIntField(gameState, "y_offset", 0);
 
 	char* mapFileNames[] = {
+		"map4.tmx",
 		"map3.tmx",
 	};
 
 	int mapFileIndex = 0;
-
-	addText(gameState, v2(4, 6), "Hello, World");
 	loadTmxMap(gameState, mapFileNames[mapFileIndex]);
+	addFlyingVirus(gameState, v2(8, 7));
 
 	bool running = true;
 	double frameTime = 1.0 / 60.0;
@@ -360,7 +455,7 @@ int main(int argc, char *argv[]) {
 
 		if (currentTime - fpsCounterTimer > 1000) {
 			fpsCounterTimer += 1000;
-			//printf("Fps: %d\n", fps);
+			printf("Fps: %d\n", fps);
 			fps = 0;
 		}
 
@@ -380,7 +475,7 @@ int main(int argc, char *argv[]) {
 			dtForFrame = 0;
 
 			//NOTE: This reloads the game
-			if (!getEntityByRef(gameState, gameState->playerRef)) {
+			if (gameState->loadNextLevel || !getEntityByRef(gameState, gameState->playerRef)) {
 				gameState->shootTargetRef = 0;
 				gameState->consoleEntityRef = 0;
 				gameState->playerRef = 0;
@@ -399,6 +494,11 @@ int main(int argc, char *argv[]) {
 
 				if (gameState->swapField) freeConsoleField(gameState->swapField, gameState);
 
+				if (gameState->loadNextLevel) {
+					gameState->loadNextLevel = false;
+					mapFileIndex++;
+					mapFileIndex %= arrayCount(mapFileNames);
+				}
 
 				loadTmxMap(gameState, mapFileNames[mapFileIndex]);
 			}

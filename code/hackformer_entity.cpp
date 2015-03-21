@@ -1,6 +1,12 @@
-void giveEntityRectangularCollisionBounds(Entity* entity, double xOffset, double yOffset, double width, double height) {
-	entity->collisionSize = v2(width, height);
-	entity->collisionOffset = v2(xOffset, yOffset);
+void giveEntityRectangularCollisionBounds(Entity* entity, GameState* gameState,
+										  double xOffset, double yOffset, double width, double height) {
+	Hitbox* hitbox = (Hitbox*)pushStruct(&gameState->permanentStorage, Hitbox);
+
+	hitbox->collisionSize = v2(width, height);
+	hitbox->collisionOffset = v2(xOffset, yOffset);
+
+	hitbox->next = entity->hitboxes;
+	entity->hitboxes = hitbox;
 }
 
 EntityReference* getEntityReferenceBucket(GameState* gameState, int ref) {
@@ -260,10 +266,11 @@ void addChildrenToConsoleField(ConsoleField* field, int numChildren) {
 
 ConsoleField* createKeyboardField(GameState* gameState) {
 	ConsoleField* result = createField(gameState, &gameState->keyboardControlledField);
-	addChildrenToConsoleField(result, 2);
+	addChildrenToConsoleField(result, 3);
 	
 	result->children[0] = createField(gameState, &gameState->keyboardSpeedField);
 	result->children[1] = createField(gameState, &gameState->keyboardJumpHeightField);
+	result->children[2] = createField(gameState, &gameState->keyboardDoubleJumpField);
 
 	return result;
 }
@@ -277,6 +284,26 @@ ConsoleField* createPatrolField(GameState* gameState) {
 	return result;
 }
 
+ConsoleField* createSeekTargetField(GameState* gameState) {
+	ConsoleField* result = createField(gameState, &gameState->seeksTargetField);
+	addChildrenToConsoleField(result, 2);
+	
+	result->children[0] = createField(gameState, &gameState->seekTargetSpeedField);
+	result->children[1] = createField(gameState, &gameState->seekTargetRadiusField);
+
+	return result;
+}
+
+ConsoleField* createShootField(GameState* gameState) {
+	ConsoleField* result = createField(gameState, &gameState->shootsAtTargetField);
+	addChildrenToConsoleField(result, 2);
+	
+	result->children[0] = createField(gameState, &gameState->bulletSpeedField);
+	result->children[1] = createField(gameState, &gameState->shootRadiusField);
+
+	return result;
+}
+
 Entity* addPlayer(GameState* gameState, V2 p) {
 	Entity* result = addEntity(gameState, EntityType_player, DrawOrder_player, p, v2(1.4f, 1.4f));
 
@@ -285,8 +312,8 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 	assert(!gameState->playerRef);
 	gameState->playerRef = result->ref;
 
-	giveEntityRectangularCollisionBounds(result, 0, 0,
-										 result->renderSize.x * 0.4f, result->renderSize.y);
+	giveEntityRectangularCollisionBounds(result, gameState, 0, result->renderSize.y * -0.01,
+										 result->renderSize.x * 0.4, result->renderSize.y);
 
 	result->texture = &gameState->playerStand;
 
@@ -302,9 +329,9 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 }
 
 Entity* addVirus(GameState* gameState, V2 p) {
-	Entity* result = addEntity(gameState, EntityType_virus, DrawOrder_virus, p, v2(2.5f, 2.5f));
+	Entity* result = addEntity(gameState, EntityType_virus, DrawOrder_virus, p, v2(2.5, 2.5));
 
-	giveEntityRectangularCollisionBounds(result, -0.025f, -0.1f,
+	giveEntityRectangularCollisionBounds(result, gameState, -0.025f, -0.1f,
 										 result->renderSize.x * 0.55f, result->renderSize.y * 0.75f);
 
 	result->texture = &gameState->virus1Stand;
@@ -313,7 +340,20 @@ Entity* addVirus(GameState* gameState, V2 p) {
 					 EntityFlag_hackable);
 
 	addField(result, gameState, createPatrolField(gameState));
-	addField(result, gameState, createField(gameState, &gameState->shootsAtTargetField));
+	addField(result, gameState, createShootField(gameState));
+
+	result->p += result->renderSize / 2;
+
+	return result;
+}
+
+Entity* addEndPortal(GameState* gameState, V2 p) {
+	Entity* result = addEntity(gameState, EntityType_endPortal, DrawOrder_endPortal, p, v2(1, 2));
+
+	giveEntityRectangularCollisionBounds(result, gameState, 0, 0,
+										 result->renderSize.x * 0.4f, result->renderSize.y * 0.95f);
+
+	result->texture = &gameState->endPortal;
 
 	result->p += result->renderSize / 2;
 
@@ -323,7 +363,7 @@ Entity* addVirus(GameState* gameState, V2 p) {
 Entity* addBlueEnergy(GameState* gameState, V2 p) {
 	Entity* result = addEntity(gameState, EntityType_blueEnergy, DrawOrder_blueEnergy, p, v2(0.8f, 0.8f));
 
-	giveEntityRectangularCollisionBounds(result, 0, 0, 
+	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
 										 result->renderSize.x * 0.5f, result->renderSize.y * 0.65f);
 
 	result->texture = &gameState->blueEnergy;
@@ -349,7 +389,7 @@ Entity* addBackground(GameState* gameState) {
 Entity* addTile(GameState* gameState, V2 p, Texture* texture) {
 	Entity* result = addEntity(gameState, EntityType_tile, DrawOrder_tile, p, v2(gameState->tileSize, gameState->tileSize));
 
-	giveEntityRectangularCollisionBounds(result, 0, 0, 
+	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
 										 result->renderSize.x, result->renderSize.y);
 
 	result->texture = texture;
@@ -370,7 +410,7 @@ Entity* addText(GameState* gameState, V2 p, char* msg) {
 	*(result->texture) = createText(gameState, gameState->textFont, msg);
 	result->renderSize = v2((double)result->texture->srcRect.w, (double)result->texture->srcRect.h) / gameState->pixelsPerMeter;
 	
-	giveEntityRectangularCollisionBounds(result, 0, 0, 
+	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
 										 result->renderSize.x, result->renderSize.y);
 
 	setFlags(result, EntityFlag_noMovementByDefault|
@@ -383,7 +423,7 @@ Entity* addLaserBolt(GameState* gameState, V2 p, V2 target, int shooterRef) {
 	Entity* result = addEntity(gameState, EntityType_laserBolt, DrawOrder_laserBolt, p, v2(0.8f, 0.8f));
 	result->texture = &gameState->laserBolt;
 
-	giveEntityRectangularCollisionBounds(result, 0, 0, 
+	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
 										 result->renderSize.x * 0.3f, result->renderSize.y * 0.3f);
 
 	double speed = 3.0f;
@@ -394,6 +434,154 @@ Entity* addLaserBolt(GameState* gameState, V2 p, V2 target, int shooterRef) {
 					 EntityFlag_ignoresGravity|
 					 EntityFlag_removeWhenOutsideLevel);
 					 
+	return result;
+}
+
+Entity* addLaserPiece(GameState* gameState, V2 p, bool base) {
+	V2 renderSize = v2(1.5, 1.5);
+
+	Entity* result = NULL;
+	double collisionSizeY = 0, collisionOffsetY = 0;
+
+	if (base) {
+		result = addEntity(gameState, EntityType_laserBase, DrawOrder_laserBase, p, v2(1.5, 1.5));
+		result->texture = &gameState->laserBaseOff;
+		collisionSizeY = result->renderSize.y * 0.35;
+	} else {
+		result = addEntity(gameState, EntityType_laserTop, DrawOrder_laserTop, p, v2(1.5, 1.5));
+		result->texture = &gameState->laserTopOff;
+		collisionOffsetY = result->renderSize.y * -0.02;
+		collisionSizeY = result->renderSize.y * 0.42;
+	}
+
+
+	giveEntityRectangularCollisionBounds(result, gameState, result->renderSize.x * 0.01, collisionOffsetY, 
+												 result->renderSize.x * 0.5, collisionSizeY);
+
+	setFlags(result, EntityFlag_noMovementByDefault|
+					 EntityFlag_ignoresFriction|
+					 EntityFlag_ignoresGravity);
+
+	return result;
+}
+
+Entity* addLaserBeam(GameState* gameState, V2 p, V2 renderSize) {
+	Entity* result = addEntity(gameState, EntityType_laserBeam, DrawOrder_laserBeam, p, renderSize);
+	result->texture = &gameState->laserBeam;
+
+	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
+									 	 result->renderSize.x * 0.8, result->renderSize.y);
+
+	setFlags(result, EntityFlag_noMovementByDefault|
+					 EntityFlag_ignoresFriction|
+					 EntityFlag_ignoresGravity);
+
+	return result;
+}
+
+void addGroundReference(Entity* top, Entity* ground, GameState* gameState) {
+	RefNode* node = ground->groundReferenceList;
+
+	while(node) {
+		if (node->ref == top->ref) return;
+		node = node->next;
+	}
+
+
+	RefNode* append = NULL;
+
+	if (gameState->refNodeFreeList) {
+		append = gameState->refNodeFreeList;
+		gameState->refNodeFreeList = gameState->refNodeFreeList->next;
+		append->next = NULL;
+	} else {
+		append = (RefNode*)pushStruct(&gameState->permanentStorage, RefNode);
+	}
+
+	assert(append);
+
+	append->ref = top->ref;
+
+
+	RefNode* last = ground->groundReferenceList;
+	RefNode* previous = NULL;
+
+	while (last) {
+		previous = last;
+		last = last->next;
+	}
+
+	if (previous) {
+		previous->next = append;
+	} else {
+		ground->groundReferenceList = append;
+	}
+}
+
+Entity* addLaserController(GameState* gameState, V2 baseP, double height) {
+	Entity* result = addEntity(gameState, EntityType_laserController, DrawOrder_laserController, baseP, v2(0, 0));
+
+	Entity* base = addLaserPiece(gameState, baseP, true);
+	V2 topP = baseP + v2(0, height);
+	Entity* top = addLaserPiece(gameState, topP, false);
+					 
+	result->renderSize = (base->hitboxes->collisionSize + base->hitboxes->collisionOffset) / 2.0 + 
+						 (top->hitboxes->collisionSize + top->hitboxes->collisionOffset) / 2.0 + 
+						 v2(0, topP.y - baseP.y);
+
+	result->p = (baseP + topP) / 2;
+
+	//giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
+	//								 	 result->renderSize.x, result->renderSize.y);
+
+	V2 laserSize = v2(base->hitboxes->collisionSize.x, 
+					  result->renderSize.y - base->hitboxes->collisionSize.y - top->hitboxes->collisionSize.y);
+
+	double topPoint = top->p.y - top->hitboxes->collisionSize.y / 2 + top->hitboxes->collisionOffset.y;
+	double basePoint = base->p.y + base->hitboxes->collisionSize.y / 2 - base->hitboxes->collisionOffset.y;
+
+	V2 laserP = v2(result->p.x + base->hitboxes->collisionOffset.x, (topPoint + basePoint) / 2.0);
+	Entity* beam = addLaserBeam(gameState, laserP, laserSize);
+
+	setFlags(result, EntityFlag_noMovementByDefault|
+					 EntityFlag_hackable|
+					 EntityFlag_ignoresGravity);
+
+	giveEntityRectangularCollisionBounds(result, gameState, 
+										 base->hitboxes->collisionOffset.x + base->p.x - result->p.x, 
+										 base->hitboxes->collisionOffset.y + base->p.y - result->p.y,
+										 base->hitboxes->collisionSize.x, base->hitboxes->collisionSize.y);
+
+	giveEntityRectangularCollisionBounds(result, gameState, 
+										 top->hitboxes->collisionOffset.x + top->p.x - result->p.x, 
+										 top->hitboxes->collisionOffset.y + top->p.y - result->p.y,
+										 top->hitboxes->collisionSize.x, top->hitboxes->collisionSize.y);
+
+	addField(result, gameState, createPatrolField(gameState));
+
+	addGroundReference(base, result, gameState);
+	addGroundReference(top, result, gameState);
+	addGroundReference(beam, result, gameState);
+
+	return result;
+}
+
+Entity* addFlyingVirus(GameState* gameState, V2 p) {
+	Entity* result = addEntity(gameState, EntityType_flyingVirus, DrawOrder_flyingVirus, p, v2(1.5, 1.5));
+
+	result->texture = &gameState->flyingVirus;
+
+	setFlags(result, EntityFlag_hackable|
+					 EntityFlag_ignoresGravity);
+
+	giveEntityRectangularCollisionBounds(result, gameState, 0, result->renderSize.y * -0.04, 
+										 result->renderSize.x * 0.45, result->renderSize.y * 0.45);
+
+	addField(result, gameState, createSeekTargetField(gameState));
+	addField(result, gameState, createShootField(gameState));
+
+	result->p += result->renderSize / 2.0f;
+
 	return result;
 }
 
@@ -411,7 +599,16 @@ ConsoleField* getMovementField(Entity* entity) {
 	return result;
 }
 
-bool collidesWith(Entity* a, Entity* b) {
+bool isLaserEnemyType(Entity* entity) {
+	bool result = entity->type == EntityType_laserTop ||
+				  entity->type == EntityType_laserBase ||
+				  entity->type == EntityType_laserBeam ||
+				  entity->type == EntityType_laserController;
+
+	return result;
+}
+
+bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 	bool result = true;
 
 	switch(a->type) {
@@ -424,17 +621,34 @@ bool collidesWith(Entity* a, Entity* b) {
 			result = getMovementField(a) != NULL;
 		} break;
 		case EntityType_player: {
-			if (b->type == EntityType_virus) result = false;
+			if (b->type == EntityType_virus ||
+				b->type == EntityType_flyingVirus) result = false;
 		} break;
 		case EntityType_laserBolt: {
 			if (b->ref == a->shooterRef) result = false;
 		} break;
 		case EntityType_blueEnergy: {
 			if (b->type == EntityType_virus ||
+				b->type == EntityType_flyingVirus ||
 				b->type == EntityType_laserBolt) result = false;
+		} break;
+		case EntityType_endPortal: {
+			if (b->type != EntityType_player && 
+				b->type != EntityType_tile) result = false;
+		} break;
+		case EntityType_laserController: {
+			if (b == getEntityByRef(gameState, a->groundReferenceList->ref) ||
+				b == getEntityByRef(gameState, a->groundReferenceList->next->ref) ||
+				b == getEntityByRef(gameState, a->groundReferenceList->next->next->ref))
+				result = false;
 		} break;
 	}
 
+	return result;
+}
+
+bool collidesWith(Entity* a, Entity* b, GameState* gameState) {
+	bool result = collidesWithRaw(a, b, gameState) && collidesWithRaw(b, a, gameState);
 	return result;
 }
 
@@ -442,20 +656,14 @@ bool isSolidCollisionRaw(Entity* a, Entity* b) {
 	bool result = true;
 
 	switch(a->type) {
-		case EntityType_laserBolt: {
+		case EntityType_laserBolt: 
+		case EntityType_laserBeam: {
 			result = false;
 		} break;
 
-		case EntityType_player:
-		case EntityType_virus: {
-			result = b->type == EntityType_tile ||
-					 b->type == EntityType_text;
-		} break;
-
-		case EntityType_blueEnergy: {
-			if (b->type == EntityType_player ||
-				b->type == EntityType_virus) return false;
-				
+		case EntityType_player: {
+			if (b->type == EntityType_blueEnergy || 
+				b->type == EntityType_endPortal) result = false;
 		} break;
 	}
 
@@ -467,15 +675,23 @@ bool isSolidCollision(Entity* a, Entity* b) {
 	return result;
 }
 
-void onCollide(Entity* entity, Entity* hitEntity) {
+void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState) {
 	switch(entity->type) {
 		case EntityType_blueEnergy: {
 			if (hitEntity->type == EntityType_player) {
 				setFlags(entity, EntityFlag_remove);
 			}
 		} break;
+		case EntityType_endPortal: {
+			if (hitEntity->type == EntityType_player) {
+				gameState->loadNextLevel = true;
+			}
+		} break;
 		case EntityType_laserBolt: {
 			setFlags(entity, EntityFlag_remove);
+		} break;
+		case EntityType_laserBeam: {
+			setFlags(hitEntity, EntityFlag_remove);
 		} break;
 	}
 }
@@ -490,8 +706,13 @@ void freeRefNode(RefNode* node, GameState* gameState) {
 	gameState->refNodeFreeList = node;
 }
 
-R2 getEntityHitbox(Entity* entity) {
-	R2 result = rectCenterDiameter(entity->p + entity->collisionOffset, entity->collisionSize);
+R2 getHitbox(Entity* entity, Hitbox* hitbox) {
+	assert(hitbox);
+
+	V2 offset = hitbox->collisionOffset;
+	if (isSet(entity, EntityFlag_facesLeft)) offset.x *= -1;
+
+	R2 result = rectCenterDiameter(entity->p + offset, hitbox->collisionSize);
 	return result;
 }
 
@@ -505,7 +726,9 @@ void getLineCollisionTime(double lx1, double lx2, double ly, double posX, double
 	} else {
 		collisionTime = (ly - posY) / dPosY;
 
-		if (collisionTime == 0 && dPosY > 0 == top) {
+		double epsilon = 0.000000000001;
+
+		if (collisionTime <= epsilon && ((dPosY > 0 && top) || (dPosY < 0 && !top))) {
 			collisionTime = -1;
 		} else {
 			posX += dPosX * collisionTime;
@@ -538,39 +761,51 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 
 	for (int colliderIndex = 0; colliderIndex < gameState->numEntities; colliderIndex++) {
 		Entity* collider = gameState->entities + colliderIndex;
-		
-		double centerX = entity->p.x + entity->collisionOffset.x;
-		double centerY = entity->p.y + entity->collisionOffset.y;
 
 		if (collider != entity &&
-			collidesWith(entity, collider) && collidesWith(collider, entity)) {
+			collidesWith(entity, collider, gameState)) {
 
-			R2 colliderHitbox = getEntityHitbox(collider);
+			Hitbox* colliderHitboxList = collider->hitboxes;
 
-			//Minkowski sum
-			R2 sum = addDiameterTo(colliderHitbox, entity->collisionSize);
+			while(colliderHitboxList) {
+				R2 colliderHitbox = getHitbox(collider, colliderHitboxList);
 
-			bool hit = false;
-			bool solidHit = false;
+				Hitbox* entityHitboxList = entity->hitboxes;
 
-			getLineCollisionTime(sum.min.x, sum.max.x, sum.min.y, centerX, centerY, 
-								 delta.x, delta.y, false, &result, &hit, &solidHit, true);
+				while (entityHitboxList) {
+					//Minkowski sum
+					R2 sum = addDiameterTo(colliderHitbox, entityHitboxList->collisionSize);
 
-			getLineCollisionTime(sum.min.x, sum.max.x, sum.max.y, centerX, centerY, 
-								 delta.x, delta.y, true, &result, &hit, &solidHit, true);
+					double centerX = entity->p.x + entityHitboxList->collisionOffset.x;
+					double centerY = entity->p.y + entityHitboxList->collisionOffset.y;
 
-			getLineCollisionTime(sum.min.y, sum.max.y, sum.min.x, centerY, centerX, 
-				 				 delta.y, delta.x, false, &result, &hit, &solidHit, false);
+					bool hit = false;
+					bool solidHit = false;
 
-			getLineCollisionTime(sum.min.y, sum.max.y, sum.max.x, centerY, centerX, 
-		 						 delta.y, delta.x, true, &result, &hit, &solidHit, false);
+					getLineCollisionTime(sum.min.x, sum.max.x, sum.min.y, centerX, centerY, 
+										 delta.x, delta.y, false, &result, &hit, &solidHit, true);
 
-			if (hit) {
-				result.hitEntity = collider;
-			}
+					getLineCollisionTime(sum.min.x, sum.max.x, sum.max.y, centerX, centerY, 
+										 delta.x, delta.y, true, &result, &hit, &solidHit, true);
 
-			if (solidHit && isSolidCollision(entity, collider)) { 
-				result.solidEntity = collider;
+					getLineCollisionTime(sum.min.y, sum.max.y, sum.min.x, centerY, centerX, 
+						 				 delta.y, delta.x, false, &result, &hit, &solidHit, false);
+
+					getLineCollisionTime(sum.min.y, sum.max.y, sum.max.x, centerY, centerX, 
+				 						 delta.y, delta.x, true, &result, &hit, &solidHit, false);
+
+					if (hit) {
+						result.hitEntity = collider;
+					}
+
+					if (solidHit && isSolidCollision(entity, collider)) { 
+						result.solidEntity = collider;
+					}
+
+					entityHitboxList = entityHitboxList->next;
+				}
+
+				colliderHitboxList = colliderHitboxList->next;
 			}
 		}
 	}
@@ -595,6 +830,12 @@ Entity* onGround(Entity* entity, GameState* gameState) {
 	return result;
 }
 
+Entity* getAbove(Entity* entity, GameState* gameState) {
+	double moveTime = 1.0 / 60.0;
+	Entity* result = onGround(entity, gameState, moveTime, v2(0, 0), -gameState->gravity);
+	return result;
+}
+
 void moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP = 0) {
 	double maxCollisionTime = 1;
 	V2 totalMovement = {};
@@ -603,21 +844,16 @@ void moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP = 0) {
 		GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, delta);
 		double collisionTime = min(maxCollisionTime, collisionResult.collisionTime);
 
-		double collisionTimeEpsilon = 0.00f; //TODO: More exact collision detection
-		double moveTime = max(0, collisionTime - collisionTimeEpsilon);
-
 		maxCollisionTime -= collisionTime;
 
-		V2 movement = delta * moveTime;
+		V2 movement = delta * collisionTime;
 		entity->p += movement;
 		totalMovement += movement;
-
-		bool hitTile = false;
 
 		if (collisionResult.hitEntity) {
 			if (isSolidCollision(collisionResult.hitEntity, entity)) {
     			if (collisionResult.horizontalCollision) {
-    				//NOTE: If moving would could you to hit an entity which is using you as ground
+    				//NOTE: If moving and you would hit an entity which is using you as ground
     				//		then we try moving that entity first. Then retrying this move. 
 					RefNode* nextTopEntity = entity->groundReferenceList;
 					RefNode* prevTopEntity = NULL;
@@ -625,7 +861,9 @@ void moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP = 0) {
 					bool hitGround = false;
 
     				while (nextTopEntity) {
-						if (nextTopEntity->ref == collisionResult.hitEntity->ref) {
+						if (nextTopEntity->ref == collisionResult.hitEntity->ref &&
+							!(entity->type == EntityType_tile && collisionResult.hitEntity->type == EntityType_tile &&
+							  getMovementField(entity) == NULL && getMovementField(collisionResult.hitEntity) == NULL)) {
 							V2 pushAmount = maxCollisionTime * delta;
 							moveRaw(collisionResult.hitEntity, gameState, pushAmount);
 
@@ -652,25 +890,14 @@ void moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP = 0) {
 	    				if (ddP) ddP->y = 0;
 	    			} 
     			} else {
-    				if (collisionResult.hitEntity->type == EntityType_tile &&
-    					entity->type == EntityType_tile && !hitTile &&
-    					getMovementField(collisionResult.hitEntity) == NULL &&
-    					getMovementField(entity) == NULL) {
-
-    					hitTile = true;
-
-						V2 pushAmount = maxCollisionTime * delta;
-						moveRaw(collisionResult.hitEntity, gameState, pushAmount);
-    				} else {
-						delta.x = 0;
-	    				entity->dP.x = 0;
-	    				if (ddP) ddP->x = 0;
-    				}
+					delta.x = 0;
+    				entity->dP.x = 0;
+    				if (ddP) ddP->x = 0;
     			}
 			}
 
-			onCollide(entity, collisionResult.hitEntity);
-			onCollide(collisionResult.hitEntity, entity);
+			onCollide(entity, collisionResult.hitEntity, gameState);
+			onCollide(collisionResult.hitEntity, entity, gameState);
 		}
 	}
 
@@ -681,7 +908,17 @@ void moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP = 0) {
 		while (nextTopEntity) {
 			Entity* top = getEntityByRef(gameState, nextTopEntity->ref);
 			if (top) {
-				moveRaw(top, gameState, totalMovement);
+
+				#if 0
+					bool moveTopEntity = !(entity->type == EntityType_tile && getMovementField(entity) == NULL &&
+										   top->type == EntityType_tile && getMovementField(top) == NULL);	
+				#else
+					bool moveTopEntity = true;
+				#endif
+
+				if (moveTopEntity) {
+					moveRaw(top, gameState, totalMovement);
+				}
 			}
 			nextTopEntity = nextTopEntity->next;
 		}
@@ -692,6 +929,144 @@ void move(Entity* entity, double dt, GameState* gameState, V2 ddP) {
 	V2 delta = getVelocity(dt, entity->dP, ddP);
 	moveRaw(entity, gameState, delta, &ddP);
 	entity->dP += ddP * dt;
+}
+
+TileMoveNode* createMoveListNode(Entity* tile) {
+	assert(tile->type == EntityType_tile);
+
+	TileMoveNode* result = (TileMoveNode*)calloc(1, sizeof(TileMoveNode));
+	result->move = (TileMove*)calloc(1, sizeof(TileMove));
+	result->move->tile = tile;
+
+	return result;
+}
+
+TileMoveNode* addTileMovesToList(TileMoveNode* tileMoveList, TileMove* move, GameState* gameState, V2 vel);
+TileMoveNode* addTileMoveDependency(TileMoveNode* tileMoveList, TileMove* move, GameState* gameState, 
+									V2 vel, Entity* aboveEntity) {
+	move->numParents++;
+
+	TileMoveNode* moveListNode = tileMoveList;
+
+	while(moveListNode) {
+		if (moveListNode->move->tile->ref == aboveEntity->ref) {
+			break;
+		}
+
+		moveListNode = moveListNode->next;
+	}
+
+	if (!moveListNode) {
+		moveListNode = createMoveListNode(aboveEntity);
+
+		moveListNode->next = tileMoveList;
+		tileMoveList = moveListNode;
+
+		tileMoveList = addTileMovesToList(tileMoveList, moveListNode->move, gameState, vel);
+	}
+
+	TileMoveNode* childNode = (TileMoveNode*)calloc(1, sizeof(TileMoveNode)); 
+	childNode->move = move;
+	childNode->next = moveListNode->move->children;
+	moveListNode->move->children = childNode;
+
+	return tileMoveList;
+}
+
+TileMoveNode* addTileMovesToList(TileMoveNode* tileMoveList, TileMove* move, GameState* gameState, V2 vel) {
+	/*RefNode* above = move->tile->groundReferenceList;
+	while(above) {
+		Entity* aboveEntity = getEntityByRef(gameState, above->ref);
+
+		if (aboveEntity && aboveEntity->type == EntityType_tile) {
+			tileMoveList = addTileMoveDependency(tileMoveList, move, gameState, vel, aboveEntity);
+		}
+
+		above = above->next;
+	}*/
+
+	if (vel.y == 0) {
+		GetCollisionTimeResult collisionResult = getCollisionTime(move->tile, gameState, -gameState->gravity / 120.0);
+
+		if (collisionResult.hitEntity && 
+			collisionResult.hitEntity->type == EntityType_tile &&
+			getMovementField(collisionResult.hitEntity) == NULL) {
+
+			V2 moveVel = vel * (1 - collisionResult.collisionTime);
+
+			tileMoveList = addTileMoveDependency(tileMoveList, move, gameState, 
+												 moveVel, collisionResult.hitEntity);
+		}
+	}
+
+	if (vel.x != 0 || vel.y != 0) {
+		GetCollisionTimeResult collisionResult = getCollisionTime(move->tile, gameState, vel);
+
+		if (collisionResult.hitEntity && 
+			collisionResult.hitEntity->type == EntityType_tile &&
+			getMovementField(collisionResult.hitEntity) == NULL) {
+
+			V2 moveVel = vel * (1 - collisionResult.collisionTime);
+
+			tileMoveList = addTileMoveDependency(tileMoveList, move, gameState, 
+												 moveVel, collisionResult.hitEntity);
+		}
+	}
+
+	return tileMoveList;
+}
+
+//TODO: Clean up memory
+//TODO: Handle tiles which have other types of movement (eg. keyboard)
+void moveTiles(Entity* entity, double dt, GameState* gameState) {
+	assert(entity->type == EntityType_tile);
+
+	V2 delta = entity->dP * dt;
+
+	TileMoveNode* tileMoveList = createMoveListNode(entity);
+	tileMoveList = addTileMovesToList(tileMoveList, tileMoveList->move, gameState, delta);
+
+	while(tileMoveList) {
+		TileMoveNode* moveNode = tileMoveList;
+		TileMoveNode* previousMoveNode = NULL;
+
+		bool madeChange = false;
+
+		while(moveNode) {
+			TileMove* move = moveNode->move;
+
+			if (move->numParents == 0) {
+				madeChange = true;
+
+				moveRaw(move->tile, gameState, delta, &v2(0, 0));
+
+				TileMoveNode* child = move->children;
+
+				while (child) {
+					child->move->numParents--;					
+					child = child->next;
+				}
+
+				if (previousMoveNode) {
+					previousMoveNode->next = moveNode->next;
+					moveNode = previousMoveNode;
+				} else {
+					tileMoveList = moveNode->next;
+					moveNode = tileMoveList;
+				}
+			}
+
+			previousMoveNode = moveNode;
+			if (moveNode) moveNode = moveNode->next;
+		}
+
+		if (!madeChange && tileMoveList) {
+			assert(false);
+			break;
+		}
+	}
+
+
 }
 
 bool moveTowardsTarget(Entity* entity, GameState* gameState, double dt,
@@ -711,7 +1086,7 @@ bool moveTowardsTarget(Entity* entity, GameState* gameState, double dt,
 		entity->dP = speed * normalize(delta);
 	}
 
-	move(entity, dt, gameState, v2(0, 0));
+	moveTiles(entity, dt, gameState/*, v2(0, 0)*/);
 	return entity->p == target;
 }
 
@@ -728,27 +1103,372 @@ bool containsField(Entity* entity, ConsoleFieldType type) {
 	return result;
 }
 
-R2 getHitbox(Entity* entity) {
-	R2 result = rectCenterDiameter(entity->p + entity->collisionOffset, entity->collisionSize);
+bool isMouseInside(Entity* entity, Input* input) {
+	bool result = false;
+
+	Hitbox* hitboxList = entity->hitboxes;
+
+	while (hitboxList) {
+		R2 clickBox = getHitbox(entity, hitboxList);
+
+		if (pointInsideRect(clickBox, input->mouseInWorld)) {
+			result = true;
+			break;
+		}
+
+		hitboxList = hitboxList->next;
+	}
+
 	return result;
 }
 
-bool isMouseInside(Entity* entity, Input* input) {
-	R2 clickBox = getHitbox(entity);
-	bool result = pointInsideRect(clickBox, input->mouseInWorld);
+bool inSolidGridBounds(GameState* gameState, int xTile, int yTile) {
+	bool result = xTile >= 0 &&
+				  yTile >= 0 &&
+				  xTile < gameState->solidGridWidth &&
+				  yTile < gameState->solidGridHeight;
+
+	return result;
+}
+
+void addSolidLocation(double xPos, double yPos, GameState* gameState) {
+	int xTile = (int)(xPos / gameState->solidGridSquareSize);
+	int yTile = (int)(yPos / gameState->solidGridSquareSize);
+
+	if (inSolidGridBounds(gameState, xTile, yTile)) {
+		gameState->solidGrid[xTile][yTile].solid = true;
+	}
+}
+
+PathNode* getClosestNonSolidNode(V2 p, GameState* gameState) {
+	PathNode* result = NULL;
+	double minDstSq = 100000000000.0;
+
+	int radius = 6;
+
+	double minX = p.x - gameState->solidGridSquareSize * radius;
+	double minY = p.y - gameState->solidGridSquareSize * radius;
+
+	for(int xOffs = -radius; xOffs <= radius; xOffs++) {
+		for (int yOffs = -radius; yOffs <= radius; yOffs++) {
+			double xPos = minX + xOffs * gameState->solidGridSquareSize;
+			double yPos = minY + yOffs * gameState->solidGridSquareSize;
+
+			int xTile = (int)(xPos / gameState->solidGridSquareSize);
+			int yTile = (int)(yPos / gameState->solidGridSquareSize);
+
+			if (inSolidGridBounds(gameState, xTile, yTile)) {
+				PathNode* node = gameState->solidGrid[xTile] + yTile;
+
+				if (!node->solid) {
+					double testDstSq = dstSq(node->p, p);
+
+					if (testDstSq < minDstSq) {
+						minDstSq = testDstSq;
+						result = node;
+					}
+				}
+			}
+		}
+	}
+
+	return result;
+}
+
+bool pathLineClear(V2 p1, V2 p2, GameState* gameState) {
+	double minX, maxX, minY, maxY;
+
+	if (p1.x < p2.x) {
+		minX = p1.x;
+		maxX = p2.x;
+	} else {
+		minX = p2.x;
+		maxX = p1.x;
+	}
+
+	if (p1.y < p2.y) {
+		minY = p1.y;
+		maxY = p2.y;
+	} else {
+		minY = p2.y;
+		maxY = p1.y;
+	}
+
+	double increment = gameState->solidGridSquareSize / 6.0;
+	V2 line = p2 - p1;
+	double lineLength = length(p2 - p1);
+	V2 delta = normalize(line);
+
+	for(double linePos = 0; linePos < lineLength; linePos += increment) {
+		V2 p = p1 + delta * linePos;
+
+		int xTile = (int)(p.x / gameState->solidGridSquareSize);
+		int yTile = (int)(p.y / gameState->solidGridSquareSize);
+
+		if (gameState->solidGrid[xTile][yTile].solid) return false;
+	}
+
+	int xTile = (int)(maxX / gameState->solidGridSquareSize);
+	int yTile = (int)(maxY / gameState->solidGridSquareSize);	
+
+	if (gameState->solidGrid[xTile][yTile].solid) return false;
+
+	return true;
+}
+
+V2 computePath(GameState* gameState, Entity* start, Entity* goal) {
+	for (int tileX = 0; tileX < gameState->solidGridWidth; tileX++) {
+		for (int tileY = 0; tileY < gameState->solidGridHeight; tileY++) {
+			PathNode* node = gameState->solidGrid[tileX] + tileY;
+			node->solid = false;
+			node->open = false;
+			node->closed = false;
+			node->parent = NULL;
+			node->costToHere = 0;
+			node->costToGoal = 0;
+		}
+	}
+
+	gameState->openPathNodesCount = 0;
+
+	for (int colliderIndex = 0; colliderIndex < gameState->numEntities; colliderIndex++) {
+		Entity* collider = gameState->entities + colliderIndex;
+
+		if (collider != start && collider != goal &&
+			collidesWith(start, collider, gameState)) {
+
+			Hitbox* colliderHitboxList = collider->hitboxes;
+
+			while(colliderHitboxList) {
+				R2 colliderHitbox = getHitbox(collider, colliderHitboxList);
+
+				Hitbox* entityHitboxList = start->hitboxes;
+
+				while (entityHitboxList) {
+					R2 sum = addDiameterTo(colliderHitbox, entityHitboxList->collisionSize);
+
+					for (double xPos = sum.min.x; xPos < sum.max.x; xPos += gameState->solidGridSquareSize) {
+						for (double yPos = sum.min.y; yPos < sum.max.y; yPos += gameState->solidGridSquareSize) {
+							addSolidLocation(xPos, yPos, gameState);
+						}
+					}
+
+					for (double xPos = sum.min.x; xPos < sum.max.x; xPos += gameState->solidGridSquareSize) {
+						addSolidLocation(xPos, sum.max.y, gameState);
+					}
+
+					for (double yPos = sum.min.y; yPos < sum.max.y; yPos += gameState->solidGridSquareSize) {
+						addSolidLocation(sum.max.x, yPos, gameState);
+					}
+
+					addSolidLocation(sum.max.x, sum.max.y, gameState);
+
+					entityHitboxList = entityHitboxList->next;
+				}
+
+				colliderHitboxList = colliderHitboxList->next;
+			}
+		}
+	}
+
+#if 0
+	SDL_SetRenderDrawBlendMode(gameState->renderer, SDL_BLENDMODE_BLEND);
+	setColor(gameState->renderer, 0, 0, 0, 100);
+
+	for (int tileX = 0; tileX < gameState->solidGridWidth; tileX++) {
+		for (int tileY = 0; tileY < gameState->solidGridHeight; tileY++) {
+			PathNode* node = gameState->solidGrid[tileX] + tileY;
+
+			if (node->solid) {
+				drawFilledRect(gameState, rectCenterDiameter(node->p, 
+					v2(gameState->solidGridSquareSize, gameState->solidGridSquareSize)), gameState->cameraP);
+			}
+		}
+	}
+#endif
+
+	if (pathLineClear(start->p, goal->p, gameState)) {
+		return goal->p;
+	}
+
+	PathNode* startNode = getClosestNonSolidNode(start->p, gameState);
+	PathNode* goalNode = getClosestNonSolidNode(goal->p, gameState);
+
+	if (startNode && goalNode) {
+		startNode->open = true;
+		gameState->openPathNodes[0] = startNode;
+		gameState->openPathNodesCount = 1;
+		
+		while(gameState->openPathNodesCount) {
+			PathNode* current = NULL;
+			int currentIndex = 0;
+			double minEstimatedTotalCost = 1000000000000.0;
+
+			for (int nodeIndex = 0; nodeIndex < gameState->openPathNodesCount; nodeIndex++) {
+				PathNode* testNode = gameState->openPathNodes[nodeIndex];
+
+				if (testNode->open) {
+					double testEstimatedCost = testNode->costToHere + testNode->costToGoal;
+
+					if (testEstimatedCost < minEstimatedTotalCost) {
+						minEstimatedTotalCost = testEstimatedCost;
+						current = testNode;
+						currentIndex = nodeIndex;
+					}
+				}
+			}
+
+			assert(current);
+			current->open = false;
+			current->closed = true;
+			gameState->openPathNodesCount--;
+
+			if (gameState->openPathNodesCount) {
+				gameState->openPathNodes[currentIndex] = gameState->openPathNodes[gameState->openPathNodesCount];
+			} else {
+				gameState->openPathNodes[0] = NULL;
+			}
+
+			if (current == goalNode) {
+				V2 prevPoint = goal->p;
+				PathNode* node = current;
+				PathNode* prevNode = NULL;
+
+				//NOTE: This is to smooth the path
+				//TODO: Can optimize this by automatically removing co-linear points without checking pathLineClear
+				while(node && node != startNode) {
+					if (prevNode) {
+						if (pathLineClear(node->p, prevNode->p, gameState)) {
+							prevNode->parent = node->parent;
+							node = prevNode;
+						} else {
+							prevNode = node;
+						}
+					} else {
+						prevNode = node;
+					}
+					
+					node = node->parent;
+				}
+
+				#if 0
+				//NOTE: This draws the path
+				node = current;
+				setColor(gameState->renderer, 100, 75, 200, 255);
+
+				while(node) {
+					drawLine(gameState, prevPoint - gameState->cameraP, node->p - gameState->cameraP);
+					prevPoint = node->p;
+					node = node->parent;
+				}
+				#endif
+
+				//TODO: Return path here
+				node = current;
+				PathNode* firstNode = NULL;
+				PathNode* secondNode = NULL;
+
+				while(node) {
+					secondNode = firstNode;
+					firstNode = node;
+					node = node->parent;
+				}
+
+				if (secondNode) {
+					return secondNode->p;
+				}
+
+				break;
+			}
+
+			for(int xOffs = -1; xOffs <= 1; xOffs++) {
+				for (int yOffs = -1; yOffs <= 1; yOffs++) {
+					if (xOffs != 0 || yOffs != 0) {
+						int tileX = current->tileX + xOffs;
+						int tileY = current->tileY + yOffs;
+
+						if (inSolidGridBounds(gameState, tileX, tileY)) {
+							PathNode* testNode = gameState->solidGrid[tileX] + tileY;
+
+							if (!testNode->solid) {
+								#if 0
+								if (current->parent) {
+									int dx = current->tileX - current->parent->tileX;
+									int dy = current->tileY - current->parent->tileY;
+
+									if (dy == 0) {
+										if (xOffs != dx ||
+										    (yOffs == 1 && !gameState->solidGrid[tileX][tileY + 1].solid) ||
+											(yOffs == -1 && !gameState->solidGrid[tileX][tileY - 1].solid)) continue;
+									}
+									else if (dx == 0) {
+										if (yOffs != dy ||
+										   (xOffs == 1 && !gameState->solidGrid[tileX + 1][tileY].solid) ||
+										   (xOffs == -1 && !gameState->solidGrid[tileX - 1][tileY].solid)) continue;
+									}
+									else {
+										if ((xOffs == -dx && !(yOffs == dy && gameState->solidGrid[tileX - dx][tileY].solid)) ||
+										   ( yOffs == -dy && !(xOffs == dx && gameState->solidGrid[tileX][tileY - dy].solid)))
+											continue;
+									}
+								}
+								#endif
+							
+								double costToHere = current->costToHere;
+
+								if(xOffs == 0 || yOffs == 0) {
+									costToHere += 1;
+								}
+								else {
+									costToHere += SQRT2;
+								}
+
+								if ((testNode->open || testNode->closed) && testNode->costToHere <= costToHere)
+									continue;
+
+								testNode->costToHere = costToHere;
+								testNode->costToGoal = abs(goalNode->tileY - tileY) +
+													   abs(goalNode->tileX - tileX);
+								testNode->closed = false;
+								testNode->parent = current;
+
+								if (!testNode->open) {
+									testNode->open = true;
+									gameState->openPathNodes[gameState->openPathNodesCount++] = testNode;
+									assert(gameState->openPathNodesCount < arrayCount(gameState->openPathNodes));
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return start->p;
+}
+
+bool canBeGrounded(Entity* entity) {
+	bool result = !isSet(entity, EntityFlag_noMovementByDefault) || getMovementField(entity) != NULL;
 	return result;
 }
 
 void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 	double dt = gameState->consoleEntityRef ? 0 : dtForFrame;
 
+	//TODO: It might be possible to combine the three loops which handle ground reference lists later
 	//NOTE: This is to reset all of the entities ground reference lists
 	for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 		Entity* entity = gameState->entities + entityIndex;
 
-		if (entity->groundReferenceList) {
-			freeRefNode(entity->groundReferenceList, gameState);
-			entity->groundReferenceList = NULL;
+		clearFlags(entity, EntityFlag_grounded);
+
+		//The laser controller uses its ground references to move its components (top, base, beam)
+		if (entity->type != EntityType_laserController) {
+			if (entity->groundReferenceList) {
+				freeRefNode(entity->groundReferenceList, gameState);
+				entity->groundReferenceList = NULL;
+			}
 		}
 	}
 
@@ -757,28 +1477,26 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 	for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 		Entity* entity = gameState->entities + entityIndex;
 
-		Entity* ground = onGround(entity, gameState);
+		//The laser controllers components can move all of the other entities which are on top of it
+		if (entity->type != EntityType_laserController) {
+			Entity* above = getAbove(entity, gameState);
 
-		if (ground) {
-			setFlags(entity, EntityFlag_grounded);
-
-			RefNode* append = NULL;
-
-			if (gameState->refNodeFreeList) {
-				append = gameState->refNodeFreeList;
-				gameState->refNodeFreeList = gameState->refNodeFreeList->next;
-				append->next = NULL;
-			} else {
-				append = (RefNode*)pushStruct(&gameState->permanentStorage, RefNode);
+			if (above) {
+				if (canBeGrounded(above)) {
+					above->jumpCount = 0;
+					setFlags(above, EntityFlag_grounded);
+					addGroundReference(above, entity, gameState);
+				}
 			}
+		}
 
-			assert(append);
+		if (canBeGrounded(entity)) {
+			Entity* below = onGround(entity, gameState);
 
-			append->ref = entity->ref;
-			append->next = ground->groundReferenceList;
-			ground->groundReferenceList = append;
-		} else {
-			clearFlags(entity, EntityFlag_grounded);
+			if (below) {
+				setFlags(entity, EntityFlag_grounded);
+				addGroundReference(entity, below, gameState);
+			}
 		}
 	}
 
@@ -841,15 +1559,23 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		}
 
 		if (!isSet(entity, EntityFlag_ignoresFriction)) {
-			double friction = -15.0f;
-			entity->dP.x *= (double)pow(E, friction * dt);
+			double frictionCoefficient = -15.0f;
+			double friction = pow(E, frictionCoefficient * dt);
+			entity->dP.x *= friction;
+			if (isSet(entity, EntityFlag_ignoresGravity)) entity->dP.y *= friction;
 		}
 
 		ConsoleField* movementField = getMovementField(entity);
 
 		//NOTE: This handles moving the entity
-		if (movementField) {
+		if (movementField && dt > 0) {
+			ConsoleField* speedField = movementField->children[0];
+			double xMoveAcceleration = ((double*)speedField->values)[speedField->selectedIndex];
+
 			switch(movementField->type) {
+
+
+
 				case ConsoleField_keyboardControlled: {
 					double windowWidth = gameState->windowSize.x;
 					double maxCameraX = gameState->mapSize.x - windowWidth;
@@ -857,11 +1583,11 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 					double xMove = 0;
 
-					ConsoleField* speedField = movementField->children[0];
-					double xMoveAcceleration = ((double*)speedField->values)[speedField->selectedIndex];
-
 					ConsoleField* jumpField = movementField->children[1];
 					double jumpHeight = ((double*)jumpField->values)[jumpField->selectedIndex];
+
+					ConsoleField* doubleJumpField = movementField->children[2];
+					bool canDoubleJump = doubleJumpField->selectedIndex != 0;
 
 					if (gameState->input.rightPressed) xMove += xMoveAcceleration;
 					if (gameState->input.leftPressed) xMove -= xMoveAcceleration;
@@ -871,51 +1597,94 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 					if (xMove > 0) clearFlags(entity, EntityFlag_facesLeft);
 					else if (xMove < 0) setFlags(entity, EntityFlag_facesLeft);
 
-					if (isSet(entity, EntityFlag_grounded) && gameState->input.upPressed) {
-						entity->dP.y = jumpHeight;	
+					bool canJump = false;
+
+					if (!isSet(entity, EntityFlag_ignoresGravity)) {
+						canJump = isSet(entity, EntityFlag_grounded) && gameState->input.upPressed;
+						
+						if (!canJump) {
+							canJump = entity->jumpCount < 2 && canDoubleJump && gameState->input.upJustPressed;
+						}
+					}
+
+					if (canJump) {
+						entity->dP.y = jumpHeight;
+						entity->jumpCount++;
 					}
 
 					move(entity, dt, gameState, ddP);
 				} break;
 
+
+
+
 				case ConsoleField_movesBackAndForth: {
-					ConsoleField* speedField = movementField->children[0];
-					double xMoveAcceleration = ((double*)speedField->values)[speedField->selectedIndex];
+					
 					
 					V2 oldP = entity->p;
-					V2 oldCollisionSize = entity->collisionSize;
-					V2 oldCollisionOffset = entity->collisionOffset;
+					V2 oldCollisionSize = entity->hitboxes->collisionSize;
+					V2 oldCollisionOffset = entity->hitboxes->collisionOffset;
 
 					bool initiallyOnGround = isSet(entity, EntityFlag_grounded);
 
 					if (isSet(entity, EntityFlag_facesLeft)) {
 						xMoveAcceleration *= -1;
-						entity->collisionOffset.x -= entity->collisionSize.x / 2;
+						entity->hitboxes->collisionOffset.x -= entity->hitboxes->collisionSize.x / 2;
 					} else {
-						entity->collisionOffset.x += entity->collisionSize.x / 2;
+						entity->hitboxes->collisionOffset.x += entity->hitboxes->collisionSize.x / 2;
 					}
 
-					entity->collisionSize.x = 0;
+					entity->hitboxes->collisionSize.x = 0;
 					ddP.x = xMoveAcceleration;
 
+					double startX = entity->p.x;
 					move(entity, dt, gameState, ddP);
+					double endX = entity->p.x;
 
-					if (initiallyOnGround) {
-						bool offOfGround = onGround(entity, gameState) == NULL;
+					bool shouldChangeDirection = false;
 
-						if (offOfGround) {
-							entity->p = oldP;
-						}
+					if (isSet(entity, EntityFlag_ignoresGravity)) {
+						shouldChangeDirection = startX == endX;
+					} else {
+						if (initiallyOnGround) {
+							bool offOfGround = onGround(entity, gameState) == NULL;
 
-						bool shouldChangeDirection = offOfGround || entity->dP.x == 0;
+							if (offOfGround) {
+								entity->p = oldP;
+							}
 
-						if (shouldChangeDirection) {
-							toggleFlags(entity, EntityFlag_facesLeft);
+							shouldChangeDirection = offOfGround || entity->dP.x == 0;
 						}
 					}
 
-					entity->collisionSize = oldCollisionSize;
-					entity->collisionOffset = oldCollisionOffset;
+					if (shouldChangeDirection) {
+						toggleFlags(entity, EntityFlag_facesLeft);
+					}
+
+					entity->hitboxes->collisionSize = oldCollisionSize;
+					entity->hitboxes->collisionOffset = oldCollisionOffset;
+				} break;
+
+
+
+
+				case ConsoleField_seeksTarget: {
+					if (!shootingState) {
+						Entity* targetEntity = getEntityByRef(gameState, gameState->shootTargetRef);
+						if (targetEntity) {
+							V2 wayPoint = computePath(gameState, entity, targetEntity);
+							V2 delta = entity->p - wayPoint;
+
+							if (lengthSq(delta) > 0) {
+								ddP = normalize(delta) * -xMoveAcceleration;
+								move(entity, dt, gameState, ddP);
+
+								if (delta.x && delta.x < 0 == isSet(entity, EntityFlag_facesLeft)) {
+									toggleFlags(entity, EntityFlag_facesLeft);
+								}
+							}
+						}
+					}
 				} break;
 			}
 		} else {
@@ -929,7 +1698,23 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		if (isSet(entity, EntityFlag_removeWhenOutsideLevel)) {
 			R2 world = r2(v2(0, 0), gameState->worldSize);
 
-			if (!rectanglesOverlap(world, getHitbox(entity))) {
+			bool insideLevel = false;
+
+			Hitbox* hitboxList = entity->hitboxes;
+
+			while(hitboxList) {
+				R2 hitbox = rectCenterDiameter(entity->p + hitboxList->collisionOffset, hitboxList->collisionSize);
+
+				if (rectanglesOverlap(world, hitbox)) {
+					
+					insideLevel = true;
+					break;
+				}
+
+				hitboxList = hitboxList->next;
+			}
+
+			if (!insideLevel) {
 				setFlags(entity, EntityFlag_remove);
 			}
 		}
@@ -944,7 +1729,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		switch(entity->type) {
 			case EntityType_player: {
 				//NOTE: This handles changing the player's texture based on his state
-				if (entity->dP.y != 0) {
+				if (entity->dP.y != 0 || !isSet(entity, EntityFlag_grounded)) {
 					entity->animTime = 0;
 					entity->texture = &gameState->playerJump;
 				}
@@ -957,7 +1742,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 			} break;
 			case EntityType_virus: {
-				//NOTE: This shoots a projectile at the shoottarget if the target is nearby
+				//NOTE: This shoots a projectile at the shoot target if the target is nearby
 				if (shootingState) {
 					entity->texture = getAnimationFrame(&gameState->virus1Shoot, entity->shootTimer);
 				} else {
@@ -965,9 +1750,12 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				}
 
 			} break;
+			case EntityType_flyingVirus: {
+	
+			} break;
 			case EntityType_background: {
-				Texture* bg = &gameState->sunsetCityBg;
-				Texture* mg = &gameState->sunsetCityMg;
+				Texture* bg = &gameState->bgTex;
+				Texture* mg = &gameState->mgTex;
 
 				double bgTexWidth = (double)bg->srcRect.w;
 				double mgTexWidth = (double)mg->srcRect.w;
@@ -1004,7 +1792,6 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				int dXOffset = fieldXOffset - entity->tileXOffset;
 				int dYOffset = fieldYOffset - entity->tileYOffset;
 
-				//TODO: Smooth movement with collision detection
 				if (dXOffset != 0 || dYOffset != 0) {
 					V2 target = entity->tileStartPos + hadamard(v2((double)dXOffset, (double)dYOffset), entity->renderSize);
 
@@ -1025,7 +1812,15 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		}
 
 		#if SHOW_COLLISION_BOUNDS
-			drawRect(gameState, getEntityHitbox(entity), 0.025f, gameState->cameraP);
+			Hitbox* hitbox = entity->hitboxes;
+
+			while (hitbox) {
+				setColor(gameState->renderer, 255, 100, 255, 255);
+				drawRect(gameState, rectCenterDiameter(hitbox->collisionOffset + entity->p, hitbox->collisionSize),
+													   0.005f, gameState->cameraP);
+				hitbox = hitbox->next;
+			}
+
 		#endif
 	}
 

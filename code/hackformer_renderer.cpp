@@ -152,7 +152,6 @@ void drawLine(GameState* gameState, V2 p1, V2 p2) {
 	int x2 = (int)(p2.x * gameState->pixelsPerMeter);
 	int y2 = (int)(gameState->windowHeight - p2.y * gameState->pixelsPerMeter);
 
-	SDL_SetRenderDrawColor(gameState->renderer, 255, 0, 255, 255);
 	SDL_RenderDrawLine(gameState->renderer, x1, y1, x2, y2);
 }
 

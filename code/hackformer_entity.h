@@ -7,14 +7,26 @@ enum EntityType {
 	EntityType_text,
 	EntityType_virus,
 	EntityType_laserBolt,
+	EntityType_endPortal,
+	EntityType_laserBase,
+	EntityType_laserTop,
+	EntityType_laserBeam,
+	EntityType_laserController,
+	EntityType_flyingVirus,
 };
 
 enum DrawOrder {
 	DrawOrder_background,
 	DrawOrder_text,
 	DrawOrder_tile,
+	DrawOrder_endPortal,
 	DrawOrder_blueEnergy,
+	DrawOrder_laserController,
+	DrawOrder_laserBase,
+	DrawOrder_laserTop,
+	DrawOrder_laserBeam,
 	DrawOrder_virus,
+	DrawOrder_flyingVirus,
 	DrawOrder_laserBolt,
 	DrawOrder_player,
 };
@@ -37,6 +49,12 @@ struct RefNode {
 	RefNode* next;
 };
 
+struct Hitbox {
+	V2 collisionSize;
+	V2 collisionOffset;
+	Hitbox* next;
+};
+
 struct Entity {
 	EntityType type;
 	uint flags;
@@ -50,8 +68,8 @@ struct Entity {
 	double animTime;
 	DrawOrder drawOrder;
 
-	V2 collisionSize;
-	V2 collisionOffset;
+	//TODO: Free list for these
+	Hitbox* hitboxes;
 
 	ConsoleField* fields[8];
 	int numFields;
@@ -68,6 +86,8 @@ struct Entity {
 	V2 tileStartPos;
 	int tileXOffset;
 	int tileYOffset;
+
+	int jumpCount;
 };
 
 struct EntityReference {
@@ -75,11 +95,16 @@ struct EntityReference {
 	EntityReference* next;
 };
 
+struct TileMoveNode;
 struct TileMove {
 	Entity* tile;
-	Entity** children;
-	int numChildren;
+	TileMoveNode* children;
 	int numParents;
+};
+
+struct TileMoveNode {
+	TileMove* move;
+	TileMoveNode* next;
 };
 
 struct GetCollisionTimeResult {

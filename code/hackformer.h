@@ -1,14 +1,17 @@
 /*TODO:
 
 - Make console fields much smoother (moving around the fields, fading them in and out)
+- Handle overlaps between entities when selecting which one to hack better
+- Handle overlaps between entities (and their fields) with the swap field
 - Make camera change much smoother
+
+- Allow players to reset the level
 
 - Player death animation
 
-- Load in more entities from the tmx file
-- End portals which allow you to go to the next level
-- Flying virus enemy
-- Laser enemy
+- Better loading in of entities from the tmx file
+- Multiple strings for one text (hack)
+- Multiline text
 
 - Use 1 triangle image and rotate it in the console, 4 images are unecessary
 - Show single triangle indicating direction of tile movement
@@ -16,7 +19,13 @@
 - Make energy necessary for tweaking values
 - Collision with left and right edges of the map
 
-- Tile pushing another tile to the side
+- Fix tile pushing another tile to the side bugs
+
+- keyboard controlled flying enemies, not jumping -- flying up and down 
+- allow player to click the laser beam to hack the laser controller
+
+- more console fields
+- make radius console fields do things
 
 */
 
@@ -56,6 +65,17 @@ struct MemoryArena {
 	uint size;
 };
 
+struct PathNode {
+	bool solid;
+	bool open;
+	bool closed;
+	PathNode* parent;
+	double costToHere;
+	double costToGoal;
+	V2 p;
+	int tileX, tileY;
+};
+
 struct GameState {
 	Entity entities[1000];
 	int numEntities;
@@ -77,27 +97,50 @@ struct GameState {
 	int consoleEntityRef;
 	int playerRef;
 
+	bool loadNextLevel;
+
 	Texture playerStand, playerJump;
 	Animation playerWalk;
 
 	Texture virus1Stand;
 	Animation virus1Shoot;
 
+	Texture bgTex, mgTex;
 	Texture sunsetCityBg, sunsetCityMg;
+	Texture marineCityBg, marineCityMg;
+
 	Texture blueEnergy;
 	Texture laserBolt;
+	Texture endPortal;
 
 	Texture consoleTriangle, consoleTriangleSelected;
 	Texture consoleTriangleDown, consoleTriangleDownSelected;
 	Texture consoleTriangleUp, consoleTriangleUpSelected;
 
+	Texture laserBaseOff, laserBaseOn;
+	Texture laserTopOff, laserTopOn;
+	Texture laserBeam;
+
+	Texture flyingVirus;
+	Animation flyingVirusShoot;
+
 	ConsoleField keyboardSpeedField;
 	ConsoleField keyboardJumpHeightField;
 	ConsoleField keyboardControlledField;
-	ConsoleField patrolSpeedField;
+	ConsoleField keyboardDoubleJumpField;
+
 	ConsoleField movesBackAndForthField;
+	ConsoleField patrolSpeedField;
+
+	ConsoleField seeksTargetField;
+	ConsoleField seekTargetSpeedField;
+	ConsoleField seekTargetRadiusField;
+
 	ConsoleField shootsAtTargetField;
+	ConsoleField shootRadiusField;
+	ConsoleField bulletSpeedField;
 	ConsoleField isShootTargetField;
+
 	ConsoleField tileXOffsetField;
 	ConsoleField tileYOffsetField;
 
@@ -106,6 +149,12 @@ struct GameState {
 	V2 swapFieldP;
 
 	RefNode* refNodeFreeList;
+
+	PathNode* openPathNodes[10000];
+	int openPathNodesCount;
+	PathNode** solidGrid;
+	int solidGridWidth, solidGridHeight;
+	double solidGridSquareSize;
 
 	double shootDelay;
 	double tileSize;
