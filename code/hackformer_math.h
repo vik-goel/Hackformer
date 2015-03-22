@@ -263,6 +263,11 @@ double getRectHeight(R2 rect) {
 	return result;
 }
 
+V2 getRectSize(R2 rect) {
+	V2 result = v2(getRectWidth(rect), getRectHeight(rect));
+	return result;
+}
+
 V2 getRectCenter(R2 rect) {
 	V2 result = {};
 	result = (rect.min + rect.max) / 2;

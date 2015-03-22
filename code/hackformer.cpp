@@ -210,7 +210,7 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 		gameState->solidGrid = NULL;
 	}
 
-	gameState->solidGridWidth = (int)ceil(gameState->windowSize.x / gameState->solidGridSquareSize);
+	gameState->solidGridWidth = (int)ceil(gameState->mapSize.x / gameState->solidGridSquareSize);
 	gameState->solidGridHeight = (int)ceil(gameState->windowSize.y / gameState->solidGridSquareSize);
 
 	gameState->solidGrid = (PathNode**)calloc(1, gameState->solidGridWidth * sizeof(PathNode*));
@@ -230,6 +230,9 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 
 void pollInput(GameState* gameState, bool* running) {
 	gameState->input.dMouseMeters = v2(0, 0);
+	gameState->input.rJustPressed = false;
+	gameState->input.upJustPressed = false;
+	gameState->input.xJustPressed = false;
 
 	SDL_Event event;
 	while(SDL_PollEvent(&event) > 0) {
@@ -248,6 +251,17 @@ void pollInput(GameState* gameState, bool* running) {
 					if (pressed && !input->upPressed) input->upJustPressed = true;
 					input->upPressed = pressed;
 				}
+
+				if (key == SDLK_r) {
+					if (pressed && !input->rPressed) input->rJustPressed = true;
+					input->rPressed = pressed;
+				}
+
+				if (key == SDLK_x) {
+					if (pressed && !input->xPressed) input->xJustPressed = true;
+					input->xPressed = pressed;
+				}
+
 				else if (key == SDLK_a || key == SDLK_LEFT) input->leftPressed = pressed;
 				else if (key == SDLK_d || key == SDLK_RIGHT) input->rightPressed = pressed;
 			} break;
@@ -344,7 +358,7 @@ int main(int argc, char *argv[]) {
 	gameState->tileSize = 0.9f;
 	gameState->refCount = 1; //NOTE: This is for the null reference
 
-	gameState->consoleFont = loadFont("fonts/Roboto-Regular.ttf", 16);
+	gameState->consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
 	gameState->textFont = loadFont("fonts/Roboto-Regular.ttf", 64);
 
 	gameState->playerStand = loadPNGTexture(renderer, "res/player/stand.png");
@@ -364,16 +378,14 @@ int main(int argc, char *argv[]) {
 	gameState->marineCityBg = loadPNGTexture(renderer, "res/backgrounds/marine city bg.png");
 	gameState->marineCityMg = loadPNGTexture(renderer, "res/backgrounds/marine city mg.png");
 
-	gameState->blueEnergy = loadPNGTexture(renderer, "res/blue energy.png");
+	gameState->blueEnergyTex = loadPNGTexture(renderer, "res/blue energy.png");
 	gameState->laserBolt = loadPNGTexture(renderer, "res/virus1/laser bolt.png");
 	gameState->endPortal = loadPNGTexture(renderer, "res/end portal.png");
 
-	gameState->consoleTriangle = loadPNGTexture(renderer, "res/triangle.png");
-	gameState->consoleTriangleSelected = loadPNGTexture(renderer, "res/grey triangle.png");
-	gameState->consoleTriangleDown = loadPNGTexture(renderer, "res/triangle down.png");
-	gameState->consoleTriangleDownSelected = loadPNGTexture(renderer, "res/grey triangle down.png");
-	gameState->consoleTriangleUp = loadPNGTexture(renderer, "res/triangle up.png");
-	gameState->consoleTriangleUpSelected = loadPNGTexture(renderer, "res/grey triangle up.png");
+	gameState->consoleTriangle = loadPNGTexture(renderer, "res/blue triangle.png");
+	gameState->consoleTriangleSelected = loadPNGTexture(renderer, "res/light blue triangle.png");
+	gameState->consoleTriangleGrey = loadPNGTexture(renderer, "res/grey triangle.png");
+	gameState->consoleTriangleYellow = loadPNGTexture(renderer, "res/yellow triangle.png");
 
 	gameState->laserBaseOff = loadPNGTexture(renderer, "res/virus3/base off.png");
 	gameState->laserBaseOn = loadPNGTexture(renderer, "res/virus3/base on.png");
@@ -383,17 +395,17 @@ int main(int argc, char *argv[]) {
 
 	double keyboardSpeedFieldValues[] = {20, 40, 60, 80, 100}; 
 	gameState->keyboardSpeedField = createDoubleField(gameState, "speed", keyboardSpeedFieldValues, 
-												   arrayCount(keyboardSpeedFieldValues), 2);
+												   arrayCount(keyboardSpeedFieldValues), 2, 1);
 
 	double keyboardJumpHeightFieldValues[] = {1, 3, 5, 7, 9}; 
 	gameState->keyboardJumpHeightField = createDoubleField(gameState, "jump_height", keyboardJumpHeightFieldValues, 
-													    arrayCount(keyboardJumpHeightFieldValues), 2);
+													    arrayCount(keyboardJumpHeightFieldValues), 2, 1);
 
-	gameState->keyboardDoubleJumpField = createBoolField(gameState, "double_jump", false);
+	gameState->keyboardDoubleJumpField = createBoolField(gameState, "double_jump", false, 3);
 
 	double patrolSpeedFieldValues[] = {10, 20, 30, 40, 50}; 
 	gameState->patrolSpeedField = createDoubleField(gameState, "speed", patrolSpeedFieldValues, 
-												   arrayCount(patrolSpeedFieldValues), 2);
+												   arrayCount(patrolSpeedFieldValues), 2, 1);
 
 	gameState->keyboardControlledField = 
 		createConsoleField(gameState, "keyboard_controlled", ConsoleField_keyboardControlled);
@@ -405,12 +417,12 @@ int main(int argc, char *argv[]) {
 		createConsoleField(gameState, "shoots", ConsoleField_shootsAtTarget);
 
 	double shootRadiusFieldValues[] = {1, 3, 5, 7, 9}; 
-	gameState->shootRadiusField = createDoubleField(gameState, "detect radius", shootRadiusFieldValues, 
-													    arrayCount(shootRadiusFieldValues), 2);
+	gameState->shootRadiusField = createDoubleField(gameState, "detect_radius", shootRadiusFieldValues, 
+													    arrayCount(shootRadiusFieldValues), 2, 2);
 
 	double bulletSpeedFieldValues[] = {1, 2, 3, 4, 5}; 
-	gameState->bulletSpeedField = createDoubleField(gameState, "bullet speed", bulletSpeedFieldValues, 
-													    arrayCount(bulletSpeedFieldValues), 2);
+	gameState->bulletSpeedField = createDoubleField(gameState, "bullet_speed", bulletSpeedFieldValues, 
+													    arrayCount(bulletSpeedFieldValues), 2, 1);
 
 	gameState->isShootTargetField = 
 		createConsoleField(gameState, "is_target", ConsoleField_isShootTarget);
@@ -419,17 +431,20 @@ int main(int argc, char *argv[]) {
 
 	double seekTargetSpeedFieldValues[] = {5, 10, 15, 20, 25}; 
 	gameState->seekTargetSpeedField = createDoubleField(gameState, "speed", seekTargetSpeedFieldValues, 
-													    arrayCount(seekTargetSpeedFieldValues), 2);
+													    arrayCount(seekTargetSpeedFieldValues), 2, 1);
 
-	double seekTargetRadiusFieldValues[] = {2, 4, 6, 8, 10}; 
-	gameState->seekTargetRadiusField = createDoubleField(gameState, "sight radius", seekTargetRadiusFieldValues, 
-													    arrayCount(seekTargetRadiusFieldValues), 2);
+	double seekTargetRadiusFieldValues[] = {4, 8, 100, 16, 20}; 
+	gameState->seekTargetRadiusField = createDoubleField(gameState, "sight_radius", seekTargetRadiusFieldValues, 
+													    arrayCount(seekTargetRadiusFieldValues), 2, 2);
 
-	gameState->tileXOffsetField = createUnlimitedIntField(gameState, "x_offset", 0);
-	gameState->tileYOffsetField = createUnlimitedIntField(gameState, "y_offset", 0);
+	gameState->tileXOffsetField = createUnlimitedIntField(gameState, "x_offset", 0, 1);
+	gameState->tileYOffsetField = createUnlimitedIntField(gameState, "y_offset", 0, 1);
+
+	gameState->hurtsEntitiesField = createBoolField(gameState, "hurts_entities", true, 2);
 
 	char* mapFileNames[] = {
 		"map4.tmx",
+		"map5.tmx",
 		"map3.tmx",
 	};
 
@@ -442,9 +457,10 @@ int main(int argc, char *argv[]) {
 	uint fpsCounterTimer = SDL_GetTicks();
 	uint fps = 0;
 	double dtForFrame = 0;
+	double maxDtForFrame = 1.0 / 6.0;
 	uint lastTime = SDL_GetTicks();
 	uint currentTime;
-	
+
 	while (running) {
 		gameState->input.leftMouseJustPressed = false;
 		gameState->input.upJustPressed = false;
@@ -460,6 +476,8 @@ int main(int argc, char *argv[]) {
 		}
 
 		if (dtForFrame > frameTime) {
+			if (dtForFrame > maxDtForFrame) dtForFrame = maxDtForFrame;
+
 			fps++;
 			gameState->swapFieldP = gameState->windowSize / 2 + v2(0, 3);
 
@@ -474,8 +492,15 @@ int main(int argc, char *argv[]) {
 			SDL_RenderPresent(renderer); //Swap the buffers
 			dtForFrame = 0;
 
+			if (gameState->input.xJustPressed) {
+				gameState->blueEnergy += 10;
+			}
+
 			//NOTE: This reloads the game
-			if (gameState->loadNextLevel || !getEntityByRef(gameState, gameState->playerRef)) {
+			if (gameState->loadNextLevel || 
+				!getEntityByRef(gameState, gameState->playerRef) || 
+				gameState->input.rJustPressed) {
+
 				gameState->shootTargetRef = 0;
 				gameState->consoleEntityRef = 0;
 				gameState->playerRef = 0;
@@ -485,6 +510,7 @@ int main(int argc, char *argv[]) {
 				}
 
 				gameState->numEntities = 0;
+				gameState->blueEnergy = 0;
 
 				for (int refIndex = 0; refIndex < arrayCount(gameState->entityRefs_); refIndex++) {
 					freeEntityReference(gameState->entityRefs_ + refIndex, gameState);

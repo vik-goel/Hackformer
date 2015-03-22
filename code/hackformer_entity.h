@@ -1,8 +1,7 @@
 enum EntityType {
-	EntityType_null,
+	EntityType_background,
 	EntityType_player,
 	EntityType_tile,
-	EntityType_background,
 	EntityType_blueEnergy,
 	EntityType_text,
 	EntityType_virus,
@@ -11,7 +10,6 @@ enum EntityType {
 	EntityType_laserBase,
 	EntityType_laserTop,
 	EntityType_laserBeam,
-	EntityType_laserController,
 	EntityType_flyingVirus,
 };
 
@@ -37,11 +35,9 @@ enum EntityFlag {
 	EntityFlag_hackable = 1 << 2,
 	EntityFlag_remove = 1 << 3,
 	EntityFlag_removeWhenOutsideLevel = 1 << 4,
-	EntityFlag_ignoresGravity = 1 << 5,
-	EntityFlag_ignoresFriction = 1 << 6,
-	EntityFlag_shooting = 1 << 7,
-	EntityFlag_unchargingAfterShooting = 1 << 8,
-	EntityFlag_grounded = 1 << 9,
+	EntityFlag_shooting = 1 << 5,
+	EntityFlag_unchargingAfterShooting = 1 << 6,
+	EntityFlag_grounded = 1 << 7,
 };
 
 struct RefNode {
@@ -70,6 +66,7 @@ struct Entity {
 
 	//TODO: Free list for these
 	Hitbox* hitboxes;
+	R2 clickBox;
 
 	ConsoleField* fields[8];
 	int numFields;
@@ -87,7 +84,9 @@ struct Entity {
 	int tileXOffset;
 	int tileYOffset;
 
+	//Used by any entity that jumps
 	int jumpCount;
+	double timeSinceLastOnGround;
 };
 
 struct EntityReference {

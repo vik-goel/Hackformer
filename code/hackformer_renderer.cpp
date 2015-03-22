@@ -1,5 +1,6 @@
 SDL_Texture* loadPNGTexture_(SDL_Renderer* renderer, char* fileName) {
 	SDL_Surface *image = IMG_Load(fileName);
+	if (!image) fprintf(stderr, "Failed to load image from: %s\n", fileName);
 	assert(image);
 	SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, image);
 	assert(texture);
@@ -9,8 +10,8 @@ SDL_Texture* loadPNGTexture_(SDL_Renderer* renderer, char* fileName) {
 	return texture;
 }
 
-Texture loadPNGTexture(SDL_Renderer* renderer, char* fileName) {
-	Texture result = {};
+Texture loadPNGTexture(SDL_Renderer* renderer, char* fileName) 
+{	Texture result = {};
 
 	result.tex = loadPNGTexture_(renderer, fileName);
 	SDL_QueryTexture(result.tex, NULL, NULL, &result.srcRect.w, &result.srcRect.h);
@@ -22,12 +23,21 @@ TTF_Font* loadFont(char* fileName, int fontSize) {
 	TTF_Font *font = TTF_OpenFont(fileName, fontSize);
 
 	if (!font) {
-		fprintf(stderr, "Failed to load font: ");
-		fprintf(stderr, fileName);
+		fprintf(stderr, "Failed to load font: %s\n", fileName);
 		assert(false);
 	}
 
+	TTF_SetFontHinting(font, TTF_HINTING_LIGHT);
+
 	return font;
+}
+
+CachedFont loadCachedFont(GameState* gameState, char* fileName, int fontSize, double scaleFactor) {
+	CachedFont result = {};
+	result.font = loadFont(fileName, (int)round(fontSize * scaleFactor));
+	result.scaleFactor = scaleFactor;
+	result.lineHeight = fontSize / (gameState->pixelsPerMeter * scaleFactor);
+	return result;
 }
 
 Texture* extractTextures(GameState* gameState, char* fileName, 
@@ -106,11 +116,11 @@ SDL_Rect getPixelSpaceRect(GameState* gameState, R2 rect) {
 	return result;
 }
 
-void drawTexture(GameState* gameState, Texture* texture, R2 bounds, bool flipX) {
+void drawTexture(GameState* gameState, Texture* texture, R2 bounds, bool flipX, double degrees = 0) {
 	SDL_Rect dstRect = getPixelSpaceRect(gameState, bounds);
 
 	SDL_RendererFlip flip = flipX ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
-	SDL_RenderCopyEx(gameState->renderer, texture->tex, &texture->srcRect, &dstRect, 0, NULL, flip);
+	SDL_RenderCopyEx(gameState->renderer, texture->tex, &texture->srcRect, &dstRect, degrees, NULL, flip);
 }
 
 void setColor(SDL_Renderer* renderer, int r, int g, int b, int a) {
@@ -166,8 +176,12 @@ void drawPolygon(GameState* gameState, V2* vertices, int numVertices, V2 center)
 Texture createText(GameState* gameState, TTF_Font* font, char* msg) {
 	Texture result = {};
 
-	SDL_Color fontColor = {};
-	SDL_Surface *fontSurface = TTF_RenderText_Blended(font, msg, fontColor);
+	SDL_Color fontColor = {0, 0, 0, 255};
+	SDL_Surface* fontSurface = TTF_RenderText_Blended(font, msg, fontColor);
+
+	//SDL_Color backgroundColor = {255, 255, 255, 255};
+	//SDL_Surface* fontSurface = TTF_RenderText_Shaded(font, msg, fontColor, backgroundColor);
+
 	assert(fontSurface);
 	
 	result.tex = SDL_CreateTextureFromSurface(gameState->renderer, fontSurface);
@@ -194,4 +208,49 @@ void drawText(GameState* gameState, Texture* texture, TTF_Font* font, double x, 
 	drawTexture(gameState, texture, fontBounds, false);
 }	
 
+Texture* getGlyph(CachedFont* cachedFont, GameState* gameState, char c) {
+	if (!cachedFont->cache[c].tex) {	
+		SDL_Color black = {0, 0, 0, 255};
+
+		SDL_Surface* glyphSurface = TTF_RenderGlyph_Blended(cachedFont->font, c, black);
+		assert(glyphSurface);
+
+		cachedFont->cache[c].tex = SDL_CreateTextureFromSurface(gameState->renderer, glyphSurface);
+		assert(cachedFont->cache[c].tex);
+
+		SDL_QueryTexture(cachedFont->cache[c].tex , NULL, NULL, 
+						 &cachedFont->cache[c].srcRect.w, &cachedFont->cache[c].srcRect.h);
+	}
+
+	Texture* result = cachedFont->cache + c;
+	return result;
+}
+
+double getTextWidth(CachedFont* cachedFont, GameState* gameState, char* msg) {
+	double result = 0;
+
+	double metersPerPixel = 1.0 / (gameState->pixelsPerMeter * cachedFont->scaleFactor);
+
+	while(*msg) {
+		result += getGlyph(cachedFont, gameState, *msg)->srcRect.w * metersPerPixel;
+		msg++;
+	}
+
+	return result;
+}
+
+void drawCachedText(CachedFont* cachedFont, GameState* gameState, char* msg, V2 p) {
+	double metersPerPixel = 1.0 / (gameState->pixelsPerMeter * cachedFont->scaleFactor);
+
+	while(*msg) {
+		Texture* texture = getGlyph(cachedFont, gameState, *msg);
+		V2 size = v2(texture->srcRect.w, texture->srcRect.h) * metersPerPixel;
+		R2 bounds = r2(p, p + size);
+
+		drawTexture(gameState, texture, bounds, false);
+
+		p.x += size.x;
+		msg++;
+	}
+}
 

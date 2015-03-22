@@ -10,18 +10,16 @@ enum ConsoleFieldType {
 };
 
 enum ConsoleFieldFlags {
-	ConsoleFlag_validValueTex = 1 << 0,
-	ConsoleFlag_selected = 1 << 1,
-	ConsoleFlag_remove = 1 << 2,
-	ConsoleFlag_childrenVisible = 1 << 3,
+	ConsoleFlag_selected = 1 << 0,
+	ConsoleFlag_remove = 1 << 1,
+	ConsoleFlag_childrenVisible = 1 << 2,
 };
 
 struct ConsoleField {
 	ConsoleFieldType type;
 	uint flags;
 
-	Texture nameTex;
-	char* name;
+	char name[100];
 	
 	//NOTE: These attributes are used for fields with many values
 	void* values;
@@ -29,8 +27,10 @@ struct ConsoleField {
 	
 	int selectedIndex;
 	int initialIndex;
+
+	int tweakCost;
 	
-	Texture valueTex;
+	char valueStr[100];
 
 	//NOTE: These attributes are used for drag and droppable fields
 	V2 offs;
@@ -48,6 +48,13 @@ bool isConsoleFieldMovementType(ConsoleField* field) {
 				  field->type == ConsoleField_movesBackAndForth ||
 				  field->type == ConsoleField_seeksTarget;
 	return result;
+}
+
+bool canOnlyHaveOneFieldOfType(ConsoleFieldType type) {
+	bool result = type == ConsoleField_isShootTarget ||
+				  type == ConsoleField_shootsAtTarget;
+
+ 	return result;
 }
 
 void setFlags(ConsoleField* field, uint flags) {

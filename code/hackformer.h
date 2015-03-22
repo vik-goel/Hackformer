@@ -5,27 +5,32 @@
 - Handle overlaps between entities (and their fields) with the swap field
 - Make camera change much smoother
 
-- Allow players to reset the level
-
 - Player death animation
+- Simulate the world for a few frames to let all the entities fall into place before showing the level
 
 - Better loading in of entities from the tmx file
 - Multiple strings for one text (hack)
 - Multiline text
 
-- Use 1 triangle image and rotate it in the console, 4 images are unecessary
-- Show single triangle indicating direction of tile movement
-
-- Make energy necessary for tweaking values
 - Collision with left and right edges of the map
 
 - Fix tile pushing another tile to the side bugs
 
-- keyboard controlled flying enemies, not jumping -- flying up and down 
-- allow player to click the laser beam to hack the laser controller
+- fix up draw rectangle
+
+- clean up move tiles memory
+
+- locking fields so they can't be moved
+- locking fields so they can't be modified
+
+- test remove when outside level to see that it works
 
 - more console fields
-- make radius console fields do things
+
+- use a priority queue to process path requests
+
+- when patrolling change all of the hitboxes, not just the first one
+- clean up hitboxes
 
 */
 
@@ -57,6 +62,8 @@ struct Input {
 	bool upPressed, leftPressed, rightPressed;
 	bool upJustPressed;
 	bool leftMousePressed, leftMouseJustPressed;
+	bool rPressed, rJustPressed;
+	bool xPressed, xJustPressed;
 };
 
 struct MemoryArena {
@@ -83,12 +90,14 @@ struct GameState {
 	//NOTE: 0 is the null reference
 	EntityReference entityRefs_[300];
 	EntityReference* entityRefFreeList;
+
+	//NOTE: These must be sequential for laser collisions to work
 	int refCount;
 
 	MemoryArena permanentStorage;
 	SDL_Renderer* renderer;
 	TTF_Font* textFont;
-	TTF_Font* consoleFont;
+	CachedFont consoleFont;
 
 	Input input;
 	V2 cameraP;
@@ -109,13 +118,11 @@ struct GameState {
 	Texture sunsetCityBg, sunsetCityMg;
 	Texture marineCityBg, marineCityMg;
 
-	Texture blueEnergy;
+	Texture blueEnergyTex;
 	Texture laserBolt;
 	Texture endPortal;
 
-	Texture consoleTriangle, consoleTriangleSelected;
-	Texture consoleTriangleDown, consoleTriangleDownSelected;
-	Texture consoleTriangleUp, consoleTriangleUpSelected;
+	Texture consoleTriangle, consoleTriangleSelected, consoleTriangleGrey, consoleTriangleYellow;
 
 	Texture laserBaseOff, laserBaseOn;
 	Texture laserTopOff, laserTopOn;
@@ -144,6 +151,8 @@ struct GameState {
 	ConsoleField tileXOffsetField;
 	ConsoleField tileYOffsetField;
 
+	ConsoleField hurtsEntitiesField;
+
 	ConsoleField* consoleFreeList;
 	ConsoleField* swapField;
 	V2 swapFieldP;
@@ -155,6 +164,8 @@ struct GameState {
 	PathNode** solidGrid;
 	int solidGridWidth, solidGridHeight;
 	double solidGridSquareSize;
+
+	int blueEnergy;
 
 	double shootDelay;
 	double tileSize;

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.0" orientation="orthogonal" renderorder="right-down" width="30" height="11" tilewidth="120" tileheight="120">
+ <tileset firstgid="1" name="tiles" tilewidth="120" tileheight="120" spacing="3" margin="3">
+  <image source="res/tiles.png" width="378" height="252"/>
+ </tileset>
+ <tileset firstgid="7" name="items" tilewidth="100" tileheight="100">
+  <image source="res/items.png" width="1000" height="1000"/>
+ </tileset>
+ <layer name="solid" width="30" height="11">
+  <data encoding="csv">
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+1,1,1,1,1,0,0,0,2,3,3,4,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,
+3,3,3,3,4,0,0,0,2,3,3,4,0,0,1,1,1,1,1,0,0,0,0,0,2,3,3,3,3,3,
+3,3,3,3,4,0,0,0,2,3,3,4,0,0,2,3,3,3,4,0,0,0,0,0,2,3,3,3,3,3
+</data>
+ </layer>
+ <objectgroup name="objects">
+  <object name="player" gid="9" x="26" y="938"/>
+  <object name="end portal" gid="11" x="3302" y="910"/>
+  <object name="laser base" gid="13" x="726" y="1174">
+   <properties>
+    <property name="height" value="0.8"/>
+   </properties>
+  </object>
+  <object name="laser base" gid="13" x="2526" y="1214">
+   <properties>
+    <property name="height" value="0.8"/>
+   </properties>
+  </object>
+  <object name="flyer" gid="12" x="950" y="622"/>
+  <object name="flyer" gid="12" x="1170" y="298"/>
+  <object name="flyer" gid="12" x="1314" y="694"/>
+  <object name="flyer" gid="12" x="1542" y="242"/>
+  <object name="flyer" gid="12" x="1618" y="902"/>
+  <object name="flyer" gid="12" x="1974" y="986"/>
+  <object name="flyer" gid="12" x="2318" y="994"/>
+  <object name="flyer" gid="12" x="2710" y="930"/>
+  <object name="flyer" gid="12" x="2866" y="570"/>
+  <object name="flyer" gid="12" x="2810" y="302"/>
+  <object name="flyer" gid="12" x="2310" y="330"/>
+  <object name="flyer" gid="12" x="2050" y="630"/>
+  <object name="flyer" gid="12" x="1898" y="318"/>
+  <object name="flyer" gid="12" x="1722" y="574"/>
+  <object name="flyer" gid="12" x="2390" y="650"/>
+  <object name="red energy" gid="8" x="114" y="946"/>
+  <object name="red energy" gid="8" x="182" y="942"/>
+  <object name="red energy" gid="8" x="258" y="942"/>
+  <object name="red energy" gid="8" x="338" y="942"/>
+  <object name="red energy" gid="8" x="422" y="942"/>
+  <object name="red energy" gid="8" x="502" y="946"/>
+  <object name="background" x="80" y="84" width="48" height="52">
+   <properties>
+    <property name="type" value="sunset"/>
+   </properties>
+  </object>
+  <object name="red energy" gid="8" x="998" y="826"/>
+  <object name="red energy" gid="8" x="1122" y="826"/>
+  <object name="red energy" gid="8" x="1242" y="822"/>
+  <object name="red energy" gid="8" x="1346" y="822"/>
+  <object name="red energy" gid="8" x="1766" y="1062"/>
+  <object name="red energy" gid="8" x="1870" y="1062"/>
+  <object name="red energy" gid="8" x="1982" y="1054"/>
+  <object name="red energy" gid="8" x="2066" y="1050"/>
+  <object name="red energy" gid="8" x="2174" y="1058"/>
+ </objectgroup>
+</map>
