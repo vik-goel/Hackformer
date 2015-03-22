@@ -102,7 +102,11 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 		}
 		else if(textures == NULL) {
 			if (extractStringFromLine(line, lineLength, "image source", buffer, arrayCount(buffer))) {
-				textures = extractTextures(gameState, buffer, tileWidth, tileHeight, tileSpacing, &numTextures);
+				int texWidth = 0, texHeight = 0;
+				extractIntFromLine(line, lineLength, "width", &texWidth);
+				extractIntFromLine(line, lineLength, "height", &texHeight);
+				textures = extractTextures(gameState, buffer, tileWidth, tileHeight, tileSpacing, &numTextures,
+										   texWidth, texHeight);
 			}
 		}
 		else if(!loadingTileData && !doneLoadingTiles) {
@@ -294,8 +298,10 @@ void pollInput(GameState* gameState, bool* running) {
 	}
 }
 
-SDL_Renderer* initGameForRendering(int windowWidth, int windowHeight) {
-//TODO: Proper error handling if any of these libraries does not load
+int main(int argc, char *argv[]) {
+	int windowWidth = 1280, windowHeight = 720;
+
+	//TODO: Proper error handling if any of these libraries does not load
 //TODO: Only initialize what is needed
 	if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
 		fprintf(stderr, "Failed to initialize SDL. Error: %s", SDL_GetError());
@@ -307,22 +313,24 @@ SDL_Renderer* initGameForRendering(int windowWidth, int windowHeight) {
 		assert(false);
 	}
 
+	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+
+	SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+	SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+	SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+
 	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1); 
 	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
 
-	SDL_Window *window = SDL_CreateWindow("C++former", 
-										  SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
+	SDL_Window* window = SDL_CreateWindow("C++former", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
 										  windowWidth, windowHeight, 
-										  SDL_WINDOW_ALLOW_HIGHDPI);
+										  SDL_WINDOW_ALLOW_HIGHDPI|SDL_WINDOW_OPENGL);
+	
+	SDL_GLContext glContext = SDL_GL_CreateContext(window);
 
 	if (!window) {
 		fprintf(stderr, "Failed to create window. Error: %s", SDL_GetError());
-		assert(false);
-	}
-	SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
-
-	if (!renderer) {
-		fprintf(stderr, "Failed to create renderer. Error: %s", SDL_GetError());
 		assert(false);
 	}
 
@@ -330,14 +338,6 @@ SDL_Renderer* initGameForRendering(int windowWidth, int windowHeight) {
 		fprintf(stderr, "Failed to initialize SDL_ttf.");
 		assert(false);
 	}
-
-	return renderer;
-}
-
-int main(int argc, char *argv[]) {
-	int windowWidth = 1280, windowHeight = 720;
-
-	SDL_Renderer* renderer = initGameForRendering(windowWidth, windowHeight);
 
 	int gameStateSize = sizeof(GameState); 
 
@@ -347,12 +347,14 @@ int main(int argc, char *argv[]) {
 
 	GameState* gameState = (GameState*)pushStruct(&arena_, GameState);
 	gameState->permanentStorage = arena_;
-	gameState->renderer = renderer;
 
 	gameState->pixelsPerMeter = 70.0f;
 	gameState->windowWidth = windowWidth;
 	gameState->windowHeight = windowHeight;
 	gameState->windowSize = v2((double)windowWidth, (double)windowHeight) / gameState->pixelsPerMeter;
+
+	glOrtho(0.0, gameState->windowSize.x, 0.0, gameState->windowSize.y, -1.0, 1.0);
+
 	gameState->gravity = v2(0, -9.81f);
 	gameState->solidGridSquareSize = 0.1;
 	gameState->tileSize = 0.9f;
@@ -361,37 +363,42 @@ int main(int argc, char *argv[]) {
 	gameState->consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
 	gameState->textFont = loadFont("fonts/Roboto-Regular.ttf", 64);
 
-	gameState->playerStand = loadPNGTexture(renderer, "res/player/stand.png");
-	gameState->playerJump = loadPNGTexture(renderer, "res/player/jump.png");
-	gameState->playerWalk = loadAnimation(gameState, "res/player/walk.png", 128, 128, 0.04f);
+	gameState->playerStand = loadPNGTexture(gameState, "res/player/stand.png");
+	gameState->playerJump = loadPNGTexture(gameState, "res/player/jump.png");
+	gameState->playerWalk = loadAnimation(gameState, "res/player/walk.png", 128, 128, 0.04f, 768, 384);
 
-	gameState->virus1Stand = loadPNGTexture(renderer, "res/virus1/stand.png");
-	gameState->virus1Shoot = loadAnimation(gameState, "res/virus1/shoot.png", 256, 256, 0.04f);
+	gameState->virus1Stand = loadPNGTexture(gameState, "res/virus1/stand.png");
+	gameState->virus1Shoot = loadAnimation(gameState, "res/virus1/shoot.png", 256, 256, 0.04f, 2560, 256);
 	gameState->shootDelay = getAnimationDuration(&gameState->virus1Shoot);
 
 	//TODO: Make shoot animation time per frame be set by the shootDelay
-	gameState->flyingVirus = loadPNGTexture(renderer, "res/virus2/full.png");
-	gameState->flyingVirusShoot = loadAnimation(gameState, "res/virus2/shoot.png", 256, 256, 0.04f);
+	gameState->flyingVirus = loadPNGTexture(gameState, "res/virus2/full.png");
+	gameState->flyingVirusShoot = loadAnimation(gameState, "res/virus2/shoot.png", 256, 256, 0.04f, 2560, 256);
 
-	gameState->sunsetCityBg = loadPNGTexture(renderer, "res/backgrounds/sunset city bg.png");
-	gameState->sunsetCityMg = loadPNGTexture(renderer, "res/backgrounds/sunset city mg.png");
-	gameState->marineCityBg = loadPNGTexture(renderer, "res/backgrounds/marine city bg.png");
-	gameState->marineCityMg = loadPNGTexture(renderer, "res/backgrounds/marine city mg.png");
+	gameState->sunsetCityBg = loadPNGTexture(gameState, "res/backgrounds/sunset city bg.png");
+	gameState->sunsetCityMg = loadPNGTexture(gameState, "res/backgrounds/sunset city mg.png");
+	gameState->marineCityBg = loadPNGTexture(gameState, "res/backgrounds/marine city bg.png");
+	gameState->marineCityMg = loadPNGTexture(gameState, "res/backgrounds/marine city mg.png");
 
-	gameState->blueEnergyTex = loadPNGTexture(renderer, "res/blue energy.png");
-	gameState->laserBolt = loadPNGTexture(renderer, "res/virus1/laser bolt.png");
-	gameState->endPortal = loadPNGTexture(renderer, "res/end portal.png");
+	gameState->sunsetCityBg.size = v2(2560, 512) / gameState->pixelsPerMeter;
+	gameState->marineCityBg.size = v2(2560, 512) / gameState->pixelsPerMeter;
+	gameState->sunsetCityMg.size = v2(3060, 512) / gameState->pixelsPerMeter;
+	gameState->marineCityMg.size = v2(3060, 512) / gameState->pixelsPerMeter;
 
-	gameState->consoleTriangle = loadPNGTexture(renderer, "res/blue triangle.png");
-	gameState->consoleTriangleSelected = loadPNGTexture(renderer, "res/light blue triangle.png");
-	gameState->consoleTriangleGrey = loadPNGTexture(renderer, "res/grey triangle.png");
-	gameState->consoleTriangleYellow = loadPNGTexture(renderer, "res/yellow triangle.png");
+	gameState->blueEnergyTex = loadPNGTexture(gameState, "res/blue energy.png");
+	gameState->laserBolt = loadPNGTexture(gameState, "res/virus1/laser bolt.png");
+	gameState->endPortal = loadPNGTexture(gameState, "res/end portal.png");
 
-	gameState->laserBaseOff = loadPNGTexture(renderer, "res/virus3/base off.png");
-	gameState->laserBaseOn = loadPNGTexture(renderer, "res/virus3/base on.png");
-	gameState->laserTopOff = loadPNGTexture(renderer, "res/virus3/top off.png");
-	gameState->laserTopOn = loadPNGTexture(renderer, "res/virus3/top on.png");
-	gameState->laserBeam = loadPNGTexture(renderer, "res/virus3/laser beam.png");
+	gameState->consoleTriangle = loadPNGTexture(gameState, "res/blue triangle.png");
+	gameState->consoleTriangleSelected = loadPNGTexture(gameState, "res/light blue triangle.png");
+	gameState->consoleTriangleGrey = loadPNGTexture(gameState, "res/grey triangle.png");
+	gameState->consoleTriangleYellow = loadPNGTexture(gameState, "res/yellow triangle.png");
+
+	gameState->laserBaseOff = loadPNGTexture(gameState, "res/virus3/base off.png");
+	gameState->laserBaseOn = loadPNGTexture(gameState, "res/virus3/base on.png");
+	gameState->laserTopOff = loadPNGTexture(gameState, "res/virus3/top off.png");
+	gameState->laserTopOn = loadPNGTexture(gameState, "res/virus3/top on.png");
+	gameState->laserBeam = loadPNGTexture(gameState, "res/virus3/laser beam.png");
 
 	double keyboardSpeedFieldValues[] = {20, 40, 60, 80, 100}; 
 	gameState->keyboardSpeedField = createDoubleField(gameState, "speed", keyboardSpeedFieldValues, 
@@ -443,9 +450,9 @@ int main(int argc, char *argv[]) {
 	gameState->hurtsEntitiesField = createBoolField(gameState, "hurts_entities", true, 2);
 
 	char* mapFileNames[] = {
+		"map3.tmx",
 		"map4.tmx",
 		"map5.tmx",
-		"map3.tmx",
 	};
 
 	int mapFileIndex = 0;
@@ -461,6 +468,8 @@ int main(int argc, char *argv[]) {
 	uint lastTime = SDL_GetTicks();
 	uint currentTime;
 
+	//printf("Error: %d\n", glGetError());
+
 	while (running) {
 		gameState->input.leftMouseJustPressed = false;
 		gameState->input.upJustPressed = false;
@@ -475,6 +484,8 @@ int main(int argc, char *argv[]) {
 			fps = 0;
 		}
 
+		glClearColor(0, 0, 0, 1);
+
 		if (dtForFrame > frameTime) {
 			if (dtForFrame > maxDtForFrame) dtForFrame = maxDtForFrame;
 
@@ -483,14 +494,17 @@ int main(int argc, char *argv[]) {
 
 			pollInput(gameState, &running);
 
-			SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-			SDL_RenderClear(renderer);
 
+			glClear(GL_COLOR_BUFFER_BIT);
+
+			//printf("Error: %d\n", glGetError());
 			updateAndRenderEntities(gameState, dtForFrame);
 			updateConsole(gameState);
 
-			SDL_RenderPresent(renderer); //Swap the buffers
+			SDL_GL_SwapWindow(window);
+
 			dtForFrame = 0;
+			gameState->cameraP = gameState->newCameraP;
 
 			if (gameState->input.xJustPressed) {
 				gameState->blueEnergy += 10;

@@ -125,7 +125,8 @@ void freeConsoleField(ConsoleField* field, GameState* gameState) {
 void freeEntity(Entity* entity, GameState* gameState) {
 	switch(entity->type) {
 		case EntityType_text: {
-			SDL_DestroyTexture(entity->texture->tex);
+			glDeleteTextures(1, &entity->texture->texId);
+			//SDL_DestroyTexture(entity->texture->tex);
 			//TODO: A free list could be used here instead
 			free(entity->texture);
 		} break;
@@ -453,7 +454,7 @@ Entity* addText(GameState* gameState, V2 p, char* msg) {
 	Entity* result = addEntity(gameState, EntityType_text, DrawOrder_text, p, v2(0, 0));
 	result->texture = (Texture*)malloc(sizeof(Texture));
 	*(result->texture) = createText(gameState, gameState->textFont, msg);
-	result->renderSize = v2((double)result->texture->srcRect.w, (double)result->texture->srcRect.h) / gameState->pixelsPerMeter;
+	result->renderSize = result->texture->size;
 	
 	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
 										 result->renderSize.x, result->renderSize.y);
@@ -1637,7 +1638,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				case ConsoleField_keyboardControlled: {
 					double windowWidth = gameState->windowSize.x;
 					double maxCameraX = gameState->mapSize.x - windowWidth;
-					gameState->cameraP.x = clamp((double)(entity->p.x - windowWidth / 2.0), 0, maxCameraX);
+					gameState->newCameraP.x = clamp((double)(entity->p.x - windowWidth / 2.0), 0, maxCameraX);
 
 					double xMove = 0;
 
@@ -1837,13 +1838,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				Texture* bg = &gameState->bgTex;
 				Texture* mg = &gameState->mgTex;
 
-				double bgTexWidth = (double)bg->srcRect.w;
-				double mgTexWidth = (double)mg->srcRect.w;
-				double mgTexHeight = (double)mg->srcRect.h;
-
-				double bgScrollRate = bgTexWidth / mgTexWidth;
+				double bgScrollRate = bg->size.x / mg->size.x;
 				double bgHeight = gameState->windowHeight / gameState->pixelsPerMeter;
-				double mgWidth = max(gameState->mapSize.x, mgTexWidth / gameState->pixelsPerMeter);
+				double mgWidth = max(gameState->mapSize.x, mg->size.x);
 								
 				double bgWidth = mgWidth / bgScrollRate - 1;
 

@@ -142,7 +142,7 @@ bool moveField(ConsoleField* field, GameState* gameState, R2 bounds) {
 void drawOutlinedConsoleBoxRaw(GameState* gameState, R2 bounds, double stroke) {
 	drawFilledRect(gameState, bounds);
 
-	setColor(gameState->renderer, 0, 0, 0, 255);
+	glColor4f(0, 0, 0, 1);
 	drawRect(gameState, bounds, stroke);
 }
 
@@ -156,17 +156,17 @@ bool drawOutlinedConsoleBox(ConsoleField* field, GameState* gameState,
 
 	if (nameBox) {
 		if (hasValue) {
-			setColor(gameState->renderer, 255, 100, 100, 255);
+			glColor4f(1, (GLfloat)0.4, (GLfloat)0.4, 1);
 		}
 		else {
-			setColor(gameState->renderer, 100, 100, 255, 255);
+			glColor4f((GLfloat)0.4, (GLfloat)0.4, 1, 1);
 			result = moveField(field, gameState, bounds);
 		}
 
 		//text = &field->nameTex;
 		text = field->name;
 	} else {
-		setColor(gameState->renderer, 100, 255, 100, 255);
+		glColor4f((GLfloat)0.4, 1, (GLfloat)0.4, 1);
 		//text = &field->valueTex;
 		text = field->valueStr;
 	}
@@ -209,10 +209,10 @@ bool drawConsoleTriangle(GameState* gameState, V2 triangleP, V2 triangleSize,
 	R2 triangleBounds = rectCenterDiameter(triangleP, triangleSize);
 
 	Texture* triangleTex = NULL;
-	double angle = 0;
+	Rotation angle = Degree0;
 
-	if (facesDown) angle = 90;
-	if (facesUp) angle = 270;
+	if (facesDown) angle = Degree90;
+	if (facesUp) angle = Degree270;
 
 	bool enoughEnergyToHack = !yellow && gameState->blueEnergy >= tweakCost;
 
@@ -396,7 +396,7 @@ void updateConsole(GameState* gameState) {
 		assert(entity);
 
 		R2 renderBounds = translateRect(entity->clickBox, entity->p - gameState->cameraP);
-		setColor(gameState->renderer, 255, 0, 0, 255);
+		glColor4f(1, 0, 0, 1);
 		drawRect(gameState, renderBounds, 0.02f);
 
 		V2 fieldOffset;
@@ -483,7 +483,7 @@ void updateConsole(GameState* gameState) {
 			clickHandled |= drawConsoleField(gameState->swapField, gameState, &gameState->swapFieldP, 
 										 	 fieldSize, triangleSize, valueSize, spacing, stroke);	
 		} else {
-			setColor(gameState->renderer, 255, 255, 100, 255);
+			glColor4f(1, 1, (GLfloat)0.4, 1);
 			drawOutlinedConsoleBoxRaw(gameState, rectCenterDiameter(gameState->swapFieldP, fieldSize), stroke);
 		}
 	}

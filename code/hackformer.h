@@ -1,36 +1,31 @@
 /*TODO:
 
+- Better loading in of entities from the tmx file
+- Multiple strings for one text (hack)
+- Multiline text
+
+- Player death animation
+- Simulate the world for a few frames to let all the entities fall into place before showing the level
+
+- Fix tile pushing another tile to the side bugs
+- clean up move tiles memory
+- test remove when outside level to see that it works
+
+- Fix collision bug when keyboard controlling "Good Luck" text
+- Collision with left and right edges of the map
+
+- use a priority queue to process path requests
+- when patrolling change all of the hitboxes, not just the first one
+- clean up hitboxes memory
+
 - Make console fields much smoother (moving around the fields, fading them in and out)
 - Handle overlaps between entities when selecting which one to hack better
 - Handle overlaps between entities (and their fields) with the swap field
 - Make camera change much smoother
 
-- Player death animation
-- Simulate the world for a few frames to let all the entities fall into place before showing the level
-
-- Better loading in of entities from the tmx file
-- Multiple strings for one text (hack)
-- Multiline text
-
-- Collision with left and right edges of the map
-
-- Fix tile pushing another tile to the side bugs
-
-- fix up draw rectangle
-
-- clean up move tiles memory
-
 - locking fields so they can't be moved
 - locking fields so they can't be modified
-
-- test remove when outside level to see that it works
-
 - more console fields
-
-- use a priority queue to process path requests
-
-- when patrolling change all of the hitboxes, not just the first one
-- clean up hitboxes
 
 */
 
@@ -46,6 +41,7 @@
 #include <cassert>
 
 #include "SDL.h"
+#include "SDL_opengl.h"
 #include "SDL_image.h"
 #include "SDL_ttf.h"
 
@@ -95,12 +91,12 @@ struct GameState {
 	int refCount;
 
 	MemoryArena permanentStorage;
-	SDL_Renderer* renderer;
 	TTF_Font* textFont;
 	CachedFont consoleFont;
 
 	Input input;
 	V2 cameraP;
+	V2 newCameraP;
 
 	int shootTargetRef;
 	int consoleEntityRef;
