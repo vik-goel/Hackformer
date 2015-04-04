@@ -1,6 +1,7 @@
 enum EntityType {
 	EntityType_background,
 	EntityType_player,
+	EntityType_playerDeath,
 	EntityType_tile,
 	EntityType_blueEnergy,
 	EntityType_text,
@@ -26,6 +27,7 @@ enum DrawOrder {
 	DrawOrder_virus,
 	DrawOrder_flyingVirus,
 	DrawOrder_laserBolt,
+	DrawOrder_playerDeath,
 	DrawOrder_player,
 };
 
@@ -79,8 +81,10 @@ struct Entity {
 	//Used by projectiles
 	int shooterRef;
 
+	//Used by tiles and player death
+	V2 startPos;
+
 	//Used by tiles
-	V2 tileStartPos;
 	int tileXOffset;
 	int tileYOffset;
 

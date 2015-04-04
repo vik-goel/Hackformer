@@ -1,31 +1,122 @@
-Texture defaultTexture() {
-	Texture result = {};
-	glEnable(GL_TEXTURE_2D);
-	glGenTextures(1, &result.texId);
-	result.uv = r2(v2(0, 0), v2(1, 1));
-	return result;
-}
+// void loadShaderSource(char* fileName, char* source, int maxSourceLength) {
+// 	FILE* file;
+// 	fopen_s(&file, fileName, "r");
+// 	assert(file);
+
+// 	char line[1024];
+// 	char* linePtr;
+// 	int length = 0;
+
+// 	while (fgets (line, sizeof(line), file)) {
+// 		linePtr = line;
+
+// 		while(*linePtr) {
+// 			*source = *linePtr;
+// 			source++;
+// 			linePtr++;
+// 			length++;
+// 			assert(length < maxSourceLength);
+// 		}
+// 	}
+
+// 	*source = 0;
+// }
+
+// GLuint addShader_(GLenum type, char* sourceFileName, Shader shaderProgram) {
+// 	char sourceBuffer[1000];
+// 	char* source = sourceBuffer;
+// 	loadShaderSource(sourceFileName, source, arrayCount(sourceBuffer));
+
+// 	GLuint shader = glCreateShader(type);
+// 	assert(shader);
+
+// 	glShaderSource(shader, 1, &source, NULL);
+
+// 	glCompileShader(shader);
+// 	GLint compileSuccess = 0;
+// 	glGetShaderiv(shader, GL_COMPILE_STATUS, &compileSuccess);
+
+// 	if (compileSuccess == GL_FALSE) {
+// 		char errorBuffer[1024];
+// 		int errorLength = 0;
+// 		glGetShaderInfoLog(shader, arrayCount(errorBuffer), &errorLength, errorBuffer);
+// 		fprintf(stderr, "Failed to compile shader: %s\n", errorBuffer);
+// 		assert(false);
+// 	}
+
+// 	glAttachShader(shaderProgram.program, shader);
+
+// 	return shader;
+// }
+
+// Shader createShader(char* vertexShaderSourceFileName, char* fragmentShaderSourceFileName, V2 windowSize) {
+// 	Shader result = {};
+
+// 	result.program = glCreateProgram();
+// 	assert(result.program);
+
+// 	GLuint vertexShader = addShader_(GL_VERTEX_SHADER, vertexShaderSourceFileName, result);
+// 	GLuint fragmentShader = addShader_(GL_FRAGMENT_SHADER, fragmentShaderSourceFileName, result);
+
+// 	glLinkProgram(result.program);
+
+// 	GLint linkSuccess = 0;
+// 	glGetProgramiv(result.program, GL_LINK_STATUS, &linkSuccess);
+
+// 	if (linkSuccess == GL_FALSE) {
+// 		GLchar errorBuffer[1024];
+// 		GLsizei errorLength = 0;
+// 		glGetProgramInfoLog(result.program, (GLsizei)arrayCount(errorBuffer), &errorLength, errorBuffer);
+// 		fprintf(stderr, "Failed to link shader: %s\n", errorBuffer);
+// 		assert(false);
+// 	}
+
+// 	glDetachShader(result.program, vertexShader);
+// 	glDetachShader(result.program, fragmentShader);
+
+// 	glDeleteShader(vertexShader);
+// 	glDeleteShader(fragmentShader);
+
+// 	glUseProgram(result.program);
+// 	GLint windowSizeUniformLocation = glGetUniformLocation(result.program, "twoOverScreenSize");
+// 	glUniform2f(windowSizeUniformLocation, (GLfloat)(2.0/windowSize.x), (GLfloat)(2.0/windowSize.y));
+
+// 	result.tintUniformLocation = glGetUniformLocation(result.program, "tint");
+
+// 	return result;
+// }
 
 Texture createTexFromSurface(SDL_Surface* image, GameState* gameState) {
 	Texture result = {};
 
-	assert(image);
+	// glEnable(GL_TEXTURE_2D);
 
-	glEnable(GL_TEXTURE_2D);
+	// glGenTextures(1, &result.texId);
+	// assert(result.texId);
 
-	result = defaultTexture();
-	glBindTexture(GL_TEXTURE_2D, result.texId);
+	// glBindTexture(GL_TEXTURE_2D, result.texId);
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	// glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->w, image->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, image->pixels);
-	 
-	result.size = v2 (image->w, image->h) / gameState->pixelsPerMeter;
+	// glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->w, image->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, image->pixels);
 
+	// result.uv = r2(v2(0, 0), v2(1, 1));
+	// result.size = v2 (image->w, image->h) / gameState->pixelsPerMeter;
+
+	// SDL_FreeSurface(image);
+	// glBindTexture(GL_TEXTURE_2D, 0);
+
+	result.srcRect.w = image->w;
+	result.srcRect.h = image->h;
+
+	result.tex = SDL_CreateTextureFromSurface(gameState->renderer, image);
+	assert(result.tex);
+
+	SDL_SetTextureBlendMode(result.tex, SDL_BLENDMODE_BLEND);
 	SDL_FreeSurface(image);
 
 	return result;
@@ -35,7 +126,6 @@ Texture loadPNGTexture(GameState* gameState, char* fileName) {
 	SDL_Surface* image = IMG_Load(fileName);
 	if (!image) fprintf(stderr, "Failed to load image from: %s\n", fileName);
 	assert(image);
-
 
 	Texture result = createTexFromSurface(image, gameState);
 
@@ -64,10 +154,12 @@ CachedFont loadCachedFont(GameState* gameState, char* fileName, int fontSize, do
 }
 
 Texture* extractTextures(GameState* gameState, char* fileName, 
-	int frameWidth, int frameHeight, int frameSpacing, uint* numFrames,
-	int texWidth, int texHeight) {
+	int frameWidth, int frameHeight, int frameSpacing, uint* numFrames) {
 
 	Texture tex = loadPNGTexture(gameState, fileName);
+
+	int texWidth = tex.srcRect.w;//(int)(tex.size.x * gameState->pixelsPerMeter);
+	int texHeight = tex.srcRect.h;//(int)(tex.size.y * gameState->pixelsPerMeter);
 
 	int numCols = texWidth / (frameWidth + frameSpacing);
 	int numRows = texHeight / (frameHeight + frameSpacing);
@@ -82,20 +174,31 @@ Texture* extractTextures(GameState* gameState, char* fileName,
 	*numFrames = numRows * numCols;
 	Texture* result = (Texture*)pushArray(&gameState->permanentStorage, Texture, *numFrames);
 
-	V2 frameSize = v2((double)(frameWidth + frameSpacing) /(double) texWidth, 
-					  (double)(frameHeight + frameSpacing) / (double)texHeight);
+	// V2 frameSize = v2((double)(frameWidth + frameSpacing) / (double)texWidth, 
+	// 				  (double)(frameHeight + frameSpacing) / (double)texHeight);
+
+	// V2 texSize = v2((double)frameWidth / (double)texWidth, (double)frameHeight/(double)texHeight);
+
+	// V2 frameOffset = v2(frameSpacing / (double)texWidth, frameSpacing / (double)texHeight) / 2;
 
 	for (int rowIndex = 0; rowIndex < numRows; rowIndex++) {
 		for (int colIndex = 0; colIndex < numCols; colIndex++) {
 			int textureIndex = colIndex + rowIndex * numCols;
 			Texture* frame = result + textureIndex;
 
-			frame->texId = tex.texId;
+			//frame->texId = tex.texId;
+			frame->tex = tex.tex;
 
-			V2 minCorner = v2((colIndex * (frameWidth + frameSpacing)) / (double)texWidth,
-				    	      (rowIndex * (frameHeight + frameSpacing)) / (double)texHeight);
+			SDL_Rect* rect = &frame->srcRect;
+ 
+			rect->x = colIndex * (frameWidth + frameSpacing) + frameSpacing / 2;
+			rect->y = rowIndex * (frameHeight + frameSpacing) + frameSpacing / 2;
+			rect->w = frameWidth;
+			rect->h = frameHeight;
 
-			frame->uv = r2(minCorner, minCorner + frameSize);
+			// V2 minCorner = hadamard(v2(colIndex, rowIndex), frameSize) + frameOffset;
+
+			// frame->uv = r2(minCorner, minCorner + texSize);
 		}
 	}
 
@@ -103,13 +206,12 @@ Texture* extractTextures(GameState* gameState, char* fileName,
 }
 
 Animation loadAnimation(GameState* gameState, char* fileName, 
-	int frameWidth, int frameHeight, double secondsPerFrame,
-	int texWidth, int texHeight) {
+	int frameWidth, int frameHeight, double secondsPerFrame) {
 	Animation result = {};
 
 	assert(secondsPerFrame > 0);
 	result.secondsPerFrame = secondsPerFrame;
-	result.frames = extractTextures(gameState, fileName, frameWidth, frameHeight, 0, &result.numFrames, texWidth, texHeight);
+	result.frames = extractTextures(gameState, fileName, frameWidth, frameHeight, 0, &result.numFrames);
 
 	return result;
 }
@@ -125,6 +227,36 @@ double getAnimationDuration(Animation* animation) {
 	return result;
 }
 
+// void setColor(Shader shader, double r, double g, double b, double a) {
+// 	glColor4f((GLfloat)r, (GLfloat)g, (GLfloat)b, (GLfloat)a);
+// 	glUniform4f(shader.tintUniformLocation, (GLfloat)r, (GLfloat)g, (GLfloat)b, (GLfloat)a);
+// }
+
+void setColor(SDL_Renderer* renderer, int r, int g, int b, int a) {
+	SDL_SetRenderDrawColor(renderer, r, g, b, a);
+}
+
+// void addTexCoord(V2 uvMin, V2 uvMax, Rotation rot, int offset) {
+// 	rot = (Rotation)(((int)rot + offset) % RotationCount);
+
+// 	switch(rot) {
+// 		case Degree0:
+// 			 glTexCoord2f((GLfloat)uvMax.x, (GLfloat)uvMax.y); 
+// 			 break;
+// 		case Degree90:
+// 			 glTexCoord2f((GLfloat)uvMin.x, (GLfloat)uvMax.y); 
+// 			 break;
+// 		case Degree180:
+// 			 glTexCoord2f((GLfloat)uvMin.x, (GLfloat)uvMin.y);	
+// 			 break;
+// 		case Degree270:
+// 			 glTexCoord2f((GLfloat)uvMax.x, (GLfloat)uvMin.y);
+// 			 break;
+// 		default:
+// 			assert(false);
+// 	}
+// }
+
 SDL_Rect getPixelSpaceRect(GameState* gameState, R2 rect) {
 	SDL_Rect result = {};
 
@@ -134,79 +266,91 @@ SDL_Rect getPixelSpaceRect(GameState* gameState, R2 rect) {
 	result.w = (int)ceil(width * gameState->pixelsPerMeter);
 	result.h = (int)ceil(height * gameState->pixelsPerMeter);
 	result.x = (int)ceil(rect.max.x * gameState->pixelsPerMeter) - result.w;
-	result.y = (int)ceil(rect.max.y * gameState->pixelsPerMeter) - result.h;
+	result.y = gameState->windowHeight - (int)ceil(rect.max.y * gameState->pixelsPerMeter);
 
 	return result;
 }
 
-void addTexCoord(V2 uvMin, V2 uvMax, Rotation rot, int offset) {
-	rot = (Rotation)(((int)rot + offset) % RotationCount);
+void drawTexture(GameState* gameState, Texture* texture, R2 bounds, bool flipX, double degrees = 0) {
+	if (!gameState->doingInitialSim) {
+		SDL_Rect dstRect = getPixelSpaceRect(gameState, bounds);
+ 
+		SDL_RendererFlip flip = flipX ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+		SDL_RenderCopyEx(gameState->renderer, texture->tex, &texture->srcRect, &dstRect, degrees, NULL, flip);
 
-	switch(rot) {
-		case Degree0:
-			 glTexCoord2f((GLfloat)uvMax.x, (GLfloat)uvMax.y); 
-			 break;
-		case Degree90:
-			 glTexCoord2f((GLfloat)uvMin.x, (GLfloat)uvMax.y); 
-			 break;
-		case Degree180:
-			 glTexCoord2f((GLfloat)uvMin.x, (GLfloat)uvMin.y); 
-			 break;
-		case Degree270:
-			 glTexCoord2f((GLfloat)uvMax.x, (GLfloat)uvMin.y);
-			 break;
+		// glEnable(GL_TEXTURE_2D);
+		// glEnable(GL_BLEND);
+	 //    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+		// glBindTexture(GL_TEXTURE_2D, texture->texId);
+
+		// setColor(gameState->basicShader, 1, 1, 1, 1);
+
+		// assert(texture->texId);
+
+		// V2 uvMin = texture->uv.min;
+		// V2 uvMax = texture->uv.max;
+
+		// if (!flipX) {
+		// 	double temp = uvMin.x;
+		// 	uvMin.x = uvMax.x;
+		// 	uvMax.x = temp;
+		// }
+
+		// glBegin(GL_QUADS);
+		//    	addTexCoord(uvMin, uvMax, rot, 0);
+		//     glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);
+
+		//     addTexCoord(uvMin, uvMax, rot, 1);
+		//     glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.min.y);
+
+		//     addTexCoord(uvMin, uvMax, rot, 2);
+		//     glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.max.y);
+
+		//     addTexCoord(uvMin, uvMax, rot, 3);
+		//     glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.max.y);
+		// glEnd();
+
+		// glBindTexture(GL_TEXTURE_2D, 0);
+
+
 	}
-}
-
-void drawTexture(GameState* gameState, Texture* texture, R2 bounds, bool flipX, Rotation rot = Degree0) {
-	SDL_Rect dstRect = getPixelSpaceRect(gameState, bounds);
-
-	glEnable(GL_TEXTURE_2D);
-	glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-	glBindTexture(GL_TEXTURE_2D, texture->texId);
-
-	glColor4f(1, 1, 1, 1);
-
-	assert(texture->texId);
-
-	V2 uvMin = texture->uv.min;
-	V2 uvMax = texture->uv.max;
-
-	if (!flipX) {
-		double temp = uvMin.x;
-		uvMin.x = uvMax.x;
-		uvMax.x = temp;
-	}
-
-	glBegin(GL_QUADS);
-	   	addTexCoord(uvMin, uvMax, rot, 0);
-	    glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);
-
-	    addTexCoord(uvMin, uvMax, rot, 1);
-	    glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.min.y);
-
-	    addTexCoord(uvMin, uvMax, rot, 2);
-	    glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.max.y);
-
-	    addTexCoord(uvMin, uvMax, rot, 3);
-	    glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.max.y);
-	glEnd();
 }
 
 //TODO: Since the cameraP is in the gameState, this could be used instead
 void drawFilledRect(GameState* gameState, R2 rect, V2 cameraP = v2(0, 0)) {
-	R2 r = translateRect(rect, -cameraP);
+	if (!gameState->doingInitialSim) {
 
-	glDisable(GL_TEXTURE_2D);
+		SDL_Rect dstRect = getPixelSpaceRect(gameState, rect);
+		SDL_RenderFillRect(gameState->renderer, &dstRect);
+                     
+                
+                
 
-	glBegin(GL_QUADS);
-	    glVertex2f((GLfloat)r.min.x, (GLfloat)r.min.y);
-	    glVertex2f((GLfloat)r.max.x, (GLfloat)r.min.y);
-	    glVertex2f((GLfloat)r.max.x, (GLfloat)r.max.y);
-	    glVertex2f((GLfloat)r.min.x, (GLfloat)r.max.y);
-	glEnd();
+		// R2 r = translateRect(rect, -cameraP);
+
+		// glEnable(GL_TEXTURE_2D);
+		// glEnable(GL_BLEND);
+	 //    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		// glBindTexture(GL_TEXTURE_2D, gameState->whiteTexture.texId);
+
+		// glBegin(GL_QUADS);
+		// 	glTexCoord2f(1, 1);
+		//     glVertex2f((GLfloat)r.min.x, (GLfloat)r.min.y);
+			
+		// 	glTexCoord2f(0, 1);
+		//     glVertex2f((GLfloat)r.max.x, (GLfloat)r.min.y);
+			
+		// 	glTexCoord2f(0, 0);
+		//     glVertex2f((GLfloat)r.max.x, (GLfloat)r.max.y);
+			
+		// 	glTexCoord2f(1, 0);
+		//     glVertex2f((GLfloat)r.min.x, (GLfloat)r.max.y);
+		// glEnd();
+
+		// glBindTexture(GL_TEXTURE_2D, 0);
+
+	}
 }
 
 void drawRect(GameState* gameState, R2 rect, double thickness, V2 cameraP = v2(0, 0)) {
@@ -244,27 +388,26 @@ Texture createText(GameState* gameState, TTF_Font* font, char* msg) {
 }
 
 void drawText(GameState* gameState, Texture* texture, TTF_Font* font, double x, double y, double maxWidth, V2 camera = v2(0, 0)) {
-	V2 defaultSize = texture->size;
-	//v2((double)texture->srcRect.w, (double)texture->srcRect.h) / gameState->pixelsPerMeter;
+	//V2 defaultSize = texture->size;
 
-	double width = min(defaultSize.x, maxWidth);
-	double height = width * (defaultSize.y / defaultSize.x);
+	double width = texture->srcRect.w;//min(defaultSize.x, maxWidth);
+	double height = texture->srcRect.h;//width * (defaultSize.y / defaultSize.x);
 
-	R2 fontBounds = rectCenterDiameter(v2(x, y), v2(width, height));
+	R2 fontBounds = rectCenterDiameter(v2(x, y), v2(width, height) / gameState->pixelsPerMeter);
 	fontBounds = translateRect(fontBounds, -camera);
 
 	drawTexture(gameState, texture, fontBounds, false);
 }	
 
 Texture* getGlyph(CachedFont* cachedFont, GameState* gameState, char c) {
-	if (!cachedFont->cache[c].texId) {	
+	if (!cachedFont->cache[c].tex) {	
 		SDL_Color black = {0, 0, 0, 255};
 
 		SDL_Surface* glyphSurface = TTF_RenderGlyph_Blended(cachedFont->font, c, black);
 		assert(glyphSurface);
 
 		cachedFont->cache[c] = createTexFromSurface(glyphSurface, gameState);
-		assert(cachedFont->cache[c].texId);
+		assert(cachedFont->cache[c].tex);
 	}
 
 	Texture* result = cachedFont->cache + c;
@@ -277,7 +420,7 @@ double getTextWidth(CachedFont* cachedFont, GameState* gameState, char* msg) {
 	double metersPerPixel = 1.0 / (gameState->pixelsPerMeter * cachedFont->scaleFactor);
 
 	while(*msg) {
-		result += getGlyph(cachedFont, gameState, *msg)->size.x / cachedFont->scaleFactor;
+		result += getGlyph(cachedFont, gameState, *msg)->srcRect.w * metersPerPixel;
 		msg++;
 	}
 
@@ -289,11 +432,12 @@ void drawCachedText(CachedFont* cachedFont, GameState* gameState, char* msg, V2 
 
 	while(*msg) {
 		Texture* texture = getGlyph(cachedFont, gameState, *msg);
-		R2 bounds = r2(p, p + texture->size / cachedFont->scaleFactor);
+		V2 size = v2(texture->srcRect.w, texture->srcRect.h) * metersPerPixel;
+		R2 bounds = r2(p, p + size);
 
 		drawTexture(gameState, texture, bounds, false);
 
-		p.x += texture->size.x / cachedFont->scaleFactor;
+		p.x += size.x;
 		msg++;
 	}
 }

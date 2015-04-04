@@ -1,8 +1,8 @@
 #include "hackformer.h"
 
 #include "hackformer_renderer.cpp"
-#include "hackformer_entity.cpp"
 #include "hackformer_consoleField.cpp"
+#include "hackformer_entity.cpp"
 
 bool stringsMatch(char* a, char * b) {
 	int len = strlen(b);
@@ -91,6 +91,19 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 				gameState->mapSize = v2((double)mapWidthTiles, (double)mapHeightTiles) * gameState->tileSize;
 				gameState->worldSize = v2(max(gameState->mapSize.x, gameState->windowWidth), 
 										  max(gameState->mapSize.y, gameState->windowHeight));
+
+
+				//NOTE: This sets up the spatial partition
+				{
+					gameState->chunksWidth = (int)ceil(gameState->mapSize.x / gameState->chunkSize.x);
+					gameState->chunksHeight = (int)ceil(gameState->windowSize.y / gameState->chunkSize.y);
+
+					int numChunks = gameState->chunksWidth * gameState->chunksHeight;
+					gameState->chunks = pushArray(&gameState->levelStorage, EntityChunk, numChunks);
+					zeroSize(gameState->chunks, numChunks * sizeof(EntityChunk));
+				}
+
+
 			}
 		}
 		else if(!foundTilesetInfo) {
@@ -103,10 +116,7 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 		else if(textures == NULL) {
 			if (extractStringFromLine(line, lineLength, "image source", buffer, arrayCount(buffer))) {
 				int texWidth = 0, texHeight = 0;
-				extractIntFromLine(line, lineLength, "width", &texWidth);
-				extractIntFromLine(line, lineLength, "height", &texHeight);
-				textures = extractTextures(gameState, buffer, tileWidth, tileHeight, tileSpacing, &numTextures,
-										   texWidth, texHeight);
+				textures = extractTextures(gameState, buffer, tileWidth, tileHeight, tileSpacing, &numTextures );
 			}
 		}
 		else if(!loadingTileData && !doneLoadingTiles) {
@@ -205,30 +215,33 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 
 	fclose(file);
 
-	if (gameState->solidGrid) {
+	// if (gameState->solidGrid) {
+	// 	for (int rowIndex = 0; rowIndex < gameState->solidGridWidth; rowIndex++) {
+	// 		free(gameState->solidGrid[rowIndex]);
+	// 	}
+
+	// 	free(gameState->solidGrid);
+	// 	gameState->solidGrid = NULL;
+	// }
+
+	//NOTE: This sets up the pathfinding array
+	{
+		//TODO: This can probably just persist for one frame, not the entire level
+		gameState->solidGridWidth = (int)ceil(gameState->mapSize.x / gameState->solidGridSquareSize);
+		gameState->solidGridHeight = (int)ceil(gameState->windowSize.y / gameState->solidGridSquareSize);
+
+		int numNodes = gameState->solidGridWidth * gameState->solidGridHeight;
+		gameState->solidGrid = pushArray(&gameState->levelStorage, PathNode, numNodes);
+				
 		for (int rowIndex = 0; rowIndex < gameState->solidGridWidth; rowIndex++) {
-			free(gameState->solidGrid[rowIndex]);
-		}
+		 	for (int colIndex = 0; colIndex < gameState->solidGridHeight; colIndex++) {
+		 		PathNode* node = gameState->solidGrid + rowIndex * gameState->solidGridHeight + colIndex;
 
-		free(gameState->solidGrid);
-		gameState->solidGrid = NULL;
-	}
-
-	gameState->solidGridWidth = (int)ceil(gameState->mapSize.x / gameState->solidGridSquareSize);
-	gameState->solidGridHeight = (int)ceil(gameState->windowSize.y / gameState->solidGridSquareSize);
-
-	gameState->solidGrid = (PathNode**)calloc(1, gameState->solidGridWidth * sizeof(PathNode*));
-
-	for (int rowIndex = 0; rowIndex < gameState->solidGridWidth; rowIndex++) {
-		gameState->solidGrid[rowIndex] = (PathNode*)calloc(1, gameState->solidGridHeight * sizeof(PathNode));
-
-		for (int colIndex = 0; colIndex < gameState->solidGridHeight; colIndex++) {
-			PathNode* node = gameState->solidGrid[rowIndex] + colIndex;
-
-			node->p = v2(rowIndex + 0.5, colIndex + 0.5) * gameState->solidGridSquareSize;
-			node->tileX = rowIndex;
-			node->tileY = colIndex;
-		}
+				node->p = v2(rowIndex + 0.5, colIndex + 0.5) * gameState->solidGridSquareSize;
+				node->tileX = rowIndex;
+				node->tileY = colIndex;
+		 	}
+		 }
 	}
 }
 
@@ -298,11 +311,78 @@ void pollInput(GameState* gameState, bool* running) {
 	}
 }
 
+void loadLevel(GameState* gameState, char** maps, int* mapFileIndex, bool initPlayerDeath) {
+	gameState->shootTargetRef = 0;
+	gameState->consoleEntityRef = 0;
+	gameState->playerRef = 0;
+
+	for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+		freeEntity(gameState->entities + entityIndex, gameState);
+	}
+
+	gameState->numEntities = 0;
+	gameState->blueEnergy = 0;
+
+	for (int refIndex = 0; refIndex < arrayCount(gameState->entityRefs_); refIndex++) {
+		//freeEntityReference(gameState->entityRefs_ + refIndex, gameState);
+		EntityReference* reference = gameState->entityRefs_ + refIndex;
+		*reference = {};
+	}
+
+	if (gameState->swapField) freeConsoleField(gameState->swapField, gameState);
+
+	gameState->entityRefFreeList = NULL;
+	gameState->refCount = 1; //NOTE: This is for the null reference
+
+	gameState->consoleFreeList = NULL;
+
+	gameState->levelStorage.allocated = 0;
+
+	if (gameState->loadNextLevel) {
+		gameState->loadNextLevel = false;
+		(*mapFileIndex)++;
+		(*mapFileIndex) %= arrayCount(maps);
+		initPlayerDeath = false;
+	}
+
+	loadTmxMap(gameState, maps[*mapFileIndex]);
+
+	V2 playerDeathStartP = gameState->playerDeathStartP;
+	gameState->doingInitialSim = true;
+
+	double timeStep = 1.0 / 60.0;
+
+	for (int frame = 0; frame < 30; frame++) {
+		updateAndRenderEntities(gameState, timeStep);
+	}
+
+	gameState->doingInitialSim = false;
+	gameState->playerDeathStartP = playerDeathStartP;
+
+	if (gameState->playerDeathSize.x && initPlayerDeath) {
+		Entity* player = getEntityByRef(gameState, gameState->playerRef);
+		assert(player);
+
+		setFlags(player, EntityFlag_remove);
+		gameState->playerStartP = player->p;
+
+		addPlayerDeath(gameState);
+	}
+}
+
+MemoryArena createArena(int size) {
+	MemoryArena result = {};
+	result.size = size;
+	result.base = (char*)calloc(size, 1);
+	assert(result.base);
+	return result;
+}
+
 int main(int argc, char *argv[]) {
 	int windowWidth = 1280, windowHeight = 720;
 
 	//TODO: Proper error handling if any of these libraries does not load
-//TODO: Only initialize what is needed
+	//TODO: Only initialize what is needed
 	if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
 		fprintf(stderr, "Failed to initialize SDL. Error: %s", SDL_GetError());
 		assert(false);
@@ -313,26 +393,49 @@ int main(int argc, char *argv[]) {
 		assert(false);
 	}
 
-	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+	// SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+	// SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
-	SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-	SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-	SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+	// SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1); 
-	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
+	// SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+	// SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+	// SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+	// SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+
+	// SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1); 
+	// SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
+
+	// SDL_GL_SetSwapInterval(1);
 
 	SDL_Window* window = SDL_CreateWindow("C++former", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
 										  windowWidth, windowHeight, 
-										  SDL_WINDOW_ALLOW_HIGHDPI|SDL_WINDOW_OPENGL);
+										  SDL_WINDOW_ALLOW_HIGHDPI);
+
+
 	
-	SDL_GLContext glContext = SDL_GL_CreateContext(window);
+	// SDL_GLContext glContext = SDL_GL_CreateContext(window);
+	// assert(glContext);
+
+	// glDisable(GL_DEPTH_TEST);
+
+	// GLenum glewStatus = glewInit();
+
+	// if (glewStatus != GLEW_OK) {
+	// 	fprintf(stderr, "Failed to initialize glew. Error: %s\n", glewGetErrorString(glewStatus));
+	// 	assert(false);
+	// }
 
 	if (!window) {
 		fprintf(stderr, "Failed to create window. Error: %s", SDL_GetError());
 		assert(false);
 	}
+
+	SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
+    if(!renderer) {
+        fprintf(stderr, "Failed to create renderer. Error: %s", SDL_GetError() );
+        assert(false);
+    }
 
 	if (TTF_Init()) {
 		fprintf(stderr, "Failed to initialize SDL_ttf.");
@@ -341,49 +444,47 @@ int main(int argc, char *argv[]) {
 
 	int gameStateSize = sizeof(GameState); 
 
-	MemoryArena arena_ = {};
-	arena_.size = 1024 * 1024;
-	arena_.base = (char*)calloc(arena_.size, 1);
+	MemoryArena arena_ = createArena(1024 * 1024);
 
 	GameState* gameState = (GameState*)pushStruct(&arena_, GameState);
 	gameState->permanentStorage = arena_;
+	gameState->renderer = renderer;
+
+	gameState->levelStorage = createArena(16 * 1024 * 1024);
 
 	gameState->pixelsPerMeter = 70.0f;
 	gameState->windowWidth = windowWidth;
 	gameState->windowHeight = windowHeight;
 	gameState->windowSize = v2((double)windowWidth, (double)windowHeight) / gameState->pixelsPerMeter;
-
-	glOrtho(0.0, gameState->windowSize.x, 0.0, gameState->windowSize.y, -1.0, 1.0);
+//	gameState->texel = hadamard(gameState->windowSize, v2(1.0 / windowWidth, 1.0 / windowHeight));
+//
+//	gameState->basicShader = createShader("shaders/basic.vert", "shaders/basic.frag", gameState->windowSize);
 
 	gameState->gravity = v2(0, -9.81f);
 	gameState->solidGridSquareSize = 0.1;
 	gameState->tileSize = 0.9f;
-	gameState->refCount = 1; //NOTE: This is for the null reference
+	gameState->chunkSize = v2(2, 3);
+	//gameState->refCount = 1; //NOTE: This is for the null reference
 
 	gameState->consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
 	gameState->textFont = loadFont("fonts/Roboto-Regular.ttf", 64);
 
 	gameState->playerStand = loadPNGTexture(gameState, "res/player/stand.png");
 	gameState->playerJump = loadPNGTexture(gameState, "res/player/jump.png");
-	gameState->playerWalk = loadAnimation(gameState, "res/player/walk.png", 128, 128, 0.04f, 768, 384);
+	gameState->playerWalk = loadAnimation(gameState, "res/player/walk.png", 128, 128, 0.04f);
 
 	gameState->virus1Stand = loadPNGTexture(gameState, "res/virus1/stand.png");
-	gameState->virus1Shoot = loadAnimation(gameState, "res/virus1/shoot.png", 256, 256, 0.04f, 2560, 256);
+	gameState->virus1Shoot = loadAnimation(gameState, "res/virus1/shoot.png", 256, 256, 0.04f);
 	gameState->shootDelay = getAnimationDuration(&gameState->virus1Shoot);
 
 	//TODO: Make shoot animation time per frame be set by the shootDelay
 	gameState->flyingVirus = loadPNGTexture(gameState, "res/virus2/full.png");
-	gameState->flyingVirusShoot = loadAnimation(gameState, "res/virus2/shoot.png", 256, 256, 0.04f, 2560, 256);
+	gameState->flyingVirusShoot = loadAnimation(gameState, "res/virus2/shoot.png", 256, 256, 0.04f);
 
 	gameState->sunsetCityBg = loadPNGTexture(gameState, "res/backgrounds/sunset city bg.png");
 	gameState->sunsetCityMg = loadPNGTexture(gameState, "res/backgrounds/sunset city mg.png");
 	gameState->marineCityBg = loadPNGTexture(gameState, "res/backgrounds/marine city bg.png");
 	gameState->marineCityMg = loadPNGTexture(gameState, "res/backgrounds/marine city mg.png");
-
-	gameState->sunsetCityBg.size = v2(2560, 512) / gameState->pixelsPerMeter;
-	gameState->marineCityBg.size = v2(2560, 512) / gameState->pixelsPerMeter;
-	gameState->sunsetCityMg.size = v2(3060, 512) / gameState->pixelsPerMeter;
-	gameState->marineCityMg.size = v2(3060, 512) / gameState->pixelsPerMeter;
 
 	gameState->blueEnergyTex = loadPNGTexture(gameState, "res/blue energy.png");
 	gameState->laserBolt = loadPNGTexture(gameState, "res/virus1/laser bolt.png");
@@ -400,55 +501,6 @@ int main(int argc, char *argv[]) {
 	gameState->laserTopOn = loadPNGTexture(gameState, "res/virus3/top on.png");
 	gameState->laserBeam = loadPNGTexture(gameState, "res/virus3/laser beam.png");
 
-	double keyboardSpeedFieldValues[] = {20, 40, 60, 80, 100}; 
-	gameState->keyboardSpeedField = createDoubleField(gameState, "speed", keyboardSpeedFieldValues, 
-												   arrayCount(keyboardSpeedFieldValues), 2, 1);
-
-	double keyboardJumpHeightFieldValues[] = {1, 3, 5, 7, 9}; 
-	gameState->keyboardJumpHeightField = createDoubleField(gameState, "jump_height", keyboardJumpHeightFieldValues, 
-													    arrayCount(keyboardJumpHeightFieldValues), 2, 1);
-
-	gameState->keyboardDoubleJumpField = createBoolField(gameState, "double_jump", false, 3);
-
-	double patrolSpeedFieldValues[] = {10, 20, 30, 40, 50}; 
-	gameState->patrolSpeedField = createDoubleField(gameState, "speed", patrolSpeedFieldValues, 
-												   arrayCount(patrolSpeedFieldValues), 2, 1);
-
-	gameState->keyboardControlledField = 
-		createConsoleField(gameState, "keyboard_controlled", ConsoleField_keyboardControlled);
-
-	gameState->movesBackAndForthField = 
-		createConsoleField(gameState, "patrols", ConsoleField_movesBackAndForth);
-
-	gameState->shootsAtTargetField = 
-		createConsoleField(gameState, "shoots", ConsoleField_shootsAtTarget);
-
-	double shootRadiusFieldValues[] = {1, 3, 5, 7, 9}; 
-	gameState->shootRadiusField = createDoubleField(gameState, "detect_radius", shootRadiusFieldValues, 
-													    arrayCount(shootRadiusFieldValues), 2, 2);
-
-	double bulletSpeedFieldValues[] = {1, 2, 3, 4, 5}; 
-	gameState->bulletSpeedField = createDoubleField(gameState, "bullet_speed", bulletSpeedFieldValues, 
-													    arrayCount(bulletSpeedFieldValues), 2, 1);
-
-	gameState->isShootTargetField = 
-		createConsoleField(gameState, "is_target", ConsoleField_isShootTarget);
-
-	gameState->seeksTargetField = createConsoleField(gameState, "seeks_target", ConsoleField_seeksTarget);
-
-	double seekTargetSpeedFieldValues[] = {5, 10, 15, 20, 25}; 
-	gameState->seekTargetSpeedField = createDoubleField(gameState, "speed", seekTargetSpeedFieldValues, 
-													    arrayCount(seekTargetSpeedFieldValues), 2, 1);
-
-	double seekTargetRadiusFieldValues[] = {4, 8, 100, 16, 20}; 
-	gameState->seekTargetRadiusField = createDoubleField(gameState, "sight_radius", seekTargetRadiusFieldValues, 
-													    arrayCount(seekTargetRadiusFieldValues), 2, 2);
-
-	gameState->tileXOffsetField = createUnlimitedIntField(gameState, "x_offset", 0, 1);
-	gameState->tileYOffsetField = createUnlimitedIntField(gameState, "y_offset", 0, 1);
-
-	gameState->hurtsEntitiesField = createBoolField(gameState, "hurts_entities", true, 2);
-
 	char* mapFileNames[] = {
 		"map3.tmx",
 		"map4.tmx",
@@ -456,8 +508,11 @@ int main(int argc, char *argv[]) {
 	};
 
 	int mapFileIndex = 0;
-	loadTmxMap(gameState, mapFileNames[mapFileIndex]);
+	//loadTmxMap(gameState, mapFileNames[mapFileIndex]);
+
+	loadLevel(gameState, mapFileNames, &mapFileIndex, false);
 	addFlyingVirus(gameState, v2(8, 7));
+
 
 	bool running = true;
 	double frameTime = 1.0 / 60.0;
@@ -484,7 +539,7 @@ int main(int argc, char *argv[]) {
 			fps = 0;
 		}
 
-		glClearColor(0, 0, 0, 1);
+		//glClearColor(0, 0, 0, 1);
 
 		if (dtForFrame > frameTime) {
 			if (dtForFrame > maxDtForFrame) dtForFrame = maxDtForFrame;
@@ -494,14 +549,15 @@ int main(int argc, char *argv[]) {
 
 			pollInput(gameState, &running);
 
-
-			glClear(GL_COLOR_BUFFER_BIT);
+			//glClear(GL_COLOR_BUFFER_BIT);
 
 			//printf("Error: %d\n", glGetError());
 			updateAndRenderEntities(gameState, dtForFrame);
 			updateConsole(gameState);
 
-			SDL_GL_SwapWindow(window);
+
+			SDL_RenderPresent(renderer); //Swap the buffers
+			//SDL_GL_SwapWindow(window);
 
 			dtForFrame = 0;
 			gameState->cameraP = gameState->newCameraP;
@@ -510,37 +566,13 @@ int main(int argc, char *argv[]) {
 				gameState->blueEnergy += 10;
 			}
 
+			bool resetLevel = !getEntityByRef(gameState, gameState->playerDeathRef) &&
+							  (!getEntityByRef(gameState, gameState->playerRef) || gameState->input.rJustPressed);
+
 			//NOTE: This reloads the game
 			if (gameState->loadNextLevel || 
-				!getEntityByRef(gameState, gameState->playerRef) || 
-				gameState->input.rJustPressed) {
-
-				gameState->shootTargetRef = 0;
-				gameState->consoleEntityRef = 0;
-				gameState->playerRef = 0;
-
-				for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-					freeEntity(gameState->entities + entityIndex, gameState);
-				}
-
-				gameState->numEntities = 0;
-				gameState->blueEnergy = 0;
-
-				for (int refIndex = 0; refIndex < arrayCount(gameState->entityRefs_); refIndex++) {
-					freeEntityReference(gameState->entityRefs_ + refIndex, gameState);
-				}
-
-				gameState->refCount = 1; //NOTE: This is for the null reference
-
-				if (gameState->swapField) freeConsoleField(gameState->swapField, gameState);
-
-				if (gameState->loadNextLevel) {
-					gameState->loadNextLevel = false;
-					mapFileIndex++;
-					mapFileIndex %= arrayCount(mapFileNames);
-				}
-
-				loadTmxMap(gameState, mapFileNames[mapFileIndex]);
+				resetLevel) {
+				loadLevel(gameState, mapFileNames, &mapFileIndex, true);
 			}
 		}
 	}

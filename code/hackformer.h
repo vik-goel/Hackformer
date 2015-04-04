@@ -4,14 +4,12 @@
 - Multiple strings for one text (hack)
 - Multiline text
 
-- Player death animation
-- Simulate the world for a few frames to let all the entities fall into place before showing the level
+- tweak player death speed 
 
 - Fix tile pushing another tile to the side bugs
 - clean up move tiles memory
 - test remove when outside level to see that it works
 
-- Fix collision bug when keyboard controlling "Good Luck" text
 - Collision with left and right edges of the map
 
 - use a priority queue to process path requests
@@ -27,6 +25,11 @@
 - locking fields so they can't be modified
 - more console fields
 
+- Fix flickering bug
+- Dynamic lighting effect
+
+- Free the tile texture atlas when loading a new level
+
 */
 
 #define arrayCount(array) sizeof(array) / sizeof(array[0])
@@ -41,7 +44,6 @@
 #include <cassert>
 
 #include "SDL.h"
-#include "SDL_opengl.h"
 #include "SDL_image.h"
 #include "SDL_ttf.h"
 
@@ -79,18 +81,27 @@ struct PathNode {
 	int tileX, tileY;
 };
 
+struct EntityChunk {
+	int entityRefs[16];
+	int numRefs;
+	EntityChunk* next;
+};
+
 struct GameState {
 	Entity entities[1000];
 	int numEntities;
 
 	//NOTE: 0 is the null reference
-	EntityReference entityRefs_[300];
+	EntityReference entityRefs_[500];
 	EntityReference* entityRefFreeList;
 
 	//NOTE: These must be sequential for laser collisions to work
 	int refCount;
 
 	MemoryArena permanentStorage;
+	MemoryArena levelStorage;
+
+	SDL_Renderer* renderer;
 	TTF_Font* textFont;
 	CachedFont consoleFont;
 
@@ -101,8 +112,10 @@ struct GameState {
 	int shootTargetRef;
 	int consoleEntityRef;
 	int playerRef;
+	int playerDeathRef;
 
 	bool loadNextLevel;
+	bool doingInitialSim;
 
 	Texture playerStand, playerJump;
 	Animation playerWalk;
@@ -127,28 +140,6 @@ struct GameState {
 	Texture flyingVirus;
 	Animation flyingVirusShoot;
 
-	ConsoleField keyboardSpeedField;
-	ConsoleField keyboardJumpHeightField;
-	ConsoleField keyboardControlledField;
-	ConsoleField keyboardDoubleJumpField;
-
-	ConsoleField movesBackAndForthField;
-	ConsoleField patrolSpeedField;
-
-	ConsoleField seeksTargetField;
-	ConsoleField seekTargetSpeedField;
-	ConsoleField seekTargetRadiusField;
-
-	ConsoleField shootsAtTargetField;
-	ConsoleField shootRadiusField;
-	ConsoleField bulletSpeedField;
-	ConsoleField isShootTargetField;
-
-	ConsoleField tileXOffsetField;
-	ConsoleField tileYOffsetField;
-
-	ConsoleField hurtsEntitiesField;
-
 	ConsoleField* consoleFreeList;
 	ConsoleField* swapField;
 	V2 swapFieldP;
@@ -157,9 +148,13 @@ struct GameState {
 
 	PathNode* openPathNodes[10000];
 	int openPathNodesCount;
-	PathNode** solidGrid;
+	PathNode* solidGrid;
 	int solidGridWidth, solidGridHeight;
 	double solidGridSquareSize;
+
+	EntityChunk* chunks;
+	int chunksWidth, chunksHeight;
+	V2 chunkSize;
 
 	int blueEnergy;
 
@@ -173,10 +168,14 @@ struct GameState {
 	V2 windowSize;
 
 	V2 gravity;
+
+	V2 playerStartP;
+	V2 playerDeathStartP;
+	V2 playerDeathSize;
 };
 
-#define pushArray(arena, type, count) pushIntoArena_(arena, count * sizeof(type))
-#define pushStruct(arena, type) pushIntoArena_(arena, sizeof(type))
+#define pushArray(arena, type, count) (type*)pushIntoArena_(arena, count * sizeof(type))
+#define pushStruct(arena, type) (type*)pushIntoArena_(arena, sizeof(type))
 
 char* pushIntoArena_(MemoryArena* arena, uint amt) {
 	arena->allocated += amt;
@@ -184,4 +183,11 @@ char* pushIntoArena_(MemoryArena* arena, uint amt) {
 
 	char* result = arena->base + arena->allocated - amt;
 	return result;
+}
+
+//TODO: size_t?
+void zeroSize(void* base, int size) {
+	for (int byteIndex = 0; byteIndex < size; byteIndex++) {
+		*((char*)base + byteIndex) = 0;
+	}
 }

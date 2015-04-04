@@ -22,7 +22,7 @@ struct ConsoleField {
 	char name[100];
 	
 	//NOTE: These attributes are used for fields with many values
-	void* values;
+	double values[5];
 	int numValues;
 	
 	int selectedIndex;

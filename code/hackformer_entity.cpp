@@ -1,6 +1,6 @@
 void giveEntityRectangularCollisionBounds(Entity* entity, GameState* gameState,
 										  double xOffset, double yOffset, double width, double height) {
-	Hitbox* hitbox = (Hitbox*)pushStruct(&gameState->permanentStorage, Hitbox);
+	Hitbox* hitbox = pushStruct(&gameState->permanentStorage, Hitbox);
 
 	hitbox->collisionSize = v2(width, height);
 	hitbox->collisionOffset = v2(xOffset, yOffset);
@@ -41,6 +41,12 @@ Entity* getEntityByRef(GameState* gameState, int ref) {
 	return result;
 }
 
+Entity* getUnremovedEntityByRef(GameState* gameState, int ref) {
+	Entity* result = getEntityByRef(gameState, ref);
+	if (result && isSet(result, EntityFlag_remove)) result = NULL;
+	return result;
+}
+
 void storeEntityReferenceInFreeList(EntityReference* reference, GameState* gameState) {
 	if (reference->next) {
 		storeEntityReferenceInFreeList(reference->next, gameState);
@@ -63,7 +69,69 @@ void freeEntityReference(EntityReference* reference, GameState* gameState) {
 	reference->next = NULL;
 }
 
+EntityChunk* getSpatialChunk(V2 p, GameState* gameState) {
+	int x = (int)(p.x / gameState->chunkSize.x);
+	int y = (int)(p.y / gameState->chunkSize.y);
+
+	EntityChunk* result = NULL;
+
+	if (x >= 0 && 
+		y >= 0 && 
+		x < gameState->chunksWidth &&
+		y < gameState->chunksHeight) {
+		result = gameState->chunks + y * gameState->chunksWidth + x;
+	}
+
+	return result;
+}
+
+void addToSpatialPartition(Entity* entity, GameState* gameState) {
+	EntityChunk* chunk = getSpatialChunk(entity->p, gameState);
+
+	bool added = false;
+
+	while(chunk && !added) {
+		if (chunk->numRefs < arrayCount(chunk->entityRefs)) {
+			chunk->entityRefs[chunk->numRefs++] = entity->ref;
+			added = true;
+		} else if (!chunk->next) {
+			chunk->next = pushStruct(&gameState->levelStorage, EntityChunk);
+			*chunk->next = {};
+		}
+
+		chunk = chunk->next;
+	}
+}
+
+void removeFromSpatialPartition(Entity* entity, GameState* gameState) {
+	EntityChunk* chunk = getSpatialChunk(entity->p, gameState);
+	bool removed = false;
+
+	while(chunk && !removed) {
+		for (int refIndex = 0; refIndex < chunk->numRefs; refIndex++) {
+			if (chunk->entityRefs[refIndex] == entity->ref) {
+				chunk->numRefs--;
+				chunk->entityRefs[refIndex] = chunk->numRefs;
+				removed = true;
+				break;
+			}
+		}
+
+		chunk = chunk->next;
+	}
+}
+
+void setEntityP(Entity* entity, V2 newP, GameState* gameState) {
+	removeFromSpatialPartition(entity, gameState);
+	entity->p = newP;
+	addToSpatialPartition(entity, gameState);
+}
+
 void addGroundReference(Entity* top, Entity* ground, GameState* gameState) {
+	top->jumpCount = 0;
+	setFlags(top, EntityFlag_grounded);
+	top->timeSinceLastOnGround = 0;
+
 	RefNode* node = ground->groundReferenceList;
 
 	while(node) {
@@ -102,31 +170,11 @@ void addGroundReference(Entity* top, Entity* ground, GameState* gameState) {
 	}
 }
 
-void freeConsoleField(ConsoleField* field, GameState* gameState) {
-	if (field->next) {
-		freeConsoleField(field->next, gameState);
-		field->next = NULL;
-	}
-
-	for (int childIndex = 0; childIndex < field->numChildren; childIndex++) {
-		freeConsoleField(field->children[childIndex], gameState);
-		field->children[childIndex] = NULL;
-	}
-
-	if (field->children) {
-		free(field->children);
-		field->children = NULL;
-	}
-
-	field->next = gameState->consoleFreeList;
-	gameState->consoleFreeList = field;
-}
-
 void freeEntity(Entity* entity, GameState* gameState) {
 	switch(entity->type) {
 		case EntityType_text: {
-			glDeleteTextures(1, &entity->texture->texId);
-			//SDL_DestroyTexture(entity->texture->tex);
+			//glDeleteTextures(1, &entity->texture->texId);
+			SDL_DestroyTexture(entity->texture->tex);
 			//TODO: A free list could be used here instead
 			free(entity->texture);
 		} break;
@@ -134,6 +182,7 @@ void freeEntity(Entity* entity, GameState* gameState) {
 
 	for (int fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
 		freeConsoleField(entity->fields[fieldIndex], gameState);
+		entity->fields[fieldIndex] = NULL;
 	}
 }
 
@@ -233,7 +282,8 @@ Entity* addEntity(GameState* gameState, EntityType type, DrawOrder drawOrder, V2
 			bucket->next = gameState->entityRefFreeList;
 			gameState->entityRefFreeList = gameState->entityRefFreeList->next;
 		} else {
-			bucket->next = (EntityReference*) pushStruct(&gameState->permanentStorage, EntityReference);
+			bucket->next = (EntityReference*) pushStruct(&gameState->levelStorage, EntityReference);
+			*bucket->next = {};
 		}
 
 		bucket = bucket->next;
@@ -244,6 +294,8 @@ Entity* addEntity(GameState* gameState, EntityType type, DrawOrder drawOrder, V2
 
 	gameState->numEntities++;
 	gameState->refCount++;
+
+	addToSpatialPartition(result, gameState);
 
 	return result;
 }
@@ -272,25 +324,11 @@ void removeFieldsIfSet(ConsoleField** fields, int* numFields) {
 	}
 }
 
-ConsoleField* createField(GameState* gameState) {
-	ConsoleField* result = NULL;
-
-	if (gameState->consoleFreeList) {
-		result = gameState->consoleFreeList;
-		gameState->consoleFreeList = gameState->consoleFreeList->next;
-		result->next = NULL;
-	} else {
-		result = (ConsoleField*)pushStruct(&gameState->permanentStorage, ConsoleField);
-	}
-
-	return result;
-}
-
-ConsoleField* createField(GameState* gameState, ConsoleField* field) {
-	ConsoleField* result = createField(gameState);
-	*result = *field;
-	return result;
-}
+// ConsoleField* createField(GameState* gameState, ConsoleField* field) {
+// 	ConsoleField* result = createField(gameState);
+// 	*result = *field;
+// 	return result;
+// }
 
 void addField(Entity* entity, GameState* gameState, ConsoleField* field) {
 	entity->fields[entity->numFields] = field;
@@ -298,47 +336,85 @@ void addField(Entity* entity, GameState* gameState, ConsoleField* field) {
 	assert(arrayCount(entity->fields) > entity->numFields);
 }
 
+//TODO: Allocate from level storage here
 void addChildrenToConsoleField(ConsoleField* field, int numChildren) {
 	field->children = (ConsoleField**)malloc(numChildren * sizeof(ConsoleField*));
 	field->numChildren = numChildren;
 }
 
-ConsoleField* createKeyboardField(GameState* gameState) {
-	ConsoleField* result = createField(gameState, &gameState->keyboardControlledField);
+//TODO: Clean up speed and jump height values
+void addKeyboardField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "keyboard_controlled", ConsoleField_keyboardControlled);
 	addChildrenToConsoleField(result, 3);
-	
-	result->children[0] = createField(gameState, &gameState->keyboardSpeedField);
-	result->children[1] = createField(gameState, &gameState->keyboardJumpHeightField);
-	result->children[2] = createField(gameState, &gameState->keyboardDoubleJumpField);
 
-	return result;
+	double keyboardSpeedFieldValues[] = {20, 40, 60, 80, 100}; 
+	double keyboardJumpHeightFieldValues[] = {1, 3, 5, 7, 9}; 
+
+	result->children[0] = createDoubleField(gameState, "speed", keyboardSpeedFieldValues, 
+												   arrayCount(keyboardSpeedFieldValues), 2, 1);
+	result->children[1] = createDoubleField(gameState, "jump_height", keyboardJumpHeightFieldValues, 
+													    arrayCount(keyboardJumpHeightFieldValues), 2, 1);
+	result->children[2] = createBoolField(gameState, "double_jump", false, 3);
+
+	addField(entity, gameState, result);
 }
 
-ConsoleField* createPatrolField(GameState* gameState) {
-	ConsoleField* result = createField(gameState, &gameState->movesBackAndForthField);
+void addPatrolField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "patrols", ConsoleField_movesBackAndForth);
 	addChildrenToConsoleField(result, 1);
-	
-	result->children[0] = createField(gameState, &gameState->patrolSpeedField);
 
-	return result;
+	double patrolSpeedFieldValues[] = {10, 15, 20, 25, 30}; 
+	
+	result->children[0] = createDoubleField(gameState, "speed", patrolSpeedFieldValues, 
+	 											   arrayCount(patrolSpeedFieldValues), 2, 1);
+
+	addField(entity, gameState, result);
 }
 
-ConsoleField* createSeekTargetField(GameState* gameState) {
-	ConsoleField* result = createField(gameState, &gameState->seeksTargetField);
+void addSeekTargetField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "seeks_target", ConsoleField_seeksTarget);
 	addChildrenToConsoleField(result, 2);
-	
-	result->children[0] = createField(gameState, &gameState->seekTargetSpeedField);
-	result->children[1] = createField(gameState, &gameState->seekTargetRadiusField);
 
-	return result;
+	double seekTargetSpeedFieldValues[] = {5, 10, 15, 20, 25}; 
+	double seekTargetRadiusFieldValues[] = {4, 8, 12, 16, 20}; 
+	
+	result->children[0] = createDoubleField(gameState, "speed", seekTargetSpeedFieldValues, 
+	 												    arrayCount(seekTargetSpeedFieldValues), 2, 1);
+	result->children[1] = createDoubleField(gameState, "sight_radius", seekTargetRadiusFieldValues, 
+													    arrayCount(seekTargetRadiusFieldValues), 2, 2);
+
+	addField(entity, gameState, result);
 }
 
-ConsoleField* createShootField(GameState* gameState) {
-	ConsoleField* result = createField(gameState, &gameState->shootsAtTargetField);
+void addShootField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "shoots", ConsoleField_shootsAtTarget);
 	addChildrenToConsoleField(result, 2);
+
+	double bulletSpeedFieldValues[] = {1, 2, 3, 4, 5}; 
+	double shootRadiusFieldValues[] = {1, 3, 5, 7, 9}; 
 	
-	result->children[0] = createField(gameState, &gameState->bulletSpeedField);
-	result->children[1] = createField(gameState, &gameState->shootRadiusField);
+	result->children[0] = createDoubleField(gameState, "bullet_speed", bulletSpeedFieldValues, 
+													    arrayCount(bulletSpeedFieldValues), 2, 1);
+	result->children[1] = createDoubleField(gameState, "detect_radius", shootRadiusFieldValues, 
+													    arrayCount(shootRadiusFieldValues), 2, 2);
+
+	addField(entity, gameState, result);
+}
+
+Entity* addPlayerDeath(GameState* gameState) {
+	assert(!getEntityByRef(gameState, gameState->playerDeathRef));
+
+	Entity* player = getEntityByRef(gameState, gameState->playerRef);
+	assert(player);
+
+	Entity* result = addEntity(gameState, EntityType_playerDeath, DrawOrder_playerDeath, 
+								gameState->playerDeathStartP, gameState->playerDeathSize);
+
+	gameState->playerDeathRef = result->ref;
+
+	result->texture = &gameState->playerStand;
+
+	setFlags(result, EntityFlag_noMovementByDefault);
 
 	return result;
 }
@@ -346,25 +422,24 @@ ConsoleField* createShootField(GameState* gameState) {
 Entity* addPlayer(GameState* gameState, V2 p) {
 	Entity* result = addEntity(gameState, EntityType_player, DrawOrder_player, p, v2(1.4f, 1.4f));
 
-	assert(!gameState->shootTargetRef);
+	assert(!getUnremovedEntityByRef(gameState, gameState->shootTargetRef));
 	gameState->shootTargetRef = result->ref;
-	assert(!gameState->playerRef);
+	assert(!getUnremovedEntityByRef(gameState, gameState->playerRef));
 	gameState->playerRef = result->ref;
 
-	giveEntityRectangularCollisionBounds(result, gameState, 0, result->renderSize.y * -0.01,
+	giveEntityRectangularCollisionBounds(result, gameState, 0, 0,
 										 result->renderSize.x * 0.4, result->renderSize.y);
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), v2(result->renderSize.x * 0.4, result->renderSize.y));
 
 	result->texture = &gameState->playerStand;
 
-	setFlags(result, EntityFlag_facesLeft|
-					 EntityFlag_hackable);
+	setFlags(result, EntityFlag_hackable);
 
-	addField(result, gameState, createKeyboardField(gameState));
-	addField(result, gameState, createField(gameState, &gameState->isShootTargetField));
+	addKeyboardField(result, gameState);
+	addField(result, gameState, createConsoleField(gameState, "is_target", ConsoleField_isShootTarget));
 
-	result->p += result->renderSize / 2;
+	setEntityP(result, result->p + result->renderSize / 2, gameState);
 
 	return result;
 }
@@ -382,10 +457,10 @@ Entity* addVirus(GameState* gameState, V2 p) {
 	setFlags(result, EntityFlag_facesLeft|
 					 EntityFlag_hackable);
 
-	addField(result, gameState, createPatrolField(gameState));
-	addField(result, gameState, createShootField(gameState));
+	addPatrolField(result, gameState);
+	addShootField(result, gameState);
 
-	result->p += result->renderSize / 2;
+	setEntityP(result, result->p + result->renderSize / 2, gameState);
 
 	return result;
 }
@@ -398,7 +473,7 @@ Entity* addEndPortal(GameState* gameState, V2 p) {
 
 	result->texture = &gameState->endPortal;
 
-	result->p += result->renderSize / 2;
+	setEntityP(result, result->p + result->renderSize / 2, gameState);
 
 	return result;
 }
@@ -413,7 +488,7 @@ Entity* addBlueEnergy(GameState* gameState, V2 p) {
 
 	setFlags(result, EntityFlag_hackable);
 
-	result->p += result->renderSize / 2;
+	setEntityP(result, result->p + result->renderSize / 2, gameState);
 	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize * 0.65);
 
 	return result;
@@ -424,7 +499,7 @@ Entity* addBackground(GameState* gameState) {
 								  v2(0, 0), v2(gameState->mapSize.x, 
 								(double)gameState->windowHeight / (double)gameState->pixelsPerMeter));
 
-	result->p = result->renderSize / 2.0f;
+	setEntityP(result, result->renderSize / 2, gameState);
 	setFlags(result, EntityFlag_noMovementByDefault);
 
 	return result;
@@ -444,8 +519,8 @@ Entity* addTile(GameState* gameState, V2 p, Texture* texture) {
 					 EntityFlag_hackable|
 					 EntityFlag_removeWhenOutsideLevel);
 
-	addField(result, gameState, createField(gameState, &gameState->tileXOffsetField));
-	addField(result, gameState, createField(gameState, &gameState->tileYOffsetField));
+	addField(result, gameState, createUnlimitedIntField(gameState, "x_offset", 0, 1));
+	addField(result, gameState, createUnlimitedIntField(gameState, "y_offset", 0, 1));
 
 	return result;
 }
@@ -454,7 +529,7 @@ Entity* addText(GameState* gameState, V2 p, char* msg) {
 	Entity* result = addEntity(gameState, EntityType_text, DrawOrder_text, p, v2(0, 0));
 	result->texture = (Texture*)malloc(sizeof(Texture));
 	*(result->texture) = createText(gameState, gameState->textFont, msg);
-	result->renderSize = result->texture->size;
+	result->renderSize = v2(result->texture->srcRect.x, result->texture->srcRect.h) / gameState->pixelsPerMeter;
 	
 	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
 										 result->renderSize.x, result->renderSize.y);
@@ -482,7 +557,7 @@ Entity* addLaserBolt(GameState* gameState, V2 p, V2 target, int shooterRef, doub
 	setFlags(result, EntityFlag_removeWhenOutsideLevel|
 					 EntityFlag_hackable);
 
-	addField(result, gameState, createField(gameState, &gameState->hurtsEntitiesField));
+	addField(result, gameState, createBoolField(gameState, "hurts_entities", true, 2));
 					 
 	return result;
 }
@@ -496,7 +571,7 @@ Entity* addLaserPiece(GameState* gameState, V2 p, bool base) {
 		result = addEntity(gameState, EntityType_laserBase, DrawOrder_laserBase, p, v2(1.5, 1.5));
 		result->texture = &gameState->laserBaseOff;
 
-		addField(result, gameState, createPatrolField(gameState));
+		addPatrolField(result, gameState);
 		setFlags(result, EntityFlag_hackable);
 
 		giveEntityRectangularCollisionBounds(result, gameState, result->renderSize.x * 0.01, 0, 
@@ -570,10 +645,10 @@ Entity* addFlyingVirus(GameState* gameState, V2 p) {
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize * 0.5);
 
-	addField(result, gameState, createSeekTargetField(gameState));
-	addField(result, gameState, createShootField(gameState));
+	addSeekTargetField(result, gameState);
+	addShootField(result, gameState);
 
-	result->p += result->renderSize / 2.0f;
+	setEntityP(result, result->p + result->renderSize / 2, gameState);
 
 	return result;
 }
@@ -727,12 +802,12 @@ void getLineCollisionTime(double lx1, double lx2, double ly, double posX, double
 						  GetCollisionTimeResult* result, bool* hit, bool* solidHit, bool horizontalCollision) {
 	double collisionTime;
 
+	double epsilon = 0.000000000001;
+
 	if (dPosY == 0) {
 		collisionTime = -1;
 	} else {
 		collisionTime = (ly - posY) / dPosY;
-
-		double epsilon = 0.000000000001;
 
 		if (collisionTime <= epsilon && ((dPosY > 0 && top) || (dPosY < 0 && !top))) {
 			collisionTime = -1;
@@ -765,53 +840,74 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 	result.collisionTime = 1;
 	result.solidCollisionTime = 1;
 
-	for (int colliderIndex = 0; colliderIndex < gameState->numEntities; colliderIndex++) {
-		Entity* collider = gameState->entities + colliderIndex;
+	int partitionCenterX = (int)(entity->p.x / gameState->chunkSize.x);
+	int partitionCenterY = (int)(entity->p.y / gameState->chunkSize.y);
 
-		if (collider != entity &&
-			collidesWith(entity, collider, gameState)) {
+	for (int partitionXOffs = -1; partitionXOffs <= 1; partitionXOffs++) {
+		for (int partitionYOffs = -1; partitionYOffs <= 1; partitionYOffs++) {
+			int partitionX = partitionCenterX + partitionXOffs;
+			int partitionY = partitionCenterY + partitionYOffs;
 
-			Hitbox* colliderHitboxList = collider->hitboxes;
+			if (partitionX >= 0 && 
+				partitionY >= 0 && 
+				partitionX < gameState->chunksWidth && 
+				partitionY < gameState->chunksHeight) {
 
-			while(colliderHitboxList) {
-				R2 colliderHitbox = getHitbox(collider, colliderHitboxList);
+				EntityChunk* chunk = gameState->chunks + partitionY * gameState->chunksWidth + partitionX;
 
-				Hitbox* entityHitboxList = entity->hitboxes;
+				while(chunk) {
+					for (int colliderIndex = 0; colliderIndex < chunk->numRefs; colliderIndex++) {
+						Entity* collider = getEntityByRef(gameState, chunk->entityRefs[colliderIndex]);
 
-				while (entityHitboxList) {
-					//Minkowski sum
-					R2 sum = addDiameterTo(colliderHitbox, entityHitboxList->collisionSize);
+						if (collider && collider != entity &&
+							collidesWith(entity, collider, gameState)) {
 
-					double centerX = entity->p.x + entityHitboxList->collisionOffset.x;
-					double centerY = entity->p.y + entityHitboxList->collisionOffset.y;
+							Hitbox* colliderHitboxList = collider->hitboxes;
 
-					bool hit = false;
-					bool solidHit = false;
+							while(colliderHitboxList) {
+								R2 colliderHitbox = getHitbox(collider, colliderHitboxList);
 
-					getLineCollisionTime(sum.min.x, sum.max.x, sum.min.y, centerX, centerY, 
-										 delta.x, delta.y, false, &result, &hit, &solidHit, true);
+								Hitbox* entityHitboxList = entity->hitboxes;
 
-					getLineCollisionTime(sum.min.x, sum.max.x, sum.max.y, centerX, centerY, 
-										 delta.x, delta.y, true, &result, &hit, &solidHit, true);
+								while (entityHitboxList) {
+									//Minkowski sum
+									R2 sum = addDiameterTo(colliderHitbox, entityHitboxList->collisionSize);
 
-					getLineCollisionTime(sum.min.y, sum.max.y, sum.min.x, centerY, centerX, 
-						 				 delta.y, delta.x, false, &result, &hit, &solidHit, false);
+									double centerX = entity->p.x + entityHitboxList->collisionOffset.x;
+									double centerY = entity->p.y + entityHitboxList->collisionOffset.y;
 
-					getLineCollisionTime(sum.min.y, sum.max.y, sum.max.x, centerY, centerX, 
-				 						 delta.y, delta.x, true, &result, &hit, &solidHit, false);
+									bool hit = false;
+									bool solidHit = false;
 
-					if (hit) {
-						result.hitEntity = collider;
+									getLineCollisionTime(sum.min.x, sum.max.x, sum.min.y, centerX, centerY, 
+														 delta.x, delta.y, false, &result, &hit, &solidHit, true);
+
+									getLineCollisionTime(sum.min.x, sum.max.x, sum.max.y, centerX, centerY, 
+														 delta.x, delta.y, true, &result, &hit, &solidHit, true);
+
+									getLineCollisionTime(sum.min.y, sum.max.y, sum.min.x, centerY, centerX, 
+										 				 delta.y, delta.x, false, &result, &hit, &solidHit, false);
+
+									getLineCollisionTime(sum.min.y, sum.max.y, sum.max.x, centerY, centerX, 
+								 						 delta.y, delta.x, true, &result, &hit, &solidHit, false);
+
+									if (hit) {
+										result.hitEntity = collider;
+									}
+
+									if (solidHit && isSolidCollision(entity, collider)) { 
+										result.solidEntity = collider;
+									}
+
+									entityHitboxList = entityHitboxList->next;
+								}
+
+								colliderHitboxList = colliderHitboxList->next;
+							}
+						}
 					}
-
-					if (solidHit && isSolidCollision(entity, collider)) { 
-						result.solidEntity = collider;
-					}
-
-					entityHitboxList = entityHitboxList->next;
+					chunk = chunk->next;
 				}
-
-				colliderHitboxList = colliderHitboxList->next;
 			}
 		}
 	}
@@ -853,7 +949,7 @@ void moveRaw(Entity* entity, GameState* gameState, V2 delta, bool tileGroupMove,
 		maxCollisionTime -= collisionTime;
 
 		V2 movement = delta * collisionTime;
-		entity->p += movement;
+		setEntityP(entity, entity-> p + movement, gameState);
 		totalMovement += movement;
 
 		if (collisionResult.hitEntity) {
@@ -1081,7 +1177,12 @@ bool moveTowardsTarget(Entity* entity, GameState* gameState, double dt,
 		entity->dP = speed * normalize(delta);
 	}
 
-	moveTiles(entity, dt, gameState/*, v2(0, 0)*/);
+	if (entity->type == EntityType_tile) {
+		moveTiles(entity, dt, gameState);
+	} else {
+		move(entity, dt, gameState, v2(0, 0));
+	}
+
 	return entity->p == target;
 }
 
@@ -1117,7 +1218,7 @@ void addSolidLocation(double xPos, double yPos, GameState* gameState) {
 	int yTile = (int)(yPos / gameState->solidGridSquareSize);
 
 	if (inSolidGridBounds(gameState, xTile, yTile)) {
-		gameState->solidGrid[xTile][yTile].solid = true;
+		gameState->solidGrid[xTile * gameState->solidGridHeight + yTile].solid = true;
 	}
 }
 
@@ -1133,7 +1234,7 @@ void testLocationAsClosestNonSolidNode(double xPos, double yPos, double* minDstS
 	int yTile = (int)floor(yPos / gameState->solidGridSquareSize);
 
 	if (inSolidGridBounds(gameState, xTile, yTile)) {
-		PathNode* node = gameState->solidGrid[xTile] + yTile;
+		PathNode* node = gameState->solidGrid + xTile * gameState->solidGridHeight + yTile;
 
 		if (!node->solid) {
 			double testDstSq = dstSq(node->p, entity->p);
@@ -1222,7 +1323,7 @@ bool pathLineClear(V2 p1, V2 p2, GameState* gameState) {
 		int yTile = (int)floor(p.y / gameState->solidGridSquareSize);
 
 		if (inSolidGridBounds(gameState, xTile, yTile)) {
-			if (gameState->solidGrid[xTile][yTile].solid) return false;
+			if (gameState->solidGrid[xTile * gameState->solidGridHeight + yTile].solid) return false;
 		}
 	}
 
@@ -1230,7 +1331,7 @@ bool pathLineClear(V2 p1, V2 p2, GameState* gameState) {
 	int yTile = (int)floor(maxY / gameState->solidGridSquareSize);	
 
 	if (inSolidGridBounds(gameState, xTile, yTile)) {
-		if (gameState->solidGrid[xTile][yTile].solid) return false;
+		if (gameState->solidGrid[xTile * gameState->solidGridHeight + yTile].solid) return false;
 	}
 
 	return true;
@@ -1239,7 +1340,7 @@ bool pathLineClear(V2 p1, V2 p2, GameState* gameState) {
 V2 computePath(GameState* gameState, Entity* start, Entity* goal) {
 	for (int tileX = 0; tileX < gameState->solidGridWidth; tileX++) {
 		for (int tileY = 0; tileY < gameState->solidGridHeight; tileY++) {
-			PathNode* node = gameState->solidGrid[tileX] + tileY;
+			PathNode* node = gameState->solidGrid + tileX * gameState->solidGridHeight + tileY;
 			node->solid = false;
 			node->open = false;
 			node->closed = false;
@@ -1410,7 +1511,7 @@ V2 computePath(GameState* gameState, Entity* start, Entity* goal) {
 						int tileY = current->tileY + yOffs;
 
 						if (inSolidGridBounds(gameState, tileX, tileY)) {
-							PathNode* testNode = gameState->solidGrid[tileX] + tileY;
+							PathNode* testNode = gameState->solidGrid + tileX * gameState->solidGridHeight + tileY;
 
 							if (!testNode->solid) {
 								#if 0
@@ -1491,6 +1592,11 @@ bool canBeGrounded(Entity* entity) {
 	return result;
 }
 
+void centerCameraAround(Entity* entity, GameState* gameState) {
+	double maxCameraX = gameState->mapSize.x - gameState->windowSize.x;
+	gameState->newCameraP.x = clamp((double)(entity->p.x - gameState->windowSize.x / 2.0), 0, maxCameraX);
+}
+
 void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 	double dt = gameState->consoleEntityRef ? 0 : dtForFrame;
 
@@ -1525,19 +1631,14 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 		if (above) {
 			if (canBeGrounded(above)) {
-				above->jumpCount = 0;
-				setFlags(above, EntityFlag_grounded);
-				above->timeSinceLastOnGround = 0;
 				addGroundReference(above, entity, gameState);
 			}
 		}
 
 		if (canBeGrounded(entity)) {
-			Entity* below = onGround(entity, gameState);
+		Entity* below = onGround(entity, gameState);
 
-			if (below) {
-				setFlags(entity, EntityFlag_grounded);
-				entity->timeSinceLastOnGround = 0;
+		if (below) {
 				addGroundReference(entity, below, gameState);
 			}
 		}
@@ -1575,7 +1676,11 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						spawnOffset = v2(0, -0.3);
 						break;
 					case EntityType_flyingVirus:
-						spawnOffset = v2(-0.2, -0.4);
+						spawnOffset = v2(0.2, -0.29);
+				}
+
+				if (isSet(entity, EntityFlag_facesLeft)) {
+					spawnOffset.x *= -1;
 				}
 
 				bool shouldShoot = isSet(entity, EntityFlag_shooting) ||
@@ -1636,41 +1741,44 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 
 				case ConsoleField_keyboardControlled: {
-					double windowWidth = gameState->windowSize.x;
-					double maxCameraX = gameState->mapSize.x - windowWidth;
-					gameState->newCameraP.x = clamp((double)(entity->p.x - windowWidth / 2.0), 0, maxCameraX);
+					if (!gameState->doingInitialSim && !isSet(entity, EntityFlag_remove)) {
+						centerCameraAround(entity, gameState);
+						// double numTexels = gameState->newCameraP.x / gameState->texel.x;
+						// double overflow = (numTexels - (int)numTexels) * gameState->texel.x;
+						// gameState->newCameraP.x -= overflow;
 
-					double xMove = 0;
+						double xMove = 0;
 
-					ConsoleField* jumpField = movementField->children[1];
-					double jumpHeight = ((double*)jumpField->values)[jumpField->selectedIndex];
+						ConsoleField* jumpField = movementField->children[1];
+						double jumpHeight = ((double*)jumpField->values)[jumpField->selectedIndex];
 
-					ConsoleField* doubleJumpField = movementField->children[2];
-					bool canDoubleJump = doubleJumpField->selectedIndex != 0;
+						ConsoleField* doubleJumpField = movementField->children[2];
+						bool canDoubleJump = doubleJumpField->selectedIndex != 0;
 
-					if (gameState->input.rightPressed) xMove += xMoveAcceleration;
-					if (gameState->input.leftPressed) xMove -= xMoveAcceleration;
+						if (gameState->input.rightPressed) xMove += xMoveAcceleration;
+						if (gameState->input.leftPressed) xMove -= xMoveAcceleration;
 
-					ddP.x += xMove;
+						ddP.x += xMove;
 
-					if (xMove > 0) clearFlags(entity, EntityFlag_facesLeft);
-					else if (xMove < 0) setFlags(entity, EntityFlag_facesLeft);
+						if (xMove > 0) clearFlags(entity, EntityFlag_facesLeft);
+						else if (xMove < 0) setFlags(entity, EntityFlag_facesLeft);
 
-					bool canJump = entity->jumpCount == 0 && 
-								   entity->timeSinceLastOnGround < 0.15 && 
-								   gameState->input.upPressed;
+						bool canJump = entity->jumpCount == 0 && 
+									   entity->timeSinceLastOnGround < 0.15 && 
+									   gameState->input.upPressed;
 
-					bool attemptingDoubleJump = false;
-					
-					if (!canJump) {
-						attemptingDoubleJump = true;
-						canJump = entity->jumpCount < 2 && canDoubleJump && gameState->input.upJustPressed;
-					}
+						bool attemptingDoubleJump = false;
+						
+						if (!canJump) {
+							attemptingDoubleJump = true;
+							canJump = entity->jumpCount < 2 && canDoubleJump && gameState->input.upJustPressed;
+						}
 
-					if (canJump) {
-						entity->dP.y = jumpHeight;
-						if (attemptingDoubleJump) entity->jumpCount = 2;
-						else entity->jumpCount++;
+						if (canJump) {
+							entity->dP.y = jumpHeight;
+							if (attemptingDoubleJump) entity->jumpCount = 2;
+							else entity->jumpCount++;
+						}
 					}
 
 					move(entity, dt, gameState, ddP);
@@ -1680,62 +1788,64 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 
 				case ConsoleField_movesBackAndForth: {
-					V2 oldP = entity->p;
-					V2 oldCollisionSize = entity->hitboxes->collisionSize;
-					V2 oldCollisionOffset = entity->hitboxes->collisionOffset;
+					if (!shootingState) {
+						V2 oldP = entity->p;
+						V2 oldCollisionSize = entity->hitboxes->collisionSize;
+						V2 oldCollisionOffset = entity->hitboxes->collisionOffset;
 
-					bool initiallyOnGround = isSet(entity, EntityFlag_grounded);
+						bool initiallyOnGround = isSet(entity, EntityFlag_grounded);
 
-					if (isSet(entity, EntityFlag_facesLeft)) {
-						xMoveAcceleration *= -1;
-						entity->hitboxes->collisionOffset.x -= entity->hitboxes->collisionSize.x / 2;
-					} else {
-						entity->hitboxes->collisionOffset.x += entity->hitboxes->collisionSize.x / 2;
-					}
-
-					entity->hitboxes->collisionSize.x = 0;
-					ddP.x = xMoveAcceleration;
-
-					if (isSet(entity, EntityFlag_noMovementByDefault)) {
-						ddP.y = 0;
-					}
-
-					double startX = entity->p.x;
-					move(entity, dt, gameState, ddP);
-					double endX = entity->p.x;
-
-					bool shouldChangeDirection = false;
-
-					if (isSet(entity, EntityFlag_noMovementByDefault)) {
-						shouldChangeDirection = startX == endX && dt > 0;
-					} else {
-						if (initiallyOnGround) {
-							bool offOfGround = onGround(entity, gameState) == NULL;
-
-							if (offOfGround) {
-								entity->p = oldP;
-							}
-
-							shouldChangeDirection = offOfGround || entity->dP.x == 0;
+						if (isSet(entity, EntityFlag_facesLeft)) {
+							xMoveAcceleration *= -1;
+							entity->hitboxes->collisionOffset.x -= entity->hitboxes->collisionSize.x / 2;
+						} else {
+							entity->hitboxes->collisionOffset.x += entity->hitboxes->collisionSize.x / 2;
 						}
-					}
 
-					if (shouldChangeDirection) {
-						toggleFlags(entity, EntityFlag_facesLeft);
-					}
+						entity->hitboxes->collisionSize.x = 0;
+						ddP.x = xMoveAcceleration;
 
-					entity->hitboxes->collisionSize = oldCollisionSize;
-					entity->hitboxes->collisionOffset = oldCollisionOffset;
+						if (isSet(entity, EntityFlag_noMovementByDefault)) {
+							ddP.y = 0;
+						}
+
+						double startX = entity->p.x;
+						move(entity, dt, gameState, ddP);
+						double endX = entity->p.x;
+
+						bool shouldChangeDirection = false;
+
+						if (isSet(entity, EntityFlag_noMovementByDefault)) {
+							shouldChangeDirection = startX == endX && dt > 0;
+						} else {
+							if (initiallyOnGround) {
+								bool offOfGround = onGround(entity, gameState) == NULL;
+
+								if (offOfGround) {
+									entity->p = oldP;
+								}
+
+								shouldChangeDirection = offOfGround || entity->dP.x == 0;
+							}
+						}
+
+						if (shouldChangeDirection) {
+							toggleFlags(entity, EntityFlag_facesLeft);
+						}
+
+						entity->hitboxes->collisionSize = oldCollisionSize;
+						entity->hitboxes->collisionOffset = oldCollisionOffset;
+					}
 				} break;
 
 
 
 
 				case ConsoleField_seeksTarget: {
-					ConsoleField* sightRadiusField = movementField->children[1];
-					double sightRadius = ((double*)sightRadiusField->values)[sightRadiusField->selectedIndex];
+					if (!shootingState && !gameState->doingInitialSim) {
+						ConsoleField* sightRadiusField = movementField->children[1];
+						double sightRadius = ((double*)sightRadiusField->values)[sightRadiusField->selectedIndex];
 
-					if (!shootingState) {
 						Entity* targetEntity = getEntityByRef(gameState, gameState->shootTargetRef);
 						if (targetEntity) {
 							double dstToTarget = dst(targetEntity->p, entity->p);
@@ -1810,6 +1920,11 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 					entity->animTime = 0;
 					entity->texture = &gameState->playerStand;
 				}
+
+				if (!isSet(entity, EntityFlag_remove)) {
+					gameState->playerDeathStartP = entity->p;
+					gameState->playerDeathSize = entity->renderSize;
+				}
 			} break;
 
 
@@ -1838,9 +1953,14 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				Texture* bg = &gameState->bgTex;
 				Texture* mg = &gameState->mgTex;
 
-				double bgScrollRate = bg->size.x / mg->size.x;
+				double bgTexWidth = (double)bg->srcRect.w;
+				double mgTexWidth = (double)mg->srcRect.w;
+				double mgTexHeight = (double)mg->srcRect.h;
+
+				double bgScrollRate = bgTexWidth / mgTexWidth;
+
 				double bgHeight = gameState->windowHeight / gameState->pixelsPerMeter;
-				double mgWidth = max(gameState->mapSize.x, mg->size.x);
+				double mgWidth = max(gameState->mapSize.x, mgTexWidth / gameState->pixelsPerMeter);
 								
 				double bgWidth = mgWidth / bgScrollRate - 1;
 
@@ -1872,15 +1992,33 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				int dYOffset = fieldYOffset - entity->tileYOffset;
 
 				if (dXOffset != 0 || dYOffset != 0) {
-					V2 target = entity->tileStartPos + hadamard(v2((double)dXOffset, (double)dYOffset), entity->renderSize);
+					V2 target = entity->startPos + hadamard(v2((double)dXOffset, (double)dYOffset), entity->renderSize);
 
 					if (moveTowardsTarget(entity, gameState, dtForFrame, target, entity->renderSize.x, 6.0f)) {
 						entity->tileXOffset = fieldXOffset;
 						entity->tileYOffset = fieldYOffset;
 					}
 				} else {
-					entity->tileStartPos = entity->p;
+					entity->startPos = entity->p;
 				}
+
+			} break;
+
+
+
+			case EntityType_playerDeath: {
+				double initialDstToTarget = length(gameState->playerDeathStartP - gameState->playerStartP);
+				double maxSpeed = 5 * cbrt(initialDstToTarget);
+
+				if (moveTowardsTarget(entity, gameState, dt, gameState->playerStartP, 
+										initialDstToTarget, maxSpeed)) {
+					setFlags(entity, EntityFlag_remove);
+					Entity* player = addPlayer(gameState, gameState->playerStartP - 0.5 * entity->renderSize);
+					setFlags(player, EntityFlag_grounded);
+					player->dP = v2(0, 0);
+				}
+
+				centerCameraAround(entity, gameState);
 			} break;
 		}
 
@@ -1898,7 +2036,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			Hitbox* hitbox = entity->hitboxes;
 
 			while (hitbox) {
-				setColor(gameState->renderer, 255, 100, 255, 255);
+				setColor(1, 0.5, 1, 1);
 				drawRect(gameState, rectCenterDiameter(hitbox->collisionOffset + entity->p, hitbox->collisionSize),
 													   0.005f, gameState->cameraP);
 				hitbox = hitbox->next;
