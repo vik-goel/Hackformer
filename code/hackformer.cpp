@@ -311,7 +311,7 @@ void pollInput(GameState* gameState, bool* running) {
 	}
 }
 
-void loadLevel(GameState* gameState, char** maps, int* mapFileIndex, bool initPlayerDeath) {
+void loadLevel(GameState* gameState, char** maps, int numMaps, int* mapFileIndex, bool initPlayerDeath) {
 	gameState->shootTargetRef = 0;
 	gameState->consoleEntityRef = 0;
 	gameState->playerRef = 0;
@@ -335,13 +335,15 @@ void loadLevel(GameState* gameState, char** maps, int* mapFileIndex, bool initPl
 	gameState->refCount = 1; //NOTE: This is for the null reference
 
 	gameState->consoleFreeList = NULL;
+	gameState->hitboxFreeList = NULL;
+	gameState->refNodeFreeList = NULL;
 
 	gameState->levelStorage.allocated = 0;
 
 	if (gameState->loadNextLevel) {
 		gameState->loadNextLevel = false;
 		(*mapFileIndex)++;
-		(*mapFileIndex) %= arrayCount(maps);
+		(*mapFileIndex) %= numMaps;
 		initPlayerDeath = false;
 	}
 
@@ -450,7 +452,7 @@ int main(int argc, char *argv[]) {
 	gameState->permanentStorage = arena_;
 	gameState->renderer = renderer;
 
-	gameState->levelStorage = createArena(16 * 1024 * 1024);
+	gameState->levelStorage = createArena(8 * 1024 * 1024);
 
 	gameState->pixelsPerMeter = 70.0f;
 	gameState->windowWidth = windowWidth;
@@ -463,23 +465,24 @@ int main(int argc, char *argv[]) {
 	gameState->gravity = v2(0, -9.81f);
 	gameState->solidGridSquareSize = 0.1;
 	gameState->tileSize = 0.9f;
-	gameState->chunkSize = v2(2, 3);
+	gameState->chunkSize = v2(5, 5);
 	//gameState->refCount = 1; //NOTE: This is for the null reference
 
 	gameState->consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
 	gameState->textFont = loadFont("fonts/Roboto-Regular.ttf", 64);
 
-	gameState->playerStand = loadPNGTexture(gameState, "res/player/stand.png");
-	gameState->playerJump = loadPNGTexture(gameState, "res/player/jump.png");
-	gameState->playerWalk = loadAnimation(gameState, "res/player/walk.png", 128, 128, 0.04f);
+	gameState->playerStand = loadPNGTexture(gameState, "res/player/stand2.png");
+	gameState->playerJump = loadPNGTexture(gameState, "res/player/jump2.png");
+	gameState->playerWalk = loadAnimation(gameState, "res/player/running.png", 256, 256, 0.04f, true);
+	gameState->playerStandWalkTransition = loadAnimation(gameState, "res/player/stand_run_transition.png", 256, 256, 0.01f, false);
 
 	gameState->virus1Stand = loadPNGTexture(gameState, "res/virus1/stand.png");
-	gameState->virus1Shoot = loadAnimation(gameState, "res/virus1/shoot.png", 256, 256, 0.04f);
+	gameState->virus1Shoot = loadAnimation(gameState, "res/virus1/shoot.png", 256, 256, 0.04f, true);
 	gameState->shootDelay = getAnimationDuration(&gameState->virus1Shoot);
 
 	//TODO: Make shoot animation time per frame be set by the shootDelay
 	gameState->flyingVirus = loadPNGTexture(gameState, "res/virus2/full.png");
-	gameState->flyingVirusShoot = loadAnimation(gameState, "res/virus2/shoot.png", 256, 256, 0.04f);
+	gameState->flyingVirusShoot = loadAnimation(gameState, "res/virus2/shoot.png", 256, 256, 0.04f, true);
 
 	gameState->sunsetCityBg = loadPNGTexture(gameState, "res/backgrounds/sunset city bg.png");
 	gameState->sunsetCityMg = loadPNGTexture(gameState, "res/backgrounds/sunset city mg.png");
@@ -502,15 +505,15 @@ int main(int argc, char *argv[]) {
 	gameState->laserBeam = loadPNGTexture(gameState, "res/virus3/laser beam.png");
 
 	char* mapFileNames[] = {
-		"map3.tmx",
 		"map4.tmx",
+		"map3.tmx",
 		"map5.tmx",
 	};
 
 	int mapFileIndex = 0;
 	//loadTmxMap(gameState, mapFileNames[mapFileIndex]);
 
-	loadLevel(gameState, mapFileNames, &mapFileIndex, false);
+	loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, false);
 	addFlyingVirus(gameState, v2(8, 7));
 
 
@@ -547,13 +550,15 @@ int main(int argc, char *argv[]) {
 			fps++;
 			gameState->swapFieldP = gameState->windowSize / 2 + v2(0, 3);
 
+			setDefaultClipRect(gameState);
+
 			pollInput(gameState, &running);
 
 			//glClear(GL_COLOR_BUFFER_BIT);
 
 			//printf("Error: %d\n", glGetError());
 			updateAndRenderEntities(gameState, dtForFrame);
-			updateConsole(gameState);
+			updateConsole(gameState, dtForFrame);
 
 
 			SDL_RenderPresent(renderer); //Swap the buffers
@@ -572,7 +577,7 @@ int main(int argc, char *argv[]) {
 			//NOTE: This reloads the game
 			if (gameState->loadNextLevel || 
 				resetLevel) {
-				loadLevel(gameState, mapFileNames, &mapFileIndex, true);
+				loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, true);
 			}
 		}
 	}

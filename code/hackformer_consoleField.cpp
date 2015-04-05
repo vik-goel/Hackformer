@@ -13,11 +13,6 @@ void freeConsoleField(ConsoleField* field, GameState* gameState) {
 		field->children[childIndex] = NULL;
 	}
 
-	if (field->children) {
-		free(field->children);
-		field->children = NULL;
-	}
-
 	field->next = gameState->consoleFreeList;
 	gameState->consoleFreeList = field;
 }
@@ -288,7 +283,7 @@ bool drawConsoleTriangle(GameState* gameState, V2 triangleP, V2 triangleSize,
 
 	drawTexture(gameState, triangleTex, triangleBounds, facesRight, angle);
 
-	//NOTE: This draws the cost of tweaking if it is not default
+	//NOTE: This draws the cost of tweaking if it is not default (0 or 1)
 	if (tweakCost > 1) {
 		char tweakCostStr[25];
 		sprintf_s(tweakCostStr, "%d", tweakCost);
@@ -374,23 +369,38 @@ bool drawConsoleField(ConsoleField* field, GameState* gameState, V2* fieldP,
 	} else {
 		V2 triangleP = *fieldP + v2((triangleSize.x + fieldSize.x) / 2.0f + spacing, 0) + field->offs;
 
-		if (field->children &&
+		if (field->numChildren &&
 			drawConsoleTriangle(gameState, triangleP, triangleSize, false, true, false, false, field, field->tweakCost)) {
 			result = true;
 		}
 	}
 
-	if (field->children && isSet(field, ConsoleFlag_childrenVisible)) {
+	if (field->numChildren && field->childYOffs) {
 		double inset = fieldSize.x / 4.0f;
+
+		V2 startFieldP = *fieldP;
 
 		fieldP->x += inset;
 		*fieldP += field->offs;
 
+		//NOTE: 0.1 and 2.5 are just arbitrary values which make the clipRect big enough
+		V2 clipPoint1 = *fieldP - v2(fieldSize.x / 2 + 0.1, field->childYOffs + fieldSize.y / 2 + spacing);
+		V2 clipPoint2 = *fieldP + v2(fieldSize.x / 2 + 2.5, -fieldSize.y / 2);
+
+		//setColor(gameState->renderer, 0, 255, 0, 255);
+		//drawFilledRect(gameState, rectCenterRadius(*fieldP, v2(1, 1) * 0.05));
+
+		R2 clipRect = r2(clipPoint1, clipPoint2);
+		setClipRect(gameState, clipRect);
+
+		//setColor(gameState->renderer, 255, 0, 255, 255);
+		//drawRect(gameState, clipRect, 0.025);
+
 		result |= drawFields(gameState, field->children, field->numChildren, fieldP,
 				  			 fieldSize, triangleSize, valueSize, spacing, stroke);
 
-		*fieldP -= field->offs;
-		fieldP->x -= inset;
+		*fieldP = startFieldP - v2(0, field->childYOffs);
+		setDefaultClipRect(gameState);
 	}
 
 	return result;
@@ -402,12 +412,44 @@ int getNumVisibleFields(ConsoleField** fields, int fieldsCount) {
 	for (int fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
 		ConsoleField* field = fields[fieldIndex];
 
-		if (field->children && isSet(field, ConsoleFlag_childrenVisible)) {
+		if (field->numChildren && isSet(field, ConsoleFlag_childrenVisible)) {
 			result += getNumVisibleFields(field->children, field->numChildren);
 		}
 	}
 
 	return result;
+}
+
+double getTotalYOffset(ConsoleField** fields, int fieldsCount, double fieldHeight) {
+	double result = fieldsCount * fieldHeight;
+
+	for (int fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
+		ConsoleField* field = fields[fieldIndex];
+		result += field->childYOffs;
+	}
+
+	return result; 
+}
+
+void moveFieldChildren(ConsoleField** fields, int fieldsCount, double fieldHeight, double dt) {
+	for (int fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
+		ConsoleField* field = fields[fieldIndex];
+
+		if (field->numChildren) {
+			double fieldSpeed = 4;
+			double delta = fieldSpeed * dt;
+			double maxY = field->numChildren * fieldHeight;
+			double minY = 0;
+
+			if (isSet(field, ConsoleFlag_childrenVisible)) {
+				field->childYOffs += delta;
+			} else {
+				field->childYOffs -= delta;
+			}
+
+			field->childYOffs = clamp(field->childYOffs, minY, maxY);
+		}
+	}
 }
 
 bool drawFields(GameState* gameState, ConsoleField** fields, int fieldsCount, V2* fieldP,
@@ -418,13 +460,13 @@ bool drawFields(GameState* gameState, ConsoleField** fields, int fieldsCount, V2
 		fieldP->y -= fieldSize.y + spacing;
 		ConsoleField* field = fields[fieldIndex];
 		result |= drawConsoleField(field, gameState, fieldP, 
-								   fieldSize, triangleSize, valueSize, spacing, stroke);				
+								   fieldSize, triangleSize, valueSize, spacing, stroke);	
 	}
 
 	return result;
 }
 
-void updateConsole(GameState* gameState) {
+void updateConsole(GameState* gameState, double dt) {
 	bool clickHandled = false;
 
 	V2 fieldSize = v2(2.1f, 0.4f);
@@ -445,7 +487,7 @@ void updateConsole(GameState* gameState) {
 		V2 fieldOffset;
 
 		V2 entityScreenP = (entity->p - gameState->cameraP) * gameState->pixelsPerMeter;
-		bool onScreenRight = entityScreenP.x > gameState->windowWidth / 2;
+		bool onScreenRight = entityScreenP.x >= gameState->windowWidth / 2;
 
 		if (onScreenRight) {
 			fieldOffset = v2(fieldSize.x * -0.75f, 0);
@@ -455,8 +497,12 @@ void updateConsole(GameState* gameState) {
 
 		V2 fieldP = getRectCenter(renderBounds) + fieldOffset;
 
-		int numFields = getNumVisibleFields(entity->fields, entity->numFields);
-		fieldP.y += (fieldSize.y + spacing) * numFields;
+		//int numFields = getNumVisibleFields(entity->fields, entity->numFields);
+		//fieldP.y += (fieldSize.y + spacing) * numFields;
+
+		moveFieldChildren(entity->fields, entity->numFields, fieldSize.y + spacing, dt);
+		double totalYOffs = getTotalYOffset(entity->fields, entity->numFields, fieldSize.y + spacing);
+		fieldP.y += totalYOffs;
 
 		if (entity->type == EntityType_tile) {
 			//NOTE: This draws the first two fields of the tile, xOffset and yOffset,
@@ -504,6 +550,8 @@ void updateConsole(GameState* gameState) {
 					clickHandled = true;
 				}
 			}								   
+
+			int numFields = getNumVisibleFields(entity->fields, entity->numFields);
 
 			if (numFields > 2) {
 				clickHandled |= drawFields(gameState, entity->fields + 2, entity->numFields - 2, &fieldP,

@@ -22,6 +22,7 @@ struct ConsoleField {
 	char name[100];
 	
 	//NOTE: These attributes are used for fields with many values
+	//TODO: values could be part of a union to allow for other types such as integer values
 	double values[5];
 	int numValues;
 	
@@ -39,8 +40,9 @@ struct ConsoleField {
 	ConsoleField* next;
 
 	//NOTE: This is used for hierarchal console fields
-	ConsoleField** children;
+	ConsoleField* children[4];
 	int numChildren;
+	double childYOffs;
 };
 
 bool isConsoleFieldMovementType(ConsoleField* field) {
@@ -50,6 +52,7 @@ bool isConsoleFieldMovementType(ConsoleField* field) {
 	return result;
 }
 
+//TODO: This could be a flag instead
 bool canOnlyHaveOneFieldOfType(ConsoleFieldType type) {
 	bool result = type == ConsoleField_isShootTarget ||
 				  type == ConsoleField_shootsAtTarget;

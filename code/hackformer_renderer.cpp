@@ -206,24 +206,39 @@ Texture* extractTextures(GameState* gameState, char* fileName,
 }
 
 Animation loadAnimation(GameState* gameState, char* fileName, 
-	int frameWidth, int frameHeight, double secondsPerFrame) {
+	int frameWidth, int frameHeight, double secondsPerFrame, bool pingPong) {
 	Animation result = {};
 
 	assert(secondsPerFrame > 0);
 	result.secondsPerFrame = secondsPerFrame;
 	result.frames = extractTextures(gameState, fileName, frameWidth, frameHeight, 0, &result.numFrames);
+	result.pingPong = pingPong;
 
-	return result;
-}
-
-Texture* getAnimationFrame(Animation* animation, double animTime) {
-	int frameIndex = (int)(animTime / animation->secondsPerFrame) % animation->numFrames;
-	Texture* result = animation->frames + frameIndex;
 	return result;
 }
 
 double getAnimationDuration(Animation* animation) {
 	double result = animation->numFrames * animation->secondsPerFrame;
+	return result;
+}
+
+Texture* getAnimationFrame(Animation* animation, double animTime, bool reverse = false) {
+	int frameIndex = frameIndex = (int)(animTime / animation->secondsPerFrame) % animation->numFrames;
+
+	if(animation->pingPong) {
+		double duration = getAnimationDuration(animation);
+		int numTimesPlayed = (int)(animTime / duration);
+
+		if (numTimesPlayed % 2 == 1) {
+			reverse = !reverse;
+		}
+	}
+
+	if (reverse) {
+		frameIndex = (animation->numFrames - 1) - frameIndex;
+	}
+
+	Texture* result = animation->frames + frameIndex;
 	return result;
 }
 
@@ -233,6 +248,10 @@ double getAnimationDuration(Animation* animation) {
 // }
 
 void setColor(SDL_Renderer* renderer, int r, int g, int b, int a) {
+	assert(r >= 0 && r <= 255);
+	assert(g >= 0 && g <= 255);
+	assert(b >= 0 && b <= 255);
+	assert(a >= 0 && a <= 255);
 	SDL_SetRenderDrawColor(renderer, r, g, b, a);
 }
 
@@ -269,6 +288,15 @@ SDL_Rect getPixelSpaceRect(GameState* gameState, R2 rect) {
 	result.y = gameState->windowHeight - (int)ceil(rect.max.y * gameState->pixelsPerMeter);
 
 	return result;
+}
+
+void setClipRect(GameState* gameState, R2 rect) {
+	SDL_Rect clipRect = getPixelSpaceRect(gameState, rect);
+	SDL_RenderSetClipRect(gameState->renderer, &clipRect);
+}
+
+void setDefaultClipRect(GameState* gameState) {
+	setClipRect(gameState, r2(v2(0, 0), gameState->windowSize));
 }
 
 void drawTexture(GameState* gameState, Texture* texture, R2 bounds, bool flipX, double degrees = 0) {

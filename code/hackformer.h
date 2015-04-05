@@ -1,34 +1,47 @@
 /*TODO:
 
-- Better loading in of entities from the tmx file
-- Multiple strings for one text (hack)
-- Multiline text
+Clean Up
+---------
+- Free the tile texture atlas when loading a new level
+- clean up text entity, texture memory
+- clean up move tiles memory
 
+- Better loading in of entities from the tmx file
 - tweak player death speed 
 
+
+
+Bug Fixes
+----------
+- Fix flickering bug (need proper subpixel accuracy when blitting sprites)
+- Fix entity position on bigger screen sizes (when loading in from .tmx)
 - Fix tile pushing another tile to the side bugs
-- clean up move tiles memory
+- when patrolling change all of the hitboxes, not just the first one
 - test remove when outside level to see that it works
 
-- Collision with left and right edges of the map
 
-- use a priority queue to process path requests
-- when patrolling change all of the hitboxes, not just the first one
-- clean up hitboxes memory
 
-- Make console fields much smoother (moving around the fields, fading them in and out)
-- Handle overlaps between entities when selecting which one to hack better
-- Handle overlaps between entities (and their fields) with the swap field
-- Make camera change much smoother
+New Features
+-------------
+- Start using player hacking animation
 
 - locking fields so they can't be moved
 - locking fields so they can't be modified
 - more console fields
 
-- Fix flickering bug
-- Dynamic lighting effect
+- Make console fields much smoother (moving around the fields, fading them in and out)
+- Handle overlaps between entities (and their fields) with the swap field
+- Make camera change much smoother
 
-- Free the tile texture atlas when loading a new level
+- Collision with left and right edges of the map
+
+- Multiple strings for one text (hack)
+- Multiline text
+
+- use a priority queue to process path requests
+
+- Heavy Tiles
+- Proper tile projection sprites
 
 */
 
@@ -93,7 +106,7 @@ struct GameState {
 
 	//NOTE: 0 is the null reference
 	EntityReference entityRefs_[500];
-	EntityReference* entityRefFreeList;
+	
 
 	//NOTE: These must be sequential for laser collisions to work
 	int refCount;
@@ -117,34 +130,13 @@ struct GameState {
 	bool loadNextLevel;
 	bool doingInitialSim;
 
-	Texture playerStand, playerJump;
-	Animation playerWalk;
-
-	Texture virus1Stand;
-	Animation virus1Shoot;
-
-	Texture bgTex, mgTex;
-	Texture sunsetCityBg, sunsetCityMg;
-	Texture marineCityBg, marineCityMg;
-
-	Texture blueEnergyTex;
-	Texture laserBolt;
-	Texture endPortal;
-
-	Texture consoleTriangle, consoleTriangleSelected, consoleTriangleGrey, consoleTriangleYellow;
-
-	Texture laserBaseOff, laserBaseOn;
-	Texture laserTopOff, laserTopOn;
-	Texture laserBeam;
-
-	Texture flyingVirus;
-	Animation flyingVirusShoot;
-
 	ConsoleField* consoleFreeList;
+	RefNode* refNodeFreeList;
+	EntityReference* entityRefFreeList;
+	Hitbox* hitboxFreeList;
+
 	ConsoleField* swapField;
 	V2 swapFieldP;
-
-	RefNode* refNodeFreeList;
 
 	PathNode* openPathNodes[10000];
 	int openPathNodesCount;
@@ -172,6 +164,29 @@ struct GameState {
 	V2 playerStartP;
 	V2 playerDeathStartP;
 	V2 playerDeathSize;
+
+	Texture playerStand, playerJump;
+	Animation playerWalk, playerStandWalkTransition;
+
+	Texture virus1Stand;
+	Animation virus1Shoot;
+
+	Texture bgTex, mgTex;
+	Texture sunsetCityBg, sunsetCityMg;
+	Texture marineCityBg, marineCityMg;
+
+	Texture blueEnergyTex;
+	Texture laserBolt;
+	Texture endPortal;
+
+	Texture consoleTriangle, consoleTriangleSelected, consoleTriangleGrey, consoleTriangleYellow;
+
+	Texture laserBaseOff, laserBaseOn;
+	Texture laserTopOff, laserTopOn;
+	Texture laserBeam;
+
+	Texture flyingVirus;
+	Animation flyingVirusShoot;
 };
 
 #define pushArray(arena, type, count) (type*)pushIntoArena_(arena, count * sizeof(type))

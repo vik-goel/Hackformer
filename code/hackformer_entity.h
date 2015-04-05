@@ -40,6 +40,14 @@ enum EntityFlag {
 	EntityFlag_shooting = 1 << 5,
 	EntityFlag_unchargingAfterShooting = 1 << 6,
 	EntityFlag_grounded = 1 << 7,
+	EntityFlag_laserOn = 1 << 8,
+};
+
+enum AnimState {
+	AnimState_standing, //NOTE: Standing must be 0
+	AnimState_shooting,
+	AnimState_jumping,
+	AnimState_walking,
 };
 
 struct RefNode {
@@ -62,11 +70,9 @@ struct Entity {
 	V2 dP;
 
 	V2 renderSize;
-	Texture* texture;
 	double animTime;
 	DrawOrder drawOrder;
 
-	//TODO: Free list for these
 	Hitbox* hitboxes;
 	R2 clickBox;
 
@@ -91,6 +97,15 @@ struct Entity {
 	//Used by any entity that jumps
 	int jumpCount;
 	double timeSinceLastOnGround;
+
+	AnimState lastAnimState;
+	AnimState prevAnimState;
+
+	Texture* standTex;
+	Texture* jumpTex;
+	Animation* shootAnim;
+	Animation* walkAnim;
+	Animation* standWalkTransition;
 };
 
 struct EntityReference {

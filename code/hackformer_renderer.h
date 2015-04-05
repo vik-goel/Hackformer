@@ -9,6 +9,7 @@ struct Animation {
 	Texture* frames;
 	uint numFrames;
 	double secondsPerFrame;
+	bool pingPong;
 };
 
 struct CachedFont {
