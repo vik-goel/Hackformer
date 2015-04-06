@@ -68,10 +68,10 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 	int mapWidthTiles, mapHeightTiles;
 	bool foundMapSizeTiles = false;
 
-	int tileWidth, tileHeight, tileSpacing;
-	bool foundTilesetInfo = false;
-	Texture* textures = NULL;
-	uint numTextures;
+	//int tileWidth, tileHeight, tileSpacing;
+	//bool foundTilesetInfo = false;
+	//Texture* textures = NULL;
+	//uint numTextures;
 
 	bool loadingTileData = false;
 	bool doneLoadingTiles = false;
@@ -106,19 +106,19 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 
 			}
 		}
-		else if(!foundTilesetInfo) {
-			if (extractIntFromLine(line, lineLength, "tilewidth", &tileWidth)) {
-				extractIntFromLine(line, lineLength, "tileheight", &tileHeight);
-				extractIntFromLine(line, lineLength, "spacing", &tileSpacing);
-				foundTilesetInfo = true;
-			}
-		}
-		else if(textures == NULL) {
-			if (extractStringFromLine(line, lineLength, "image source", buffer, arrayCount(buffer))) {
-				int texWidth = 0, texHeight = 0;
-				textures = extractTextures(gameState, buffer, tileWidth, tileHeight, tileSpacing, &numTextures );
-			}
-		}
+		// else if(!foundTilesetInfo) {
+		// 	if (extractIntFromLine(line, lineLength, "tilewidth", &tileWidth)) {
+		// 		extractIntFromLine(line, lineLength, "tileheight", &tileHeight);
+		// 		extractIntFromLine(line, lineLength, "spacing", &tileSpacing);
+		// 		foundTilesetInfo = true;
+		// 	}
+		// }
+		// else if(textures == NULL) {
+		// 	if (extractStringFromLine(line, lineLength, "image source", buffer, arrayCount(buffer))) {
+		// 		int texWidth = 0, texHeight = 0;
+		// 		textures = extractTextures(gameState, buffer, tileWidth, tileHeight, tileSpacing, &numTextures );
+		// 	}
+		// }
 		else if(!loadingTileData && !doneLoadingTiles) {
 			char* beginLoadingStr = "<data encoding=\"csv\">";
 			if (findFirstStringOccurrence(line, lineLength, beginLoadingStr, strlen(beginLoadingStr))) {
@@ -140,8 +140,8 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 					int tileIndex = atoi(linePtr) - 1;
 
 					if (tileIndex >= 0) {
-						V2 tileP = v2(tileX + 0.5f, tileY + 0.5f) * gameState->tileSize;
-						addTile(gameState, tileP, textures + tileIndex);
+						V2 tileP = v2(tileX + 0.5, tileY + 1) * gameState->tileSize;
+						addTile(gameState, tileP, gameState->tileAtlas + tileIndex);
 					}
 
 					tileX++;
@@ -178,10 +178,56 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 					addFlyingVirus(gameState, p);
 				}
 				else if (stringsMatch(buffer, "text")) {
+					/*
+
+					  <object name="text" x="622" y="658" width="398" height="76">
+					   <properties>
+					    <property name="0" value="Good Luck!"/>
+					    <property name="1" value="Try not to die"/>
+					    <property name="2" value="Batman"/>
+					    <property name="selected index" value="0"/>
+					   </properties>
+
+					*/
+
 					fgets(line, sizeof(line), file);
-					fgets(line, sizeof(line), file);
-					extractStringFromLine(line, lineLength, "value", buffer, arrayCount(buffer));
-					addText(gameState, p, buffer);
+
+					int selectedIndex = -1;
+					char values[10][100];
+					int numValues = 0;
+
+					while(true) {
+						fgets(line, sizeof(line), file);
+						if (stringsMatch(line, "   </properties>")) break;
+
+						extractStringFromLine(line, lineLength, "name", buffer, arrayCount(buffer));
+
+						bool selectedIndexString = false;
+						int valueIndex = -1;
+						
+						if (stringsMatch(buffer, "selected index")) selectedIndexString = true;
+						else valueIndex = atoi(buffer);
+
+						extractStringFromLine(line, lineLength, "value", buffer, arrayCount(buffer));
+
+						if (selectedIndexString) {
+							selectedIndex = atoi(buffer);
+						} else {
+							assert(valueIndex >= 0);
+
+							if (valueIndex > numValues) numValues = valueIndex;
+
+							char* valuePtr = (char*)values[valueIndex];
+							char* bufferPtr = (char*)buffer;
+							while(*bufferPtr) {
+								*valuePtr++ = *bufferPtr++;
+							}
+							*valuePtr = 0;
+						}
+					}
+
+					assert(selectedIndex >= 0);
+					addText(gameState, p, values, numValues, selectedIndex);
 				}
 				else if (stringsMatch(buffer, "background")) {
 					fgets(line, sizeof(line), file);
@@ -345,9 +391,12 @@ void loadLevel(GameState* gameState, char** maps, int numMaps, int* mapFileIndex
 		(*mapFileIndex)++;
 		(*mapFileIndex) %= numMaps;
 		initPlayerDeath = false;
+		gameState->cameraP = gameState->newCameraP = v2(0, 0);
 	}
 
 	loadTmxMap(gameState, maps[*mapFileIndex]);
+	addFlyingVirus(gameState, v2(8, 7));
+	addHeavyTile(gameState, v2(3, 7));
 
 	V2 playerDeathStartP = gameState->playerDeathStartP;
 	gameState->doingInitialSim = true;
@@ -365,10 +414,12 @@ void loadLevel(GameState* gameState, char** maps, int numMaps, int* mapFileIndex
 		Entity* player = getEntityByRef(gameState, gameState->playerRef);
 		assert(player);
 
-		setFlags(player, EntityFlag_remove);
-		gameState->playerStartP = player->p;
+		if (!epsilonEquals(player->p, gameState->playerDeathStartP, 0.1)) {
+			setFlags(player, EntityFlag_remove);
+			gameState->playerStartP = player->p;
 
-		addPlayerDeath(gameState);
+			addPlayerDeath(gameState);
+		}
 	}
 }
 
@@ -390,6 +441,9 @@ int main(int argc, char *argv[]) {
 		assert(false);
 	}
 
+	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
+	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
+
 	if (IMG_Init(IMG_INIT_PNG) != IMG_INIT_PNG) {
 		fprintf(stderr, "Failed to initialize SDL Image.");
 		assert(false);
@@ -410,7 +464,7 @@ int main(int argc, char *argv[]) {
 
 	// SDL_GL_SetSwapInterval(1);
 
-	SDL_Window* window = SDL_CreateWindow("C++former", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
+	SDL_Window* window = SDL_CreateWindow("Hackformer", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
 										  windowWidth, windowHeight, 
 										  SDL_WINDOW_ALLOW_HIGHDPI);
 
@@ -444,11 +498,9 @@ int main(int argc, char *argv[]) {
 		assert(false);
 	}
 
-	int gameStateSize = sizeof(GameState); 
-
 	MemoryArena arena_ = createArena(1024 * 1024);
 
-	GameState* gameState = (GameState*)pushStruct(&arena_, GameState);
+	GameState* gameState = pushStruct(&arena_, GameState);
 	gameState->permanentStorage = arena_;
 	gameState->renderer = renderer;
 
@@ -464,17 +516,17 @@ int main(int argc, char *argv[]) {
 
 	gameState->gravity = v2(0, -9.81f);
 	gameState->solidGridSquareSize = 0.1;
-	gameState->tileSize = 0.9f;
-	gameState->chunkSize = v2(5, 5);
-	//gameState->refCount = 1; //NOTE: This is for the null reference
+	gameState->tileSize = 0.9f; 
+	gameState->chunkSize = v2(7, 7);
 
 	gameState->consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
 	gameState->textFont = loadFont("fonts/Roboto-Regular.ttf", 64);
 
 	gameState->playerStand = loadPNGTexture(gameState, "res/player/stand2.png");
 	gameState->playerJump = loadPNGTexture(gameState, "res/player/jump2.png");
-	gameState->playerWalk = loadAnimation(gameState, "res/player/running.png", 256, 256, 0.04f, true);
+	gameState->playerWalk = loadAnimation(gameState, "res/player/running.png", 256, 256, 0.035f, true);
 	gameState->playerStandWalkTransition = loadAnimation(gameState, "res/player/stand_run_transition.png", 256, 256, 0.01f, false);
+	gameState->playerHackingAnimation = loadAnimation(gameState, "res/player/hacking.png", 256, 256, 0.05f, true);
 
 	gameState->virus1Stand = loadPNGTexture(gameState, "res/virus1/stand.png");
 	gameState->virus1Shoot = loadAnimation(gameState, "res/virus1/shoot.png", 256, 256, 0.04f, true);
@@ -504,9 +556,14 @@ int main(int argc, char *argv[]) {
 	gameState->laserTopOn = loadPNGTexture(gameState, "res/virus3/top on.png");
 	gameState->laserBeam = loadPNGTexture(gameState, "res/virus3/laser beam.png");
 
+	gameState->heavyTileTex = loadPNGTexture(gameState, "res/Heavy1.png");
+
+	uint numTilesInAtlas;
+	gameState->tileAtlas = extractTextures(gameState, "res/tiles_floored.png", 120, 240, 12, &numTilesInAtlas);
+
 	char* mapFileNames[] = {
-		"map4.tmx",
 		"map3.tmx",
+		"map4.tmx",
 		"map5.tmx",
 	};
 
@@ -514,8 +571,6 @@ int main(int argc, char *argv[]) {
 	//loadTmxMap(gameState, mapFileNames[mapFileIndex]);
 
 	loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, false);
-	addFlyingVirus(gameState, v2(8, 7));
-
 
 	bool running = true;
 	double frameTime = 1.0 / 60.0;
@@ -564,20 +619,33 @@ int main(int argc, char *argv[]) {
 			SDL_RenderPresent(renderer); //Swap the buffers
 			//SDL_GL_SwapWindow(window);
 
+
+			{ //NOTE: This updates the camera position
+				V2 cameraPDiff = gameState->newCameraP - gameState->cameraP;
+				double maxCameraMovement = 30 * dtForFrame;
+
+				if (lengthSq(cameraPDiff) > square(maxCameraMovement)) {
+					cameraPDiff = normalize(cameraPDiff) * maxCameraMovement;
+				}
+
+				gameState->cameraP += cameraPDiff;
+			}
+
 			dtForFrame = 0;
-			gameState->cameraP = gameState->newCameraP;
 
 			if (gameState->input.xJustPressed) {
 				gameState->blueEnergy += 10;
 			}
 
-			bool resetLevel = !getEntityByRef(gameState, gameState->playerDeathRef) &&
-							  (!getEntityByRef(gameState, gameState->playerRef) || gameState->input.rJustPressed);
+			{ //NOTE: This reloads the game
+				bool resetLevel = !getEntityByRef(gameState, gameState->playerDeathRef) &&
+								  (!getEntityByRef(gameState, gameState->playerRef) || gameState->input.rJustPressed);
 
-			//NOTE: This reloads the game
-			if (gameState->loadNextLevel || 
-				resetLevel) {
-				loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, true);
+				
+				if (gameState->loadNextLevel || 
+					resetLevel) {
+					loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, true);
+				}
 			}
 		}
 	}

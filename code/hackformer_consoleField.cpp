@@ -53,14 +53,21 @@ ConsoleField* createBoolField(GameState* gameState, char* name, bool value, int 
 	return result;
 }
 
-ConsoleField* createDoubleField(GameState* gameState, char* name, double* values, int numValues, int initialIndex, int tweakCost) {
+#define createPrimitiveField(type, gameState, name, values, numValues, initialIndex, tweakCost) createPrimitiveField_(gameState, name, values, sizeof(type), numValues, initialIndex, tweakCost, ConsoleField_##type)
+ConsoleField* createPrimitiveField_(GameState* gameState, char* name, void* values, int elemSize,
+				int numValues, int initialIndex, int tweakCost, ConsoleFieldType type) {
 	assert(numValues > 0);
 	assert(initialIndex >= 0 && initialIndex < numValues);
 
-	ConsoleField* result = createConsoleField(gameState, name, ConsoleField_double);
+	ConsoleField* result = createConsoleField(gameState, name, type);
 
 	for (int valueIndex = 0; valueIndex < numValues; valueIndex++) {
-		result->values[valueIndex] = values[valueIndex];
+		char* src = (char*)values + elemSize * valueIndex;
+		char* dst = (char*)result->doubleValues + elemSize * valueIndex;
+
+		for(int byteIndex = 0; byteIndex < elemSize; byteIndex++) {
+			*dst++ = *src++;
+		}
 	}
 
 	result->selectedIndex = result->initialIndex = initialIndex;
@@ -74,7 +81,46 @@ Entity* getEntityByRef(GameState*, int ref);
 ConsoleField* getMovementField(Entity* entity);
 bool isMouseInside(Entity* entity, Input* input);
 
-bool moveField(ConsoleField* field, GameState* gameState, R2 bounds) {
+int getNumVisibleFields(ConsoleField** fields, int fieldsCount) {
+	int result = fieldsCount;
+
+	for (int fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
+		ConsoleField* field = fields[fieldIndex];
+
+		if (field->numChildren && isSet(field, ConsoleFlag_childrenVisible)) {
+			result += getNumVisibleFields(field->children, field->numChildren);
+		}
+	}
+
+	return result;
+}
+
+double getTotalYOffset(ConsoleField** fields, int fieldsCount, double fieldHeight) {
+	double result = fieldsCount * fieldHeight;
+
+	for (int fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
+		ConsoleField* field = fields[fieldIndex];
+		result += field->childYOffs;
+	}
+
+	return result; 
+}
+
+void moveToEquilibrium(ConsoleField* field, double dt) {
+	V2 delta = field->offs;
+	double len = length(delta);
+	double maxSpeed = 1 * dt + len / 10;
+
+	if (len) {
+		if (len > maxSpeed) {
+			delta = normalize(delta) * maxSpeed;
+		}
+
+		field->offs -= delta;
+	}
+}
+
+bool moveField(ConsoleField* field, GameState* gameState, R2 bounds, double dt, double fieldHeight) {
 	bool result = false;
 
 	if (gameState->input.leftMouseJustPressed) {
@@ -89,8 +135,8 @@ bool moveField(ConsoleField* field, GameState* gameState, R2 bounds) {
 			field->offs += gameState->input.dMouseMeters;
 		} else {
 			V2 center = getRectCenter(bounds) + field->offs;
+			field->tempCenter = center;
 
-			//TODO: Directly store a reference to the console entity so this is just a lookup
 			Entity* consoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef);
 			assert(consoleEntity);
 
@@ -110,12 +156,14 @@ bool moveField(ConsoleField* field, GameState* gameState, R2 bounds) {
 					if (gameState->swapField == NULL) {
 						gameState->swapField = field;
 						removeFromParent = true;
+						//field->offs = center - gameState->swapFieldP;
 					}
 					else if (isConsoleFieldMovementType(gameState->swapField) && 
 							 isConsoleFieldMovementType(field)) {
 						ConsoleField tempField = *gameState->swapField;
 						*gameState->swapField = *field;
 						*field = tempField;
+						field->tempCenter = gameState->swapFieldP;
 					}
 				}
 			}
@@ -152,6 +200,11 @@ bool moveField(ConsoleField* field, GameState* gameState, R2 bounds) {
 				}
 
 				if (shouldAddField) {
+					for (int fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
+						ConsoleField* f = consoleEntity->fields[fieldIndex];
+						f->offs = v2(0, -fieldHeight - field->childYOffs); 
+					}
+
 					consoleEntity->fields[consoleEntity->numFields++] = field;
 					assert(consoleEntity->numFields < arrayCount(consoleEntity->fields));
 				} else {
@@ -161,13 +214,25 @@ bool moveField(ConsoleField* field, GameState* gameState, R2 bounds) {
 			}
 			else if (removeFromParent) {
 				setFlags(field, ConsoleFlag_remove);
+
+				bool encounteredField = false;
+
+				for (int fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
+					ConsoleField* f = consoleEntity->fields[fieldIndex];
+					if (f == field) encounteredField = true;
+					else if (!encounteredField) f->offs = v2(0, fieldHeight + field->childYOffs); 
+				}
 			}
 
 			clearFlags(field, ConsoleFlag_selected);
 
-			//TODO: Smooth movement
-			field->offs = v2(0, 0);
+			//NOTE: This very large value is here to stop the field from showing up for one frame
+			//		after this since the ConsoleFlag_fixOffset is set, this will be changed
+			field->offs = v2(999999999, 99999999);
+			setFlags(field, ConsoleFlag_fixOffset);
 		}
+	} else {
+		moveToEquilibrium(field, dt);
 	}
 
 	return result;
@@ -181,7 +246,7 @@ void drawOutlinedConsoleBoxRaw(GameState* gameState, R2 bounds, double stroke) {
 	drawRect(gameState, bounds, stroke);
 }
 
-bool drawOutlinedConsoleBox(ConsoleField* field, GameState* gameState,
+bool drawOutlinedConsoleBox(ConsoleField* field, GameState* gameState, double dt, double fieldHeight,
 							R2 bounds, double stroke, bool nameBox, bool hasValue = true) {
 	bool result = false;
 
@@ -193,11 +258,12 @@ bool drawOutlinedConsoleBox(ConsoleField* field, GameState* gameState,
 		if (hasValue) {
 			setColor(gameState->renderer, 255, 100, 100, 255);
 			//setColor(gameState->basicShader, 1, 0.4, 0.4, 1);
+			moveToEquilibrium(field, dt);
 		}
 		else {
 			setColor(gameState->renderer, 100, 100, 255, 255);
 			//setColor(gameState->basicShader, 0.4, 0.4, 1, 1);
-			result = moveField(field, gameState, bounds);
+			result = moveField(field, gameState, bounds, dt, fieldHeight);
 		}
 
 		//text = &field->nameTex;
@@ -309,126 +375,116 @@ bool drawConsoleTriangle(GameState* gameState, V2 triangleP, V2 triangleSize,
 	return result;
 }
 
-bool drawFields(GameState* gameState, ConsoleField** fields, int fieldsCount, V2* fieldP,
+bool drawFields(GameState* gameState, double dt, ConsoleField** fields, int fieldsCount, V2* fieldP,
 				V2 fieldSize, V2 triangleSize, V2 valueSize, double spacing, double stroke);
 
-bool drawConsoleField(ConsoleField* field, GameState* gameState, V2* fieldP, 
+bool drawConsoleField(ConsoleField* field, GameState* gameState, double dt, V2* fieldP, 
 					  V2 fieldSize, V2 triangleSize, V2 valueSize, double spacing, double stroke) {
+	if (isSet(field, ConsoleFlag_fixOffset)) {
+		field->offs = field->tempCenter - *fieldP;
+		clearFlags(field, ConsoleFlag_fixOffset);
+	}
+
 	bool result = false;
 
-	bool hasValue = true;
+	if (!isSet(field, ConsoleFlag_remove)) {
+		bool hasValue = true;
 
-	switch(field->type) {
-		case ConsoleField_double: {
-			sprintf_s(field->valueStr, "%.1f", ((double*)field->values)[field->selectedIndex]);
-		} break;
+		switch(field->type) {
+			case ConsoleField_int: {
+				sprintf_s(field->valueStr, "%d", field->intValues[field->selectedIndex]);
+			} break;
 
-		case ConsoleField_unlimitedInt: {
-			sprintf_s(field->valueStr, "%d", field->selectedIndex);
-		} break;
+			case ConsoleField_double: {
+				sprintf_s(field->valueStr, "%.1f", field->doubleValues[field->selectedIndex]);
+			} break;
 
-		case ConsoleField_bool: {
-			if (field->selectedIndex == 0) {
-				sprintf_s(field->valueStr, "false");
-			} else if (field->selectedIndex == 1) {
-				sprintf_s(field->valueStr, "true");
+			case ConsoleField_unlimitedInt: {
+				sprintf_s(field->valueStr, "%d", field->selectedIndex);
+			} break;
+
+			case ConsoleField_bool: {
+				if (field->selectedIndex == 0) {
+					sprintf_s(field->valueStr, "false");
+				} else if (field->selectedIndex == 1) {
+					sprintf_s(field->valueStr, "true");
+				}
+			} break;
+
+			default:
+				hasValue = false;
+		}
+
+		R2 fieldBounds = rectCenterDiameter(*fieldP, fieldSize);
+
+		if (drawOutlinedConsoleBox(field, gameState, dt, fieldSize.y, fieldBounds, stroke, true, hasValue)) {
+			result = true;
+		}
+
+		if (hasValue) {
+			bool alwaysDrawTriangles = (field->type == ConsoleField_unlimitedInt);
+
+			V2 triangleP = *fieldP + v2((fieldSize.x + triangleSize.x) / 2 + spacing, 0);
+		
+			if ((field->selectedIndex != 0 || alwaysDrawTriangles) && 
+				drawConsoleTriangle(gameState, triangleP + field->offs, triangleSize, 
+					true, false, false, false, field, field->tweakCost)) {
+				result = true;
 			}
-		} break;
 
-		default:
-			hasValue = false;
-	}
+			V2 valueP = triangleP + v2((triangleSize.x + valueSize.x) / 2.0f + spacing, 0);
+			R2 valueBounds = rectCenterDiameter(valueP, valueSize);
 
-	R2 fieldBounds = rectCenterDiameter(*fieldP, fieldSize);
+			drawOutlinedConsoleBox(field, gameState, dt, fieldSize.y, valueBounds, stroke, false);
 
-	if (drawOutlinedConsoleBox(field, gameState, fieldBounds, stroke, true, hasValue)) {
-		result = true;
-	}
+			triangleP = valueP + v2((triangleSize.x + valueSize.x) / 2.0f + spacing, 0);
 
-	if (hasValue) {
-		bool alwaysDrawTriangles = field->type == ConsoleField_unlimitedInt;
+			if ((field->selectedIndex != field->numValues - 1 || alwaysDrawTriangles) &&
+				drawConsoleTriangle(gameState, triangleP + field->offs, triangleSize,
+					 false, false, false, false, field, field->tweakCost)) {
+				result = true;
+			}
+		} else {
+			V2 triangleP = *fieldP + v2((triangleSize.x + fieldSize.x) / 2.0f + spacing, 0) + field->offs;
 
-		V2 triangleP = *fieldP + v2((fieldSize.x + triangleSize.x) / 2 + spacing, 0);
-	
-		if ((field->selectedIndex != 0 || alwaysDrawTriangles) && 
-			drawConsoleTriangle(gameState, triangleP, triangleSize, true, false, false, false, field, field->tweakCost)) {
-			result = true;
+			if (field->numChildren &&
+				drawConsoleTriangle(gameState, triangleP, triangleSize, false, true, false, false, field, field->tweakCost)) {
+				result = true;
+			}
 		}
 
-		V2 valueP = triangleP + v2((triangleSize.x + valueSize.x) / 2.0f + spacing, 0);
-		R2 valueBounds = rectCenterDiameter(valueP, valueSize);
+		if (field->numChildren && field->childYOffs) {
+			double inset = fieldSize.x / 4.0f;
 
-		drawOutlinedConsoleBox(field, gameState, valueBounds, stroke, false);
+			V2 startFieldP = *fieldP;
 
-		triangleP = valueP + v2((triangleSize.x + valueSize.x) / 2.0f + spacing, 0);
+			fieldP->x += inset;
+			*fieldP += field->offs;
 
-		if ((field->selectedIndex != field->numValues - 1 || alwaysDrawTriangles) &&
-			drawConsoleTriangle(gameState, triangleP, triangleSize, false, false, false, false, field, field->tweakCost)) {
-			result = true;
+			//NOTE: 0.1 and 2.5 are just arbitrary values which make the clipRect big enough
+			V2 clipPoint1 = *fieldP - v2(fieldSize.x / 2 + 0.1, field->childYOffs + fieldSize.y / 2 + spacing);
+			V2 clipPoint2 = *fieldP + v2(fieldSize.x / 2 + 2.5, -fieldSize.y / 2);
+
+			if (field == gameState->swapField) {
+				clipPoint1.y -= 0;
+			}
+
+			R2 clipRect = r2(clipPoint1, clipPoint2);
+			setClipRect(gameState, clipRect);
+
+			//setColor(gameState->renderer, 255, 0, 0, 255);
+			//drawFilledRect(gameState, clipRect, -gameState->cameraP);
+
+			result |= drawFields(gameState, dt, field->children, field->numChildren, fieldP,
+					  			 fieldSize, triangleSize, valueSize, spacing, stroke);
+
+			*fieldP = startFieldP - v2(0, field->childYOffs);
+			setDefaultClipRect(gameState);
 		}
-	} else {
-		V2 triangleP = *fieldP + v2((triangleSize.x + fieldSize.x) / 2.0f + spacing, 0) + field->offs;
 
-		if (field->numChildren &&
-			drawConsoleTriangle(gameState, triangleP, triangleSize, false, true, false, false, field, field->tweakCost)) {
-			result = true;
-		}
-	}
-
-	if (field->numChildren && field->childYOffs) {
-		double inset = fieldSize.x / 4.0f;
-
-		V2 startFieldP = *fieldP;
-
-		fieldP->x += inset;
-		*fieldP += field->offs;
-
-		//NOTE: 0.1 and 2.5 are just arbitrary values which make the clipRect big enough
-		V2 clipPoint1 = *fieldP - v2(fieldSize.x / 2 + 0.1, field->childYOffs + fieldSize.y / 2 + spacing);
-		V2 clipPoint2 = *fieldP + v2(fieldSize.x / 2 + 2.5, -fieldSize.y / 2);
-
-		//setColor(gameState->renderer, 0, 255, 0, 255);
-		//drawFilledRect(gameState, rectCenterRadius(*fieldP, v2(1, 1) * 0.05));
-
-		R2 clipRect = r2(clipPoint1, clipPoint2);
-		setClipRect(gameState, clipRect);
-
-		//setColor(gameState->renderer, 255, 0, 255, 255);
-		//drawRect(gameState, clipRect, 0.025);
-
-		result |= drawFields(gameState, field->children, field->numChildren, fieldP,
-				  			 fieldSize, triangleSize, valueSize, spacing, stroke);
-
-		*fieldP = startFieldP - v2(0, field->childYOffs);
-		setDefaultClipRect(gameState);
 	}
 
 	return result;
-}
-
-int getNumVisibleFields(ConsoleField** fields, int fieldsCount) {
-	int result = fieldsCount;
-
-	for (int fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
-		ConsoleField* field = fields[fieldIndex];
-
-		if (field->numChildren && isSet(field, ConsoleFlag_childrenVisible)) {
-			result += getNumVisibleFields(field->children, field->numChildren);
-		}
-	}
-
-	return result;
-}
-
-double getTotalYOffset(ConsoleField** fields, int fieldsCount, double fieldHeight) {
-	double result = fieldsCount * fieldHeight;
-
-	for (int fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
-		ConsoleField* field = fields[fieldIndex];
-		result += field->childYOffs;
-	}
-
-	return result; 
 }
 
 void moveFieldChildren(ConsoleField** fields, int fieldsCount, double fieldHeight, double dt) {
@@ -452,14 +508,14 @@ void moveFieldChildren(ConsoleField** fields, int fieldsCount, double fieldHeigh
 	}
 }
 
-bool drawFields(GameState* gameState, ConsoleField** fields, int fieldsCount, V2* fieldP,
+bool drawFields(GameState* gameState, double dt, ConsoleField** fields, int fieldsCount, V2* fieldP,
 				V2 fieldSize, V2 triangleSize, V2 valueSize, double spacing, double stroke) {
 	bool result = false;
 
 	for (int fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
 		fieldP->y -= fieldSize.y + spacing;
 		ConsoleField* field = fields[fieldIndex];
-		result |= drawConsoleField(field, gameState, fieldP, 
+		result |= drawConsoleField(field, gameState, dt, fieldP, 
 								   fieldSize, triangleSize, valueSize, spacing, stroke);	
 	}
 
@@ -504,7 +560,9 @@ void updateConsole(GameState* gameState, double dt) {
 		double totalYOffs = getTotalYOffset(entity->fields, entity->numFields, fieldSize.y + spacing);
 		fieldP.y += totalYOffs;
 
-		if (entity->type == EntityType_tile) {
+
+
+		if (entity->type == EntityType_tile || entity->type == EntityType_heavyTile) {
 			//NOTE: This draws the first two fields of the tile, xOffset and yOffset,
 			//		differently
 			ConsoleField* xOffsetField = entity->fields[0];
@@ -520,30 +578,35 @@ void updateConsole(GameState* gameState, double dt) {
 			bool drawTop = !yellow || yOffsetField->selectedIndex < entity->tileYOffset;
 			bool drawBottom = !yellow || yOffsetField->selectedIndex > entity->tileYOffset;
 
-			if (showArrows) {			   	  
-				double halfTriangleOffset = (entity->renderSize.x + triangleSize.x) / 2.0 + spacing;
-				V2 triangleP = entity->p - gameState->cameraP - v2(halfTriangleOffset, 0);
+			if (showArrows) {
+				V2 clickBoxSize = getRectSize(entity->clickBox);
+				V2 clickBoxCenter = getRectCenter(entity->clickBox);
+
+				V2 halfTriangleOffset = v2((clickBoxSize.x + triangleSize.x) / 2.0 + spacing, 
+										   (clickBoxSize.y + triangleSize.y) / 2.0 + spacing);
+
+				V2 triangleP = entity->p + clickBoxCenter - gameState->cameraP - v2(halfTriangleOffset.x, 0);
 
 				if (drawLeft && drawConsoleTriangle(gameState, triangleP, triangleSize, 
 									true, false, false, yellow, xOffsetField, xOffsetField->tweakCost)) {
 					clickHandled = true;
 				}
 
-				triangleP += v2(halfTriangleOffset * 2, 0);
+				triangleP += v2(halfTriangleOffset.x * 2, 0);
 
 				if (drawRight && drawConsoleTriangle(gameState, triangleP, triangleSize, 
 									false, false, false, yellow, xOffsetField, xOffsetField->tweakCost)) {
 					clickHandled = true;
 				}
 
-				triangleP = entity->p - gameState->cameraP - v2(0, halfTriangleOffset);
+				triangleP = entity->p + clickBoxCenter - gameState->cameraP - v2(0, halfTriangleOffset.y);
 
 				if (drawTop && drawConsoleTriangle(gameState, triangleP, triangleSize, 
 								true, false, true, yellow, yOffsetField, yOffsetField->tweakCost)) {
 					clickHandled = true;
 				}
 
-				triangleP += v2(0, halfTriangleOffset * 2);
+				triangleP += v2(0, halfTriangleOffset.y * 2);
 
 				if (drawBottom && drawConsoleTriangle(gameState, triangleP, triangleSize, 
 								false, false, true, yellow, yOffsetField, yOffsetField->tweakCost)) {
@@ -551,29 +614,62 @@ void updateConsole(GameState* gameState, double dt) {
 				}
 			}								   
 
-			int numFields = getNumVisibleFields(entity->fields, entity->numFields);
+			clickHandled |= drawFields(gameState, dt, entity->fields + 2, entity->numFields - 2, &fieldP,
+									   fieldSize, triangleSize, valueSize, spacing, stroke);
+		} 
 
-			if (numFields > 2) {
-				clickHandled |= drawFields(gameState, entity->fields + 2, entity->numFields - 2, &fieldP,
-										   fieldSize, triangleSize, valueSize, spacing, stroke);
+
+
+		else if (entity->type == EntityType_text) {
+			ConsoleField* selectedField = entity->fields[0];
+
+			double widthOffs = triangleSize.x * 0.6;
+			double heightOffs = getRectHeight(renderBounds) / 2;
+			V2 rightTriangleP = renderBounds.max + v2(widthOffs, -heightOffs);
+
+			bool drawRight = selectedField->selectedIndex > 0;
+			bool drawLeft = selectedField->selectedIndex < selectedField->numValues - 1;
+
+			if (drawLeft && drawConsoleTriangle(gameState, rightTriangleP, triangleSize, 
+									false, false, false, false, selectedField, selectedField->tweakCost)) {
+					clickHandled = true;
 			}
-		} else {
-			clickHandled |= drawFields(gameState, entity->fields, entity->numFields, &fieldP,
+
+			V2 leftTriangleP = renderBounds.min + v2(-widthOffs, heightOffs);
+
+			if (drawRight && drawConsoleTriangle(gameState, leftTriangleP, triangleSize, 
+									true, false, false, false, selectedField, selectedField->tweakCost)) {
+					clickHandled = true;
+			}
+
+			clickHandled |= drawFields(gameState, dt, entity->fields + 1, entity->numFields - 1, &fieldP,
+							   fieldSize, triangleSize, valueSize, spacing, stroke);
+		}
+
+
+
+		else {
+			clickHandled |= drawFields(gameState, dt, entity->fields, entity->numFields, &fieldP,
 				   				   	   fieldSize, triangleSize, valueSize, spacing, stroke);
 		}
 	}
 
 
+
+
 	//NOTE: This draws the swap field
 	if (gameState->consoleEntityRef) {
-		if (gameState->swapField) {
-			clickHandled |= drawConsoleField(gameState->swapField, gameState, &gameState->swapFieldP, 
-										 	 fieldSize, triangleSize, valueSize, spacing, stroke);	
-		} else {
+		if (!gameState->swapField || lengthSq(gameState->swapField->offs) > 0) {
 			setColor(gameState->renderer, 255, 255, 100, 255);
 			//setColor(gameState->basicShader, 1, 1, 0.4, 1);
 			drawOutlinedConsoleBoxRaw(gameState, rectCenterDiameter(gameState->swapFieldP, fieldSize), stroke);
 		}
+
+		if (gameState->swapField) {
+			moveFieldChildren(&gameState->swapField, 1, fieldSize.y + spacing, dt);
+			clickHandled |= drawConsoleField(gameState->swapField, gameState, dt, &gameState->swapFieldP, 
+										 	 fieldSize, triangleSize, valueSize, spacing, stroke);	
+		}  
 	}
 
 	

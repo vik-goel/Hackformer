@@ -7,41 +7,36 @@ Clean Up
 - clean up move tiles memory
 
 - Better loading in of entities from the tmx file
-- tweak player death speed 
 
+- re-enable laser bolt player, collision
 
 
 Bug Fixes
 ----------
 - Fix flickering bug (need proper subpixel accuracy when blitting sprites)
 - Fix entity position on bigger screen sizes (when loading in from .tmx)
-- Fix tile pushing another tile to the side bugs
 - when patrolling change all of the hitboxes, not just the first one
 - test remove when outside level to see that it works
+- when keyboard controlling a laser entity, the base will just fall off without the beam or top
+- bullets shot from a laser base should not collide with its corresponding beam and top
+- tile render order (higher y coordinate tiles must be renderered later)
 
 
 
 New Features
 -------------
-- Start using player hacking animation
-
 - locking fields so they can't be moved
 - locking fields so they can't be modified
 - more console fields
 
-- Make console fields much smoother (moving around the fields, fading them in and out)
+- Fade console fields in and out
 - Handle overlaps between entities (and their fields) with the swap field
-- Make camera change much smoother
 
-- Collision with left and right edges of the map
-
-- Multiple strings for one text (hack)
 - Multiline text
 
 - use a priority queue to process path requests
 
-- Heavy Tiles
-- Proper tile projection sprites
+- Trail effect on death
 
 */
 
@@ -78,7 +73,7 @@ struct Input {
 };
 
 struct MemoryArena {
-	char* base;
+	void* base;
 	uint allocated;
 	uint size;
 };
@@ -167,6 +162,7 @@ struct GameState {
 
 	Texture playerStand, playerJump;
 	Animation playerWalk, playerStandWalkTransition;
+	Animation playerHackingAnimation;
 
 	Texture virus1Stand;
 	Animation virus1Shoot;
@@ -187,16 +183,19 @@ struct GameState {
 
 	Texture flyingVirus;
 	Animation flyingVirusShoot;
+
+	Texture heavyTileTex;
+	Texture* tileAtlas;
 };
 
 #define pushArray(arena, type, count) (type*)pushIntoArena_(arena, count * sizeof(type))
 #define pushStruct(arena, type) (type*)pushIntoArena_(arena, sizeof(type))
 
-char* pushIntoArena_(MemoryArena* arena, uint amt) {
+void* pushIntoArena_(MemoryArena* arena, uint amt) {
 	arena->allocated += amt;
 	assert(arena->allocated < arena->size);
 
-	char* result = arena->base + arena->allocated - amt;
+	void* result = (char*)arena->base + arena->allocated - amt;
 	return result;
 }
 

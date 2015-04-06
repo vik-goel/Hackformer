@@ -3,6 +3,7 @@ enum EntityType {
 	EntityType_player,
 	EntityType_playerDeath,
 	EntityType_tile,
+	EntityType_heavyTile,
 	EntityType_blueEnergy,
 	EntityType_text,
 	EntityType_virus,
@@ -26,6 +27,7 @@ enum DrawOrder {
 	DrawOrder_laserBeam,
 	DrawOrder_virus,
 	DrawOrder_flyingVirus,
+	DrawOrder_heavyTile,
 	DrawOrder_laserBolt,
 	DrawOrder_playerDeath,
 	DrawOrder_player,
@@ -97,6 +99,10 @@ struct Entity {
 	//Used by any entity that jumps
 	int jumpCount;
 	double timeSinceLastOnGround;
+
+	//Used by text entity
+	Texture* messages;
+	int numMessages;
 
 	AnimState lastAnimState;
 	AnimState prevAnimState;

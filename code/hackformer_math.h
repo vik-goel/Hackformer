@@ -40,8 +40,13 @@ V2 v2(double x, double y) {
 	return result;
 }
 
+bool epsilonEquals(V2 a, V2 b, double epsilon) {
+	bool result = abs(a.x - b.x) < epsilon && abs(a.y - b.y) < epsilon;
+	return result;
+}
+
 bool operator==(V2 &a, V2 &b) {
-	bool result = a.x == b.x && a.y == b.y;
+	bool result = (a.x == b.x) && (a.y == b.y);
 	return result;
 }
 
@@ -279,6 +284,20 @@ R2 translateRect(R2 rect, V2 amt) {
 
 	result.min = rect.min + amt;
 	result.max = rect.max + amt;
+
+	return result;
+}
+
+R2 scaleRect(R2 rect, V2 amt) {
+	V2 originalSize = getRectSize(rect);
+	V2 scaledSize = hadamard(originalSize, amt);
+
+	scaledSize.x = abs(scaledSize.x);
+	scaledSize.y = abs(scaledSize.y);
+
+	V2 center = getRectCenter(rect);
+
+	R2 result = rectCenterDiameter(center, scaledSize);
 
 	return result;
 }

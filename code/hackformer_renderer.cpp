@@ -415,18 +415,6 @@ Texture createText(GameState* gameState, TTF_Font* font, char* msg) {
 	return result;
 }
 
-void drawText(GameState* gameState, Texture* texture, TTF_Font* font, double x, double y, double maxWidth, V2 camera = v2(0, 0)) {
-	//V2 defaultSize = texture->size;
-
-	double width = texture->srcRect.w;//min(defaultSize.x, maxWidth);
-	double height = texture->srcRect.h;//width * (defaultSize.y / defaultSize.x);
-
-	R2 fontBounds = rectCenterDiameter(v2(x, y), v2(width, height) / gameState->pixelsPerMeter);
-	fontBounds = translateRect(fontBounds, -camera);
-
-	drawTexture(gameState, texture, fontBounds, false);
-}	
-
 Texture* getGlyph(CachedFont* cachedFont, GameState* gameState, char c) {
 	if (!cachedFont->cache[c].tex) {	
 		SDL_Color black = {0, 0, 0, 255};
@@ -470,3 +458,6 @@ void drawCachedText(CachedFont* cachedFont, GameState* gameState, char* msg, V2 
 	}
 }
 
+void pushFillRect() {
+	
+}

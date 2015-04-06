@@ -30,7 +30,7 @@
     <property name="height" value="0.8"/>
    </properties>
   </object>
-  <object name="blue energy" gid="7" x="482" y="814"/>
+  <object name="blue energy" gid="7" x="532" y="812"/>
   <object name="blue energy" gid="7" x="606" y="814"/>
   <object name="background" x="324" y="72" width="20" height="44">
    <properties>

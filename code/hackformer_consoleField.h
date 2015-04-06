@@ -6,6 +6,7 @@ enum ConsoleFieldType {
 	ConsoleField_shootsAtTarget,
 	ConsoleField_double,
 	ConsoleField_unlimitedInt,
+	ConsoleField_int,
 	ConsoleField_bool,
 };
 
@@ -13,6 +14,7 @@ enum ConsoleFieldFlags {
 	ConsoleFlag_selected = 1 << 0,
 	ConsoleFlag_remove = 1 << 1,
 	ConsoleFlag_childrenVisible = 1 << 2,
+	ConsoleFlag_fixOffset = 1 << 3,
 };
 
 struct ConsoleField {
@@ -22,8 +24,10 @@ struct ConsoleField {
 	char name[100];
 	
 	//NOTE: These attributes are used for fields with many values
-	//TODO: values could be part of a union to allow for other types such as integer values
-	double values[5];
+	union {
+		double doubleValues[5];
+		int intValues[8];
+	};
 	int numValues;
 	
 	int selectedIndex;
@@ -35,6 +39,7 @@ struct ConsoleField {
 
 	//NOTE: These attributes are used for drag and droppable fields
 	V2 offs;
+	V2 tempCenter;
 
 	//NOTE: This is used for storage in the free list
 	ConsoleField* next;
