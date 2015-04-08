@@ -4,7 +4,6 @@ Clean Up
 ---------
 - Free the tile texture atlas when loading a new level
 - clean up text entity, texture memory
-- clean up move tiles memory
 
 - Better loading in of entities from the tmx file
 
@@ -19,7 +18,6 @@ Bug Fixes
 - test remove when outside level to see that it works
 - when keyboard controlling a laser entity, the base will just fall off without the beam or top
 - bullets shot from a laser base should not collide with its corresponding beam and top
-- tile render order (higher y coordinate tiles must be renderered later)
 
 
 
@@ -109,6 +107,7 @@ struct GameState {
 	MemoryArena permanentStorage;
 	MemoryArena levelStorage;
 
+	RenderGroup* renderGroup;
 	SDL_Renderer* renderer;
 	TTF_Font* textFont;
 	CachedFont consoleFont;
@@ -190,7 +189,7 @@ struct GameState {
 
 #define pushArray(arena, type, count) (type*)pushIntoArena_(arena, count * sizeof(type))
 #define pushStruct(arena, type) (type*)pushIntoArena_(arena, sizeof(type))
-
+#define pushSize(arena, size) pushIntoArena_(arena, size);
 void* pushIntoArena_(MemoryArena* arena, uint amt) {
 	arena->allocated += amt;
 	assert(arena->allocated < arena->size);

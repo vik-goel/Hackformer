@@ -238,12 +238,12 @@ bool moveField(ConsoleField* field, GameState* gameState, R2 bounds, double dt, 
 	return result;
 }
 
-void drawOutlinedConsoleBoxRaw(GameState* gameState, R2 bounds, double stroke) {
-	drawFilledRect(gameState, bounds);
+void drawOutlinedConsoleBoxRaw(GameState* gameState, R2 bounds, double stroke, Color color) {
+	pushFilledRect(gameState->renderGroup, bounds, color);
 
 	//setColor(gameState->basicShader, 0, 0, 0, 1);
-	setColor(gameState->renderer, 0, 0, 0, 255);
-	drawRect(gameState, bounds, stroke);
+
+	pushOutlinedRect(gameState->renderGroup, bounds, stroke, createColor(0, 0, 0, 255));
 }
 
 bool drawOutlinedConsoleBox(ConsoleField* field, GameState* gameState, double dt, double fieldHeight,
@@ -253,15 +253,16 @@ bool drawOutlinedConsoleBox(ConsoleField* field, GameState* gameState, double dt
 	//Texture* text = NULL;
 
 	char* text = NULL;
+	Color color = {};
 
 	if (nameBox) {
 		if (hasValue) {
-			setColor(gameState->renderer, 255, 100, 100, 255);
+			color = createColor(255, 100, 100, 255);
 			//setColor(gameState->basicShader, 1, 0.4, 0.4, 1);
 			moveToEquilibrium(field, dt);
 		}
 		else {
-			setColor(gameState->renderer, 100, 100, 255, 255);
+			color = createColor(100, 100, 255, 255);
 			//setColor(gameState->basicShader, 0.4, 0.4, 1, 1);
 			result = moveField(field, gameState, bounds, dt, fieldHeight);
 		}
@@ -269,20 +270,20 @@ bool drawOutlinedConsoleBox(ConsoleField* field, GameState* gameState, double dt
 		//text = &field->nameTex;
 		text = field->name;
 	} else {
-		setColor(gameState->renderer, 100, 255, 100, 255);
+		color = createColor(100, 255, 100, 255);
 		//setColor(gameState->basicShader, 0.4, 1, 0.4, 1);
 		//text = &field->valueTex;
 		text = field->valueStr;
 	}
 
 	bounds = translateRect(bounds, field->offs);
-	drawOutlinedConsoleBoxRaw(gameState, bounds, stroke);
+	drawOutlinedConsoleBoxRaw(gameState, bounds, stroke, color);
 
 	double strWidth = getTextWidth(&gameState->consoleFont, gameState, text);
 	V2 textP = bounds.min + v2((getRectWidth(bounds) - strWidth) / 2, 
 							   (getRectHeight(bounds) - gameState->consoleFont.lineHeight) / 4);
 
-	drawCachedText(&gameState->consoleFont, gameState, text, textP);
+	pushText(gameState->renderGroup, &gameState->consoleFont, text, textP);
 
 	return result;
 }
@@ -347,7 +348,7 @@ bool drawConsoleTriangle(GameState* gameState, V2 triangleP, V2 triangleSize,
 
 	if (yellow) triangleTex = &gameState->consoleTriangleYellow;
 
-	drawTexture(gameState, triangleTex, triangleBounds, facesRight, angle);
+	pushTexture(gameState->renderGroup, triangleTex, triangleBounds, facesRight, DrawOrder_gui, false, angle);
 
 	//NOTE: This draws the cost of tweaking if it is not default (0 or 1)
 	if (tweakCost > 1) {
@@ -369,7 +370,7 @@ bool drawConsoleTriangle(GameState* gameState, V2 triangleP, V2 triangleSize,
 			costP += v2(costStrWidth / 2, gameState->consoleFont.lineHeight / 2);
 		}
 
-		drawCachedText(&gameState->consoleFont, gameState, tweakCostStr, costP);
+		pushText(gameState->renderGroup, &gameState->consoleFont, tweakCostStr, costP);
 	}
 
 	return result;
@@ -470,7 +471,7 @@ bool drawConsoleField(ConsoleField* field, GameState* gameState, double dt, V2* 
 			}
 
 			R2 clipRect = r2(clipPoint1, clipPoint2);
-			setClipRect(gameState, clipRect);
+			pushClipRect(gameState->renderGroup, clipRect);
 
 			//setColor(gameState->renderer, 255, 0, 0, 255);
 			//drawFilledRect(gameState, clipRect, -gameState->cameraP);
@@ -479,7 +480,7 @@ bool drawConsoleField(ConsoleField* field, GameState* gameState, double dt, V2* 
 					  			 fieldSize, triangleSize, valueSize, spacing, stroke);
 
 			*fieldP = startFieldP - v2(0, field->childYOffs);
-			setDefaultClipRect(gameState);
+			pushDefaultClipRect(gameState->renderGroup);
 		}
 
 	}
@@ -536,9 +537,8 @@ void updateConsole(GameState* gameState, double dt) {
 		assert(entity);
 
 		R2 renderBounds = translateRect(entity->clickBox, entity->p - gameState->cameraP);
-		setColor(gameState->renderer, 255, 0, 0, 255);
 		//setColor(gameState->basicShader, 1, 0, 0, 1);
-		drawRect(gameState, renderBounds, 0.02f);
+		pushOutlinedRect(gameState->renderGroup, renderBounds, 0.02, createColor(255, 0, 0, 255));
 
 		V2 fieldOffset;
 
@@ -546,9 +546,9 @@ void updateConsole(GameState* gameState, double dt) {
 		bool onScreenRight = entityScreenP.x >= gameState->windowWidth / 2;
 
 		if (onScreenRight) {
-			fieldOffset = v2(fieldSize.x * -0.75f, 0);
+			fieldOffset = v2(fieldSize.x * -0.75, 0);
 		} else {
-			fieldOffset = v2(fieldSize.x * 0.75f, 0);
+			fieldOffset = v2(fieldSize.x * 0.75, 0);
 		}
 
 		V2 fieldP = getRectCenter(renderBounds) + fieldOffset;
@@ -660,9 +660,9 @@ void updateConsole(GameState* gameState, double dt) {
 	//NOTE: This draws the swap field
 	if (gameState->consoleEntityRef) {
 		if (!gameState->swapField || lengthSq(gameState->swapField->offs) > 0) {
-			setColor(gameState->renderer, 255, 255, 100, 255);
 			//setColor(gameState->basicShader, 1, 1, 0.4, 1);
-			drawOutlinedConsoleBoxRaw(gameState, rectCenterDiameter(gameState->swapFieldP, fieldSize), stroke);
+			drawOutlinedConsoleBoxRaw(gameState, rectCenterDiameter(gameState->swapFieldP, fieldSize),
+									 stroke, createColor(255, 255, 100, 255));
 		}
 
 		if (gameState->swapField) {

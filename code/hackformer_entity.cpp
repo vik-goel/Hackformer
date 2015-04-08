@@ -100,7 +100,9 @@ void addToSpatialPartition(Entity* entity, GameState* gameState) {
 		if (chunk->numRefs < arrayCount(chunk->entityRefs)) {
 			chunk->entityRefs[chunk->numRefs++] = entity->ref;
 			break;
-		} else if (!chunk->next) {
+		} 
+
+		if (!chunk->next) {
 			chunk->next = pushStruct(&gameState->levelStorage, EntityChunk);
 			*chunk->next = {};
 		}
@@ -109,24 +111,32 @@ void addToSpatialPartition(Entity* entity, GameState* gameState) {
 	}
 }
 
-void removeFromSpatialPartition(Entity* entity, GameState* gameState) {
+bool removeFromSpatialPartition(Entity* entity, GameState* gameState) {
 	EntityChunk* chunk = getSpatialChunk(entity->p, gameState);
+
+	bool removed = false;
 
 	while(chunk) {
 		for (int refIndex = 0; refIndex < chunk->numRefs; refIndex++) {
 			if (chunk->entityRefs[refIndex] == entity->ref) {
 				chunk->numRefs--;
 				chunk->entityRefs[refIndex] = chunk->entityRefs[chunk->numRefs];
+				removed = true;
 				break;
 			}
 		}
 
+		if (removed) break;
+
 		chunk = chunk->next;
 	}
+
+	return removed;
 }
 
 void setEntityP(Entity* entity, V2 newP, GameState* gameState) {
-	removeFromSpatialPartition(entity, gameState);
+	bool removed = removeFromSpatialPartition(entity, gameState);
+	assert(removed);
 	entity->p = newP;
 	addToSpatialPartition(entity, gameState);
 }
@@ -183,9 +193,7 @@ void freeEntity(Entity* entity, GameState* gameState) {
 				SDL_DestroyTexture(entity->messages[messageIndex].tex);
 			}
 
-			// //TODO: A free list could be used here instead
-
-
+			//TODO: A free list could be used here instead
 			assert(entity->messages);
 			free(entity->messages);
 			entity->messages = NULL;
@@ -225,13 +233,12 @@ void removeEntities(GameState* gameState) {
 			else previousBucket->next = NULL;
 
 
-			//TODO: size_t?
 			//NOTE: EntityReference's which are inside the entityRefs_ array should not be
 			//		added to the free list. This checks the address of an entity reference before 
 			//		adding it to the free list to ensure that it is not part of the table.
-			uint bucketAddress = (uint)bucket;
-			uint entityRefsStartAddress = (uint)&gameState->entityRefs_;
-			uint entityRefsEndAddress = entityRefsStartAddress + sizeof(gameState->entityRefs_);
+			size_t bucketAddress = (size_t)bucket;
+			size_t entityRefsStartAddress = (size_t)&gameState->entityRefs_;
+			size_t entityRefsEndAddress = entityRefsStartAddress + sizeof(gameState->entityRefs_);
 
 			if (bucketAddress < entityRefsStartAddress || bucketAddress >= entityRefsEndAddress) {
 				//Only adds if outside of the address space of the table
@@ -241,14 +248,15 @@ void removeEntities(GameState* gameState) {
 			
 			bucket->entity = NULL;
 
-			for (int srcEntityIndex = entityIndex + 1; srcEntityIndex < gameState->numEntities; srcEntityIndex++) {
-				Entity* src = gameState->entities + srcEntityIndex;
-				Entity* dst = gameState->entities + srcEntityIndex - 1;
+			gameState->numEntities--;
+
+			if(entityIndex != gameState->numEntities) {
+				Entity* dst = gameState->entities + entityIndex;
+				Entity* src = gameState->entities + gameState->numEntities;
 				*dst = *src;
-				getPreciseEntityReferenceBucket(gameState, dst->ref)->entity--;
+				getPreciseEntityReferenceBucket(gameState, dst->ref)->entity -= (gameState->numEntities - entityIndex);
 			}
 
-			gameState->numEntities--;
 			entityIndex--;
 
 			gameState->entities[gameState->numEntities] = {};
@@ -260,23 +268,6 @@ Entity* addEntity(GameState* gameState, EntityType type, DrawOrder drawOrder, V2
 	assert(gameState->numEntities < arrayCount(gameState->entities));
 
 	Entity* result = gameState->entities + gameState->numEntities;
-
-	for (int testIndex = 0; testIndex < gameState->numEntities; testIndex++) {
-		Entity* testEntity = gameState->entities + testIndex;
-
-		if (testEntity->drawOrder >= drawOrder) {
-			result = testEntity;
-
-			for (int moveSrcIndex = gameState->numEntities - 1; moveSrcIndex >= testIndex; moveSrcIndex--) {
-				Entity* src = gameState->entities + moveSrcIndex;
-				Entity* dst = gameState->entities + moveSrcIndex + 1;
-				*dst = *src;
-				getPreciseEntityReferenceBucket(gameState, dst->ref)->entity++;
-			}
-
-			break;
-		}
-	}
 
 	*result = {};
 	result->ref = gameState->refCount;
@@ -525,6 +516,8 @@ Entity* addBackground(GameState* gameState) {
 }
 
 void initTile(Entity* tile, GameState* gameState) {
+	setEntityP(tile, tile->p + v2(0, gameState->tileSize / 2), gameState);
+
 	tile->renderSize = v2(gameState->tileSize, gameState->tileSize * 2);
 
 	double clickBoxHeight = tile->renderSize.x * 1.22;
@@ -777,7 +770,9 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 				!isSet(a, EntityFlag_laserOn)) result = false;
 		}
 		case EntityType_tile: {
-			if (b->type == EntityType_tile) result = false;
+			if (b->type == EntityType_tile && 
+				getMovementField(a) == NULL && 
+				getMovementField(b) == NULL) result = false;
 		} break;
 	}
 
@@ -1027,10 +1022,10 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 						if (collider && collider != entity &&
 							collidesWith(entity, collider, gameState)) {
 
-							//TODO: Extend this to work with heavy tiles (isTile() method)
 							if (isTileType(collider) && isTileType(entity)) {
 								Hitbox tileHitbox = {};
 								tileHitbox.collisionSize = v2(1, 1) * gameState->tileSize;
+								tileHitbox.collisionOffset = v2(0, -gameState->tileSize / 2);
 								R2 colliderHitbox = getHitbox(collider, &tileHitbox);
 								checkCollision(delta, colliderHitbox, entity, collider,
 											&tileHitbox, &tileHitbox, &result);
@@ -1096,7 +1091,7 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP) {
 
 		maxCollisionTime -= collisionTime;
 
-		double collisionTimeEpsilon = 0.01;
+		double collisionTimeEpsilon = 0.001;
 		double moveTime = max(0, collisionTime - collisionTimeEpsilon); 
 
 		V2 movement = delta * moveTime;
@@ -1191,15 +1186,17 @@ bool moveTowardsTarget(Entity* entity, GameState* gameState, double dt,
 
 	double initialTime = 0.1;
 	double speedEquationCoefficient = maxSpeed / ((0.5 + initialTime) * (-0.5 - initialTime));
-	double speed = speedEquationCoefficient * (percentageToTarget + initialTime) * (percentageToTarget - 1 - initialTime);
+	double speed = dt * speedEquationCoefficient * (percentageToTarget + initialTime) * (percentageToTarget - 1 - initialTime);
 
-	if (speed * dt > dstToTarget) {
-		entity->dP = delta / dt;
+	V2 movement;
+
+	if (speed > dstToTarget) {
+		movement = delta;
 	} else {
-		entity->dP = speed * normalize(delta);
+		movement = speed * normalize(delta);
 	}
 
-	move(entity, dt, gameState, v2(0, 0));
+	moveRaw(entity, gameState, movement);
 
 	return entity->p == target;
 }
@@ -1608,6 +1605,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 	if(!gameState->doingInitialSim) {
 		//TODO: It might be possible to combine the three loops which handle ground reference lists later
+		//TODO: An entities ground reference list could be reset right after it is done being updated and rendered
 		//NOTE: This is to reset all of the entities ground reference lists
 		for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 			Entity* entity = gameState->entities + entityIndex;
@@ -1615,6 +1613,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			entity->timeSinceLastOnGround += dt;
 			clearFlags(entity, EntityFlag_grounded);
 
+			//NOTE: A ground reference betweeen the base and the beam and between the beam and the top
+			//		always persists. 
 			if(entity->type == EntityType_laserBase || entity->type == EntityType_laserBeam) {
 				if (entity->groundReferenceList->next) {
 					freeRefNode(entity->groundReferenceList->next, gameState);
@@ -1648,6 +1648,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		}
 	}
 
+	double frictionGroundCoefficient = -15.0f;
+	double groundFriction = pow(E, frictionGroundCoefficient * dt);
+
 	//NOTE: This loops through all of the entities in the game state to update and render them
 	for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 		Entity* entity = gameState->entities + entityIndex;
@@ -1662,11 +1665,14 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 		removeFieldsIfSet(entity->fields, &entity->numFields);
 
+
+
+
 		bool shootingState = false;
 		ConsoleField* shootField = getField(entity, ConsoleField_shootsAtTarget); 
 
 		//NOTE:This handles shooting if the entity should shoot
-		if (shootField && gameState->shootTargetRef) {
+		if (shootField && gameState->shootTargetRef && gameState->shootTargetRef != entity->ref) {
 			Entity* target = getEntityByRef(gameState, gameState->shootTargetRef);
 
 			if (target) {
@@ -1729,16 +1735,19 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			}
 		}
 
+
+
+
 		V2 ddP = gameState->gravity;
 
 		ConsoleField* movementField = getMovementField(entity);
 
 		if (entity->type != EntityType_laserBolt) {
-			double frictionCoefficient = -15.0f;
-			double friction = pow(E, frictionCoefficient * dt);
-			entity->dP.x *= friction;
-			if (movementField && movementField->type == ConsoleField_seeksTarget)
-				 entity->dP.y *= friction;
+			entity->dP.x *= groundFriction;
+
+			if (movementField && movementField->type == ConsoleField_seeksTarget) {
+				entity->dP.y *= groundFriction;
+			}
 		}
 
 
@@ -1894,7 +1903,10 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			}
 		} else {
 			if (!isSet(entity, EntityFlag_noMovementByDefault)) {
-				if(entity->type == EntityType_laserBolt) ddP.y = 0;
+				if(entity->type == EntityType_laserBolt ||
+				   entity->type == EntityType_heavyTile && entity->startPos != entity->p) {
+					ddP.y = 0;
+				} 
 
 				move(entity, dt, gameState, ddP);
 			}
@@ -1962,8 +1974,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				R2 bgBounds = r2(v2(bgX, 0), v2(bgWidth, bgHeight));
 				R2 mgBounds = r2(v2(0, 0), v2(mgWidth, bgHeight));
 
-				drawTexture(gameState, bg, translateRect(bgBounds, -gameState->cameraP), false);
-				drawTexture(gameState, mg, translateRect(mgBounds, -gameState->cameraP), false);
+				pushTexture(gameState->renderGroup, bg, translateRect(bgBounds, -gameState->cameraP), false, DrawOrder_background);
+				pushTexture(gameState->renderGroup, mg, translateRect(mgBounds, -gameState->cameraP), false, DrawOrder_middleground);
 			} break;
 
 
@@ -2062,6 +2074,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			} break;
 		}
 
+
+
+		//NOTE: This handles rendering all the entities
 		Texture* texture = NULL;
 		AnimState curAnimState;
 
@@ -2122,9 +2137,13 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			if (entity->type == EntityType_laserBase) drawLeft = false;
 
 			if (entity->type != EntityType_laserBeam || isSet(entity, EntityFlag_laserOn)) {
-				drawTexture(gameState, texture, 
-					translateRect(rectCenterDiameter(entity->p, entity->renderSize), -gameState->cameraP), 
-					drawLeft);
+				// drawTexture(gameState, texture, 
+				// 	translateRect(rectCenterDiameter(entity->p, entity->renderSize), -gameState->cameraP), 
+				// 	drawLeft);
+
+				pushTexture(gameState->renderGroup, texture, 
+				 	translateRect(rectCenterDiameter(entity->p, entity->renderSize), -gameState->cameraP), 
+					drawLeft, entity->drawOrder);
 			}
 		}
 
@@ -2132,9 +2151,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			Hitbox* hitbox = entity->hitboxes;
 
 			while (hitbox) {
-				setColor(gameState->renderer, 255, 127, 255, 255);
-				drawRect(gameState, rectCenterDiameter(hitbox->collisionOffset + entity->p, hitbox->collisionSize),
-													   0.005f, -gameState->cameraP);
+				pushOutlinedRect(gameState->renderGroup, getHitbox(entity, hitbox),
+								 0.005f, createColor(255, 127, 255, 255), true);
 				hitbox = hitbox->next;
 			}
 

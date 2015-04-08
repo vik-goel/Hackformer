@@ -34,7 +34,7 @@
   <object name="blue energy" gid="7" x="606" y="814"/>
   <object name="background" x="324" y="72" width="20" height="44">
    <properties>
-    <property name="type" value="marine"/>
+    <property name="type" value="sunset"/>
    </properties>
   </object>
   <object name="red energy" gid="8" x="382" y="814"/>

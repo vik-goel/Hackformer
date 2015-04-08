@@ -140,7 +140,7 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 					int tileIndex = atoi(linePtr) - 1;
 
 					if (tileIndex >= 0) {
-						V2 tileP = v2(tileX + 0.5, tileY + 1) * gameState->tileSize;
+						V2 tileP = v2(tileX + 0.5, tileY + 0.5) * gameState->tileSize;
 						addTile(gameState, tileP, gameState->tileAtlas + tileIndex);
 					}
 
@@ -241,6 +241,10 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 					else if (stringsMatch(buffer, "sunset")) {
 						gameState->bgTex = gameState->sunsetCityBg;
 						gameState->mgTex = gameState->sunsetCityMg;
+					}
+					else {
+						//NOTE: This means that there was an invalid background type
+						assert(false);
 					}
 
 					addBackground(gameState);
@@ -385,6 +389,7 @@ void loadLevel(GameState* gameState, char** maps, int numMaps, int* mapFileIndex
 	gameState->refNodeFreeList = NULL;
 
 	gameState->levelStorage.allocated = 0;
+	gameState->swapField = NULL;
 
 	if (gameState->loadNextLevel) {
 		gameState->loadNextLevel = false;
@@ -400,6 +405,7 @@ void loadLevel(GameState* gameState, char** maps, int numMaps, int* mapFileIndex
 
 	V2 playerDeathStartP = gameState->playerDeathStartP;
 	gameState->doingInitialSim = true;
+	gameState->renderGroup->enabled = false;
 
 	double timeStep = 1.0 / 60.0;
 
@@ -407,6 +413,7 @@ void loadLevel(GameState* gameState, char** maps, int numMaps, int* mapFileIndex
 		updateAndRenderEntities(gameState, timeStep);
 	}
 
+	gameState->renderGroup->enabled = true;
 	gameState->doingInitialSim = false;
 	gameState->playerDeathStartP = playerDeathStartP;
 
@@ -510,6 +517,8 @@ int main(int argc, char *argv[]) {
 	gameState->windowWidth = windowWidth;
 	gameState->windowHeight = windowHeight;
 	gameState->windowSize = v2((double)windowWidth, (double)windowHeight) / gameState->pixelsPerMeter;
+
+	gameState->renderGroup = createRenderGroup(gameState, 32 * 1024);
 //	gameState->texel = hadamard(gameState->windowSize, v2(1.0 / windowWidth, 1.0 / windowHeight));
 //
 //	gameState->basicShader = createShader("shaders/basic.vert", "shaders/basic.frag", gameState->windowSize);
@@ -545,10 +554,10 @@ int main(int argc, char *argv[]) {
 	gameState->laserBolt = loadPNGTexture(gameState, "res/virus1/laser bolt.png");
 	gameState->endPortal = loadPNGTexture(gameState, "res/end portal.png");
 
-	gameState->consoleTriangle = loadPNGTexture(gameState, "res/blue triangle.png");
-	gameState->consoleTriangleSelected = loadPNGTexture(gameState, "res/light blue triangle.png");
-	gameState->consoleTriangleGrey = loadPNGTexture(gameState, "res/grey triangle.png");
-	gameState->consoleTriangleYellow = loadPNGTexture(gameState, "res/yellow triangle.png");
+	gameState->consoleTriangle = loadPNGTexture(gameState, "res/triangle_blue.png");
+	gameState->consoleTriangleSelected = loadPNGTexture(gameState, "res/triangle_light_blue.png");
+	gameState->consoleTriangleGrey = loadPNGTexture(gameState, "res/triangle_grey.png");
+	gameState->consoleTriangleYellow = loadPNGTexture(gameState, "res/triangle_yellow.png");
 
 	gameState->laserBaseOff = loadPNGTexture(gameState, "res/virus3/base off.png");
 	gameState->laserBaseOn = loadPNGTexture(gameState, "res/virus3/base on.png");
@@ -562,8 +571,8 @@ int main(int argc, char *argv[]) {
 	gameState->tileAtlas = extractTextures(gameState, "res/tiles_floored.png", 120, 240, 12, &numTilesInAtlas);
 
 	char* mapFileNames[] = {
-		"map3.tmx",
 		"map4.tmx",
+		"map3.tmx",
 		"map5.tmx",
 	};
 
@@ -605,15 +614,15 @@ int main(int argc, char *argv[]) {
 			fps++;
 			gameState->swapFieldP = gameState->windowSize / 2 + v2(0, 3);
 
-			setDefaultClipRect(gameState);
-
 			pollInput(gameState, &running);
 
 			//glClear(GL_COLOR_BUFFER_BIT);
 
 			//printf("Error: %d\n", glGetError());
 			updateAndRenderEntities(gameState, dtForFrame);
+			pushSortEnd(gameState->renderGroup);
 			updateConsole(gameState, dtForFrame);
+			drawRenderGroup(gameState->renderGroup);
 
 
 			SDL_RenderPresent(renderer); //Swap the buffers
@@ -629,6 +638,7 @@ int main(int argc, char *argv[]) {
 				}
 
 				gameState->cameraP += cameraPDiff;
+				gameState->renderGroup->negativeCameraP = -gameState->cameraP;
 			}
 
 			dtForFrame = 0;

@@ -86,7 +86,7 @@
 // 	return result;
 // }
 
-Texture createTexFromSurface(SDL_Surface* image, GameState* gameState) {
+Texture createTexFromSurface(SDL_Surface* image, SDL_Renderer* renderer) {
 	Texture result = {};
 
 	// glEnable(GL_TEXTURE_2D);
@@ -113,7 +113,7 @@ Texture createTexFromSurface(SDL_Surface* image, GameState* gameState) {
 	result.srcRect.w = image->w;
 	result.srcRect.h = image->h;
 
-	result.tex = SDL_CreateTextureFromSurface(gameState->renderer, image);
+	result.tex = SDL_CreateTextureFromSurface(renderer, image);
 	assert(result.tex);
 
 	SDL_SetTextureBlendMode(result.tex, SDL_BLENDMODE_BLEND);
@@ -127,7 +127,7 @@ Texture loadPNGTexture(GameState* gameState, char* fileName) {
 	if (!image) fprintf(stderr, "Failed to load image from: %s\n", fileName);
 	assert(image);
 
-	Texture result = createTexFromSurface(image, gameState);
+	Texture result = createTexFromSurface(image, gameState->renderer);
 
 	return result;
 }
@@ -242,187 +242,61 @@ Texture* getAnimationFrame(Animation* animation, double animTime, bool reverse =
 	return result;
 }
 
-// void setColor(Shader shader, double r, double g, double b, double a) {
-// 	glColor4f((GLfloat)r, (GLfloat)g, (GLfloat)b, (GLfloat)a);
-// 	glUniform4f(shader.tintUniformLocation, (GLfloat)r, (GLfloat)g, (GLfloat)b, (GLfloat)a);
-// }
+Color createColor(int r, int g, int b, int a) {
+	Color result = {};
 
-void setColor(SDL_Renderer* renderer, int r, int g, int b, int a) {
-	assert(r >= 0 && r <= 255);
-	assert(g >= 0 && g <= 255);
-	assert(b >= 0 && b <= 255);
-	assert(a >= 0 && a <= 255);
-	SDL_SetRenderDrawColor(renderer, r, g, b, a);
+	result.r = r;
+	result.g = g;
+	result.b = b;
+	result.a = a;
+
+	return result;
 }
 
-// void addTexCoord(V2 uvMin, V2 uvMax, Rotation rot, int offset) {
-// 	rot = (Rotation)(((int)rot + offset) % RotationCount);
+void setColor(SDL_Renderer* renderer, Color color) {
+	// assert(color.r >= 0 && color.r <= 255);
+	// assert(color.g >= 0 && color.g <= 255);
+	// assert(color.b >= 0 && color.b <= 255);
+	// assert(color.a >= 0 && color.a <= 255);
+	SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+}
 
-// 	switch(rot) {
-// 		case Degree0:
-// 			 glTexCoord2f((GLfloat)uvMax.x, (GLfloat)uvMax.y); 
-// 			 break;
-// 		case Degree90:
-// 			 glTexCoord2f((GLfloat)uvMin.x, (GLfloat)uvMax.y); 
-// 			 break;
-// 		case Degree180:
-// 			 glTexCoord2f((GLfloat)uvMin.x, (GLfloat)uvMin.y);	
-// 			 break;
-// 		case Degree270:
-// 			 glTexCoord2f((GLfloat)uvMax.x, (GLfloat)uvMin.y);
-// 			 break;
-// 		default:
-// 			assert(false);
-// 	}
-// }
-
-SDL_Rect getPixelSpaceRect(GameState* gameState, R2 rect) {
+SDL_Rect getPixelSpaceRect(double pixelsPerMeter, int windowHeight, R2 rect) {
 	SDL_Rect result = {};
 
 	double width = getRectWidth(rect);
 	double height = getRectHeight(rect);
 
-	result.w = (int)ceil(width * gameState->pixelsPerMeter);
-	result.h = (int)ceil(height * gameState->pixelsPerMeter);
-	result.x = (int)ceil(rect.max.x * gameState->pixelsPerMeter) - result.w;
-	result.y = gameState->windowHeight - (int)ceil(rect.max.y * gameState->pixelsPerMeter);
+	result.w = (int)ceil(width * pixelsPerMeter);
+	result.h = (int)ceil(height * pixelsPerMeter);
+	result.x = (int)ceil(rect.max.x * pixelsPerMeter) - result.w;
+	result.y = windowHeight - (int)ceil(rect.max.y * pixelsPerMeter);
 
 	return result;
 }
 
-void setClipRect(GameState* gameState, R2 rect) {
-	SDL_Rect clipRect = getPixelSpaceRect(gameState, rect);
-	SDL_RenderSetClipRect(gameState->renderer, &clipRect);
-}
-
-void setDefaultClipRect(GameState* gameState) {
-	setClipRect(gameState, r2(v2(0, 0), gameState->windowSize));
-}
-
-void drawTexture(GameState* gameState, Texture* texture, R2 bounds, bool flipX, double degrees = 0) {
-	if (!gameState->doingInitialSim) {
-		SDL_Rect dstRect = getPixelSpaceRect(gameState, bounds);
- 
-		SDL_RendererFlip flip = flipX ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
-		SDL_RenderCopyEx(gameState->renderer, texture->tex, &texture->srcRect, &dstRect, degrees, NULL, flip);
-
-		// glEnable(GL_TEXTURE_2D);
-		// glEnable(GL_BLEND);
-	 //    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-		// glBindTexture(GL_TEXTURE_2D, texture->texId);
-
-		// setColor(gameState->basicShader, 1, 1, 1, 1);
-
-		// assert(texture->texId);
-
-		// V2 uvMin = texture->uv.min;
-		// V2 uvMax = texture->uv.max;
-
-		// if (!flipX) {
-		// 	double temp = uvMin.x;
-		// 	uvMin.x = uvMax.x;
-		// 	uvMax.x = temp;
-		// }
-
-		// glBegin(GL_QUADS);
-		//    	addTexCoord(uvMin, uvMax, rot, 0);
-		//     glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);
-
-		//     addTexCoord(uvMin, uvMax, rot, 1);
-		//     glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.min.y);
-
-		//     addTexCoord(uvMin, uvMax, rot, 2);
-		//     glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.max.y);
-
-		//     addTexCoord(uvMin, uvMax, rot, 3);
-		//     glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.max.y);
-		// glEnd();
-
-		// glBindTexture(GL_TEXTURE_2D, 0);
-
-
-	}
-}
-
-//TODO: Since the cameraP is in the gameState, this could be used instead
-void drawFilledRect(GameState* gameState, R2 rect, V2 cameraP = v2(0, 0)) {
-	if (!gameState->doingInitialSim) {
-
-		SDL_Rect dstRect = getPixelSpaceRect(gameState, rect);
-		SDL_RenderFillRect(gameState->renderer, &dstRect);
-                     
-                
-                
-
-		// R2 r = translateRect(rect, -cameraP);
-
-		// glEnable(GL_TEXTURE_2D);
-		// glEnable(GL_BLEND);
-	 //    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		// glBindTexture(GL_TEXTURE_2D, gameState->whiteTexture.texId);
-
-		// glBegin(GL_QUADS);
-		// 	glTexCoord2f(1, 1);
-		//     glVertex2f((GLfloat)r.min.x, (GLfloat)r.min.y);
-			
-		// 	glTexCoord2f(0, 1);
-		//     glVertex2f((GLfloat)r.max.x, (GLfloat)r.min.y);
-			
-		// 	glTexCoord2f(0, 0);
-		//     glVertex2f((GLfloat)r.max.x, (GLfloat)r.max.y);
-			
-		// 	glTexCoord2f(1, 0);
-		//     glVertex2f((GLfloat)r.min.x, (GLfloat)r.max.y);
-		// glEnd();
-
-		// glBindTexture(GL_TEXTURE_2D, 0);
-
-	}
-}
-
-void drawRect(GameState* gameState, R2 rect, double thickness, V2 cameraP = v2(0, 0)) {
-	V2 halfThickness = v2(thickness, thickness) / 2.0f;
-	double width = getRectWidth(rect);
-	double height = getRectHeight(rect);
-
-	rect = translateRect(rect, cameraP);
-
-	V2 bottomMinCorner = rect.min - halfThickness;
-	V2 bottomMaxCorner = v2(rect.max.x, rect.min.y) + halfThickness;
-
-	V2 topMinCorner = v2(rect.min.x, rect.max.y) - halfThickness;
-	V2 topMaxCorner = rect.max + halfThickness;
-
-	V2 leftMinCorner = bottomMinCorner + v2(0, thickness);
-	V2 leftMaxCorner = topMinCorner + v2(thickness, 0);
-
-	V2 rightMinCorner = bottomMaxCorner - v2(thickness, 0);
-	V2 rightMaxCorner = topMaxCorner - v2(0, thickness);
-
-	drawFilledRect(gameState, r2(bottomMinCorner, bottomMaxCorner));
-	drawFilledRect(gameState, r2(topMinCorner, topMaxCorner));
-	drawFilledRect(gameState, r2(leftMinCorner, leftMaxCorner));
-	drawFilledRect(gameState, r2(rightMinCorner, rightMaxCorner));
+void setClipRect(SDL_Renderer* renderer, double pixelsPerMeter, int windowHeight, R2 rect) {
+	SDL_Rect clipRect = getPixelSpaceRect(pixelsPerMeter, windowHeight, rect);
+	SDL_RenderSetClipRect(renderer, &clipRect);
 }
 
 Texture createText(GameState* gameState, TTF_Font* font, char* msg) {
 	SDL_Color fontColor = {0, 0, 0, 255};
 	SDL_Surface* fontSurface = TTF_RenderText_Blended(font, msg, fontColor);
 
-	Texture result = createTexFromSurface(fontSurface, gameState);
+	Texture result = createTexFromSurface(fontSurface, gameState->renderer);
 
 	return result;
 }
 
-Texture* getGlyph(CachedFont* cachedFont, GameState* gameState, char c) {
+Texture* getGlyph(CachedFont* cachedFont, SDL_Renderer* renderer, char c) {
 	if (!cachedFont->cache[c].tex) {	
 		SDL_Color black = {0, 0, 0, 255};
 
 		SDL_Surface* glyphSurface = TTF_RenderGlyph_Blended(cachedFont->font, c, black);
 		assert(glyphSurface);
 
-		cachedFont->cache[c] = createTexFromSurface(glyphSurface, gameState);
+		cachedFont->cache[c] = createTexFromSurface(glyphSurface, renderer);
 		assert(cachedFont->cache[c].tex);
 	}
 
@@ -436,28 +310,332 @@ double getTextWidth(CachedFont* cachedFont, GameState* gameState, char* msg) {
 	double metersPerPixel = 1.0 / (gameState->pixelsPerMeter * cachedFont->scaleFactor);
 
 	while(*msg) {
-		result += getGlyph(cachedFont, gameState, *msg)->srcRect.w * metersPerPixel;
+		result += getGlyph(cachedFont, gameState->renderer, *msg)->srcRect.w * metersPerPixel;
 		msg++;
 	}
 
 	return result;
 }
 
-void drawCachedText(CachedFont* cachedFont, GameState* gameState, char* msg, V2 p) {
-	double metersPerPixel = 1.0 / (gameState->pixelsPerMeter * cachedFont->scaleFactor);
+RenderGroup* createRenderGroup(GameState* gameState, uint size) {
+	RenderGroup* result = pushStruct(&gameState->permanentStorage, RenderGroup);
+
+	result->allocated = 0;
+	result->numSortPtrs = 0;
+	result->sortAddressCutoff = 0;
+	result->maxSize = size;
+	result->base = pushSize(&gameState->permanentStorage, size);
+	result->renderer = gameState->renderer;
+	result->pixelsPerMeter = gameState->pixelsPerMeter;
+	result->windowHeight = gameState->windowHeight;
+	result->windowBounds = r2(v2(0, 0), gameState->windowSize);
+
+	return result;
+}
+
+void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, double degrees) {
+	SDL_Rect dstRect = getPixelSpaceRect(group->pixelsPerMeter, group->windowHeight, bounds);
+
+	SDL_RendererFlip flip = flipX ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+	SDL_RenderCopyEx(group->renderer, texture->tex, &texture->srcRect, &dstRect, degrees, NULL, flip);
+}
+
+void drawText(RenderGroup* group, RenderText* render) {
+	CachedFont* cachedFont = render->font;
+	char* msg = (char*)render->msg;
+
+	double metersPerPixel = 1.0 / (group->pixelsPerMeter * cachedFont->scaleFactor);
 
 	while(*msg) {
-		Texture* texture = getGlyph(cachedFont, gameState, *msg);
+		Texture* texture = getGlyph(cachedFont, group->renderer, *msg);
 		V2 size = v2(texture->srcRect.w, texture->srcRect.h) * metersPerPixel;
-		R2 bounds = r2(p, p + size);
+		R2 bounds = r2(render->p, render->p + size);
 
-		drawTexture(gameState, texture, bounds, false);
+		drawTexture(group, texture, bounds, false, 0);
 
-		p.x += size.x;
+		render->p.x += size.x;
 		msg++;
 	}
 }
 
-void pushFillRect() {
-	
+void drawFillRect(RenderGroup* group, R2 rect) {
+	SDL_Rect dstRect = getPixelSpaceRect(group->pixelsPerMeter, group->windowHeight, rect);
+	SDL_RenderFillRect(group->renderer, &dstRect);
+}
+
+void drawOutlinedRect(RenderGroup* group, R2 rect, double thickness) {
+	V2 halfThickness = v2(thickness, thickness) / 2.0f;
+	double width = getRectWidth(rect);
+	double height = getRectHeight(rect);
+
+	V2 bottomMinCorner = rect.min - halfThickness;
+	V2 bottomMaxCorner = v2(rect.max.x, rect.min.y) + halfThickness;
+
+	V2 topMinCorner = v2(rect.min.x, rect.max.y) - halfThickness;
+	V2 topMaxCorner = rect.max + halfThickness;
+
+	V2 leftMinCorner = bottomMinCorner + v2(0, thickness);
+	V2 leftMaxCorner = topMinCorner + v2(thickness, 0);
+
+	V2 rightMinCorner = bottomMaxCorner - v2(thickness, 0);
+	V2 rightMaxCorner = topMaxCorner - v2(0, thickness);
+
+	drawFillRect(group, r2(bottomMinCorner, bottomMaxCorner));
+	drawFillRect(group, r2(topMinCorner, topMaxCorner));
+	drawFillRect(group, r2(leftMinCorner, leftMaxCorner));
+	drawFillRect(group, r2(rightMinCorner, rightMaxCorner));
+}
+
+DrawType getRenderHeaderType(RenderHeader* header) {
+	DrawType result = (DrawType)(header->type_ & RENDER_HEADER_TYPE_MASK);
+	return result;
+}
+
+void setRenderHeaderType(RenderHeader* header, DrawType type) {
+	header->type_ = (header->type_ & RENDER_HEADER_CLIP_RECT_FLAG) | type;
+}
+
+uint renderElemClipRect(RenderHeader* header) {
+	uint result = header->type_ & RENDER_HEADER_CLIP_RECT_FLAG;
+	return result;
+}
+
+void setRenderElemClipRect(RenderHeader* header) {
+	header->type_ |= RENDER_HEADER_CLIP_RECT_FLAG;
+}
+
+void clearRenderElemClipRect(RenderHeader* header) {
+	header->type_ &= ~RENDER_HEADER_CLIP_RECT_FLAG;
+}
+
+#define pushRenderElement(group, type) (type*)pushRenderElement_(group, DrawType_##type, sizeof(type))
+void* pushRenderElement_(RenderGroup* group, DrawType type, uint size) {
+	int headerBytes = sizeof(RenderHeader);
+
+	if (group->hasClipRect) {
+		headerBytes += sizeof(R2);
+	}
+
+	size += headerBytes;
+
+	void* result = NULL;
+
+	if (group->allocated + size < group->maxSize) {
+		if (group->enabled) {
+			result = (char*)group->base + group->allocated;
+			group->allocated += size;
+
+			RenderHeader* header = (RenderHeader*)result;
+			setRenderHeaderType(header, type);
+
+			if(group->hasClipRect) {
+				setRenderElemClipRect(header);
+				R2* clipRectPtr = (R2*)((char*)result + sizeof(RenderHeader));
+				*clipRectPtr = group->clipRect;
+			} else {
+				clearRenderElemClipRect(header);
+			}
+
+			if(!group->sortAddressCutoff) {
+				assert(group->numSortPtrs + 1 < arrayCount(group->sortPtrs));
+				group->sortPtrs[group->numSortPtrs++] = (RenderHeader*)result;
+			}
+
+			result = (char*)result + headerBytes;
+		}
+	} else {
+		assert(false);
+	}
+
+	return result;
+}
+
+void pushSortEnd(RenderGroup* group) {
+	group->sortAddressCutoff = group->allocated;
+}
+
+void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, DrawOrder drawOrder,
+					bool moveIntoCameraSpace = false, double degrees = 0) {
+
+	assert(texture);
+
+	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, group->negativeCameraP) : bounds;
+
+	if(rectanglesOverlap(group->windowBounds, drawBounds)) {
+		RenderTexture* render = pushRenderElement(group, RenderTexture);
+
+		if (render) {
+			render->drawOrder = drawOrder;
+			render->texture = texture;
+			render->flipX = flipX;
+			render->degrees = degrees;
+			render->bounds = drawBounds;
+		}
+	}
+}
+
+void pushText(RenderGroup* group, CachedFont* font, char* msg, V2 p) {
+	RenderText* render = pushRenderElement(group, RenderText);
+
+	if (render) {
+		assert(strlen(msg) < arrayCount(render->msg) - 1);
+
+		char* dstPtr = (char*)render->msg;
+
+		while(*msg) {
+			*dstPtr++ = *msg++;
+		}
+		*dstPtr = 0;
+
+		render->p = p;
+		render->font = font;
+	}
+}
+
+void pushFilledRect(RenderGroup* group, R2 bounds, Color color, bool moveIntoCameraSpace = false) {
+	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, group->negativeCameraP) : bounds;
+
+	if(rectanglesOverlap(group->windowBounds, drawBounds)) {
+		RenderFillRect* render = pushRenderElement(group, RenderFillRect);
+
+		if (render) {
+			render->color = color;
+			render->bounds = drawBounds;
+		}
+	}
+}
+
+void pushOutlinedRect(RenderGroup* group, R2 bounds, double thickness, Color color, bool moveIntoCameraSpace = false) {
+	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, group->negativeCameraP) : bounds;
+
+	if(rectanglesOverlap(group->windowBounds, addDiameterTo(drawBounds, v2(1, 1) * thickness))) {
+		RenderOutlinedRect* render = pushRenderElement(group, RenderOutlinedRect);
+
+		if (render) {
+			render->thickness = thickness;
+			render->color = color;
+			render->bounds = drawBounds;
+		}
+	}
+}
+
+void pushClipRect(RenderGroup* group, R2 clipRect) {
+	group->clipRect = clipRect;
+	group->hasClipRect = true;
+}
+
+void pushDefaultClipRect(RenderGroup* group) {
+	group->hasClipRect = false;
+}
+
+int drawRenderElem(RenderGroup* group, void* elemPtr) {
+	RenderHeader* header = (RenderHeader*)elemPtr;
+	int elemSize = sizeof(RenderHeader);
+
+	elemPtr = (char*)elemPtr + sizeof(RenderHeader);
+
+	if (renderElemClipRect(header)) {
+		R2* clipBounds = (R2*)elemPtr;
+		elemPtr = (char*)elemPtr + sizeof(R2);
+		elemSize += sizeof(R2);
+		setClipRect(group->renderer, group->pixelsPerMeter, group->windowHeight, *clipBounds);
+	} else {
+		setClipRect(group->renderer, group->pixelsPerMeter, group->windowHeight, group->windowBounds);
+	}
+
+	switch(getRenderHeaderType(header)) {
+		case DrawType_RenderTexture: {
+			RenderTexture* render = (RenderTexture*)elemPtr;
+			drawTexture(group, render->texture, render->bounds, render->flipX, render->degrees);
+			elemSize += sizeof(RenderTexture);
+		} break;
+
+		case DrawType_RenderText: {
+			RenderText* render = (RenderText*)elemPtr;
+			drawText(group, render);
+			elemSize += sizeof(RenderText);
+		} break;
+
+		case DrawType_RenderFillRect: {
+			RenderFillRect* render = (RenderFillRect*)elemPtr;
+			setColor(group->renderer, render->color);
+			drawFillRect(group, render->bounds);
+			elemSize += sizeof(RenderFillRect);
+		} break;
+
+		case DrawType_RenderOutlinedRect: {
+			RenderOutlinedRect* render = (RenderOutlinedRect*)elemPtr;
+			setColor(group->renderer, render->color);
+			drawOutlinedRect(group, render->bounds, render->thickness);
+			elemSize += sizeof(RenderOutlinedRect);
+		} break;
+
+		default: {
+			assert(false);
+		} break;
+	}
+
+	return elemSize;
+}
+
+RenderTexture* getRenderTexture(RenderHeader* header) {
+	assert(getRenderHeaderType(header) == DrawType_RenderTexture);
+
+	RenderTexture* result = (RenderTexture*)((char*)header + sizeof(RenderHeader));
+
+	if(renderElemClipRect(header)) {
+		result = (RenderTexture*)((char*)result + sizeof(R2));
+	}
+
+	return result;
+}
+
+int renderElemCompare(const void* a, const void* b) {
+	RenderHeader* e1 = *(RenderHeader**)a;
+	RenderHeader* e2 = *(RenderHeader**)b;
+
+	DrawType e1Type = getRenderHeaderType(e1);
+	DrawType e2Type = getRenderHeaderType(e2);
+
+	if(e1Type == DrawType_RenderTexture) {
+		if(e2Type != DrawType_RenderTexture) return -1;
+
+		RenderTexture* r1 = getRenderTexture(e1);
+		RenderTexture* r2 = getRenderTexture(e2);
+
+		if(r1->drawOrder > r2->drawOrder) return 1;
+		if(r1->drawOrder < r2->drawOrder) return -1;
+		if(r1->bounds.min.y > r2->bounds.min.y) return 1;
+		if(r1->bounds.min.y < r2->bounds.min.y) return -1;
+
+		//NOTE: This comparison is done to ensure that entity which is placed on top is consistent across frames
+		//		For example, if two tiles are overlapping and have exactly the same position and draw order, we 
+		//		always want the same one to be on top.
+		return r1->texture > r2->texture;
+	}
+
+	if (e2Type == DrawType_RenderTexture) return 1;
+
+	return 0;
+}
+
+void drawRenderGroup(RenderGroup* group) {
+	qsort(group->sortPtrs, group->numSortPtrs, sizeof(RenderHeader*), renderElemCompare);
+
+	for(int elemIndex = 0; elemIndex < group->numSortPtrs; elemIndex++) {
+		void* elemPtr = group->sortPtrs[elemIndex];
+		drawRenderElem(group, elemPtr);
+	}
+
+	uint groupByteIndex = group->sortAddressCutoff;
+
+	while(groupByteIndex < group->allocated) {
+		void* elemPtr = (char*)group->base + groupByteIndex;
+		groupByteIndex += drawRenderElem(group, elemPtr);
+	}
+
+	group->numSortPtrs = 0;
+	group->allocated = 0;
+	group->sortAddressCutoff = 0;
+	pushDefaultClipRect(group);
 }

@@ -17,6 +17,7 @@ enum EntityType {
 
 enum DrawOrder {
 	DrawOrder_background,
+	DrawOrder_middleground,
 	DrawOrder_text,
 	DrawOrder_tile,
 	DrawOrder_endPortal,
@@ -31,6 +32,7 @@ enum DrawOrder {
 	DrawOrder_laserBolt,
 	DrawOrder_playerDeath,
 	DrawOrder_player,
+	DrawOrder_gui,
 };
 
 enum EntityFlag {
