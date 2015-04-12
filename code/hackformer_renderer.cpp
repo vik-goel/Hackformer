@@ -364,7 +364,7 @@ void drawFillRect(RenderGroup* group, R2 rect) {
 }
 
 void drawOutlinedRect(RenderGroup* group, R2 rect, double thickness) {
-	V2 halfThickness = v2(thickness, thickness) / 2.0f;
+	V2 halfThickness = v2(thickness, thickness) * 0.5;
 	double width = getRectWidth(rect);
 	double height = getRectHeight(rect);
 

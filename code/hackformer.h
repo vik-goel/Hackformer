@@ -16,9 +16,10 @@ Bug Fixes
 - Fix entity position on bigger screen sizes (when loading in from .tmx)
 - when patrolling change all of the hitboxes, not just the first one
 - test remove when outside level to see that it works
-- when keyboard controlling a laser entity, the base will just fall off without the beam or top
-- bullets shot from a laser base should not collide with its corresponding beam and top
+- if the entity which you are keyboard controlling is removed, the level should restart
 
+- Hacking animation just go into then stop then go out of
+- Finish full walk animation before transition out
 
 
 New Features
@@ -35,6 +36,8 @@ New Features
 - use a priority queue to process path requests
 
 - Trail effect on death
+
+- Cloning fields
 
 */
 

@@ -106,15 +106,6 @@ V2 operator*(double b, V2 &a) {
 	return result;
 }
 
-V2 operator/(V2 &a, double b) {
-	V2 result = {};
-
-	result.x = a.x / b;
-	result.y = a.y / b;
-
-	return result;
-}
-
 void operator+=(V2 &a, V2 &b) {
 	a.x += b.x;
 	a.y += b.y;
@@ -134,17 +125,12 @@ void operator*=(double b, V2 &a) {
 	a *= b;
 }
 
-void operator/=(V2 &a, double b) {
-	a.x /= b;
-	a.y /= b;
-}
-
-double lengthSq(V2 &a) {
+double lengthSq(V2 a) {
 	double result = a.x * a.x + a.y * a.y;
 	return result;
 }
 
-double length(V2 &a) {
+double length(V2 a) {
 	double result = sqrt(lengthSq(a));
 	return result;
 }
@@ -159,65 +145,15 @@ double dstSq(V2 a, V2 b) {
 	return result;
 }
 
-V2 normalize(V2 &a) {
+V2 normalize(V2 a) {
 	double len = length(a);
-	if (len != 0) a /= len;
+	if (len != 0) a *= (1.0 / len);
 	return a;
 }
 
-double toRadians(double degrees) {
-	double result = (double)(degrees * PI / 180.0);
-	return result;
+void debugPrintV2(V2 v) {
+	printf("x: %f, y: %f\n", v.x, v.y);
 }
-
-double toDegrees(double radians) {
-	double result = (double)(radians / PI * 180.0);
-	return result;
-}
-
-V2 getVecInDir(double degrees) {
-	double radians = toRadians(degrees);
-
-	V2 result = {};
-	result.x = (double)cos(radians);
-	result.y = (double)sin(radians);
-
-	return result;
-}
-
-double getDir(V2 &a) {
-	double result = toDegrees(atan2(a.y, a.x));
-	return result;
-}
-
-V2 rotate(V2& a, double degrees) {
-	V2 result = {};
-
-	double rad = toRadians(degrees);
-	double cosAngle = (double)cos(rad);
-	double sinAngle = (double)sin(rad);
-
-	result.x = a.x * cosAngle - a.y * sinAngle;
-    result.y = a.x * sinAngle + a.y * cosAngle;
-
-    return result;
-}
-
-V2 rotate90(V2& a) {
-	V2 result = {};	
-
-	result.x = -a.y;
-	result.y = a.x;
-
-	return result;
-}	
-
-double innerProduct(V2& a, V2& b) {
-	double result = a.x * b.x + a.y * b.y;
-	return result;
-}
-
-
 
 //NOTE: R2 operations here
 
@@ -275,7 +211,7 @@ V2 getRectSize(R2 rect) {
 
 V2 getRectCenter(R2 rect) {
 	V2 result = {};
-	result = (rect.min + rect.max) / 2;
+	result = (rect.min + rect.max) * 0.5;
 	return result;
 }
 

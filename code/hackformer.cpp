@@ -159,7 +159,7 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 				extractIntFromLine(line, lineLength, "\" x", &entityX);
 				extractIntFromLine(line, lineLength, "\" y", &entityY);
 
-				V2 p = v2((double)entityX, (double)entityY) / 120.0f * gameState->tileSize;
+				V2 p = v2((double)entityX, (double)entityY) * (gameState->tileSize / 120.0);
 				p.y = gameState->windowHeight / gameState->pixelsPerMeter - p.y;
 
 				if (stringsMatch(buffer, "player")) {
@@ -339,7 +339,7 @@ void pollInput(GameState* gameState, bool* running) {
 				input->mouseInPixels.x = (double)mouseX;
 				input->mouseInPixels.y = (double)(gameState->windowHeight - mouseY);
 
-				V2 mouseInMeters = input->mouseInPixels / gameState->pixelsPerMeter;
+				V2 mouseInMeters = input->mouseInPixels * (1.0 / gameState->pixelsPerMeter);
 
 				input->dMouseMeters = mouseInMeters - input->mouseInMeters;
 
@@ -516,7 +516,7 @@ int main(int argc, char *argv[]) {
 	gameState->pixelsPerMeter = 70.0f;
 	gameState->windowWidth = windowWidth;
 	gameState->windowHeight = windowHeight;
-	gameState->windowSize = v2((double)windowWidth, (double)windowHeight) / gameState->pixelsPerMeter;
+	gameState->windowSize = v2((double)windowWidth, (double)windowHeight) * (1.0 / gameState->pixelsPerMeter);
 
 	gameState->renderGroup = createRenderGroup(gameState, 32 * 1024);
 //	gameState->texel = hadamard(gameState->windowSize, v2(1.0 / windowWidth, 1.0 / windowHeight));
@@ -612,7 +612,7 @@ int main(int argc, char *argv[]) {
 			if (dtForFrame > maxDtForFrame) dtForFrame = maxDtForFrame;
 
 			fps++;
-			gameState->swapFieldP = gameState->windowSize / 2 + v2(0, 3);
+			gameState->swapFieldP = gameState->windowSize * 0.5 + v2(0, 3);
 
 			pollInput(gameState, &running);
 

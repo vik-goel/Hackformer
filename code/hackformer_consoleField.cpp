@@ -532,10 +532,9 @@ void updateConsole(GameState* gameState, double dt) {
 	double spacing = 0.05f;
 	double stroke = 0.02f;
 
-	if (gameState->consoleEntityRef) {
-		Entity* entity = getEntityByRef(gameState, gameState->consoleEntityRef);
-		assert(entity);
+	Entity* entity = getEntityByRef(gameState, gameState->consoleEntityRef);
 
+	if (entity) {
 		R2 renderBounds = translateRect(entity->clickBox, entity->p - gameState->cameraP);
 		//setColor(gameState->basicShader, 1, 0, 0, 1);
 		pushOutlinedRect(gameState->renderGroup, renderBounds, 0.02, createColor(255, 0, 0, 255));
@@ -681,7 +680,7 @@ void updateConsole(GameState* gameState, double dt) {
 
 
 	//NOTE: This selects a new console entity if there isn't one and a click occurred
-	if (!gameState->consoleEntityRef) {
+	if (!getEntityByRef(gameState, gameState->consoleEntityRef)) {
 		if (!clickHandled && gameState->input.leftMouseJustPressed) {
 			for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 				Entity* entity = gameState->entities + entityIndex;
