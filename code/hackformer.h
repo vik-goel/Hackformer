@@ -39,6 +39,8 @@ New Features
 
 - Cloning fields
 
+- Handle shadows properly
+
 */
 
 #define arrayCount(array) sizeof(array) / sizeof(array[0])

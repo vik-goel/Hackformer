@@ -454,6 +454,17 @@ void pushSortEnd(RenderGroup* group) {
 	group->sortAddressCutoff = group->allocated;
 }
 
+RenderTexture createRenderTexture(DrawOrder drawOrder, Texture* texture, bool flipX, double degrees) {
+	RenderTexture result = {};
+
+	result.drawOrder = drawOrder;
+	result.texture = texture;
+	result.flipX = flipX;
+	result.degrees = degrees;
+
+	return result;
+}
+
 void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, DrawOrder drawOrder,
 					bool moveIntoCameraSpace = false, double degrees = 0) {
 
@@ -462,14 +473,27 @@ void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Dr
 	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, group->negativeCameraP) : bounds;
 
 	if(rectanglesOverlap(group->windowBounds, drawBounds)) {
-		RenderTexture* render = pushRenderElement(group, RenderTexture);
+		RenderBoundedTexture* render = pushRenderElement(group, RenderBoundedTexture);
 
 		if (render) {
-			render->drawOrder = drawOrder;
-			render->texture = texture;
-			render->flipX = flipX;
-			render->degrees = degrees;
+			render->tex = createRenderTexture(drawOrder, texture, flipX, degrees);
 			render->bounds = drawBounds;
+		}
+	}
+}
+
+void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, bool flipX, DrawOrder drawOrder, double degrees = 0) {
+	assert(texture);
+
+	R2 drawBounds = scaleRect(translateRect(rectCenterDiameter(entity->p, entity->renderSize), group->negativeCameraP), v2(1.05, 1.05));
+
+	if(rectanglesOverlap(group->windowBounds, drawBounds)) {
+		RenderEntityTexture* render = pushRenderElement(group, RenderEntityTexture);
+
+		if (render) {
+			render->tex = createRenderTexture(drawOrder, texture, flipX, degrees);
+			render->p = &entity->p;
+			render->renderSize = &entity->renderSize;
 		}
 	}
 }
@@ -544,10 +568,17 @@ int drawRenderElem(RenderGroup* group, void* elemPtr) {
 	}
 
 	switch(getRenderHeaderType(header)) {
-		case DrawType_RenderTexture: {
-			RenderTexture* render = (RenderTexture*)elemPtr;
-			drawTexture(group, render->texture, render->bounds, render->flipX, render->degrees);
-			elemSize += sizeof(RenderTexture);
+		case DrawType_RenderBoundedTexture: {
+			RenderBoundedTexture* render = (RenderBoundedTexture*)elemPtr;
+			drawTexture(group, render->tex.texture, render->bounds, render->tex.flipX, render->tex.degrees);
+			elemSize += sizeof(RenderBoundedTexture);
+		} break;
+
+		case DrawType_RenderEntityTexture: {
+			RenderEntityTexture* render = (RenderEntityTexture*)elemPtr;
+			R2 bounds = rectCenterDiameter(*render->p + group->negativeCameraP, *render->renderSize);
+			drawTexture(group, render->tex.texture, bounds, render->tex.flipX, render->tex.degrees);
+			elemSize += sizeof(RenderEntityTexture);
 		} break;
 
 		case DrawType_RenderText: {
@@ -578,8 +609,13 @@ int drawRenderElem(RenderGroup* group, void* elemPtr) {
 	return elemSize;
 }
 
+bool isRenderTextureType(DrawType type) {
+	bool result = (type == DrawType_RenderEntityTexture) || (type == DrawType_RenderBoundedTexture);
+	return result;
+}
+
 RenderTexture* getRenderTexture(RenderHeader* header) {
-	assert(getRenderHeaderType(header) == DrawType_RenderTexture);
+	assert(isRenderTextureType(getRenderHeaderType(header)));
 
 	RenderTexture* result = (RenderTexture*)((char*)header + sizeof(RenderHeader));
 
@@ -597,16 +633,35 @@ int renderElemCompare(const void* a, const void* b) {
 	DrawType e1Type = getRenderHeaderType(e1);
 	DrawType e2Type = getRenderHeaderType(e2);
 
-	if(e1Type == DrawType_RenderTexture) {
-		if(e2Type != DrawType_RenderTexture) return -1;
+	if(isRenderTextureType(e1Type)) {
+		if(!isRenderTextureType(e2Type)) return -1;
 
 		RenderTexture* r1 = getRenderTexture(e1);
 		RenderTexture* r2 = getRenderTexture(e2);
 
 		if(r1->drawOrder > r2->drawOrder) return 1;
 		if(r1->drawOrder < r2->drawOrder) return -1;
-		if(r1->bounds.min.y > r2->bounds.min.y) return 1;
-		if(r1->bounds.min.y < r2->bounds.min.y) return -1;
+
+		double r1MinY, r2MinY;
+
+		if(e1Type == DrawType_RenderEntityTexture) {
+			RenderEntityTexture* entityTex = (RenderEntityTexture*)r1;
+			r1MinY = entityTex->p->y - entityTex->p->y / 2;
+		} else {
+			RenderBoundedTexture* boundedTex = (RenderBoundedTexture*)r1;
+			r1MinY = boundedTex->bounds.min.y;
+		}
+
+		if(e2Type == DrawType_RenderEntityTexture) {
+			RenderEntityTexture* entityTex = (RenderEntityTexture*)r2;
+			r2MinY = entityTex->p->y - entityTex->p->y / 2;
+		} else {
+			RenderBoundedTexture* boundedTex = (RenderBoundedTexture*)r2;
+			r2MinY = boundedTex->bounds.min.y;
+		}
+	
+		if(r1MinY > r2MinY) return 1;
+		if(r1MinY < r2MinY) return -1;
 
 		//NOTE: This comparison is done to ensure that entity which is placed on top is consistent across frames
 		//		For example, if two tiles are overlapping and have exactly the same position and draw order, we 
@@ -614,7 +669,7 @@ int renderElemCompare(const void* a, const void* b) {
 		return r1->texture > r2->texture;
 	}
 
-	if (e2Type == DrawType_RenderTexture) return 1;
+	if (isRenderTextureType(e2Type)) return 1;
 
 	return 0;
 }

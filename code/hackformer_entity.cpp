@@ -789,12 +789,13 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 				a->ref == b->ref + 2 ||
 				!isSet(a, EntityFlag_laserOn)) result = false;
 		} break;
-
+#if 1
 		case EntityType_tile: {
 			if (b->type == EntityType_tile && 
 				getMovementField(a) == NULL && 
 				getMovementField(b) == NULL) result = false;
 		} break;
+#endif
 	}
 
 	return result;
@@ -1046,8 +1047,7 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 								tileHitbox.collisionSize = v2(1, 1) * gameState->tileSize;
 								tileHitbox.collisionOffset = v2(0, -gameState->tileSize / 2);
 								R2 colliderHitbox = getHitbox(collider, &tileHitbox);
-								checkCollision(delta, colliderHitbox, entity, collider,
-											&tileHitbox, &tileHitbox, &result);
+								checkCollision(delta, colliderHitbox, entity, collider, &tileHitbox, &tileHitbox, &result);
 							} else {
 								Hitbox* colliderHitboxList = collider->hitboxes;
 
@@ -1103,6 +1103,7 @@ Entity* getAbove(Entity* entity, GameState* gameState) {
 V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP) {
 	double maxCollisionTime = 1;
 	V2 totalMovement = {};
+	V2 totalMovementNoEpsilon = {};
 
 	for (int moveIteration = 0; moveIteration < 4 && maxCollisionTime > 0; moveIteration++) {
 		GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, delta);
@@ -1116,6 +1117,7 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP) {
 		V2 movement = delta * moveTime;
 		setEntityP(entity, entity-> p + movement, gameState);
 		totalMovement += movement;
+		totalMovementNoEpsilon += delta * collisionTime;
 
 		if (collisionResult.hitEntity) {
 			bool solid = false;
@@ -1127,10 +1129,7 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP) {
 
     				//NOTE: If moving and you would hit an entity which is using you as ground
     				//		then we try moving that entity first. Then retrying this move. 
-    				// 		This doesn't work between tiles since they are placed right next to
-    				//		each other and this causes numerical precision errors which allow them
-    				//		to intersect.
-    				if (!isTileType(entity) || !isTileType(collisionResult.hitEntity)) {
+    				//if (!isTileType(entity) || !isTileType(collisionResult.hitEntity)) {
     					RefNode* nextTopEntity = entity->groundReferenceList;
 						RefNode* prevTopEntity = NULL;
 
@@ -1155,7 +1154,7 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP) {
 							prevTopEntity = nextTopEntity;
 							nextTopEntity = nextTopEntity->next;
 						}
-    				}
+    				//}
 
 					if (!hitGround) {
 						delta.y = 0;
@@ -1177,11 +1176,12 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP) {
 	//NOTE: This moves all of the entities which are supported by this one (as the ground)
 	RefNode* nextTopEntity = entity->groundReferenceList;
 
-	if (lengthSq(totalMovement) > 0) {
+	if (lengthSq(totalMovementNoEpsilon) > 0) {
 		while (nextTopEntity) {
 			Entity* top = getEntityByRef(gameState, nextTopEntity->ref);
-			if (top) {
-				moveRaw(top, gameState, totalMovement);
+			if (top && !isSet(top, EntityFlag_movedByGround)) {
+				setFlags(top, EntityFlag_movedByGround);
+				moveRaw(top, gameState, totalMovementNoEpsilon);
 			}
 			nextTopEntity = nextTopEntity->next;
 		}
@@ -1195,6 +1195,27 @@ void move(Entity* entity, double dt, GameState* gameState, V2 ddP) {
 	moveRaw(entity, gameState, delta, &ddP);
 	entity->dP += ddP * dt;
 }
+
+#if 0
+void moveTile(Entity* entity, GameState* gameState, V2 movement) {
+	assert(entity->type == EntityType_tile);
+
+	//NOTE: Tiles must be moving on x or on y, but not both
+	assert(movement.x || movement.y);
+	assert(!movement.x || !movement.y);
+
+	if(movement.x || movement.y < 0) {
+		GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, movement);
+
+		if(collisionResult.hitEntity && collisionResult.hitEntity->type == EntityType_tile) {
+			V2 pushAmt = movement * (1 - collisionResult.collisionTime);
+			moveTile(collisionResult.hitEntity, gameState, pushAmt);
+		}
+	}
+
+	moveRaw(entity, gameState, movement);
+}
+#endif
 
 bool moveTowardsTarget(Entity* entity, GameState* gameState, double dt,
 					   V2 target, double initialDstToTarget, double maxSpeed) {
@@ -1215,7 +1236,11 @@ bool moveTowardsTarget(Entity* entity, GameState* gameState, double dt,
 		movement = speed * normalize(delta);
 	}
 
-	moveRaw(entity, gameState, movement);
+	// if(entity->type == EntityType_tile) {
+	// 	moveTile(entity, gameState, movement);
+	// } else {
+		moveRaw(entity, gameState, movement);
+	//}
 
 	return entity->p == target;
 }
@@ -1639,7 +1664,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			Entity* entity = gameState->entities + entityIndex;
 
 			entity->timeSinceLastOnGround += dt;
-			clearFlags(entity, EntityFlag_grounded);
+			clearFlags(entity, EntityFlag_grounded|EntityFlag_movedByGround);
 
 			//NOTE: A ground reference betweeen the base and the beam and between the beam and the top
 			//		always persists. 
@@ -1674,9 +1699,14 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 					addGroundReference(entity, below, gameState);
 			}
 		}
+	} else {
+		for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+			Entity* entity = gameState->entities + entityIndex;
+			clearFlags(entity, EntityFlag_movedByGround);
+		}
 	}
 
-	double frictionGroundCoefficient = -15.0f;
+	double frictionGroundCoefficient = -15.0;
 	double groundFriction = pow(E, frictionGroundCoefficient * dt);
 
 	//NOTE: This loops through all of the entities in the game state to update and render them
@@ -2196,9 +2226,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				// 	translateRect(rectCenterDiameter(entity->p, entity->renderSize), -gameState->cameraP), 
 				// 	drawLeft);
 
-				pushTexture(gameState->renderGroup, texture, 
-				 	translateRect(rectCenterDiameter(entity->p, entity->renderSize), -gameState->cameraP), 
-					drawLeft, entity->drawOrder);
+				pushEntityTexture(gameState->renderGroup, texture, entity, drawLeft, entity->drawOrder);
 			}
 		}
 
@@ -2213,6 +2241,4 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 		#endif
 	}
-
-	removeEntities(gameState);
 }

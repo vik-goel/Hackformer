@@ -1,0 +1,1103 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"getA",
+				"getAnimationDuration"
+			],
+			[
+				"hitbox",
+				"hitboxFreeList"
+			],
+			[
+				"paritio",
+				"partitionXOffs"
+			],
+			[
+				"partitionC",
+				"partitionCenterX"
+			],
+			[
+				"solid",
+				"solidGridSquareSize"
+			],
+			[
+				"solidG",
+				"solidGridSquareSize"
+			],
+			[
+				"grou",
+				"groundReferenceList"
+			],
+			[
+				"colliderH",
+				"colliderHitboxList"
+			],
+			[
+				"gr",
+				"groundReferenceList"
+			],
+			[
+				"keybo",
+				"keyboardFieldChildren"
+			],
+			[
+				"newP",
+				"newParentFieldIndex"
+			],
+			[
+				"En",
+				"EntityFlag_shootsAtTarget"
+			],
+			[
+				"px",
+				"pixelsPerMeter"
+			],
+			[
+				"should",
+				"shouldChangeDirection"
+			],
+			[
+				"hor",
+				"horizontalCollision"
+			],
+			[
+				"EntityF",
+				"EntityFlag_consoleSelected"
+			],
+			[
+				"EntityFlag_C",
+				"EntityFlag_consoleSelected"
+			],
+			[
+				"ConsoleF",
+				"ConsoleField_Float"
+			],
+			[
+				"ME",
+				"PIXELS_PER_METER"
+			],
+			[
+				"get",
+				"getAnimationFrame"
+			],
+			[
+				"drwa",
+				"drawFilledRectangle"
+			],
+			[
+				"E",
+				"EntityFlag_facesLeft"
+			],
+			[
+				"getR",
+				"getRectHeight"
+			],
+			[
+				"up",
+				"upJustPressed"
+			],
+			[
+				"leftMouseB",
+				"leftMouseButtonJustPressed"
+			],
+			[
+				"ho",
+				"horizontalCollision"
+			],
+			[
+				"max",
+				"maxCollisionTime"
+			],
+			[
+				"xM",
+				"xMoveAcceleration"
+			],
+			[
+				"x",
+				"xMoveAcceleration"
+			],
+			[
+				"ENTI",
+				"EntityFlag"
+			],
+			[
+				"SDL_R",
+				"SDL_Renderer"
+			],
+			[
+				"coll",
+				"collisionTime"
+			],
+			[
+				"col",
+				"collisionTime"
+			],
+			[
+				"colli",
+				"collisionTime"
+			],
+			[
+				"min",
+				"minkowskiSum"
+			],
+			[
+				"add",
+				"addRadiusTo"
+			],
+			[
+				"Entity",
+				"EntityType_Player"
+			],
+			[
+				"entiti",
+				"entityIndex"
+			],
+			[
+				"entity",
+				"entityIndex"
+			],
+			[
+				"num",
+				"numEntities"
+			],
+			[
+				"src",
+				"srcRect"
+			],
+			[
+				"tile",
+				"tileRows"
+			],
+			[
+				"push",
+				"pushIntoArena_"
+			],
+			[
+				"til",
+				"tileWidth"
+			],
+			[
+				"at",
+				"atlasWidth"
+			],
+			[
+				"atl",
+				"atlasHeight"
+			],
+			[
+				"load",
+				"loadDelmittedStringIntoBuffer"
+			],
+			[
+				"atlas",
+				"atlasFileName"
+			],
+			[
+				"center",
+				"centerToPoint"
+			],
+			[
+				"getD",
+				"getDiamondRotation"
+			],
+			[
+				"cen",
+				"centerToMid"
+			],
+			[
+				"draw",
+				"drawDiamond"
+			],
+			[
+				"sand",
+				"sandbags"
+			],
+			[
+				"SA",
+				"SANDBAG"
+			],
+			[
+				"MAX",
+				"MAX_SANDBAGS"
+			],
+			[
+				"ENTITY",
+				"EntityType"
+			],
+			[
+				"MAX_",
+				"MAX_SANDBAGS"
+			],
+			[
+				"san",
+				"sandbags"
+			],
+			[
+				"sandbag",
+				"sandbagWidth"
+			],
+			[
+				"PI",
+				"PIXELS_PER_METER"
+			],
+			[
+				"br",
+				"br"
+			],
+			[
+				"TA",
+				"TANK_SIZE_METERS"
+			],
+			[
+				"T",
+				"TILE_SIZE_METERS"
+			],
+			[
+				"WIND",
+				"WINDOW_HEIGHT"
+			],
+			[
+				"WIN",
+				"WINDOW_WIDTH"
+			],
+			[
+				"TANK",
+				"TANK_SIZE_METERS"
+			],
+			[
+				"turre",
+				"turretAngle"
+			],
+			[
+				"leng",
+				"lengthSq"
+			],
+			[
+				"create",
+				"createBullet"
+			],
+			[
+				"dstRect",
+				"dstRectOffsetX"
+			],
+			[
+				"turret",
+				"turretTexHeight"
+			],
+			[
+				"P",
+				"PIXELS_PER_METER"
+			],
+			[
+				"TANK_S",
+				"TANK_SIZE_METERS"
+			],
+			[
+				"Til",
+				"TILE_SIZE_PIXELS"
+			],
+			[
+				"TILE",
+				"TILE_SIZE_PIXELS"
+			]
+		]
+	},
+	"buffers":
+	[
+		{
+			"file": "code/hackformer_entity.cpp",
+			"settings":
+			{
+				"buffer_size": 68562,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_entity.h",
+			"settings":
+			{
+				"buffer_size": 2853,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_consoleField.cpp",
+			"settings":
+			{
+				"buffer_size": 22632,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer.cpp",
+			"settings":
+			{
+				"buffer_size": 20857,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_renderer.cpp",
+			"settings":
+			{
+				"buffer_size": 20984,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_math.h",
+			"settings":
+			{
+				"buffer_size": 4307,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer.h",
+			"settings":
+			{
+				"buffer_size": 4404,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_consoleField.h",
+			"settings":
+			{
+				"buffer_size": 1815,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_renderer.h",
+			"settings":
+			{
+				"buffer_size": 1728,
+				"line_ending": "Windows"
+			}
+		}
+	],
+	"build_system": "Packages/User/test build 1.sublime-build",
+	"build_system_choices":
+	[
+	],
+	"build_varint": "",
+	"command_palette":
+	{
+		"height": 127.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"Package Control: ena",
+				"Package Control: Enable Package"
+			],
+			[
+				"Package Control: list",
+				"Package Control: List Packages"
+			],
+			[
+				"Package Control: in",
+				"Package Control: Install Package"
+			],
+			[
+				"Package Control: insta",
+				"Package Control: Install Package"
+			]
+		],
+		"width": 416.0
+	},
+	"console":
+	{
+		"height": 126.0,
+		"history":
+		[
+			"import urllib.request,os,hashlib; h = 'eb2297e1a458f27d836c04bb0cbaf282' + 'd0e7a3098092775ccb37ca9d6b2e4b7d'; pf = 'Package Control.sublime-package'; ipp = sublime.installed_packages_path(); urllib.request.install_opener( urllib.request.build_opener( urllib.request.ProxyHandler()) ); by = urllib.request.urlopen( 'http://packagecontrol.io/' + pf.replace(' ', '%20')).read(); dh = hashlib.sha256(by).hexdigest(); print('Error validating download (got %s instead of %s), please try manual install' % (dh, h)) if dh != h else open(os.path.join( ipp, pf), 'wb' ).write(by)"
+		]
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"file_history":
+	[
+		"/W/c++former/code/hackformer_entity.cpp",
+		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_093_source.zip/code/handmade_render_group.h",
+		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_093_source.zip/code/handmade_render_group.cpp",
+		"/W/c++former/shaders/basic.frag",
+		"/W/c++former/shaders/basic.vert",
+		"/W/c++former/code/hackformer_consoleField.cpp",
+		"/W/c++former/shaders/basic.frag.txt",
+		"/W/c++former/code/hackformer_entity.h",
+		"/W/c++former/code/hackformer_consoleField.h",
+		"/W/c++former/build/include/SOIL.h",
+		"/W/c++former/code/hackformer_math.h",
+		"/W/c++former/code/hackformer_renderer.cpp",
+		"/W/c++former/code/hackformer_renderer.h",
+		"/W/c++former/code/hackformer.cpp",
+		"/W/c++former/code/hackformer.h",
+		"/W/c++former/code/hackformer_consolefield.h",
+		"/C/Users/Vik/AppData/Local/Temp/Temp2_handmade_hero_day_075_source.zip/code/handmade_platform.h",
+		"/C/Users/Vik/AppData/Local/Temp/Temp2_handmade_hero_day_075_source.zip/code/handmade.h",
+		"/C/Users/Vik/AppData/Local/Temp/Temp2_handmade_hero_day_075_source.zip/code/handmade.cpp",
+		"/W/c++former/code/hackformer_math.cpp",
+		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/Default (Windows).sublime-keymap",
+		"/W/td/code/td_math.cpp",
+		"/W/td/code/td_renderer.h",
+		"/W/td/code/td_main.cpp",
+		"/W/td/code/td_renderer.cpp",
+		"/W/td/code/td_main.h",
+		"/C/Users/Vik/AppData/Local/Temp/Temp2_handmade_hero_day_075_source.zip/code/handmade_math.h",
+		"/W/td/code/td_math.h",
+		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/td_build.sublime-build",
+		"/W/td/code/hackformer.h",
+		"/W/td/code/hackformer.cpp",
+		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_075_source.zip/code/handmade_sim_region.cpp",
+		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_075_source.zip/code/handmade_entity.h",
+		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_075_source.zip/code/handmade_entity.cpp",
+		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_075_source.zip/code/handmade.cpp",
+		"/W/c++former/build/include/SDL_ttf.h",
+		"/W/c++former/build/include/begin_code.h",
+		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/Preferences.sublime-settings",
+		"/C/Users/Vik/Downloads/handmade_hero_038_source/handmade_hero_day_038_source/code/handmade.h",
+		"/C/Users/Vik/Downloads/handmade_hero_038_source/handmade_hero_day_038_source/code/handmade.cpp",
+		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/HighlightBuildErrors/HighlightBuildErrors.sublime-settings",
+		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/SublimeLinter.sublime-settings",
+		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/test build 1.sublime-build",
+		"/W/c++former/hackformer.cpp",
+		"/W/c++former/hackformer_math.cpp",
+		"/W/c++former/main.cpp",
+		"/W/rewind_shooter/main.cpp",
+		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_060_source.zip/code/handmade.cpp",
+		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_060_source.zip/code/handmade.h",
+		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_060_source.zip/code/handmade_intrinsics.h",
+		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_060_source.zip/code/handmade_math.h",
+		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_060_source.zip/code/linux_handmade.cpp",
+		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_060_source.zip/code/handmade_random.h",
+		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_052_source.zip/code/handmade.cpp",
+		"/W/rewind_shooter/build/include/SDL.h",
+		"/W/FacebookHackerCup2015/NewYearsResolution/main.cpp",
+		"/C/Users/Vik/Downloads/handmade_hero_038_source/handmade_hero_day_038_source/code/handmade_platform.h",
+		"/C/Users/Vik/Downloads/handmade_hero_038_source/handmade_hero_day_038_source/code/win32_handmade.cpp",
+		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/Default/Default (Windows).sublime-keymap",
+		"/C/Users/Vik/Downloads/01_hello_SDL/01_hello_SDL/01_hello_SDL.cpp",
+		"/C/Users/Vik/Desktop/test.c",
+		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/Default/Preferences.sublime-settings"
+	],
+	"find":
+	{
+		"height": 34.0
+	},
+	"find_in_files":
+	{
+		"height": 90.0,
+		"where_history":
+		[
+			""
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": false,
+		"find_history":
+		[
+			"AnimState_standing",
+			"groundFriction",
+			"gravity",
+			"remove if",
+			"remove when",
+			"entity->ref -1",
+			"entity->ref + 2",
+			"entity->ref + 1",
+			"shoot",
+			"372",
+			"EntityType_tile",
+			"EntityType_heavyTile",
+			"EntityFlag_removeWhenOutsideLevel",
+			"EntityType_tile",
+			"EntityType_laserBeam",
+			"getMovementField",
+			"epsilon",
+			"moveEp",
+			"drawTexture",
+			"isTileT",
+			"doubleValues",
+			"sprin",
+			"addPrimitiveField",
+			"addPrimi",
+			"moveFieldChildren",
+			"case EntityType_player",
+			"drawConsoleTriangle",
+			"moveField",
+			"drawOutlinedConsoleBox",
+			"moveField",
+			"f = ",
+			"animTime = ",
+			"isLaserC",
+			"moveTime",
+			"moveRaw",
+			"epsilon",
+			"addGroundReference",
+			"moveRaw",
+			"playerDeathSize",
+			"EntityType_tile",
+			"result",
+			"EntityType_tile",
+			"renderSize",
+			"chunkSize",
+			"levelStorage",
+			"levelStorager",
+			"RefNode",
+			"FreeList",
+			"drawConsoleTriangle",
+			"keyboard",
+			"getEntityByRef",
+			"cameraP",
+			"centerCameraAround",
+			"EntityType_playerD",
+			"EntityType_play",
+			"chunkSize",
+			"{}",
+			"Hitbox*",
+			" collider != entity",
+			" collider != entity &",
+			" collider != entity &&\n						collidesWith(entity, collider, gameState",
+			"&gameState->levelStorag",
+			"31",
+			"result.",
+			"drawConsoleT",
+			"EntityReference",
+			"entity->p =",
+			"entity->p -=",
+			"entity->p +=",
+			"playerD",
+			"playerDeathStartP",
+			"addPlayer",
+			"addPlayerDeath",
+			"ConsoleField_key",
+			"LINEAR",
+			"drawRect",
+			"addGroundReference",
+			"defaultTexture",
+			"spawnOff",
+			"glColor4f",
+			"drawF",
+			"81",
+			"54",
+			"105",
+			"width",
+			"windowWidth",
+			"windowSize",
+			"cameraP",
+			"ConsoleField_m",
+			"line",
+			"#if D",
+			"DRAW_C",
+			"addLaserPie",
+			"setConsoleFieldSelectedIndex",
+			"tweakCost",
+			"drawConsoleTriangle",
+			"onColid",
+			"470",
+			"ddP.x =",
+			"1171",
+			"addField",
+			"EntityFlag_ignoresGravity",
+			"getHitbox",
+			"1508",
+			"#if 1",
+			"1284",
+			"#if 0",
+			"1030",
+			"moveRaw",
+			"epsilon",
+			"computePath",
+			"MovementField",
+			"shootsAtTargetField",
+			"ignoresF",
+			"onGround",
+			"drawRect",
+			"initialDp",
+			"initi",
+			"#if",
+			"onground",
+			"computeP",
+			"hitbox",
+			"addFlying",
+			"collidesWith",
+			"windowSize",
+			"result->p =",
+			"SHOW_COLLISION_BOUNDS",
+			"296"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+			"tile",
+			"result->",
+			"double",
+			"entity",
+			"setFlags",
+			"texture->",
+			"animTime",
+			"uint",
+			"result",
+			"uint32",
+			"arrayCount",
+			"tileX"
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"selected": 0,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "code/hackformer_entity.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 68562,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								36532,
+								36532
+							]
+						],
+						"settings":
+						{
+							"history_list_is_closing": true,
+							"spell_check": true,
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 17786.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 0,
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "code/hackformer_entity.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 2853,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								2342,
+								2342
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 1698.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 2,
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "code/hackformer_consoleField.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 22632,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								3593,
+								3593
+							]
+						],
+						"settings":
+						{
+							"history_list_is_closing": true,
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 1481.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 5,
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "code/hackformer.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 20857,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								19307,
+								19307
+							]
+						],
+						"settings":
+						{
+							"history_list_is_closing": true,
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 9045.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 8,
+					"type": "text"
+				},
+				{
+					"buffer": 4,
+					"file": "code/hackformer_renderer.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 20984,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								15368,
+								15368
+							]
+						],
+						"settings":
+						{
+							"history_list_is_closing": true,
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 7316.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 6,
+					"type": "text"
+				}
+			]
+		},
+		{
+			"selected": 3,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "code/hackformer_entity.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 68562,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								55064,
+								55064
+							]
+						],
+						"settings":
+						{
+							"history_list_is_closing": true,
+							"spell_check": true,
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 26231.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 4,
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "code/hackformer_math.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 4307,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								137,
+								137
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 9,
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "code/hackformer.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 4404,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1085,
+								1085
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": -0.0,
+						"translation.y": 1170.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 3,
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "code/hackformer_entity.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 2853,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1106,
+								1106
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 225.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 1,
+					"type": "text"
+				},
+				{
+					"buffer": 7,
+					"file": "code/hackformer_consoleField.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 1815,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								650,
+								650
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 10,
+					"type": "text"
+				},
+				{
+					"buffer": 8,
+					"file": "code/hackformer_renderer.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 1728,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1050,
+								1050
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 360.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 7,
+					"type": "text"
+				}
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 23.0
+	},
+	"input":
+	{
+		"height": 0.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			],
+			[
+				1,
+				0,
+				2,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			0.516145833333,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.exec":
+	{
+		"height": 273.0
+	},
+	"output.find_results":
+	{
+		"height": 0.0
+	},
+	"pinned_build_system": "",
+	"project": "project.sublime-project",
+	"replace":
+	{
+		"height": 62.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 500.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 380.0
+	},
+	"select_symbol":
+	{
+		"height": 58.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"addBa",
+				"addBackground"
+			]
+		],
+		"width": 392.0
+	},
+	"selected_group": 0,
+	"settings":
+	{
+	},
+	"show_minimap": false,
+	"show_open_files": false,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 150.0,
+	"status_bar_visible": false,
+	"template_settings":
+	{
+	}
+}

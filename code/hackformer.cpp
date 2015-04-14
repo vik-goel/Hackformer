@@ -623,7 +623,7 @@ int main(int argc, char *argv[]) {
 			pushSortEnd(gameState->renderGroup);
 			updateConsole(gameState, dtForFrame);
 			drawRenderGroup(gameState->renderGroup);
-
+			removeEntities(gameState);
 
 			SDL_RenderPresent(renderer); //Swap the buffers
 			//SDL_GL_SwapWindow(window);

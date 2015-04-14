@@ -23,9 +23,9 @@ enum DrawOrder {
 	DrawOrder_endPortal,
 	DrawOrder_blueEnergy,
 	DrawOrder_laserController,
+	DrawOrder_laserBeam,
 	DrawOrder_laserBase,
 	DrawOrder_laserTop,
-	DrawOrder_laserBeam,
 	DrawOrder_virus,
 	DrawOrder_flyingVirus,
 	DrawOrder_heavyTile,
@@ -45,6 +45,7 @@ enum EntityFlag {
 	EntityFlag_unchargingAfterShooting = 1 << 6,
 	EntityFlag_grounded = 1 << 7,
 	EntityFlag_laserOn = 1 << 8,
+	EntityFlag_movedByGround = 1 << 9,
 };
 
 enum AnimState {

@@ -20,7 +20,8 @@ struct CachedFont {
 };
 
 enum DrawType {
-	DrawType_RenderTexture,
+	DrawType_RenderBoundedTexture,
+	DrawType_RenderEntityTexture,
 	DrawType_RenderText,
 	DrawType_RenderFillRect,
 	DrawType_RenderOutlinedRect,
@@ -39,12 +40,23 @@ struct RenderHeader {
 };
 
 enum DrawOrder;
+
 struct RenderTexture {
 	DrawOrder drawOrder;
-	R2 bounds;
 	Texture* texture;
 	bool flipX;
 	double degrees;
+};
+
+struct RenderEntityTexture {
+	RenderTexture tex;
+	V2* p;
+	V2* renderSize;
+};
+
+struct RenderBoundedTexture {
+	RenderTexture tex;
+	R2 bounds;
 };
 
 struct RenderText {
