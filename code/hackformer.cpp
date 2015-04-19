@@ -400,7 +400,7 @@ void loadLevel(GameState* gameState, char** maps, int numMaps, int* mapFileIndex
 	}
 
 	loadTmxMap(gameState, maps[*mapFileIndex]);
-	addFlyingVirus(gameState, v2(8, 7));
+	addFlyingVirus(gameState, v2(5, 6));
 	addHeavyTile(gameState, v2(3, 7));
 
 	V2 playerDeathStartP = gameState->playerDeathStartP;
@@ -456,38 +456,40 @@ int main(int argc, char *argv[]) {
 		assert(false);
 	}
 
-	// SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-	// SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 
-	// SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-	// SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
-	// SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
-	// SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
-	// SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+	SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+	SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+	SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
 
 	// SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1); 
 	// SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
 
-	// SDL_GL_SetSwapInterval(1);
+	SDL_GL_SetSwapInterval(1); //Enables vysnc
 
 	SDL_Window* window = SDL_CreateWindow("Hackformer", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
 										  windowWidth, windowHeight, 
-										  SDL_WINDOW_ALLOW_HIGHDPI);
+										  SDL_WINDOW_ALLOW_HIGHDPI|SDL_WINDOW_OPENGL);
 
 
 	
-	// SDL_GLContext glContext = SDL_GL_CreateContext(window);
-	// assert(glContext);
+	SDL_GLContext glContext = SDL_GL_CreateContext(window);
+	assert(glContext);
 
-	// glDisable(GL_DEPTH_TEST);
+	SDL_GL_SetSwapInterval(1); //Enables vysnc
 
-	// GLenum glewStatus = glewInit();
+	glDisable(GL_DEPTH_TEST);
 
-	// if (glewStatus != GLEW_OK) {
-	// 	fprintf(stderr, "Failed to initialize glew. Error: %s\n", glewGetErrorString(glewStatus));
-	// 	assert(false);
-	// }
+	GLenum glewStatus = glewInit();
+
+	if (glewStatus != GLEW_OK) {
+		fprintf(stderr, "Failed to initialize glew. Error: %s\n", glewGetErrorString(glewStatus));
+		assert(false);
+	}
 
 	if (!window) {
 		fprintf(stderr, "Failed to create window. Error: %s", SDL_GetError());
@@ -519,7 +521,7 @@ int main(int argc, char *argv[]) {
 	gameState->windowSize = v2((double)windowWidth, (double)windowHeight) * (1.0 / gameState->pixelsPerMeter);
 
 	gameState->renderGroup = createRenderGroup(gameState, 32 * 1024);
-//	gameState->texel = hadamard(gameState->windowSize, v2(1.0 / windowWidth, 1.0 / windowHeight));
+	gameState->texel = hadamard(gameState->windowSize, v2(1.0 / windowWidth, 1.0 / windowHeight));
 //
 //	gameState->basicShader = createShader("shaders/basic.vert", "shaders/basic.frag", gameState->windowSize);
 
@@ -531,48 +533,72 @@ int main(int argc, char *argv[]) {
 	gameState->consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
 	gameState->textFont = loadFont("fonts/Roboto-Regular.ttf", 64);
 
-	gameState->playerStand = loadPNGTexture(gameState, "res/player/stand2.png");
-	gameState->playerJump = loadPNGTexture(gameState, "res/player/jump2.png");
-	gameState->playerWalk = loadAnimation(gameState, "res/player/running.png", 256, 256, 0.035f, true);
-	gameState->playerStandWalkTransition = loadAnimation(gameState, "res/player/stand_run_transition.png", 256, 256, 0.01f, false);
-	gameState->playerHackingAnimation = loadAnimation(gameState, "res/player/hacking.png", 256, 256, 0.05f, true);
+	Texture playerStand = loadPNGTexture(gameState, "res/player/stand2");
+	Texture playerJump = loadPNGTexture(gameState, "res/player/jump2");
+	Animation playerWalk = loadAnimation(gameState, "res/player/running 2", 256, 256, 0.035f, true);
+	Animation playerStandWalkTransition = loadAnimation(gameState, "res/player/stand_run_transition", 256, 256, 0.01f, false);
+	Animation playerHackingAnimation = loadAnimation(gameState, "res/player/Hacking Flow Sprite", 512, 256, 0.07f, false);
+	Animation playerHackingAnimationTransition = loadAnimation(gameState, "res/player/Hacking Sprite Full 2", 256, 256, 0.025f, false);
 
-	gameState->virus1Stand = loadPNGTexture(gameState, "res/virus1/stand.png");
-	gameState->virus1Shoot = loadAnimation(gameState, "res/virus1/shoot.png", 256, 256, 0.04f, true);
-	gameState->shootDelay = getAnimationDuration(&gameState->virus1Shoot);
+	gameState->playerStand = createAnimNode(&playerStand);
+	gameState->playerJump = createAnimNode(&playerJump);
+
+	gameState->playerWalk.main = playerWalk;
+	gameState->playerWalk.intro = playerStandWalkTransition;
+	//gameState->playerWalk.outro = createReversedAnimation(&playerStandWalkTransition);
+	//gameState->playerWalk.outro.secondsPerFrame *= 2;
+	gameState->playerWalk.finishMainBeforeOutro = true;
+
+	gameState->playerHack.main = playerHackingAnimation;
+	gameState->playerHack.intro = playerHackingAnimationTransition;
+	gameState->playerHack.outro = createReversedAnimation(&playerHackingAnimationTransition);
+
+	Texture virus1Stand = loadPNGTexture(gameState, "res/virus1/stand");
+	Animation virus1Shoot = loadAnimation(gameState, "res/virus1/shoot", 256, 256, 0.04f, true);
+	gameState->shootDelay = getAnimationDuration(&virus1Shoot);
+
+	gameState->virus1Stand = createAnimNode(&virus1Stand);
+	gameState->virus1Shoot.main = virus1Shoot;
 
 	//TODO: Make shoot animation time per frame be set by the shootDelay
-	gameState->flyingVirus = loadPNGTexture(gameState, "res/virus2/full.png");
-	gameState->flyingVirusShoot = loadAnimation(gameState, "res/virus2/shoot.png", 256, 256, 0.04f, true);
+	Texture flyingVirusStand = loadPNGTexture(gameState, "res/virus2/full");
+	Animation flyingVirusShoot = loadAnimation(gameState, "res/virus2/shoot", 256, 256, 0.04f, true);
 
-	gameState->sunsetCityBg = loadPNGTexture(gameState, "res/backgrounds/sunset city bg.png");
-	gameState->sunsetCityMg = loadPNGTexture(gameState, "res/backgrounds/sunset city mg.png");
-	gameState->marineCityBg = loadPNGTexture(gameState, "res/backgrounds/marine city bg.png");
-	gameState->marineCityMg = loadPNGTexture(gameState, "res/backgrounds/marine city mg.png");
+	gameState->flyingVirusStand = createAnimNode(&flyingVirusStand);
+	gameState->flyingVirusShoot.main = flyingVirusShoot;
 
-	gameState->blueEnergyTex = loadPNGTexture(gameState, "res/blue energy.png");
-	gameState->laserBolt = loadPNGTexture(gameState, "res/virus1/laser bolt.png");
-	gameState->endPortal = loadPNGTexture(gameState, "res/end portal.png");
 
-	gameState->consoleTriangle = loadPNGTexture(gameState, "res/triangle_blue.png");
-	gameState->consoleTriangleSelected = loadPNGTexture(gameState, "res/triangle_light_blue.png");
-	gameState->consoleTriangleGrey = loadPNGTexture(gameState, "res/triangle_grey.png");
-	gameState->consoleTriangleYellow = loadPNGTexture(gameState, "res/triangle_yellow.png");
+	gameState->sunsetCityBg = loadPNGTexture(gameState, "res/backgrounds/sunset city bg", false);
+	gameState->sunsetCityMg = loadPNGTexture(gameState, "res/backgrounds/sunset city mg", false);
+	gameState->marineCityBg = loadPNGTexture(gameState, "res/backgrounds/marine city bg", false);
+	gameState->marineCityMg = loadPNGTexture(gameState, "res/backgrounds/marine city mg", false);
 
-	gameState->laserBaseOff = loadPNGTexture(gameState, "res/virus3/base off.png");
-	gameState->laserBaseOn = loadPNGTexture(gameState, "res/virus3/base on.png");
-	gameState->laserTopOff = loadPNGTexture(gameState, "res/virus3/top off.png");
-	gameState->laserTopOn = loadPNGTexture(gameState, "res/virus3/top on.png");
-	gameState->laserBeam = loadPNGTexture(gameState, "res/virus3/laser beam.png");
+	gameState->blueEnergyTex = loadPNGTexture(gameState, "res/blue energy");
+	gameState->laserBolt = loadPNGTexture(gameState, "res/virus1/laser bolt", false);
+	gameState->endPortal = loadPNGTexture(gameState, "res/end portal");
 
-	gameState->heavyTileTex = loadPNGTexture(gameState, "res/Heavy1.png");
+	gameState->consoleTriangle = loadPNGTexture(gameState, "res/triangle_blue");
+	gameState->consoleTriangleSelected = loadPNGTexture(gameState, "res/triangle_light_blue");
+	gameState->consoleTriangleGrey = loadPNGTexture(gameState, "res/triangle_grey");
+	gameState->consoleTriangleYellow = loadPNGTexture(gameState, "res/triangle_yellow");
+
+	gameState->laserBaseOff = loadPNGTexture(gameState, "res/virus3/base off");
+	gameState->laserBaseOn = loadPNGTexture(gameState, "res/virus3/base on");
+	gameState->laserTopOff = loadPNGTexture(gameState, "res/virus3/top off");
+	gameState->laserTopOn = loadPNGTexture(gameState, "res/virus3/top on");
+	gameState->laserBeam = loadPNGTexture(gameState, "res/virus3/laser beam");
+
+	gameState->heavyTileTex = loadPNGTexture(gameState, "res/Heavy1");
+
+	gameState->dock = loadPNGTexture(gameState, "res/dock");
+	gameState->dockBlueEnergyTile = loadPNGTexture(gameState, "res/Blue Energy Tile");
 
 	uint numTilesInAtlas;
-	gameState->tileAtlas = extractTextures(gameState, "res/tiles_floored.png", 120, 240, 12, &numTilesInAtlas);
+	gameState->tileAtlas = extractTextures(gameState, "res/tiles_floored", 120, 240, 12, &numTilesInAtlas);
 
 	char* mapFileNames[] = {
-		"map4.tmx",
 		"map3.tmx",
+		"map4.tmx",
 		"map5.tmx",
 	};
 
@@ -600,6 +626,8 @@ int main(int argc, char *argv[]) {
 		dtForFrame += (double)((currentTime - lastTime) / 1000.0); 
 		lastTime = currentTime;
 
+		uint frameStart = SDL_GetTicks();
+
 		if (currentTime - fpsCounterTimer > 1000) {
 			fpsCounterTimer += 1000;
 			printf("Fps: %d\n", fps);
@@ -608,7 +636,7 @@ int main(int argc, char *argv[]) {
 
 		//glClearColor(0, 0, 0, 1);
 
-		if (dtForFrame > frameTime) {
+		//if (dtForFrame > frameTime) {
 			if (dtForFrame > maxDtForFrame) dtForFrame = maxDtForFrame;
 
 			fps++;
@@ -616,17 +644,43 @@ int main(int argc, char *argv[]) {
 
 			pollInput(gameState, &running);
 
-			//glClear(GL_COLOR_BUFFER_BIT);
+			glClear(GL_COLOR_BUFFER_BIT);
 
 			//printf("Error: %d\n", glGetError());
 			updateAndRenderEntities(gameState, dtForFrame);
+
 			pushSortEnd(gameState->renderGroup);
 			updateConsole(gameState, dtForFrame);
+
+			{ //Draw the dock
+				V2 size = gameState->windowSize.x * v2(1, gameState->dock.size.y / gameState->dock.size.x);
+				V2 dockP = v2(0, gameState->windowSize.y - size.y);
+				R2 bounds = r2(dockP, dockP + size);
+				pushTexture(gameState->renderGroup, &gameState->dock, bounds, false, DrawOrder_gui, false);
+
+				V2 blueEnergySize = 0.45 * v2(1, 1);
+				V2 blueEnergyStartP = dockP + v2(1.6, 0.68);
+				V2 barSlope = normalize(v2(1, -0.04));
+				double barLength = 5.41;
+
+				int maxEnergy = 40;
+				double energySize = barLength / (double)maxEnergy;
+
+				if(gameState->blueEnergy > maxEnergy) gameState->blueEnergy = maxEnergy;
+
+				for(int energyIndex = 0; energyIndex < gameState->blueEnergy; energyIndex++) {
+					//TODO: <= is only needed for the last energyIndex
+					for(double lerpIndex = 0; lerpIndex <= 1; lerpIndex += 0.5) {
+						V2 blueEnergyP = blueEnergyStartP + barSlope * ((energyIndex + lerpIndex) * energySize);
+						R2 blueEnergyBounds = rectCenterDiameter(blueEnergyP, blueEnergySize);
+						pushTexture(gameState->renderGroup, &gameState->dockBlueEnergyTile, blueEnergyBounds, false, DrawOrder_gui, false);
+					}
+				}
+				
+			}
+
 			drawRenderGroup(gameState->renderGroup);
 			removeEntities(gameState);
-
-			SDL_RenderPresent(renderer); //Swap the buffers
-			//SDL_GL_SwapWindow(window);
 
 
 			{ //NOTE: This updates the camera position
@@ -657,7 +711,15 @@ int main(int argc, char *argv[]) {
 					loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, true);
 				}
 			}
-		}
+
+			uint frameEnd = SDL_GetTicks();
+			uint frameTime = frameEnd - frameStart;
+
+			printf("Frame Time: %d\n", frameTime);
+
+			//SDL_RenderPresent(renderer); //Swap the buffers
+			SDL_GL_SwapWindow(window);
+		//}
 	}
 
 	return 0;

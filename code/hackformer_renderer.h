@@ -1,8 +1,10 @@
 struct Texture {
-	//GLuint texId;
-	//R2 uv;
-	SDL_Texture* tex;
-	SDL_Rect srcRect;
+	GLuint texId;
+	GLuint normalId;
+	R2 uv;
+	V2 size;
+	// SDL_Texture* tex;
+	// SDL_Rect srcRect;
 };
 
 struct Animation {
@@ -10,6 +12,14 @@ struct Animation {
 	uint numFrames;
 	double secondsPerFrame;
 	bool pingPong;
+	bool reverse;
+};
+
+struct AnimNode {
+	Animation intro;
+	Animation main;
+	Animation outro;
+	bool finishMainBeforeOutro;
 };
 
 struct CachedFont {
@@ -25,11 +35,64 @@ enum DrawType {
 	DrawType_RenderText,
 	DrawType_RenderFillRect,
 	DrawType_RenderOutlinedRect,
+	DrawType_pointLight,
+	DrawType_spotLight,
 };
 
 struct Color {
-	char r, g, b, a;
+	unsigned char r, g, b, a;
 };
+
+struct PointLight {
+	V3 p;
+	V3 color;
+	V3 atten; //(constant, linear, exponent)
+};
+
+struct SpotLight {
+	PointLight base;
+	double angle;
+	double spread;
+};
+
+struct PointLightUniforms {
+	GLint p;
+	GLint color;
+	GLint atten;
+};
+
+struct SpotLightUniforms {
+	PointLightUniforms base;
+	GLint dir;
+	GLint cutoff;
+};
+
+struct Shader {
+	GLuint program;
+	GLint tintUniformLocation;
+	GLint ambientUniform;
+	GLint normalXFlipUniform;
+
+	PointLight pointLights[32];
+	int numPointLights;
+
+	SpotLight spotLights[32];
+	int numSpotLights;
+
+	PointLightUniforms pointLightUniforms[8];
+	SpotLightUniforms spotLightUniforms[8];
+};
+
+
+enum Orientation {
+	Orientation_0,
+	Orientation_90,
+	Orientation_180,
+	Orientation_270,
+
+	Orientation_count
+};
+
 
 #define RENDER_HEADER_TYPE_MASK ((1 << 16) - 1)
 #define RENDER_HEADER_CLIP_RECT_FLAG (1 << 16)
@@ -45,7 +108,7 @@ struct RenderTexture {
 	DrawOrder drawOrder;
 	Texture* texture;
 	bool flipX;
-	double degrees;
+	Orientation orientation;
 };
 
 struct RenderEntityTexture {
@@ -77,8 +140,13 @@ struct RenderOutlinedRect {
 };
 
 struct RenderGroup {
+	Shader shader;
+	Texture whiteTex;
+	GLuint nullNormalId;
+
 	SDL_Renderer* renderer;
 	double pixelsPerMeter;
+	int windowWidth;
 	int windowHeight;
 	R2 windowBounds;
 	V2 negativeCameraP;
@@ -95,16 +163,3 @@ struct RenderGroup {
 	uint allocated;
 	uint maxSize;
 };
-
-// enum Rotation {
-// 	Degree0,
-// 	Degree90,
-// 	Degree180,
-// 	Degree270,
-// 	RotationCount
-// };
-
-// struct Shader {
-// 	GLuint program;
-// 	GLint tintUniformLocation;
-// };

@@ -46,13 +46,9 @@ enum EntityFlag {
 	EntityFlag_grounded = 1 << 7,
 	EntityFlag_laserOn = 1 << 8,
 	EntityFlag_movedByGround = 1 << 9,
-};
-
-enum AnimState {
-	AnimState_standing, //NOTE: Standing must be 0
-	AnimState_shooting,
-	AnimState_jumping,
-	AnimState_walking,
+	EntityFlag_emitsLight = 1 << 10,
+	EntityFlag_animIntro = 1 << 11,
+	EntityFlag_animOutro = 1 << 12,
 };
 
 struct RefNode {
@@ -75,7 +71,6 @@ struct Entity {
 	V2 dP;
 
 	V2 renderSize;
-	double animTime;
 	DrawOrder drawOrder;
 
 	Hitbox* hitboxes;
@@ -85,6 +80,8 @@ struct Entity {
 	int numFields;
 
 	RefNode* groundReferenceList;
+
+	PointLight pointLight;
 
 	//Used by any entity that shoots
 	double shootTimer;
@@ -107,14 +104,15 @@ struct Entity {
 	Texture* messages;
 	int numMessages;
 
-	AnimState lastAnimState;
-	AnimState prevAnimState;
+	double animTime;
+	AnimNode* currentAnim;
+	AnimNode* nextAnim;
 
-	Texture* standTex;
-	Texture* jumpTex;
-	Animation* shootAnim;
-	Animation* walkAnim;
-	Animation* standWalkTransition;
+	Texture* defaultTex;
+	AnimNode* standAnim;
+	AnimNode* jumpAnim;
+	AnimNode* shootAnim;
+	AnimNode* walkAnim;
 };
 
 struct EntityReference {

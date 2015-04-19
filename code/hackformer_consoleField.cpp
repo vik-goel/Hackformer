@@ -315,10 +315,11 @@ bool drawConsoleTriangle(GameState* gameState, V2 triangleP, V2 triangleSize,
 
 	Texture* triangleTex = &gameState->consoleTriangleGrey;
 	//Rotation angle = Degree0;
-	double angle = 0;
+	//double angle = 0;
+	Orientation orientation = Orientation_0;
 
-	if (facesDown) angle = 90;//Degree90;
-	if (facesUp) angle = 270;//Degree270;
+	if (facesDown) orientation = Orientation_90;//angle = 90;//Degree90;
+	if (facesUp) orientation = Orientation_270;//angle = 270;//Degree270;
 
 	bool mouseOverTriangle = dstSq(gameState->input.mouseInMeters, triangleP) < 
 							 square(min(triangleSize.x, triangleSize.y) / 2.0f);
@@ -348,7 +349,7 @@ bool drawConsoleTriangle(GameState* gameState, V2 triangleP, V2 triangleSize,
 
 	if (yellow) triangleTex = &gameState->consoleTriangleYellow;
 
-	pushTexture(gameState->renderGroup, triangleTex, triangleBounds, facesRight, DrawOrder_gui, false, angle);
+	pushTexture(gameState->renderGroup, triangleTex, triangleBounds, facesRight, DrawOrder_gui, false, orientation);
 
 	//NOTE: This draws the cost of tweaking if it is not default (0 or 1)
 	if (tweakCost > 1) {
@@ -671,7 +672,7 @@ void updateConsole(GameState* gameState, double dt) {
 		}  
 	}
 
-	
+	bool wasConsoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
 
 	//NOTE: This deselects the console entity if somewhere else is clicked
 	if (!clickHandled && gameState->input.leftMouseJustPressed) {
@@ -680,16 +681,21 @@ void updateConsole(GameState* gameState, double dt) {
 
 
 	//NOTE: This selects a new console entity if there isn't one and a click occurred
-	if (!getEntityByRef(gameState, gameState->consoleEntityRef)) {
-		if (!clickHandled && gameState->input.leftMouseJustPressed) {
-			for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-				Entity* entity = gameState->entities + entityIndex;
-					
-				if(isSet(entity, EntityFlag_hackable)) {
-					if (isMouseInside(entity, &gameState->input)) {
-						gameState->consoleEntityRef = entity->ref;
-						clickHandled = true;
-						break;
+	Entity* player = getEntityByRef(gameState, gameState->playerRef);
+
+	//Don't allow hacking while the player is mid-air
+	if(wasConsoleEntity || (player && isSet(player, EntityFlag_grounded))) {
+		if (!getEntityByRef(gameState, gameState->consoleEntityRef)) {
+			if (!clickHandled && gameState->input.leftMouseJustPressed) {
+				for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+					Entity* entity = gameState->entities + entityIndex;
+						
+					if(isSet(entity, EntityFlag_hackable)) {
+						if (isMouseInside(entity, &gameState->input)) {
+							gameState->consoleEntityRef = entity->ref;
+							clickHandled = true;
+							break;
+						}
 					}
 				}
 			}

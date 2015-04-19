@@ -9,6 +9,17 @@ struct V2 {
 	double x, y;
 };
 
+struct V3 {
+	union {
+		struct {
+			double x, y;
+		};
+		V2 xy;
+	};
+
+	double z;
+};
+
 struct R2 {
 	V2 min;
     V2 max;
@@ -155,6 +166,152 @@ void debugPrintV2(V2 v) {
 	printf("x: %f, y: %f\n", v.x, v.y);
 }
 
+
+//NOTE: V3 operations here
+
+V3 v3(double x, double y, double z) {
+	V3 result = {};
+
+	result.x = x;
+	result.y = y;
+	result.z = z;
+
+	return result;
+}
+
+V3 v3(V2 xy, double z) {
+	V3 result = {};
+
+	result.xy = xy;
+	result.z = z;
+
+	return result;
+}
+
+bool epsilonEquals(V3 a, V3 b, double epsilon) {
+	bool result = abs(a.x - b.x) < epsilon && abs(a.y - b.y) < epsilon && abs(a.z - b.z) < epsilon;
+	return result;
+}
+
+bool operator==(V3 &a, V3 &b) {
+	bool result = (a.x == b.x) && (a.y == b.y) && (a.z == b.z);
+	return result;
+}
+
+bool operator!=(V3 &a, V3 &b) {
+	bool result = !(a == b);
+	return result;
+}
+
+V3 operator+(V3 &a, V3 &b) {
+	V3 result = {};
+
+	result.x = a.x + b.x;
+	result.y = a.y + b.y;
+	result.z = a.z + b.z;
+
+	return result;
+}
+
+V3 operator-(V3 &a) {
+	V3 result = {};
+
+	result.x = -a.x;
+	result.y = -a.y;
+	result.z = -a.z;
+
+	return result;
+}
+
+V3 operator-(V3 &a, V3 &b) {
+	V3 result = {};
+
+	result.x = a.x - b.x;
+	result.y = a.y - b.y;
+	result.z = a.z - b.z;
+
+	return result;
+}
+
+V3 hadamard(V3 &a, V3& b) {
+	V3 result = {};
+
+	result.x = a.x * b.x;
+	result.y = a.y * b.y;
+	result.z = a.z * b.z;
+
+	return result;
+}
+
+V3 operator*(V3 &a, double b) {
+	V3 result = {};
+
+	result.x = a.x * b;
+	result.y = a.y * b;
+	result.z = a.z * b;
+
+	return result;
+}
+
+V3 operator*(double b, V3 &a) {
+	V3 result = {};
+	result = a * b;
+	return result;
+}
+
+void operator+=(V3 &a, V3 &b) {
+	a.x += b.x;
+	a.y += b.y;
+	a.z += b.z;
+}
+
+void operator-=(V3 &a, V3 &b) {
+	a.x -= b.x;
+	a.y -= b.y;
+	a.z -= b.z;
+}
+
+void operator*=(V3 &a, double b) {
+	a.x *= b;
+	a.y *= b;
+	a.z *= b;
+}
+
+void operator*=(double b, V3 &a) {
+	a *= b;
+}
+
+double lengthSq(V3 a) {
+	double result = a.x * a.x + a.y * a.y + a.z * a.z;
+	return result;
+}
+
+double length(V3 a) {
+	double result = sqrt(lengthSq(a));
+	return result;
+}
+
+double dst(V3 a, V3 b) {
+	double result = length(b - a);
+	return result;
+}
+
+double dstSq(V3 a, V3 b) {
+	double result = lengthSq(b - a);
+	return result;
+}
+
+V3 normalize(V3 a) {
+	double len = length(a);
+	if (len != 0) a *= (1.0 / len);
+	return a;
+}
+
+void debugPrintV3(V3 v) {
+	printf("x: %f, y: %f, z: %f\n", v.x, v.y, v.z);
+}
+
+
 //NOTE: R2 operations here
 
 R2 r2(V2 p1, V2 p2) {
@@ -238,7 +395,7 @@ R2 scaleRect(R2 rect, V2 amt) {
 	return result;
 }
 
-void debugPrintRectangle(R2 rect) {
+void debugPrintRect(R2 rect) {
 	printf("x: %f, y: %f, width: %f, height: %f\n", 
 		    rect.min.x, rect.min.y, getRectWidth(rect), getRectHeight(rect));
 }
@@ -248,6 +405,17 @@ bool pointInsideRect(R2 rect, V2 point) {
 				  point.y >= rect.min.y &&
 				  point.x <= rect.max.x &&
 				  point.y <= rect.max.y;
+				  
+	return result;
+}
+
+bool pointInsideRectExclusive(R2 rect, V2 point) {
+	double epsilon = 0.00000001;
+
+	bool result = point.x > rect.min.x + epsilon &&
+				  point.y > rect.min.y + epsilon &&
+				  point.x < rect.max.x - epsilon &&
+				  point.y < rect.max.y - epsilon;
 				  
 	return result;
 }

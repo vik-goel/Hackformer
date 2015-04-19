@@ -4,6 +4,22 @@
 		"selected_items":
 		[
 			[
+				"getRend",
+				"getRenderablePointLight"
+			],
+			[
+				"light",
+				"lightDistanceSquared"
+			],
+			[
+				"un",
+				"uniformNamePtr"
+			],
+			[
+				"pixe",
+				"pixelsPerMeter"
+			],
+			[
 				"getA",
 				"getAnimationDuration"
 			],
@@ -311,7 +327,7 @@
 			"file": "code/hackformer_renderer.cpp",
 			"settings":
 			{
-				"buffer_size": 20984,
+				"buffer_size": 32377,
 				"line_ending": "Windows"
 			}
 		},
@@ -319,7 +335,7 @@
 			"file": "code/hackformer.cpp",
 			"settings":
 			{
-				"buffer_size": 20857,
+				"buffer_size": 20770,
 				"line_ending": "Windows"
 			}
 		},
@@ -327,7 +343,7 @@
 			"file": "code/hackformer_consoleField.cpp",
 			"settings":
 			{
-				"buffer_size": 22632,
+				"buffer_size": 22745,
 				"line_ending": "Windows"
 			}
 		},
@@ -335,7 +351,31 @@
 			"file": "code/hackformer_entity.cpp",
 			"settings":
 			{
-				"buffer_size": 68562,
+				"buffer_size": 69428,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "shaders/basic.vert",
+			"settings":
+			{
+				"buffer_size": 328,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "shaders/basic.frag",
+			"settings":
+			{
+				"buffer_size": 2836,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_renderer.h",
+			"settings":
+			{
+				"buffer_size": 2441,
 				"line_ending": "Windows"
 			}
 		},
@@ -343,7 +383,7 @@
 			"file": "code/hackformer.h",
 			"settings":
 			{
-				"buffer_size": 4404,
+				"buffer_size": 4669,
 				"line_ending": "Windows"
 			}
 		},
@@ -359,7 +399,7 @@
 			"file": "code/hackformer_entity.h",
 			"settings":
 			{
-				"buffer_size": 2853,
+				"buffer_size": 2912,
 				"line_ending": "Windows"
 			}
 		},
@@ -367,15 +407,7 @@
 			"file": "code/hackformer_math.h",
 			"settings":
 			{
-				"buffer_size": 4307,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "code/hackformer_renderer.h",
-			"settings":
-			{
-				"buffer_size": 1728,
+				"buffer_size": 6763,
 				"line_ending": "Windows"
 			}
 		}
@@ -433,6 +465,10 @@
 	],
 	"file_history":
 	[
+		"/C/Users/Vik/Downloads/pixel_exact/pixel_exact/glsl/simple.vert",
+		"/C/Users/Vik/Downloads/pixel_exact/pixel_exact/glsl/simple.frag",
+		"/W/c++former/shaders/basic.vert",
+		"/W/c++former/shaders/basic.frag",
 		"/W/c++former/code/hackformer_entity.cpp",
 		"/W/Dunjun/code/Dunjun.cpp",
 		"/W/c++former/code/hackformer_math.h",
@@ -445,8 +481,6 @@
 		"/W/c++former/code/hackformer_renderer.cpp",
 		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_093_source.zip/code/handmade_render_group.h",
 		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_093_source.zip/code/handmade_render_group.cpp",
-		"/W/c++former/shaders/basic.frag",
-		"/W/c++former/shaders/basic.vert",
 		"/W/c++former/shaders/basic.frag.txt",
 		"/W/c++former/build/include/SOIL.h",
 		"/W/c++former/code/hackformer_consolefield.h",
@@ -514,6 +548,16 @@
 		"case_sensitive": false,
 		"find_history":
 		[
+			"ambient",
+			"addF",
+			"gl",
+			"facesLeft",
+			"setUniform",
+			"white",
+			"pushText",
+			"camera",
+			"setColor",
+			"metersPerPixel",
 			"AnimState_standing",
 			"groundFriction",
 			"gravity",
@@ -631,17 +675,7 @@
 			"onGround",
 			"drawRect",
 			"initialDp",
-			"initi",
-			"#if",
-			"onground",
-			"computeP",
-			"hitbox",
-			"addFlying",
-			"collidesWith",
-			"windowSize",
-			"result->p =",
-			"SHOW_COLLISION_BOUNDS",
-			"296"
+			"initi"
 		],
 		"highlight": true,
 		"in_selection": false,
@@ -671,7 +705,7 @@
 	"groups":
 	[
 		{
-			"selected": 3,
+			"selected": 0,
 			"sheets":
 			[
 				{
@@ -680,15 +714,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 20984,
+						"buffer_size": 32377,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								0,
-								0
+								31449,
+								31449
 							]
 						],
 						"settings":
@@ -697,10 +731,10 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 14711.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 5,
+					"stack_index": 0,
 					"type": "text"
 				},
 				{
@@ -709,15 +743,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 20857,
+						"buffer_size": 20770,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								0,
-								0
+								19144,
+								19144
 							]
 						],
 						"settings":
@@ -726,7 +760,7 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 8973.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 4,
@@ -738,15 +772,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 22632,
+						"buffer_size": 22745,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								0,
-								0
+								8634,
+								8634
 							]
 						],
 						"settings":
@@ -755,10 +789,10 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 3641.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 2,
+					"stack_index": 6,
 					"type": "text"
 				},
 				{
@@ -767,15 +801,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 68562,
+						"buffer_size": 69428,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								213,
-								213
+								19292,
+								19292
 							]
 						],
 						"settings":
@@ -784,10 +818,10 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 8801.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 0,
+					"stack_index": 5,
 					"type": "text"
 				}
 			]
@@ -798,19 +832,75 @@
 			[
 				{
 					"buffer": 4,
-					"file": "code/hackformer.h",
+					"file": "shaders/basic.vert",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 4404,
+						"buffer_size": 328,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								0,
-								0
+								326,
+								326
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/OpenGL Shading Language (GLSL)/GLSL.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 2,
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "shaders/basic.frag",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 2836,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1994,
+								1994
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/OpenGL Shading Language (GLSL)/GLSL.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 765.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 1,
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "code/hackformer_renderer.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 2441,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								738,
+								738
 							]
 						],
 						"settings":
@@ -819,14 +909,43 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 303.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 3,
 					"type": "text"
 				},
 				{
-					"buffer": 5,
+					"buffer": 7,
+					"file": "code/hackformer.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 4669,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								4046,
+								4046
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 2790.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 9,
+					"type": "text"
+				},
+				{
+					"buffer": 8,
 					"file": "code/hackformer_consoleField.h",
 					"semi_transient": false,
 					"settings":
@@ -851,24 +970,24 @@
 						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 1,
+					"stack_index": 10,
 					"type": "text"
 				},
 				{
-					"buffer": 6,
+					"buffer": 9,
 					"file": "code/hackformer_entity.h",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 2853,
+						"buffer_size": 2912,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								0,
-								0
+								1631,
+								1641
 							]
 						],
 						"settings":
@@ -877,27 +996,27 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 1125.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 8,
+					"stack_index": 7,
 					"type": "text"
 				},
 				{
-					"buffer": 7,
+					"buffer": 10,
 					"file": "code/hackformer_math.h",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 4307,
+						"buffer_size": 6763,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								0,
-								0
+								2448,
+								2448
 							]
 						],
 						"settings":
@@ -906,39 +1025,10 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 2358.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 6,
-					"type": "text"
-				},
-				{
-					"buffer": 8,
-					"file": "code/hackformer_renderer.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 1728,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								0,
-								0
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 0.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 7,
+					"stack_index": 8,
 					"type": "text"
 				}
 			]
@@ -972,7 +1062,7 @@
 		"cols":
 		[
 			0.0,
-			0.516145833333,
+			0.509375,
 			1.0
 		],
 		"rows":

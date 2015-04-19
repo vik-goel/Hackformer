@@ -21,6 +21,7 @@ Bug Fixes
 - Hacking animation just go into then stop then go out of
 - Finish full walk animation before transition out
 
+- Collision with the objects inside you
 
 New Features
 -------------
@@ -41,9 +42,17 @@ New Features
 
 - Handle shadows properly
 
+- Hacking gravity
+- Hack the topology of the world
+- Hack to make player reflect bullets
+- Hack the mass of entities
+
 */
 
 #define arrayCount(array) sizeof(array) / sizeof(array[0])
+#define InvalidCodePath assert(!"Invalid Code Path");
+#define InvalidDefaultCase default: { assert(!"Invalid Default Case"); } break
+
 #define SHOW_COLLISION_BOUNDS 0
 
 #define uint unsigned int
@@ -53,10 +62,14 @@ New Features
 #include <cmath>
 #include <cstdio>
 #include <cassert>
+#include <string>
+
+#include "glew.h"
 
 #include "SDL.h"
 #include "SDL_image.h"
 #include "SDL_ttf.h"
+#include "SDL_opengl.h"
 
 #include "hackformer_math.h"
 #include "hackformer_renderer.h"
@@ -159,17 +172,32 @@ struct GameState {
 	V2 windowSize;
 
 	V2 gravity;
+	V2 texel;
 
 	V2 playerStartP;
 	V2 playerDeathStartP;
 	V2 playerDeathSize;
 
-	Texture playerStand, playerJump;
-	Animation playerWalk, playerStandWalkTransition;
-	Animation playerHackingAnimation;
+	AnimNode playerStand;
+	AnimNode playerWalk;
+	AnimNode playerHack;
+	AnimNode playerJump;
 
-	Texture virus1Stand;
-	Animation virus1Shoot;
+	AnimNode virus1Stand;
+	AnimNode virus1Shoot;
+
+	AnimNode flyingVirusStand;
+	AnimNode flyingVirusShoot;
+
+	// Texture playerStand, playerJump;
+	// Animation playerWalk, playerStandWalkTransition;
+	// Animation playerHackingAnimation;
+	//Animation playerHackingAnimationTransition;
+
+
+
+	// Texture virus1Stand;
+	// Animation virus1Shoot;
 
 	Texture bgTex, mgTex;
 	Texture sunsetCityBg, sunsetCityMg;
@@ -185,11 +213,14 @@ struct GameState {
 	Texture laserTopOff, laserTopOn;
 	Texture laserBeam;
 
-	Texture flyingVirus;
-	Animation flyingVirusShoot;
+	// Texture flyingVirus;
+	// Animation flyingVirusShoot;
 
 	Texture heavyTileTex;
 	Texture* tileAtlas;
+
+	Texture dock;
+	Texture dockBlueEnergyTile;
 };
 
 #define pushArray(arena, type, count) (type*)pushIntoArena_(arena, count * sizeof(type))
