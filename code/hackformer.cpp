@@ -592,6 +592,8 @@ int main(int argc, char *argv[]) {
 
 	gameState->dock = loadPNGTexture(gameState, "res/dock");
 	gameState->dockBlueEnergyTile = loadPNGTexture(gameState, "res/Blue Energy Tile");
+	gameState->attribute = loadPNGTexture(gameState, "res/Attribute");
+	gameState->behaviour = loadPNGTexture(gameState, "res/Behaviour");
 
 	uint numTilesInAtlas;
 	gameState->tileAtlas = extractTextures(gameState, "res/tiles_floored", 120, 240, 12, &numTilesInAtlas);
@@ -640,7 +642,7 @@ int main(int argc, char *argv[]) {
 			if (dtForFrame > maxDtForFrame) dtForFrame = maxDtForFrame;
 
 			fps++;
-			gameState->swapFieldP = gameState->windowSize * 0.5 + v2(0, 3);
+			gameState->swapFieldP = gameState->windowSize * 0.5 + v2(0, 4.25);
 
 			pollInput(gameState, &running);
 
@@ -650,7 +652,6 @@ int main(int argc, char *argv[]) {
 			updateAndRenderEntities(gameState, dtForFrame);
 
 			pushSortEnd(gameState->renderGroup);
-			updateConsole(gameState, dtForFrame);
 
 			{ //Draw the dock
 				V2 size = gameState->windowSize.x * v2(1, gameState->dock.size.y / gameState->dock.size.x);
@@ -679,6 +680,7 @@ int main(int argc, char *argv[]) {
 				
 			}
 
+			updateConsole(gameState, dtForFrame);
 			drawRenderGroup(gameState->renderGroup);
 			removeEntities(gameState);
 
@@ -715,7 +717,7 @@ int main(int argc, char *argv[]) {
 			uint frameEnd = SDL_GetTicks();
 			uint frameTime = frameEnd - frameStart;
 
-			printf("Frame Time: %d\n", frameTime);
+			//printf("Frame Time: %d\n", frameTime);
 
 			//SDL_RenderPresent(renderer); //Swap the buffers
 			SDL_GL_SwapWindow(window);

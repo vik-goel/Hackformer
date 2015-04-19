@@ -18,10 +18,9 @@ Bug Fixes
 - test remove when outside level to see that it works
 - if the entity which you are keyboard controlling is removed, the level should restart
 
-- Hacking animation just go into then stop then go out of
-- Finish full walk animation before transition out
-
 - Collision with the objects inside you
+- If the text becomes keyboard controlled when inside an entity, ignore collisions with it until it gets outside
+
 
 New Features
 -------------
@@ -189,16 +188,6 @@ struct GameState {
 	AnimNode flyingVirusStand;
 	AnimNode flyingVirusShoot;
 
-	// Texture playerStand, playerJump;
-	// Animation playerWalk, playerStandWalkTransition;
-	// Animation playerHackingAnimation;
-	//Animation playerHackingAnimationTransition;
-
-
-
-	// Texture virus1Stand;
-	// Animation virus1Shoot;
-
 	Texture bgTex, mgTex;
 	Texture sunsetCityBg, sunsetCityMg;
 	Texture marineCityBg, marineCityMg;
@@ -213,14 +202,12 @@ struct GameState {
 	Texture laserTopOff, laserTopOn;
 	Texture laserBeam;
 
-	// Texture flyingVirus;
-	// Animation flyingVirusShoot;
-
 	Texture heavyTileTex;
 	Texture* tileAtlas;
 
 	Texture dock;
 	Texture dockBlueEnergyTile;
+	Texture attribute, behaviour;
 };
 
 #define pushArray(arena, type, count) (type*)pushIntoArena_(arena, count * sizeof(type))

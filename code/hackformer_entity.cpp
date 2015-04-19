@@ -141,15 +141,24 @@ void setEntityP(Entity* entity, V2 newP, GameState* gameState) {
 }
 
 void addGroundReference(Entity* top, Entity* ground, GameState* gameState) {
+	if(top->type == EntityType_tile && !getMovementField(top)) return;
+
 	top->jumpCount = 0;
 	setFlags(top, EntityFlag_grounded);
 	top->timeSinceLastOnGround = 0;
 
-	RefNode* node = ground->groundReferenceList;
+	RefNode* groundNode = ground->groundReferenceList;
 
-	while(node) {
-		if (node->ref == top->ref) return;
-		node = node->next;
+	while(groundNode) {
+		if (groundNode->ref == top->ref) return;
+		groundNode = groundNode->next;
+	}
+
+	RefNode* topNode = top->groundReferenceList;
+
+	while(topNode) {
+		if (topNode->ref == ground->ref) return;
+		topNode = topNode->next;
 	}
 
 
@@ -357,7 +366,7 @@ void addChildToConsoleField(ConsoleField* parent, ConsoleField* child) {
 
 //TODO: Clean up speed and jump height values
 void addKeyboardField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "keyboard_controlled", ConsoleField_keyboardControlled);
+	ConsoleField* result = createConsoleField(gameState, "accepts_input", ConsoleField_keyboardControlled);
 
 	double keyboardSpeedFieldValues[] = {20, 40, 60, 80, 100}; 
 	double keyboardJumpHeightFieldValues[] = {1, 3, 5, 7, 9}; 
@@ -1660,8 +1669,8 @@ void centerCameraAround(Entity* entity, GameState* gameState) {
 	double maxCameraX = gameState->mapSize.x - gameState->windowSize.x;
 	double x = clamp((double)(entity->p.x - gameState->windowSize.x / 2.0), 0, maxCameraX);
 
-	int xTexel = (int)((int)(x * gameState->pixelsPerMeter) / gameState->texel.x);
-	x = (xTexel + 0.5) * gameState->texel.x / gameState->pixelsPerMeter;
+	// int xTexel = (int)((int)(x * gameState->pixelsPerMeter) / gameState->texel.x);
+	// x = (xTexel + 0.5) * gameState->texel.x / gameState->pixelsPerMeter;
 
 	gameState->newCameraP.x = x;
 }
@@ -1676,7 +1685,14 @@ bool canEntityShoot(Entity* entity, GameState* gameState) {
 }
 
 void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
-	double dt = getEntityByRef(gameState, gameState->consoleEntityRef) ? 0 : dtForFrame;
+	bool hacking = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
+
+	{
+		Entity* player = getEntityByRef(gameState, gameState->playerRef);
+		if(player && player->currentAnim == &gameState->playerHack) hacking = true;
+	}
+
+	double dt = hacking ? 0 : dtForFrame;
 
 	if(!gameState->doingInitialSim) {
 		//TODO: It might be possible to combine the three loops which handle ground reference lists later
@@ -1718,7 +1734,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			Entity* below = onGround(entity, gameState);
 
 			if (below) {
-					addGroundReference(entity, below, gameState);
+				addGroundReference(entity, below, gameState);
 			}
 		}
 	} else {
@@ -1735,12 +1751,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 	for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 		Entity* entity = gameState->entities + entityIndex;
 
-		bool showPlayerHackingAnim = entity->type == EntityType_player && getEntityByRef(gameState, gameState->consoleEntityRef);
-
 		removeFieldsIfSet(entity->fields, &entity->numFields);
-
-
-
 
 		bool shootingState = false;
 		ConsoleField* shootField = NULL;
@@ -1843,7 +1854,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 
 		//NOTE: This handles moving the entity
-		if (movementField && entity->currentAnim != &gameState->playerHack) {
+		if (movementField) {
 			ConsoleField* speedField = movementField->children[0];
 			double xMoveAcceleration = speedField->doubleValues[speedField->selectedIndex];
 
@@ -1895,6 +1906,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 					move(entity, dt, gameState, ddP);
 
+					//NOTE: This ensures the entity stays within the bounds of the map on x
 					Hitbox* hitbox = entity->hitboxes;
 					while(hitbox) {
 						double minX = hitbox->collisionSize.x / 2;
@@ -2058,8 +2070,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 				double bgScrollRate = bgTexWidth / mgTexWidth;
 
-				double bgHeight = gameState->windowHeight / gameState->pixelsPerMeter;
-				double mgWidth = max(gameState->mapSize.x, mgTexWidth / gameState->pixelsPerMeter);
+				double bgHeight = gameState->windowSize.y;
+				double mgWidth = max(gameState->mapSize.x, mgTexWidth);
 								
 				double bgWidth = mgWidth / bgScrollRate - 1;
 
@@ -2177,8 +2189,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 
 		//NOTE: This handles rendering all the entities
+		bool showPlayerHackingAnim = entity->type == EntityType_player && getEntityByRef(gameState, gameState->consoleEntityRef);
 
-		if (showPlayerHackingAnim) {
+		if (entity->type == EntityType_player && hacking) {
 			entity->animTime += dtForFrame;
 		} else {
 			entity->animTime += dt;
@@ -2322,7 +2335,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			bool drawLeft = isSet(entity, EntityFlag_facesLeft);
 			if (entity->type == EntityType_laserBase) drawLeft = false;
 
-			if(showPlayerHackingAnim && !isSet(entity, EntityFlag_animIntro|EntityFlag_animOutro)) {
+			if(entity->currentAnim == &gameState->playerHack && !isSet(entity, EntityFlag_animIntro|EntityFlag_animOutro)) {
 				V2 boundsIncrease = v2(entity->renderSize.x, 0);
 				V2 offset = boundsIncrease * 0.5 * (drawLeft ? -1 : 1);
 				R2 bounds = rectCenterDiameter(entity->p + offset, entity->renderSize + boundsIncrease);

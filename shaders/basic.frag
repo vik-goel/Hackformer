@@ -30,7 +30,7 @@ varying vec2 texCoord;
 varying vec2 worldP;
 
 void main() {
-	vec4 texColor = texture2D(diffuseTexture, texCoord) * tint;
+	vec4 texColor = texture2D(diffuseTexture, texCoord);
 	// vec3 normal = texture2D(normalTexture, texCoord).xyz * 2.0 - vec3(1.0);
 
 	// normal.x *= normalXFlip;
@@ -92,8 +92,8 @@ void main() {
 	//result *= texColor.xyz;
 
 	vec3 gamma = vec3(1.0 / 2.2);
-	result = pow(result, gamma); 
+	result = pow(result, gamma) * tint.xyz; 
 
-	gl_FragColor = vec4(result, texColor.a);
+	gl_FragColor = vec4(result, texColor.a * tint.a);
     //gl_FragColor = vec4(normal * 0.5 + vec3(0.5), texColor.a);
 }

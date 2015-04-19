@@ -35,7 +35,7 @@ GLuint addShader_(GLenum type, char* sourceFileName, Shader shaderProgram) {
 	glCompileShader(shader);
 	GLint compileSuccess = 0;
 	glGetShaderiv(shader, GL_COMPILE_STATUS, &compileSuccess);
-
+		
 	if (compileSuccess == GL_FALSE) {
 		char errorBuffer[1024];
 		int errorLength = 0;

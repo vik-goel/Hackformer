@@ -14,7 +14,6 @@ enum ConsoleFieldFlags {
 	ConsoleFlag_selected = 1 << 0,
 	ConsoleFlag_remove = 1 << 1,
 	ConsoleFlag_childrenVisible = 1 << 2,
-	ConsoleFlag_fixOffset = 1 << 3,
 };
 
 struct ConsoleField {
@@ -26,7 +25,7 @@ struct ConsoleField {
 	//NOTE: These attributes are used for fields with many values
 	union {
 		double doubleValues[5];
-		int intValues[8];
+		int intValues[10];
 	};
 	int numValues;
 	
@@ -37,9 +36,10 @@ struct ConsoleField {
 	
 	char valueStr[100];
 
+	V2 p;
+
 	//NOTE: These attributes are used for drag and droppable fields
 	V2 offs;
-	V2 tempCenter;
 
 	//NOTE: This is used for storage in the free list
 	ConsoleField* next;
@@ -48,6 +48,14 @@ struct ConsoleField {
 	ConsoleField* children[4];
 	int numChildren;
 	double childYOffs;
+};
+
+struct FieldSpec {
+	V2 fieldSize;
+	V2 triangleSize;
+	V2 valueSize;
+	V2 spacing;
+	double childInset;
 };
 
 bool isConsoleFieldMovementType(ConsoleField* field) {
