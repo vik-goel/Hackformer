@@ -35,8 +35,6 @@ enum DrawType {
 	DrawType_RenderText,
 	DrawType_RenderFillRect,
 	DrawType_RenderOutlinedRect,
-	DrawType_pointLight,
-	DrawType_spotLight,
 };
 
 struct Color {
@@ -46,19 +44,19 @@ struct Color {
 struct PointLight {
 	V3 p;
 	V3 color;
-	V3 atten; //(constant, linear, exponent)
+	double range;
 };
 
 struct SpotLight {
 	PointLight base;
-	double angle;
+	double angle; //degrees
 	double spread;
 };
 
 struct PointLightUniforms {
 	GLint p;
 	GLint color;
-	GLint atten;
+	GLint range;
 };
 
 struct SpotLightUniforms {
@@ -70,6 +68,11 @@ struct SpotLightUniforms {
 struct Shader {
 	GLuint program;
 	GLint tintUniformLocation;
+};
+
+struct ForwardShader {
+	Shader shader;
+
 	GLint ambientUniform;
 	GLint normalXFlipUniform;
 
@@ -94,8 +97,8 @@ enum Orientation {
 };
 
 
-#define RENDER_HEADER_TYPE_MASK ((1 << 16) - 1)
-#define RENDER_HEADER_CLIP_RECT_FLAG (1 << 16)
+#define RENDER_HEADER_TYPE_MASK ((1 << 15) - 1)
+#define RENDER_HEADER_CLIP_RECT_FLAG (1 << 15)
 struct RenderHeader {
 //NOTE: The lower 15 bits of this type field is used to store the DrawType
 //		The 16th bit is used to store whether or not the elem has a clip rect or not
@@ -109,6 +112,7 @@ struct RenderTexture {
 	Texture* texture;
 	bool flipX;
 	Orientation orientation;
+	float emissivity;
 };
 
 struct RenderEntityTexture {
@@ -140,7 +144,10 @@ struct RenderOutlinedRect {
 };
 
 struct RenderGroup {
-	Shader shader;
+	ForwardShader forwardShader;
+	Shader basicShader;
+	Shader* currentShader;
+
 	Texture whiteTex;
 	GLuint nullNormalId;
 

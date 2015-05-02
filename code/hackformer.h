@@ -18,7 +18,6 @@ Bug Fixes
 - test remove when outside level to see that it works
 - if the entity which you are keyboard controlling is removed, the level should restart
 
-- Collision with the objects inside you
 - If the text becomes keyboard controlled when inside an entity, ignore collisions with it until it gets outside
 
 
@@ -26,10 +25,8 @@ New Features
 -------------
 - locking fields so they can't be moved
 - locking fields so they can't be modified
-- more console fields
 
 - Fade console fields in and out
-- Handle overlaps between entities (and their fields) with the swap field
 
 - Multiline text
 
@@ -38,6 +35,9 @@ New Features
 - Trail effect on death
 
 - Cloning fields
+- Cloning entire entities 
+
+- When an entity dies, make its fields collectable in the world so they don't just disappear
 
 - Handle shadows properly
 
@@ -46,6 +46,11 @@ New Features
 - Hack to make player reflect bullets
 - Hack the mass of entities
 
+- Make the background hackable (change from sunset to marine)
+- Hack the text and type in new messages
+
+- Make entities resizable
+
 */
 
 #define arrayCount(array) sizeof(array) / sizeof(array[0])
@@ -53,6 +58,7 @@ New Features
 #define InvalidDefaultCase default: { assert(!"Invalid Default Case"); } break
 
 #define SHOW_COLLISION_BOUNDS 0
+#define SHOW_CLICK_BOUNDS 0
 
 #define uint unsigned int
 

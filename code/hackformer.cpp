@@ -346,7 +346,7 @@ void pollInput(GameState* gameState, bool* running) {
 				input->mouseInMeters = mouseInMeters;
 				input->mouseInWorld = input->mouseInMeters + gameState->cameraP;
 
-				} break;
+			} break;
 			case SDL_MOUSEBUTTONDOWN:
 			case SDL_MOUSEBUTTONUP:
 				if (event.button.button == SDL_BUTTON_LEFT) {
@@ -400,7 +400,7 @@ void loadLevel(GameState* gameState, char** maps, int numMaps, int* mapFileIndex
 	}
 
 	loadTmxMap(gameState, maps[*mapFileIndex]);
-	addFlyingVirus(gameState, v2(5, 6));
+	addFlyingVirus(gameState, v2(7, 6));
 	addHeavyTile(gameState, v2(3, 7));
 
 	V2 playerDeathStartP = gameState->playerDeathStartP;
@@ -475,8 +475,6 @@ int main(int argc, char *argv[]) {
 										  windowWidth, windowHeight, 
 										  SDL_WINDOW_ALLOW_HIGHDPI|SDL_WINDOW_OPENGL);
 
-
-	
 	SDL_GLContext glContext = SDL_GL_CreateContext(window);
 	assert(glContext);
 
@@ -535,7 +533,7 @@ int main(int argc, char *argv[]) {
 
 	Texture playerStand = loadPNGTexture(gameState, "res/player/stand2");
 	Texture playerJump = loadPNGTexture(gameState, "res/player/jump2");
-	Animation playerWalk = loadAnimation(gameState, "res/player/running 2", 256, 256, 0.035f, true);
+	Animation playerWalk = loadAnimation(gameState, "res/player/running 2", 256, 256, 0.0325f, true);
 	Animation playerStandWalkTransition = loadAnimation(gameState, "res/player/stand_run_transition", 256, 256, 0.01f, false);
 	Animation playerHackingAnimation = loadAnimation(gameState, "res/player/Hacking Flow Sprite", 512, 256, 0.07f, false);
 	Animation playerHackingAnimationTransition = loadAnimation(gameState, "res/player/Hacking Sprite Full 2", 256, 256, 0.025f, false);
@@ -590,10 +588,10 @@ int main(int argc, char *argv[]) {
 
 	gameState->heavyTileTex = loadPNGTexture(gameState, "res/Heavy1");
 
-	gameState->dock = loadPNGTexture(gameState, "res/dock");
-	gameState->dockBlueEnergyTile = loadPNGTexture(gameState, "res/Blue Energy Tile");
-	gameState->attribute = loadPNGTexture(gameState, "res/Attribute");
-	gameState->behaviour = loadPNGTexture(gameState, "res/Behaviour");
+	gameState->dock = loadPNGTexture(gameState, "res/dock", false);
+	gameState->dockBlueEnergyTile = loadPNGTexture(gameState, "res/Blue Energy Tile", false);
+	gameState->attribute = loadPNGTexture(gameState, "res/Attribute", false);
+	gameState->behaviour = loadPNGTexture(gameState, "res/Behaviour", false);
 
 	uint numTilesInAtlas;
 	gameState->tileAtlas = extractTextures(gameState, "res/tiles_floored", 120, 240, 12, &numTilesInAtlas);
@@ -605,8 +603,6 @@ int main(int argc, char *argv[]) {
 	};
 
 	int mapFileIndex = 0;
-	//loadTmxMap(gameState, mapFileNames[mapFileIndex]);
-
 	loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, false);
 
 	bool running = true;

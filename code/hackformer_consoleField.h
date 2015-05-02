@@ -1,4 +1,5 @@
 enum ConsoleFieldType {
+	ConsoleField_cameraFollows,
 	ConsoleField_keyboardControlled,
 	ConsoleField_movesBackAndForth,
 	ConsoleField_seeksTarget,

@@ -340,14 +340,14 @@ bool drawOutlinedConsoleBox(ConsoleField* field, GameState* gameState,
 
 		//NOTE: This takes into account the dot at the beginning and the feather at the end of the behaviour 
 		//	    and attribute sprites when positioning the text
-		bounds.min.x += getRectWidth(bounds) * 0.15;
+		bounds.min.x += getRectWidth(bounds) * 0.14;
 
 		text = field->name;
 	} else {
 		Color color = createColor(100, 255, 100, 255); //green
 
 		R2 strokedBounds = scaleRect(bounds, 0.9 * v2(1, 1));
-		double stroke = 0.02;
+		double stroke = 0.03;
 
 		pushFilledRect(gameState->renderGroup, strokedBounds, color);
 		pushOutlinedRect(gameState->renderGroup, strokedBounds, stroke, createColor(0, 0, 0, 255));
@@ -414,7 +414,7 @@ bool drawConsoleTriangle(GameState* gameState, V2 triangleP, FieldSpec* spec,
 				if (facesDown && tweakCost == 0) {
 					toggleFlags(field, ConsoleFlag_childrenVisible);
 				} else {
-					int dSelectedIndex = facesRight ? -1 : 1;
+					int dSelectedIndex = (facesRight || facesDown) ? -1 : 1;
 					setConsoleFieldSelectedIndex(field, field->selectedIndex + dSelectedIndex, gameState);
 				}
 			}
@@ -435,16 +435,16 @@ bool drawConsoleTriangle(GameState* gameState, V2 triangleP, FieldSpec* spec,
 		V2 costP = triangleBounds.min;
 
 		if (facesDown) {
-			costP += v2(spec->triangleSize.x / 2 - costStrWidth / 2, gameState->consoleFont.lineHeight);
+			costP += v2(spec->triangleSize.x / 2 - costStrWidth / 2, gameState->consoleFont.lineHeight * 1.5);
 		}
 		else if (facesUp) {
-			costP += v2(spec->triangleSize.x / 2 - costStrWidth / 2, gameState->consoleFont.lineHeight / 4);
+			costP += v2(spec->triangleSize.x / 2 - costStrWidth / 2, gameState->consoleFont.lineHeight / 2);
 		}
 		else if (facesRight) {
-			costP += v2(spec->triangleSize.x / 2 + costStrWidth / 4, gameState->consoleFont.lineHeight / 2);
+			costP += v2(spec->triangleSize.x / 2 + costStrWidth / 4, gameState->consoleFont.lineHeight);
 		}
 		else {
-			costP += v2(costStrWidth / 2, gameState->consoleFont.lineHeight / 2);
+			costP += v2(costStrWidth, gameState->consoleFont.lineHeight);
 		}
 
 		pushText(gameState->renderGroup, &gameState->consoleFont, tweakCostStr, costP);
@@ -455,7 +455,7 @@ bool drawConsoleTriangle(GameState* gameState, V2 triangleP, FieldSpec* spec,
 
 bool drawFields(GameState* gameState, Entity* entity, double dt, V2* fieldP, FieldSpec* spec);
 
-bool drawConsoleField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* spec) {
+bool drawConsoleField(ConsoleField* field, GameState* gameState, FieldSpec* spec) {
 	// if (isSet(field, ConsoleFlag_fixOffset)) {
 	// 	field->offs = field->tempCenter - *fieldP;
 	// 	clearFlags(field, ConsoleFlag_fixOffset);
@@ -585,24 +585,24 @@ bool calcFieldPositions(GameState* gameState, ConsoleField** fields, int fieldsC
 	return result;
 }
 
-bool drawFieldsRaw(GameState* gameState, ConsoleField** fields, int fieldsCount, double dt, FieldSpec* spec) {
+bool drawFieldsRaw(GameState* gameState, ConsoleField** fields, int fieldsCount, FieldSpec* spec) {
 	bool result = false;
 
 	for (int fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
 		ConsoleField* field = fields[fieldIndex];
-		if (drawConsoleField(field, gameState, dt, spec)) result = true;
+		if (drawConsoleField(field, gameState, spec)) result = true;
 
 		if (field->numChildren && field->childYOffs) {
-			//NOTE: 0.1 and 2.5 are just arbitrary values which make the clipRect big enough
+			//NOTE: 0.1, 0.02 and 3 are just arbitrary values which make the clipRect big enough
 			V2 clipPoint1 = field->p - v2(spec->fieldSize.x / 2 + 0.1 - spec->childInset, field->childYOffs + spec->fieldSize.y / 2 + spec->spacing.y);
-			V2 clipPoint2 = field->p + v2(spec->fieldSize.x / 2 + 2.5 + spec->childInset, -spec->fieldSize.y / 2);
+			V2 clipPoint2 = field->p + v2(spec->fieldSize.x / 2 + 3 + spec->childInset, -spec->fieldSize.y / 2 + 0.02);
 
 			R2 clipRect = r2(clipPoint1, clipPoint2);
 			pushClipRect(gameState->renderGroup, clipRect);
 
 			//pushFilledRect(gameState->renderGroup, clipRect, createColor(255, 0, 255, 255), false);
 
-			if (drawFieldsRaw(gameState, field->children, field->numChildren, dt, spec)) result = true;
+			if (drawFieldsRaw(gameState, field->children, field->numChildren, spec)) result = true;
 
 			pushDefaultClipRect(gameState->renderGroup);
 		}
@@ -621,7 +621,7 @@ bool drawFields(GameState* gameState, Entity* entity, int fieldSkip, double dt, 
 		result = true;
 	}
 
-	if(drawFieldsRaw(gameState, entity->fields + fieldSkip, entity->numFields - fieldSkip, dt, spec)) {
+	if(drawFieldsRaw(gameState, entity->fields + fieldSkip, entity->numFields - fieldSkip, spec)) {
 		result = true;
 	}
 
@@ -634,8 +634,8 @@ void updateConsole(GameState* gameState, double dt) {
 	FieldSpec fieldSpec;
 	FieldSpec* spec = &fieldSpec;
 
-	fieldSpec.fieldSize = v2(2.1, 0.4);
-	fieldSpec.triangleSize = v2(fieldSpec.fieldSize.y, fieldSpec.fieldSize.y);
+	fieldSpec.fieldSize = v2(2.55, 0.6);//v2(2.1, 0.4);
+	fieldSpec.triangleSize = (fieldSpec.fieldSize.y * 0.8) * v2(1, 1);
 	fieldSpec.valueSize = v2(fieldSpec.fieldSize.x * 0.5, fieldSpec.fieldSize.y);
 	fieldSpec.spacing = v2(0.05, 0);
 	fieldSpec.childInset = fieldSpec.fieldSize.x * 0.25;
@@ -696,7 +696,7 @@ void updateConsole(GameState* gameState, double dt) {
 				triangleP = entity->p + clickBoxCenter - gameState->cameraP - v2(0, halfTriangleOffset.y);
 
 				if (drawTop && drawConsoleTriangle(gameState, triangleP, spec, 
-								true, false, true, yellow, yOffsetField, yOffsetField->tweakCost)) {
+								false, true, false, yellow, yOffsetField, yOffsetField->tweakCost)) {
 					clickHandled = true;
 				}
 
@@ -766,7 +766,7 @@ void updateConsole(GameState* gameState, double dt) {
 				clickHandled = true;
 
 			if (gameState->swapField) {
-				if (drawFieldsRaw(gameState, &gameState->swapField, 1, dt, spec))
+				if (drawFieldsRaw(gameState, &gameState->swapField, 1, spec))
 					clickHandled = true;
 			}
 		}  

@@ -10,7 +10,6 @@ enum EntityType {
 	EntityType_laserBolt,
 	EntityType_endPortal,
 	EntityType_laserBase,
-	EntityType_laserTop,
 	EntityType_laserBeam,
 	EntityType_flyingVirus,
 };
@@ -25,7 +24,6 @@ enum DrawOrder {
 	DrawOrder_laserController,
 	DrawOrder_laserBeam,
 	DrawOrder_laserBase,
-	DrawOrder_laserTop,
 	DrawOrder_virus,
 	DrawOrder_flyingVirus,
 	DrawOrder_heavyTile,
@@ -46,9 +44,8 @@ enum EntityFlag {
 	EntityFlag_grounded = 1 << 7,
 	EntityFlag_laserOn = 1 << 8,
 	EntityFlag_movedByGround = 1 << 9,
-	EntityFlag_emitsLight = 1 << 10,
-	EntityFlag_animIntro = 1 << 11,
-	EntityFlag_animOutro = 1 << 12,
+	EntityFlag_animIntro = 1 << 10,
+	EntityFlag_animOutro = 1 << 11,
 };
 
 struct RefNode {
@@ -81,7 +78,8 @@ struct Entity {
 
 	RefNode* groundReferenceList;
 
-	PointLight pointLight;
+	float emissivity;
+	double spotLightAngle;
 
 	//Used by any entity that shoots
 	double shootTimer;

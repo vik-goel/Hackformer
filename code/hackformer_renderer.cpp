@@ -20,6 +20,7 @@ void loadShaderSource(char* fileName, char* source, int maxSourceLength) {
 	}
 
 	*source = 0;
+	fclose(file);
 }
 
 GLuint addShader_(GLenum type, char* sourceFileName, Shader shaderProgram) {
@@ -35,13 +36,13 @@ GLuint addShader_(GLenum type, char* sourceFileName, Shader shaderProgram) {
 	glCompileShader(shader);
 	GLint compileSuccess = 0;
 	glGetShaderiv(shader, GL_COMPILE_STATUS, &compileSuccess);
-		
+
 	if (compileSuccess == GL_FALSE) {
 		char errorBuffer[1024];
 		int errorLength = 0;
 		glGetShaderInfoLog(shader, arrayCount(errorBuffer), &errorLength, errorBuffer);
 		fprintf(stderr, "Failed to compile shader: %s\n", errorBuffer);
-		assert(false);
+		InvalidCodePath;
 	}
 
 	glAttachShader(shaderProgram.program, shader);
@@ -68,7 +69,7 @@ Shader createShader(char* vertexShaderSourceFileName, char* fragmentShaderSource
 		GLsizei errorLength = 0;
 		glGetProgramInfoLog(result.program, (GLsizei)arrayCount(errorBuffer), &errorLength, errorBuffer);
 		fprintf(stderr, "Failed to link shader: %s\n", errorBuffer);
-		assert(false);
+		InvalidCodePath;
 	}
 
 	glDetachShader(result.program, vertexShader);
@@ -82,27 +83,39 @@ Shader createShader(char* vertexShaderSourceFileName, char* fragmentShaderSource
 	glUniform2f(windowSizeUniformLocation, (GLfloat)(2.0/windowSize.x), (GLfloat)(2.0/windowSize.y));
 
 	result.tintUniformLocation = glGetUniformLocation(result.program, "tint");
-	result.ambientUniform = glGetUniformLocation(result.program, "ambient");
+
+	GLint diffuseLocation = glGetUniformLocation(result.program, "diffuseTexture");
+	glUniform1i(diffuseLocation, 0);
+
+	return result;
+}
+
+ForwardShader createForwardShader(char* vertexShaderSourceFileName, char* fragmentShaderSourceFileName, V2 windowSize) {
+	ForwardShader result = {};
+
+	result.shader = createShader(vertexShaderSourceFileName, fragmentShaderSourceFileName, windowSize);
+
+	result.ambientUniform = glGetUniformLocation(result.shader.program, "ambient");
 
 	std::string uniformPrefix = "pointLights[";
 
-	for(int lightIndex = 0; lightIndex < arrayCount(result.pointLightUniforms); lightIndex++) {
-		PointLightUniforms* lightUniforms = result.pointLightUniforms + lightIndex;
+		for(int lightIndex = 0; lightIndex < arrayCount(result.pointLightUniforms); lightIndex++) {
+			PointLightUniforms* lightUniforms = result.pointLightUniforms + lightIndex;
 
-		char lightIndexStrMem[5];
-		_itoa_s(lightIndex, lightIndexStrMem, 10);
+			char lightIndexStrMem[5];
+			_itoa_s(lightIndex, lightIndexStrMem, 10);
 
-		std::string pUniformName = uniformPrefix + lightIndexStrMem + "].p";
-		lightUniforms->p = glGetUniformLocation(result.program, pUniformName.c_str());
+			std::string pUniformName = uniformPrefix + lightIndexStrMem + "].p";
+lightUniforms->p = glGetUniformLocation(result.shader.program, pUniformName.c_str());
 
-		std::string colorUniformName = uniformPrefix + lightIndexStrMem + "].color";
-		lightUniforms->color = glGetUniformLocation(result.program, colorUniformName.c_str());
+std::string colorUniformName = uniformPrefix + lightIndexStrMem + "].color";
+lightUniforms->color = glGetUniformLocation(result.shader.program, colorUniformName.c_str());
 
-		std::string attenUniformName = uniformPrefix + lightIndexStrMem + "].atten";
-		lightUniforms->atten = glGetUniformLocation(result.program, attenUniformName.c_str());
-	}
+std::string rangeUniformName = uniformPrefix + lightIndexStrMem + "].range";
+lightUniforms->range = glGetUniformLocation(result.shader.program, rangeUniformName.c_str());
+}
 
-	uniformPrefix = "spotLights[";
+uniformPrefix = "spotLights[";
 
 	for(int lightIndex = 0; lightIndex < arrayCount(result.spotLightUniforms); lightIndex++) {
 		SpotLightUniforms* lightUniforms = result.spotLightUniforms + lightIndex;
@@ -111,30 +124,27 @@ Shader createShader(char* vertexShaderSourceFileName, char* fragmentShaderSource
 		_itoa_s(lightIndex, lightIndexStrMem, 10);
 
 		std::string pUniformName = uniformPrefix + lightIndexStrMem + "].base.p";
-		lightUniforms->base.p = glGetUniformLocation(result.program, pUniformName.c_str());
+lightUniforms->base.p = glGetUniformLocation(result.shader.program, pUniformName.c_str());
 
-		std::string colorUniformName = uniformPrefix + lightIndexStrMem + "].base.color";
-		lightUniforms->base.color = glGetUniformLocation(result.program, colorUniformName.c_str());
+std::string colorUniformName = uniformPrefix + lightIndexStrMem + "].base.color";
+lightUniforms->base.color = glGetUniformLocation(result.shader.program, colorUniformName.c_str());
 
-		std::string attenUniformName = uniformPrefix + lightIndexStrMem + "].base.atten";
-		lightUniforms->base.atten = glGetUniformLocation(result.program, attenUniformName.c_str());
+std::string dirUniformName = uniformPrefix + lightIndexStrMem + "].dir";
+lightUniforms->dir = glGetUniformLocation(result.shader.program, dirUniformName.c_str());
 
-		std::string dirUniformName = uniformPrefix + lightIndexStrMem + "].dir";
-		lightUniforms->dir = glGetUniformLocation(result.program, dirUniformName.c_str());
-		
-		std::string cutoffUniformName = uniformPrefix + lightIndexStrMem + "].cutoff";
-		lightUniforms->cutoff = glGetUniformLocation(result.program, cutoffUniformName.c_str());
-	}
+std::string cutoffUniformName = uniformPrefix + lightIndexStrMem + "].cutoff";
+lightUniforms->cutoff = glGetUniformLocation(result.shader.program, cutoffUniformName.c_str());
 
-	result.normalXFlipUniform = glGetUniformLocation(result.program, "normalXFlip");
+std::string rangeUniformName = uniformPrefix + lightIndexStrMem + "].base.range";
+lightUniforms->base.range = glGetUniformLocation(result.shader.program, rangeUniformName.c_str());
+}
 
-	GLint diffuseLocation = glGetUniformLocation(result.program, "diffuseTexture");
-	GLint normalLocation = glGetUniformLocation(result.program, "normalTexture");
+result.normalXFlipUniform = glGetUniformLocation(result.shader.program, "normalXFlip");
 
-	glUniform1i(diffuseLocation, 0);
-	glUniform1i(normalLocation, 1);
+GLint normalLocation = glGetUniformLocation(result.shader.program, "normalTexture");
+glUniform1i(normalLocation, 1);
 
-	return result;
+return result;
 }
 
 void freeTexture(Texture texture) {
@@ -168,6 +178,33 @@ GLuint generateTexture(SDL_Surface* image, bool srgb = false) {
 		format = GL_RGB;
 	} else if (image->format->BytesPerPixel == 4) {
 		format = GL_RGBA;
+
+		// char* pixelPtr = (char*)image->pixels;
+
+		// for(int y = 0; y < image->h; y++) {
+		// 	for(int x = 0; x < image->w; x++) {
+		// 		uint* pixel = (uint*)(pixelPtr + x * 4);
+
+		// 		int r = (*pixel >> 24) & 0xFF;
+		// 		int g = (*pixel >> 16) & 0xFF;
+		// 		int b = (*pixel >> 8) & 0xFF;
+		// 		int a = (*pixel) & 0xFF;
+
+		// 		float aFloat = (a + 0.5f) / 255.0f;
+		// 		float rFloat = ((r + 0.5f) / 255.0f) * aFloat;
+		// 		float gFloat = ((g + 0.5f) / 255.0f) * aFloat;
+		// 		float bFloat = ((b + 0.5f) / 255.0f) * aFloat;
+
+		// 		int newR = (int)(rFloat * 255.5f);
+		// 		int newG = (int)(gFloat * 255.5f);
+		// 		int newB = (int)(bFloat * 255.5f);
+
+		// 		*pixel = (newR << 24) | (newG << 16) | (newB << 8) | a;
+		// 	}
+
+		// 	pixelPtr += image->pitch;
+		//}
+
 	} else {
 		InvalidCodePath;
 	}
@@ -197,6 +234,7 @@ Texture createTexFromSurface(SDL_Surface* image, SDL_Surface* normal, RenderGrou
 	SDL_FreeSurface(image);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
+
 	// result.srcRect.w = image->w;
 	// result.srcRect.h = image->h;
 
@@ -217,7 +255,6 @@ Texture loadPNGTexture(GameState* gameState, char* fileName, bool loadNormalMap 
 	if (!diffuse) fprintf(stderr, "Failed to load image from: %s\n", fileName);
 	assert(diffuse);
 
-
 	std::string normalSuffix = "_NRM.png";
 	std::string normalFileName = fileName + normalSuffix;
 
@@ -234,7 +271,7 @@ TTF_Font* loadFont(char* fileName, int fontSize) {
 
 	if (!font) {
 		fprintf(stderr, "Failed to load font: %s\n", fileName);
-		assert(false);
+		InvalidCodePath;
 	}
 
 	TTF_SetFontHinting(font, TTF_HINTING_LIGHT);
@@ -272,7 +309,7 @@ Texture* extractTextures(GameState* gameState, char* fileName,
 	Texture* result = (Texture*)pushArray(&gameState->permanentStorage, Texture, *numFrames);
 
 	V2 frameSize = v2((double)(frameWidth + frameSpacing) / (double)texWidth, 
-					  (double)(frameHeight + frameSpacing) / (double)texHeight);
+		(double)(frameHeight + frameSpacing) / (double)texHeight);
 
 	V2 texSize = v2((double)frameWidth / (double)texWidth, (double)frameHeight/(double)texHeight);
 
@@ -288,7 +325,7 @@ Texture* extractTextures(GameState* gameState, char* fileName,
 			//frame->tex = tex.tex;
 
 			// SDL_Rect* rect = &frame->srcRect;
- 
+
 			// rect->x = colIndex * (frameWidth + frameSpacing) + frameSpacing / 2;
 			// rect->y = rowIndex * (frameHeight + frameSpacing) + frameSpacing / 2;
 			// rect->w = frameWidth;
@@ -387,7 +424,7 @@ void setColor(RenderGroup* group, Color color) {
 	GLfloat a = (GLfloat)((color.a + 0.5) / 255.0);
 
 
-	glUniform4f(group->shader.tintUniformLocation, r, g, b, a);
+	glUniform4f(group->currentShader->tintUniformLocation, r, g, b, a);
 }
 
 SDL_Rect getPixelSpaceRect(double pixelsPerMeter, int windowHeight, R2 rect) {
@@ -410,8 +447,8 @@ void setClipRect(SDL_Renderer* renderer, double pixelsPerMeter, int windowHeight
 
 	GLint x = (GLint)(rect.min.x * pixelsPerMeter);
 	GLint y = (GLint)(rect.min.y * pixelsPerMeter);
-	GLsizei width = (GLsizei)(getRectWidth(rect) *pixelsPerMeter);
-	GLsizei height = (GLsizei)(getRectHeight(rect) *pixelsPerMeter);
+	GLsizei width = (GLsizei)(getRectWidth(rect) * pixelsPerMeter);
+	GLsizei height = (GLsizei)(getRectHeight(rect) * pixelsPerMeter);
 
 	glEnable(GL_SCISSOR_TEST);
 	glScissor(x, y, width, height);
@@ -468,12 +505,17 @@ RenderGroup* createRenderGroup(GameState* gameState, uint size) {
 	result->windowWidth = gameState->windowWidth;
 	result->windowHeight = gameState->windowHeight;
 	result->windowBounds = r2(v2(0, 0), gameState->windowSize);
-	result->shader = createShader("shaders/basic.vert", "shaders/basic.frag", gameState->windowSize);
+	result->forwardShader = createForwardShader("shaders/forward.vert", "shaders/forward.frag", gameState->windowSize);
+	result->basicShader = createShader("shaders/basic.vert", "shaders/basic.frag", gameState->windowSize);
 
+	#if 0
 	SDL_Surface* nullNormalSurface = IMG_Load("res/no normal map.png");
 	assert(nullNormalSurface);
 	result->nullNormalId = generateTexture(nullNormalSurface);
 	SDL_FreeSurface(nullNormalSurface);
+	#else
+	result->nullNormalId = 0;
+	#endif
 
 	gameState->renderGroup = result;
 
@@ -504,9 +546,8 @@ void sendTexCoord(V2 uvMin, V2 uvMax, int orientation) {
 	}
 }
 
-void bindTexture(Texture* texture) {
+void bindTexture(Texture* texture, RenderGroup* group, bool flipX) {
 	assert(texture->texId);
-	assert(texture->normalId);
 
 	glEnable(GL_TEXTURE_2D);
 	glEnable(GL_BLEND);
@@ -515,21 +556,35 @@ void bindTexture(Texture* texture) {
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, texture->texId);
 
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, texture->normalId);
+	if(group->currentShader == (Shader*)&group->forwardShader) {
+		if(texture->normalId) {
+			glUniform1f(group->forwardShader.normalXFlipUniform, flipX ? 1.0f : -1.0f);
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, texture->normalId);
+		} else {
+			glUniform1f(group->forwardShader.normalXFlipUniform, 0);
+		}
+	}
 }
 
-void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Orientation orientation) {
+void setAmbient(RenderGroup* group, GLfloat ambient) {
+	glUniform3f(group->forwardShader.ambientUniform, ambient, ambient, ambient);
+}
+
+void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Orientation orientation, float emissivity, GLfloat ambient) {
 	// SDL_Rect dstRect = getPixelSpaceRect(group->pixelsPerMeter, group->windowHeight, bounds);
 
 	// SDL_RendererFlip flip = flipX ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
 	// SDL_RenderCopyEx(group->renderer, texture->tex, &texture->srcRect, &dstRect, degrees, NULL, flip);
 
-	bindTexture(texture);
+	if(emissivity) {
+		setAmbient(group, ambient + (1 - ambient) * emissivity);
+	}
 
-	glUniform1f(group->shader.normalXFlipUniform, flipX ? 1.0f : -1.0f);
-	
-	glColor4f(1, 1, 1, 1);
+	bindTexture(texture, group, flipX);
+
+	setColor(group, createColor(255, 255, 255, 255));
 
 	V2 uvMin = texture->uv.min;
 	V2 uvMax = texture->uv.max;
@@ -541,18 +596,22 @@ void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Or
 	}
 
 	glBegin(GL_QUADS);
-	   	sendTexCoord(uvMin, uvMax, orientation);
-	    glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);
+	sendTexCoord(uvMin, uvMax, orientation);
+	glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);
 
-	    sendTexCoord(uvMin, uvMax, (orientation + 1) % Orientation_count); 
-	    glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.min.y);
+	sendTexCoord(uvMin, uvMax, (orientation + 1) % Orientation_count); 
+	glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.min.y);
 
-	    sendTexCoord(uvMin, uvMax, (orientation + 2) % Orientation_count); 
-	    glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.max.y);
+	sendTexCoord(uvMin, uvMax, (orientation + 2) % Orientation_count); 
+	glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.max.y);
 
-	    sendTexCoord(uvMin, uvMax, (orientation + 3) % Orientation_count); 
-	    glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.max.y);
+	sendTexCoord(uvMin, uvMax, (orientation + 3) % Orientation_count); 
+	glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.max.y);
 	glEnd();
+
+	if(emissivity) {
+		setAmbient(group, ambient);
+	}
 }
 
 void drawText(RenderGroup* group, RenderText* render) {
@@ -567,7 +626,7 @@ void drawText(RenderGroup* group, RenderText* render) {
 		V2 size = texture->size * invScaleFactor;
 		R2 bounds = r2(render->p, render->p + size);
 
-		drawTexture(group, texture, bounds, false, Orientation_0);
+		drawTexture(group, texture, bounds, false, Orientation_0, 0, 1);
 
 		render->p.x += size.x;
 		msg++;
@@ -578,20 +637,20 @@ void drawFillRect(RenderGroup* group, R2 bounds) {
 	// SDL_Rect dstRect = getPixelSpaceRect(group->pixelsPerMeter, group->windowHeight, rect);
 	// SDL_RenderFillRect(group->renderer, &dstRect);
 
-	bindTexture(&group->whiteTex);
+	bindTexture(&group->whiteTex, group, false);
 
 	glBegin(GL_QUADS);
-	   	glTexCoord2f(0, 0);
-	    glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);
+	glTexCoord2f(0, 0);
+	glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);
 
-	    glTexCoord2f(1, 0);
-	    glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.min.y);
+	glTexCoord2f(1, 0);
+	glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.min.y);
 
-	    glTexCoord2f(1, 1);
-	    glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.max.y);
+	glTexCoord2f(1, 1);
+	glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.max.y);
 
-	   	glTexCoord2f(0, 1);
-	    glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.max.y);
+	glTexCoord2f(0, 1);
+	glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.max.y);
 	glEnd();
 }
 
@@ -686,19 +745,20 @@ void pushSortEnd(RenderGroup* group) {
 	group->sortAddressCutoff = group->allocated;
 }
 
-RenderTexture createRenderTexture(DrawOrder drawOrder, Texture* texture, bool flipX, Orientation orientation) {
+RenderTexture createRenderTexture(DrawOrder drawOrder, Texture* texture, bool flipX, Orientation orientation, float emissivity) {
 	RenderTexture result = {};
 
 	result.drawOrder = drawOrder;
 	result.texture = texture;
 	result.flipX = flipX;
 	result.orientation = orientation;
+	result.emissivity = emissivity;
 
 	return result;
 }
 
 void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, DrawOrder drawOrder,
-					bool moveIntoCameraSpace = false, Orientation orientation = Orientation_0) {
+	bool moveIntoCameraSpace = false, Orientation orientation = Orientation_0, float emissivity = 0) {
 
 	assert(texture);
 
@@ -708,7 +768,7 @@ void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Dr
 		RenderBoundedTexture* render = pushRenderElement(group, RenderBoundedTexture);
 
 		if (render) {
-			render->tex = createRenderTexture(drawOrder, texture, flipX, orientation);
+			render->tex = createRenderTexture(drawOrder, texture, flipX, orientation, emissivity);
 			render->bounds = drawBounds;
 		}
 	}
@@ -723,7 +783,7 @@ void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, boo
 		RenderEntityTexture* render = pushRenderElement(group, RenderEntityTexture);
 
 		if (render) {
-			render->tex = createRenderTexture(drawOrder, texture, flipX, orientation);
+			render->tex = createRenderTexture(drawOrder, texture, flipX, orientation, entity->emissivity);
 			render->p = &entity->p;
 			render->renderSize = &entity->renderSize;
 		}
@@ -775,41 +835,60 @@ void pushOutlinedRect(RenderGroup* group, R2 bounds, double thickness, Color col
 	}
 }
 
+PointLight createPointLight(V3 p, V3 color, double range) {
+	PointLight result = {};
+
+	result.p = p;
+	result.color = color;
+	result.range = range;
+
+	return result;
+}
+
+SpotLight createSpotLight(V2 p, V3 color, double range, double angle, double spread) {
+	SpotLight result = {};
+
+	result.base = createPointLight(v3(p, 0), color, range);
+	result.angle = angle;
+	result.spread = spread;
+
+	return result;
+}
+
 PointLight getRenderablePointLight(PointLight* light, bool moveIntoCameraSpace, V2 negativeCameraP) {
-	assert(light->atten.x >= 0);
-	assert(light->atten.y >= 0);
-	assert(light->atten.z >= 0);
+	assert(light->range > 0);
 
 	PointLight result = *light;
-
-	//NOTE: This is to avoid divide by 0 errors in the shader
-	if(result.atten.x == 0) result.atten.x = 0.00000001;
 	if (moveIntoCameraSpace) result.p += v3(negativeCameraP, 0);
 
 	return result;
 }
 
 void pushPointLight(RenderGroup* group, PointLight* pl, bool moveIntoCameraSpace = false) {
-	if(group->shader.numPointLights + 1 < arrayCount(group->shader.pointLights)) {
-		PointLight* light = group->shader.pointLights + group->shader.numPointLights;
-		group->shader.numPointLights++;
+	if(group->enabled) {
+		if(group->forwardShader.numPointLights + 1 < arrayCount(group->forwardShader.pointLights)) {
+			PointLight* light = group->forwardShader.pointLights + group->forwardShader.numPointLights;
+			group->forwardShader.numPointLights++;
 
-		*light = getRenderablePointLight(pl, moveIntoCameraSpace, group->negativeCameraP);
-	} else {
-		InvalidCodePath;
+			*light = getRenderablePointLight(pl, moveIntoCameraSpace, group->negativeCameraP);
+		} else {
+			InvalidCodePath;
+		}
 	}
 }
 
 void pushSpotLight(RenderGroup* group, SpotLight* sl, bool moveIntoCameraSpace = false) {
-	if(group->shader.numSpotLights + 1 < arrayCount(group->shader.spotLights)) {
-		SpotLight* light = group->shader.spotLights + group->shader.numSpotLights;
-		group->shader.numSpotLights++;
+	if(group->enabled) {
+		if(group->forwardShader.numSpotLights + 1 < arrayCount(group->forwardShader.spotLights)) {
+			SpotLight* light = group->forwardShader.spotLights + group->forwardShader.numSpotLights;
+			group->forwardShader.numSpotLights++;
 
-		light->base = getRenderablePointLight(&sl->base, moveIntoCameraSpace, group->negativeCameraP);
-		light->angle = sl->angle;
-		light->spread = sl->spread;
-	} else {
-		InvalidCodePath;
+			light->base = getRenderablePointLight(&sl->base, moveIntoCameraSpace, group->negativeCameraP);
+			light->angle = sl->angle;
+			light->spread = sl->spread;
+		} else {
+			InvalidCodePath;
+		}
 	}
 }
 
@@ -823,7 +902,7 @@ void pushDefaultClipRect(RenderGroup* group) {
 	group->hasClipRect = false;
 }
 
-int drawRenderElem(RenderGroup* group, void* elemPtr) {
+int drawRenderElem(RenderGroup* group, void* elemPtr, GLfloat ambient) {
 	RenderHeader* header = (RenderHeader*)elemPtr;
 	int elemSize = sizeof(RenderHeader);
 
@@ -843,7 +922,7 @@ int drawRenderElem(RenderGroup* group, void* elemPtr) {
 		case DrawType_RenderBoundedTexture: {
 			RenderBoundedTexture* render = (RenderBoundedTexture*)elemPtr;
 			setColor(group, createColor(255, 255, 255, 255));
-			drawTexture(group, render->tex.texture, render->bounds, render->tex.flipX, render->tex.orientation);
+			drawTexture(group, render->tex.texture, render->bounds, render->tex.flipX, render->tex.orientation, render->tex.emissivity, ambient);
 			elemSize += sizeof(RenderBoundedTexture);
 		} break;
 
@@ -851,7 +930,7 @@ int drawRenderElem(RenderGroup* group, void* elemPtr) {
 			RenderEntityTexture* render = (RenderEntityTexture*)elemPtr;
 			R2 bounds = rectCenterDiameter(*render->p + group->negativeCameraP, *render->renderSize);
 			setColor(group, createColor(255, 255, 255, 255));
-			drawTexture(group, render->tex.texture, bounds, render->tex.flipX, render->tex.orientation);
+			drawTexture(group, render->tex.texture, bounds, render->tex.flipX, render->tex.orientation, render->tex.emissivity, ambient);
 			elemSize += sizeof(RenderEntityTexture);
 		} break;
 
@@ -934,7 +1013,7 @@ int renderElemCompare(const void* a, const void* b) {
 			RenderBoundedTexture* boundedTex = (RenderBoundedTexture*)r2;
 			r2MinY = boundedTex->bounds.min.y;
 		}
-	
+
 		if(r1MinY > r2MinY) return 1;
 		if(r1MinY < r2MinY) return -1;
 
@@ -951,10 +1030,10 @@ int renderElemCompare(const void* a, const void* b) {
 
 bool isPointLightVisible(RenderGroup* group, PointLight* light) {
 	double colorDepth = 1.0 / 256.0;
-	double range = (1 - colorDepth * light->atten.x) / (colorDepth * (light->atten.y + square(light->atten.z)));
 
-	R2 maxLightBounds = translateRect(addRadiusTo(group->windowBounds, v2(1, 1) * range), -group->negativeCameraP);
+	R2 maxLightBounds = addRadiusTo(group->windowBounds, v2(1, 1) * light->range);
 
+	//TODO: Account for z
 	bool result = pointInsideRect(maxLightBounds, light->p.xy);
 	return result;
 }
@@ -962,100 +1041,101 @@ bool isPointLightVisible(RenderGroup* group, PointLight* light) {
 void setPointLightUniforms(PointLightUniforms* lightUniforms, PointLight* light) {
 	glUniform3f(lightUniforms->p, (GLfloat)light->p.x, (GLfloat)light->p.y, (GLfloat)light->p.z);
 	glUniform3f(lightUniforms->color, (GLfloat)light->color.x, (GLfloat)light->color.y, (GLfloat)light->color.z);
-	glUniform3f(lightUniforms->atten, (GLfloat)light->atten.x, (GLfloat)light->atten.y, (GLfloat)light->atten.z);
+	glUniform1f(lightUniforms->range, (GLfloat)light->range);
+}
+
+void bindShader(RenderGroup* group, Shader* shader) {
+	group->currentShader = shader;
+	glUseProgram(shader->program);
 }
 
 void drawRenderGroup(RenderGroup* group) {
 	qsort(group->sortPtrs, group->numSortPtrs, sizeof(RenderHeader*), renderElemCompare);
+	bindShader(group, &group->forwardShader.shader);
 
 #if 0
-	glEnable(GL_DITHER);
-
-	glUseProgram(group->shader.program);
-
-	PointLight light1 = {v3(12, 5, 0), v3(1, 1, 1), v3(1, 0.5, 2)};
+	PointLight light1 = {v3(12, 5, 0), v3(1, 1, 1), 2};
 	//pushPointLight(group, &light1, true);
 
-	// PointLight light2 = {v3(3, 3, 1), v3(0, 1, 0), v3(1, 1, 0)};
-	// pushPointLight(group, &light2, true);
+	PointLight light2 = {v3(5, 3, 1), v3(1, 1, 1), 3};
+	pushPointLight(group, &light2, true);
 
 	static float angle = 0;
-	angle += 1;
+	angle += 1 / 60.0f;
 
-	SpotLight spotLight = {light1, angle, angle};
+	SpotLight spotLight = {light1, angle, 30};
 	pushSpotLight(group, &spotLight, true);
-
-#else
-	group->shader.numPointLights = group->shader.numSpotLights = 0;
 #endif
 
-	GLfloat ambient = (GLfloat)1;
-	glUniform3f(group->shader.ambientUniform, (GLfloat)ambient, (GLfloat)ambient, (GLfloat)ambient);
+	GLfloat ambient = (GLfloat)1;//0.25;
+	setAmbient(group, ambient);
 
 	int uniformPointLightIndex = 0;
 	int uniformSpotLightIndex = 0;
 
 	PointLight defaultPointLight = {};
-	defaultPointLight.atten.x = 1000000000;
 
-	for(int lightIndex = 0; lightIndex < group->shader.numPointLights; lightIndex++) {
-		PointLight* light = group->shader.pointLights + lightIndex;
+	for(int lightIndex = 0; lightIndex < group->forwardShader.numPointLights; lightIndex++) {
+		PointLight* light = group->forwardShader.pointLights + lightIndex;
 
 		//TODO: account for z
 		//TODO: handle case where we run out of lights in a nicer way
 		if(isPointLightVisible(group, light)) {
-			assert(uniformPointLightIndex < arrayCount(group->shader.pointLightUniforms));
-			PointLightUniforms* lightUniforms = group->shader.pointLightUniforms + uniformPointLightIndex++;
+			assert(uniformPointLightIndex < arrayCount(group->forwardShader.pointLightUniforms));
+			PointLightUniforms* lightUniforms = group->forwardShader.pointLightUniforms + uniformPointLightIndex;
+			uniformPointLightIndex++;
 			setPointLightUniforms(lightUniforms, light);
 		}
 	}
 
-	for(int lightIndex = group->shader.numPointLights; lightIndex < arrayCount(group->shader.pointLightUniforms); lightIndex++) {
-		PointLightUniforms* lightUniforms = group->shader.pointLightUniforms + lightIndex;
+	for(int uniformIndex = uniformPointLightIndex; uniformIndex < arrayCount(group->forwardShader.pointLightUniforms); uniformIndex++) {
+		PointLightUniforms* lightUniforms = group->forwardShader.pointLightUniforms + uniformIndex;
 		setPointLightUniforms(lightUniforms, &defaultPointLight);
 	}
 
-	for(int lightIndex = 0; lightIndex < group->shader.numSpotLights; lightIndex++) {
-		SpotLight* light = group->shader.spotLights + lightIndex;
+	for(int lightIndex = 0; lightIndex < group->forwardShader.numSpotLights; lightIndex++) {
+		SpotLight* light = group->forwardShader.spotLights + lightIndex;
 
 		//TODO: account for z
 		//TODO: handle case where we run out of lights in a nicer way
 		if(isPointLightVisible(group, &light->base)) {
-			assert(uniformSpotLightIndex < arrayCount(group->shader.spotLightUniforms));
-			SpotLightUniforms* lightUniforms = group->shader.spotLightUniforms + uniformSpotLightIndex++;
+			assert(uniformSpotLightIndex < arrayCount(group->forwardShader.spotLightUniforms));
+			SpotLightUniforms* lightUniforms = group->forwardShader.spotLightUniforms + uniformSpotLightIndex;
+			uniformSpotLightIndex++;
 			setPointLightUniforms(&lightUniforms->base, &light->base);
 
-			V2 lightDir = v2(cos(light->angle), sin(light->angle));
-			double cutoff = cos(light->spread / 2);
+			double angle = toRadians(light->angle);
+			V2 lightDir = v2(cos(angle), sin(angle));
+			double cutoff = cos(toRadians(light->spread / 2));
 
 			glUniform2f(lightUniforms->dir, (GLfloat)lightDir.x, (GLfloat)lightDir.y);
 			glUniform1f(lightUniforms->cutoff, (GLfloat)cutoff);
 		}
 	}
 
-	for(int lightIndex = group->shader.numSpotLights; lightIndex < arrayCount(group->shader.spotLightUniforms); lightIndex++) {
-		SpotLightUniforms* lightUniforms = group->shader.spotLightUniforms + lightIndex;
+	for(int uniformIndex = uniformSpotLightIndex; uniformIndex < arrayCount(group->forwardShader.spotLightUniforms); uniformIndex++) {
+		SpotLightUniforms* lightUniforms = group->forwardShader.spotLightUniforms + uniformIndex;
 		setPointLightUniforms(&lightUniforms->base, &defaultPointLight);
-		glUniform2f(lightUniforms->dir, (GLfloat)1, (GLfloat)0);
-		glUniform1f(lightUniforms->cutoff, (GLfloat)1);
 	}
 
 	for(int elemIndex = 0; elemIndex < group->numSortPtrs; elemIndex++) {
 		void* elemPtr = group->sortPtrs[elemIndex];
-		drawRenderElem(group, elemPtr);
+		drawRenderElem(group, elemPtr, ambient);
 	}
 
 	uint groupByteIndex = group->sortAddressCutoff;
 
+	bindShader(group, &group->basicShader);
+
 	while(groupByteIndex < group->allocated) {
 		void* elemPtr = (char*)group->base + groupByteIndex;
-		groupByteIndex += drawRenderElem(group, elemPtr);
+		groupByteIndex += drawRenderElem(group, elemPtr, ambient);
 	}
 
 	group->numSortPtrs = 0;
 	group->allocated = 0;
 	group->sortAddressCutoff = 0;
-	group->shader.numPointLights = 0;
-	group->shader.numSpotLights = 0;
+	group->forwardShader.numPointLights = 0;
+	group->forwardShader.numSpotLights = 0;
 	pushDefaultClipRect(group);
 }

@@ -40,6 +40,25 @@ double clamp(double value, double min, double max) {
 	return result;
 }
 
+double toRadians(double degrees) {
+	double result = degrees * (PI / 180.0);
+	return result;
+}
+
+double toDegrees(double radians) {
+	double result = radians * (180.0 / PI);
+	return result;
+}
+
+double angleIn0360(double angle) {
+	double result = angle;
+
+	while(result < 0) result += 360;
+	while(result > 360) result -= 360;
+
+	return result;
+}
+
 //NOTE: V2 operations here
 
 V2 v2(double x, double y) {
@@ -164,6 +183,12 @@ V2 normalize(V2 a) {
 
 void debugPrintV2(V2 v) {
 	printf("x: %f, y: %f\n", v.x, v.y);
+}
+
+double getDegreesBetween(V2 a, V2 b) {
+	V2 v = b - a;
+	double result = toDegrees(atan2(v.y, v.x));
+	return result;
 }
 
 

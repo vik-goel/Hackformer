@@ -208,21 +208,6 @@ void freeEntity(Entity* entity, GameState* gameState) {
 			entity->messages = NULL;
 			entity->defaultTex = NULL;
 		} break;
-
-		case EntityType_laserTop: {
-			Entity* base = getEntityByRef(gameState, entity->ref - 1);
-			Entity* beam = getEntityByRef(gameState, entity->ref + 1);
-
-			if(beam) {
-				assert(beam->type == EntityType_laserBeam);
-				setFlags(beam, EntityFlag_remove);
-			} 
-
-			if(base) {
-				assert(base->type == EntityType_laserBase);
-				setFlags(base, EntityFlag_remove);
-			} 
-		} break;
 	}
 
 	for (int fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
@@ -366,7 +351,7 @@ void addChildToConsoleField(ConsoleField* parent, ConsoleField* child) {
 
 //TODO: Clean up speed and jump height values
 void addKeyboardField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "accepts_input", ConsoleField_keyboardControlled);
+	ConsoleField* result = createConsoleField(gameState, "keyboard_controlled", ConsoleField_keyboardControlled);
 
 	double keyboardSpeedFieldValues[] = {20, 40, 60, 80, 100}; 
 	double keyboardJumpHeightFieldValues[] = {1, 3, 5, 7, 9}; 
@@ -448,8 +433,8 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 	assert(!getUnremovedEntityByRef(gameState, gameState->playerRef));
 	gameState->playerRef = result->ref;
 
-	giveEntityRectangularCollisionBounds(result, gameState, 0, 0,
-										 result->renderSize.x * 0.4, result->renderSize.y);
+	giveEntityRectangularCollisionBounds(result, gameState, result->renderSize.x * -0.01, 0,
+										 result->renderSize.x * 0.39, result->renderSize.y);
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), v2(result->renderSize.x * 0.4, result->renderSize.y));
 
@@ -457,6 +442,7 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 
 	addKeyboardField(result, gameState);
 	addField(result, gameState, createConsoleField(gameState, "is_target", ConsoleField_isShootTarget));
+	addField(result, gameState, createConsoleField(gameState, "camera_followed", ConsoleField_cameraFollows));
 
 	setEntityP(result, result->p + result->renderSize * 0.5, gameState);
 
@@ -498,6 +484,7 @@ Entity* addEndPortal(GameState* gameState, V2 p) {
 	setEntityP(result, result->p + result->renderSize * 0.5, gameState);
 
 	result->defaultTex = &gameState->endPortal;
+	result->emissivity = 0.75f;
 
 	return result;
 }
@@ -618,61 +605,50 @@ Entity* addLaserBolt(GameState* gameState, V2 p, V2 target, int shooterRef, doub
 	result->shooterRef = shooterRef;
 
 	setFlags(result, EntityFlag_removeWhenOutsideLevel|
-					 EntityFlag_hackable
-					 |EntityFlag_emitsLight
-					 );
+					 EntityFlag_hackable);
 
 	addField(result, gameState, createBoolField(gameState, "hurts_entities", true, 2));
 
 	result->defaultTex = &gameState->laserBolt;
 
-	result->pointLight.p.z = 1;
-	result->pointLight.atten = v3(0.01, 0, 25);
-	result->pointLight.color = v3(1, 0.07, 0.07);
+	result->emissivity = 1;
 					 
 	return result;
 }
 
-Entity* addLaserPiece_(GameState* gameState, V2 p, bool base) {
-	V2 renderSize = v2(1.5, 1.5);
+Entity* addLaserBase_(GameState* gameState, V2 baseP, double height) {
+	Entity* result = addEntity(gameState, EntityType_laserBase, DrawOrder_laserBase, baseP, v2(0.9, 0.65));
 
-	Entity* result = NULL;
+	addField(result, gameState, createBoolField(gameState, "enabled", true, 2));
+	addPatrolField(result, gameState);
 
-	if (base) {
-		result = addEntity(gameState, EntityType_laserBase, DrawOrder_laserBase, p, renderSize);
-		result->defaultTex = &gameState->laserBaseOff;
+	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, result->renderSize.x, result->renderSize.y);
+	giveEntityRectangularCollisionBounds(result, gameState, 0, height, result->renderSize.x, result->renderSize.y);
 
-		addField(result, gameState, createBoolField(gameState, "enabled", true, 2));
-		addPatrolField(result, gameState);
-
-		setFlags(result, EntityFlag_hackable);
-
-		giveEntityRectangularCollisionBounds(result, gameState, result->renderSize.x * 0.01, 0, 
-												 result->renderSize.x * 0.5, result->renderSize.y * 0.35);
-	} else {
-		result = addEntity(gameState, EntityType_laserTop, DrawOrder_laserTop, p, renderSize);
-		result->defaultTex = &gameState->laserTopOff;
-
-		giveEntityRectangularCollisionBounds(result, gameState, result->renderSize.x * 0.01, result->renderSize.y * -0.02,
-								 	 result->renderSize.x * 0.5, result->renderSize.y * 0.42);
-	}
-
+	result->clickBox = rectCenterDiameter(v2(0, height / 2), v2(result->renderSize.x, height + result->renderSize.y));
+	result->clickBox = addRadiusTo(result->clickBox, v2(0.1, 0.1));
 
 	setFlags(result, EntityFlag_noMovementByDefault|
-					 EntityFlag_laserOn);
+					 EntityFlag_laserOn|
+					 EntityFlag_hackable);
+
+	result->emissivity = 0.1f;
 
 	return result;
 }
 
 Entity* addLaserBeam_(GameState* gameState, V2 p, V2 renderSize) {
+	renderSize.x *= 0.8;
+
 	Entity* result = addEntity(gameState, EntityType_laserBeam, DrawOrder_laserBeam, p, renderSize);
 	result->defaultTex = &gameState->laserBeam;
 
-	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
-									 	 result->renderSize.x * 0.8, result->renderSize.y);
+	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, result->renderSize.x, result->renderSize.y);
 
 	setFlags(result, EntityFlag_noMovementByDefault|
 					 EntityFlag_laserOn);
+
+	result->emissivity = 0.25f;
 
 	return result;
 }
@@ -683,27 +659,18 @@ Entity* addLaserController(GameState* gameState, V2 baseP, double height) {
 	//		have one to start. This is mainly used for collision detection (eg. avoiding collisions between the base
 	//		and the other laser pieces)
 
-	Entity* base = addLaserPiece_(gameState, baseP, true);
+	Entity* base = addLaserBase_(gameState, baseP, height);
 	V2 topP = baseP + v2(0, height);
-	Entity* top = addLaserPiece_(gameState, topP, false);
+	// Entity* top = addLaserPiece_(gameState, topP, false);
 
 	V2 p = (baseP + topP) * 0.5;
 
-	V2 renderSize = (top->p + top->hitboxes->collisionSize * 0.5) - (base->p  - base->hitboxes->collisionSize * 0.5);
-
-	V2 laserSize = v2(base->hitboxes->collisionSize.x, 
-					  renderSize.y - base->hitboxes->collisionSize.y - top->hitboxes->collisionSize.y);
-
-	base->clickBox = rectCenterDiameter(p - base->p + v2(0.03, 0.02), 
-										renderSize + v2(0.03, -0.02));
-	base->clickBox = addRadiusTo(base->clickBox, v2(0.1, 0.1));
-
-	V2 laserP = getRectCenter(base->clickBox) + base->p + v2(0, -0.04);
+	V2 laserSize = v2(base->renderSize.x, height - base->renderSize.y / 2);
+	V2 laserP = base->p + v2(0, height / 2);
 
 	Entity* beam = addLaserBeam_(gameState, laserP, laserSize);
 
 	addGroundReference(beam, base, gameState);
-	addGroundReference(top, beam, gameState);
 
 	return base;
 }
@@ -726,6 +693,8 @@ Entity* addFlyingVirus(GameState* gameState, V2 p) {
 	addShootField(result, gameState);
 
 	setEntityP(result, result->p + result->renderSize  * 0.5, gameState);
+	result->spotLightAngle = 210;
+	result->emissivity = 0.4f;
 
 	return result;
 }
@@ -750,8 +719,7 @@ bool isTileType(Entity* entity) {
 }
 
 bool isLaserEntityType(Entity* entity) {
-	bool result = entity->type == EntityType_laserTop || 
-				  entity->type == EntityType_laserBase ||
+	bool result = entity->type == EntityType_laserBase ||
 				  entity->type == EntityType_laserBeam;
 	return result;
 }
@@ -779,9 +747,7 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 				//NOTE: If a bullet is shot from a laser base/top, it should not collide with the laser beam
 				//		This requires the base, top, and beam to all be added in a specific order to work
 				Entity* shooter = getEntityByRef(gameState, a->shooterRef);
-				if(shooter &&
-				   ((shooter->type == EntityType_laserBase && shooter->ref + 2 == b->ref) ||
-				    (shooter->type == EntityType_laserTop && shooter->ref + 1 == b->ref)))
+				if(shooter && shooter->type == EntityType_laserBase && shooter->ref + 1 == b->ref)
 				    result = false;
 			}
 		} break;
@@ -801,7 +767,6 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 		case EntityType_laserBeam: {
 			//NOTE: These are the 2 other pieces of the laser (base, top)
 			if (a->ref == b->ref + 1 || 
-				a->ref == b->ref + 2 ||
 				!isSet(a, EntityFlag_laserOn)) result = false;
 		} break;
 #if 1
@@ -825,6 +790,32 @@ bool collidesWith(Entity* a, Entity* b, GameState* gameState) {
 	return result;
 }
 
+bool isEntityAbove(Entity* top, Entity* bottom) {
+	bool result = true;
+
+	Hitbox* topHitboxes = top->hitboxes;
+
+	while(topHitboxes && result) {
+		Hitbox* bottomHitboxes = bottom->hitboxes;
+
+		while(bottomHitboxes) {
+			double bottomMax = bottom->p.y + bottomHitboxes->collisionOffset.y + bottomHitboxes->collisionSize.y / 2;
+			double topMin = top->p.y + topHitboxes->collisionOffset.y - topHitboxes->collisionSize.y / 2;
+
+			if (bottomMax > topMin) {
+				result = false;
+				break;
+			}
+
+			bottomHitboxes = bottomHitboxes->next;
+		}
+
+		topHitboxes = topHitboxes->next;
+	}
+
+	return result;
+}
+
 bool isSolidCollisionRaw(Entity* a, Entity* b) {
 	bool result = true;
 
@@ -840,10 +831,10 @@ bool isSolidCollisionRaw(Entity* a, Entity* b) {
 		} break;
 
 		case EntityType_heavyTile: {
-			if (b->type != EntityType_heavyTile &&
-				b->type != EntityType_tile &&
+			if (!isTileType(b) &&
 				!isLaserEntityType(b) &&
-				a->dP.y < 0) result = false; 
+				a->dP.y < 0 && 
+				isEntityAbove(a, b)) result = false; 
 		} break;
 	}
 
@@ -1137,7 +1128,7 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP) {
 
 		maxCollisionTime -= collisionTime;
 
-		double collisionTimeEpsilon = 0.001;
+		double collisionTimeEpsilon = 0.0001;
 		double moveTime = max(0, collisionTime - collisionTimeEpsilon); 
 
 		V2 movement = delta * moveTime;
@@ -1149,8 +1140,8 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP) {
 			bool solid = false;
 
 			if (isSolidCollision(collisionResult.hitEntity, entity)) {
+				solid = true;
     			if (collisionResult.horizontalCollision) {
-    				solid = true;
 					bool hitGround = false;
 
     				//NOTE: If moving and you would hit an entity which is using you as ground
@@ -1339,6 +1330,8 @@ PathNode* getClosestNonSolidNode(Entity* entity, GameState* gameState, Entity* o
 	Hitbox* hitboxList = entity->hitboxes;
 
 	V2 otherSize;
+
+	//TODO: Find a more robust way of doing this so entities don't get stuck
 	int radiusFudge = 5;
 
 	if(other) {
@@ -1669,8 +1662,8 @@ void centerCameraAround(Entity* entity, GameState* gameState) {
 	double maxCameraX = gameState->mapSize.x - gameState->windowSize.x;
 	double x = clamp((double)(entity->p.x - gameState->windowSize.x / 2.0), 0, maxCameraX);
 
-	// int xTexel = (int)((int)(x * gameState->pixelsPerMeter) / gameState->texel.x);
-	// x = (xTexel + 0.5) * gameState->texel.x / gameState->pixelsPerMeter;
+	 // int xTexel = (int)((int)(x * gameState->pixelsPerMeter) / gameState->texel.x);
+	 // x = (xTexel + 0.5) * gameState->texel.x / gameState->pixelsPerMeter;
 
 	gameState->newCameraP.x = x;
 }
@@ -1704,9 +1697,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			entity->timeSinceLastOnGround += dt;
 			clearFlags(entity, EntityFlag_grounded|EntityFlag_movedByGround);
 
-			//NOTE: A ground reference betweeen the base and the beam and between the beam and the top
-			//		always persists. 
-			if(entity->type == EntityType_laserBase || entity->type == EntityType_laserBeam) {
+			//NOTE: A ground reference between the base and the beam always persists.
+			if(entity->type == EntityType_laserBase) {
 				if (entity->groundReferenceList->next) {
 					freeRefNode(entity->groundReferenceList->next, gameState);
 					entity->groundReferenceList->next = NULL;
@@ -1754,23 +1746,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		removeFieldsIfSet(entity->fields, &entity->numFields);
 
 		bool shootingState = false;
-		ConsoleField* shootField = NULL;
-		bool shootingEnabled = false;
-
-		if (entity->type == EntityType_laserTop) {
-			Entity* laserBase = getEntityByRef(gameState, entity->ref - 1);
-			if(laserBase) {
-				assert(laserBase->type == EntityType_laserBase && 
-					   getEntityByRef(gameState, laserBase->groundReferenceList->ref)->groundReferenceList->ref == entity->ref);
-
-				shootingEnabled = canEntityShoot(laserBase, gameState); 
-				shootField = getField(laserBase, ConsoleField_shootsAtTarget);
-			}
-		} else {
-			shootingEnabled = canEntityShoot(entity, gameState);
-			shootField = getField(entity, ConsoleField_shootsAtTarget);
-		}
-
+		ConsoleField* shootField = getField(entity, ConsoleField_shootsAtTarget);
+		bool shootingEnabled = canEntityShoot(entity, gameState);
 
 		//NOTE:This handles shooting if the entity should shoot
 		if (shootingEnabled) {
@@ -1865,7 +1842,6 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 				case ConsoleField_keyboardControlled: {
 					if (!gameState->doingInitialSim && !isSet(entity, EntityFlag_remove)) {
-						centerCameraAround(entity, gameState);
 						// double numTexels = gameState->newCameraP.x / gameState->texel.x;
 						// double overflow = (numTexels - (int)numTexels) * gameState->texel.x;
 						// gameState->newCameraP.x -= overflow;
@@ -2015,6 +1991,10 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			}
 		}
 
+		if(getField(entity, ConsoleField_cameraFollows)) {
+			centerCameraAround(entity, gameState);
+		}
+
 
 		//NOTE: This removes the entity if they are outside of the world
 		if (isSet(entity, EntityFlag_removeWhenOutsideLevel)) {
@@ -2042,9 +2022,10 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 		//Remove entity if it is below the bottom of the world
 		//The laser base and laser beams are not removed when the bottom is reached because their ground references
-		//are used to pull down the laser top. The top will remove both the base and the beam when it is removed. 
+		//are used to pull down the laser top.
+		//TODO: The laser base still needs to be removed somewhere though (once both hitboxes are outside of the level)
 		if (entity->p.y < -entity->renderSize.y
-			&& entity->type != EntityType_laserBase && entity->type != EntityType_laserBeam) {
+			&& entity->type != EntityType_laserBase) {
 			setFlags(entity, EntityFlag_remove);
 		}
 
@@ -2156,34 +2137,78 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 				bool laserOn = (entity->fields[0]->selectedIndex != 0);
 
-				Entity* beam = getEntityByRef(gameState, entity->ref + 2);
+				Entity* beam = getEntityByRef(gameState, entity->ref + 1);
 				assert(!beam || beam->type == EntityType_laserBeam);
-				Entity* top = getEntityByRef(gameState, entity->ref + 1);
-				assert(!top || top->type == EntityType_laserTop);
+
+				Texture* topTexture = NULL;
+				Texture* baseTexture = NULL;
 
 				if(laserOn) {
-					entity->defaultTex = &gameState->laserBaseOn;
 					setFlags(entity, EntityFlag_laserOn);
 
 					if (beam) setFlags(beam, EntityFlag_laserOn);
 
-					if(top) {
-						top->defaultTex = &gameState->laserTopOn;
-						setFlags(top, EntityFlag_laserOn);
-					}
+					topTexture = &gameState->laserTopOn;
+					baseTexture = &gameState->laserBaseOn;
 				}
 				else {
-					entity->defaultTex = &gameState->laserBaseOff;
 					clearFlags(entity, EntityFlag_laserOn);
 
 					if (beam) clearFlags(beam, EntityFlag_laserOn);
 
-					if(top) {
-						clearFlags(top, EntityFlag_laserOn);
-						top->defaultTex = &gameState->laserTopOff;
-					}
+					topTexture = &gameState->laserTopOff;
+					baseTexture = &gameState->laserBaseOff;
 				}
+	
+				assert(topTexture && baseTexture);
+
+				R2 baseBounds = rectCenterDiameter(entity->p, entity->renderSize);
+
+				//NOTE: entity->hitboxes->collisionOffset is the height of the laser entity
+				R2 topBounds = translateRect(baseBounds, entity->hitboxes->collisionOffset);
+
+				pushTexture(gameState->renderGroup, topTexture, topBounds, false, entity->drawOrder, true, Orientation_0, entity->emissivity);
+				pushTexture(gameState->renderGroup, baseTexture, baseBounds, false, entity->drawOrder, true, Orientation_0, entity->emissivity);
+
+				//pushFilledRect(gameState->renderGroup, topBounds, createColor(255, 0, 0, 100), true);
+				//pushFilledRect(gameState->renderGroup, baseBounds, createColor(255, 0, 0, 100), true);
 			} break;
+
+
+
+			case EntityType_flyingVirus: {
+				//double wantedAngle = 330;
+				//if(isSet(entity, EntityFlag_facesLeft)) wantedAngle = 210;
+
+				double wantedAngle = 330;
+
+				Entity* player = getEntityByRef(gameState, gameState->playerRef);
+
+				if(player) {
+					wantedAngle = getDegreesBetween(entity->p, player->p);
+					wantedAngle = angleIn0360(wantedAngle);					
+				}
+
+				double angleMoveSpeed = 180 * dt;
+
+				double clockwise = angleIn0360(wantedAngle - entity->spotLightAngle);
+				double counterClockwise = angleIn0360(entity->spotLightAngle - wantedAngle);
+
+				if(clockwise < counterClockwise) {
+					double movement = min(clockwise, angleMoveSpeed);
+					entity->spotLightAngle = angleIn0360(entity->spotLightAngle + movement);
+				} else {
+					double movement = min(counterClockwise, angleMoveSpeed);
+					entity->spotLightAngle = angleIn0360(entity->spotLightAngle - movement);
+				}
+
+				SpotLight spotLight = createSpotLight(entity->p, v3(1, 1, .9), 5, entity->spotLightAngle, 45);
+				pushSpotLight(gameState->renderGroup, &spotLight, true);
+
+				//PointLight pointLight = createPointLight(v3(entity->p + v2(-0.24, -.2), 0), v3(1, .7, .7), 0.4);
+				//pushPointLight(gameState->renderGroup, &pointLight);
+			} break;
+
 		}
 
 
@@ -2347,20 +2372,22 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			}
 		}
 
-		if (isSet(entity, EntityFlag_emitsLight)) {
-			entity->pointLight.p.xy = entity->p;
-			pushPointLight(gameState->renderGroup, &entity->pointLight, true);
-		}
-
 		#if SHOW_COLLISION_BOUNDS
 			Hitbox* hitbox = entity->hitboxes;
 
 			while (hitbox) {
 				pushOutlinedRect(gameState->renderGroup, getHitbox(entity, hitbox),
-								 0.005f, createColor(255, 127, 255, 255), true);
+								 0.02f, createColor(255, 127, 255, 255), true);
 				hitbox = hitbox->next;
 			}
 
+		#endif
+
+		#if SHOW_CLICK_BOUNDS
+			if(isSet(entity, EntityFlag_hackable)) {
+				R2 clickBox = translateRect(entity->clickBox, entity->p);
+				pushOutlinedRect(gameState->renderGroup, clickBox, 0.02f, createColor(127, 255, 255, 255), true);
+			}
 		#endif
 	}
 }
