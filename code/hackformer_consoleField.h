@@ -7,7 +7,7 @@ enum ConsoleFieldType {
 	ConsoleField_shootsAtTarget,
 	ConsoleField_double,
 	ConsoleField_unlimitedInt,
-	ConsoleField_int,
+	ConsoleField_s32,
 	ConsoleField_bool,
 };
 
@@ -19,21 +19,21 @@ enum ConsoleFieldFlags {
 
 struct ConsoleField {
 	ConsoleFieldType type;
-	uint flags;
+	u32 flags;
 
 	char name[100];
 	
 	//NOTE: These attributes are used for fields with many values
 	union {
 		double doubleValues[5];
-		int intValues[10];
+		s32 intValues[10];
 	};
-	int numValues;
+	s32 numValues;
 	
-	int selectedIndex;
-	int initialIndex;
+	s32 selectedIndex;
+	s32 initialIndex;
 
-	int tweakCost;
+	s32 tweakCost;
 	
 	char valueStr[100];
 
@@ -47,7 +47,7 @@ struct ConsoleField {
 
 	//NOTE: This is used for hierarchal console fields
 	ConsoleField* children[4];
-	int numChildren;
+	s32 numChildren;
 	double childYOffs;
 };
 
@@ -74,19 +74,19 @@ bool canOnlyHaveOneFieldOfType(ConsoleFieldType type) {
  	return result;
 }
 
-void setFlags(ConsoleField* field, uint flags) {
+void setFlags(ConsoleField* field, u32 flags) {
 	field->flags |= flags;
 } 
 
-void clearFlags(ConsoleField* field, uint flags) {
+void clearFlags(ConsoleField* field, u32 flags) {
 	field->flags &= ~flags;
 } 
 
-void toggleFlags(ConsoleField* field, uint toggle) {
+void toggleFlags(ConsoleField* field, u32 toggle) {
 	field->flags ^= toggle;
 }
 
-bool isSet(ConsoleField* field, uint flags) {
-	bool result = (field->flags & flags) != 0;
+bool32 isSet(ConsoleField* field, u32 flags) {
+	bool32 result = (field->flags & flags) != 0;
 	return result;
 }

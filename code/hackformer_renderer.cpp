@@ -1,11 +1,11 @@
-void loadShaderSource(char* fileName, char* source, int maxSourceLength) {
+void loadShaderSource(char* fileName, char* source, s32 maxSourceLength) {
 	FILE* file;
 	fopen_s(&file, fileName, "r");
 	assert(file);
 
 	char line[1024];
 	char* linePtr;
-	int length = 0;
+	s32 length = 0;
 
 	while (fgets (line, sizeof(line), file)) {
 		linePtr = line;
@@ -39,7 +39,7 @@ GLuint addShader_(GLenum type, char* sourceFileName, Shader shaderProgram) {
 
 	if (compileSuccess == GL_FALSE) {
 		char errorBuffer[1024];
-		int errorLength = 0;
+		s32 errorLength = 0;
 		glGetShaderInfoLog(shader, arrayCount(errorBuffer), &errorLength, errorBuffer);
 		fprintf(stderr, "Failed to compile shader: %s\n", errorBuffer);
 		InvalidCodePath;
@@ -99,7 +99,7 @@ ForwardShader createForwardShader(char* vertexShaderSourceFileName, char* fragme
 
 	std::string uniformPrefix = "pointLights[";
 
-		for(int lightIndex = 0; lightIndex < arrayCount(result.pointLightUniforms); lightIndex++) {
+		for(s32 lightIndex = 0; lightIndex < arrayCount(result.pointLightUniforms); lightIndex++) {
 			PointLightUniforms* lightUniforms = result.pointLightUniforms + lightIndex;
 
 			char lightIndexStrMem[5];
@@ -117,7 +117,7 @@ lightUniforms->range = glGetUniformLocation(result.shader.program, rangeUniformN
 
 uniformPrefix = "spotLights[";
 
-	for(int lightIndex = 0; lightIndex < arrayCount(result.spotLightUniforms); lightIndex++) {
+	for(s32 lightIndex = 0; lightIndex < arrayCount(result.spotLightUniforms); lightIndex++) {
 		SpotLightUniforms* lightUniforms = result.spotLightUniforms + lightIndex;
 
 		char lightIndexStrMem[5];
@@ -181,23 +181,23 @@ GLuint generateTexture(SDL_Surface* image, bool srgb = false) {
 
 		// char* pixelPtr = (char*)image->pixels;
 
-		// for(int y = 0; y < image->h; y++) {
-		// 	for(int x = 0; x < image->w; x++) {
-		// 		uint* pixel = (uint*)(pixelPtr + x * 4);
+		// for(s32 y = 0; y < image->h; y++) {
+		// 	for(s32 x = 0; x < image->w; x++) {
+		// 		u32* pixel = (u32*)(pixelPtr + x * 4);
 
-		// 		int r = (*pixel >> 24) & 0xFF;
-		// 		int g = (*pixel >> 16) & 0xFF;
-		// 		int b = (*pixel >> 8) & 0xFF;
-		// 		int a = (*pixel) & 0xFF;
+		// 		s32 r = (*pixel >> 24) & 0xFF;
+		// 		s32 g = (*pixel >> 16) & 0xFF;
+		// 		s32 b = (*pixel >> 8) & 0xFF;
+		// 		s32 a = (*pixel) & 0xFF;
 
 		// 		float aFloat = (a + 0.5f) / 255.0f;
 		// 		float rFloat = ((r + 0.5f) / 255.0f) * aFloat;
 		// 		float gFloat = ((g + 0.5f) / 255.0f) * aFloat;
 		// 		float bFloat = ((b + 0.5f) / 255.0f) * aFloat;
 
-		// 		int newR = (int)(rFloat * 255.5f);
-		// 		int newG = (int)(gFloat * 255.5f);
-		// 		int newB = (int)(bFloat * 255.5f);
+		// 		s32 newR = (s32)(rFloat * 255.5f);
+		// 		s32 newG = (s32)(gFloat * 255.5f);
+		// 		s32 newB = (s32)(bFloat * 255.5f);
 
 		// 		*pixel = (newR << 24) | (newG << 16) | (newB << 8) | a;
 		// 	}
@@ -266,7 +266,7 @@ Texture loadPNGTexture(GameState* gameState, char* fileName, bool loadNormalMap 
 	return result;
 }
 
-TTF_Font* loadFont(char* fileName, int fontSize) {
+TTF_Font* loadFont(char* fileName, s32 fontSize) {
 	TTF_Font *font = TTF_OpenFont(fileName, fontSize);
 
 	if (!font) {
@@ -279,24 +279,24 @@ TTF_Font* loadFont(char* fileName, int fontSize) {
 	return font;
 }
 
-CachedFont loadCachedFont(GameState* gameState, char* fileName, int fontSize, double scaleFactor) {
+CachedFont loadCachedFont(GameState* gameState, char* fileName, s32 fontSize, double scaleFactor) {
 	CachedFont result = {};
-	result.font = loadFont(fileName, (int)round(fontSize * scaleFactor));
+	result.font = loadFont(fileName, (s32)round(fontSize * scaleFactor));
 	result.scaleFactor = scaleFactor;
 	result.lineHeight = fontSize / (gameState->pixelsPerMeter * scaleFactor);
 	return result;
 }
 
 Texture* extractTextures(GameState* gameState, char* fileName, 
-	int frameWidth, int frameHeight, int frameSpacing, uint* numFrames) {
+	s32 frameWidth, s32 frameHeight, s32 frameSpacing, u32* numFrames) {
 
 	Texture tex = loadPNGTexture(gameState, fileName);
 
-	int texWidth = (int)(tex.size.x * gameState->pixelsPerMeter + 0.5);
-	int texHeight = (int)(tex.size.y * gameState->pixelsPerMeter + 0.5);
+	s32 texWidth = (s32)(tex.size.x * gameState->pixelsPerMeter + 0.5);
+	s32 texHeight = (s32)(tex.size.y * gameState->pixelsPerMeter + 0.5);
 
-	int numCols = texWidth / (frameWidth + frameSpacing);
-	int numRows = texHeight / (frameHeight + frameSpacing);
+	s32 numCols = texWidth / (frameWidth + frameSpacing);
+	s32 numRows = texHeight / (frameHeight + frameSpacing);
 
 	assert(frameWidth > 0);
 	assert(frameHeight > 0);
@@ -315,9 +315,9 @@ Texture* extractTextures(GameState* gameState, char* fileName,
 
 	V2 frameOffset = v2(frameSpacing / (double)texWidth, frameSpacing / (double)texHeight) * 0.5;
 
-	for (int rowIndex = 0; rowIndex < numRows; rowIndex++) {
-		for (int colIndex = 0; colIndex < numCols; colIndex++) {
-			int textureIndex = colIndex + rowIndex * numCols;
+	for (s32 rowIndex = 0; rowIndex < numRows; rowIndex++) {
+		for (s32 colIndex = 0; colIndex < numCols; colIndex++) {
+			s32 textureIndex = colIndex + rowIndex * numCols;
 			Texture* frame = result + textureIndex;
 
 			frame->texId = tex.texId;
@@ -341,7 +341,7 @@ Texture* extractTextures(GameState* gameState, char* fileName,
 }
 
 Animation loadAnimation(GameState* gameState, char* fileName, 
-	int frameWidth, int frameHeight, double secondsPerFrame, bool pingPong) {
+	s32 frameWidth, s32 frameHeight, double secondsPerFrame, bool pingPong) {
 	Animation result = {};
 
 	assert(secondsPerFrame > 0);
@@ -378,14 +378,14 @@ double getAnimationDuration(Animation* animation) {
 }
 
 Texture* getAnimationFrame(Animation* animation, double animTime) {
-	bool reverse = animation->reverse;
+	bool32 reverse = animation->reverse;
 
-	int frameIndex = 0;
-	if (animation->secondsPerFrame > 0) frameIndex = (int)(animTime / animation->secondsPerFrame) % animation->numFrames;
+	s32 frameIndex = 0;
+	if (animation->secondsPerFrame > 0) frameIndex = (s32)(animTime / animation->secondsPerFrame) % animation->numFrames;
 
 	if(animation->pingPong) {
 		double duration = getAnimationDuration(animation);
-		int numTimesPlayed = (int)(animTime / duration);
+		s32 numTimesPlayed = (s32)(animTime / duration);
 
 		if (numTimesPlayed % 2 == 1) {
 			reverse = !reverse;
@@ -400,7 +400,7 @@ Texture* getAnimationFrame(Animation* animation, double animTime) {
 	return result;
 }
 
-Color createColor(int r, int g, int b, int a) {
+Color createColor(u8 r, u8 g, u8 b, u8 a) {
 	Color result = {};
 
 	result.r = r;
@@ -427,21 +427,21 @@ void setColor(RenderGroup* group, Color color) {
 	glUniform4f(group->currentShader->tintUniformLocation, r, g, b, a);
 }
 
-SDL_Rect getPixelSpaceRect(double pixelsPerMeter, int windowHeight, R2 rect) {
+SDL_Rect getPixelSpaceRect(double pixelsPerMeter, s32 windowHeight, R2 rect) {
 	SDL_Rect result = {};
 
 	double width = getRectWidth(rect);
 	double height = getRectHeight(rect);
 
-	result.w = (int)ceil(width * pixelsPerMeter);
-	result.h = (int)ceil(height * pixelsPerMeter);
-	result.x = (int)ceil(rect.max.x * pixelsPerMeter) - result.w;
-	result.y = windowHeight - (int)ceil(rect.max.y * pixelsPerMeter);
+	result.w = (s32)ceil(width * pixelsPerMeter);
+	result.h = (s32)ceil(height * pixelsPerMeter);
+	result.x = (s32)ceil(rect.max.x * pixelsPerMeter) - result.w;
+	result.y = windowHeight - (s32)ceil(rect.max.y * pixelsPerMeter);
 
 	return result;
 }
 
-void setClipRect(SDL_Renderer* renderer, double pixelsPerMeter, int windowHeight, R2 rect) {
+void setClipRect(SDL_Renderer* renderer, double pixelsPerMeter, s32 windowHeight, R2 rect) {
 	// SDL_Rect clipRect = getPixelSpaceRect(pixelsPerMeter, windowHeight, rect);
 	// SDL_RenderSetClipRect(renderer, &clipRect);
 
@@ -492,7 +492,7 @@ double getTextWidth(CachedFont* cachedFont, GameState* gameState, char* msg) {
 	return result;
 }
 
-RenderGroup* createRenderGroup(GameState* gameState, uint size) {
+RenderGroup* createRenderGroup(GameState* gameState, size_t size) {
 	RenderGroup* result = pushStruct(&gameState->permanentStorage, RenderGroup);
 
 	result->allocated = 0;
@@ -524,7 +524,7 @@ RenderGroup* createRenderGroup(GameState* gameState, uint size) {
 	return result;
 }
 
-void sendTexCoord(V2 uvMin, V2 uvMax, int orientation) {
+void sendTexCoord(V2 uvMin, V2 uvMax, s32 orientation) {
 	switch(orientation) {
 		case Orientation_0: {
 			glTexCoord2f((GLfloat)uvMax.x, (GLfloat)uvMax.y); 
@@ -686,8 +686,8 @@ void setRenderHeaderType(RenderHeader* header, DrawType type) {
 	header->type_ = (header->type_ & RENDER_HEADER_CLIP_RECT_FLAG) | type;
 }
 
-uint renderElemClipRect(RenderHeader* header) {
-	uint result = header->type_ & RENDER_HEADER_CLIP_RECT_FLAG;
+bool32 renderElemClipRect(RenderHeader* header) {
+	bool32 result = header->type_ & RENDER_HEADER_CLIP_RECT_FLAG;
 	return result;
 }
 
@@ -700,8 +700,8 @@ void clearRenderElemClipRect(RenderHeader* header) {
 }
 
 #define pushRenderElement(group, type) (type*)pushRenderElement_(group, DrawType_##type, sizeof(type))
-void* pushRenderElement_(RenderGroup* group, DrawType type, uint size) {
-	int headerBytes = sizeof(RenderHeader);
+void* pushRenderElement_(RenderGroup* group, DrawType type, size_t size) {
+	size_t headerBytes = sizeof(RenderHeader);
 
 	if (group->hasClipRect) {
 		headerBytes += sizeof(R2);
@@ -902,9 +902,9 @@ void pushDefaultClipRect(RenderGroup* group) {
 	group->hasClipRect = false;
 }
 
-int drawRenderElem(RenderGroup* group, void* elemPtr, GLfloat ambient) {
+size_t drawRenderElem(RenderGroup* group, void* elemPtr, GLfloat ambient) {
 	RenderHeader* header = (RenderHeader*)elemPtr;
-	int elemSize = sizeof(RenderHeader);
+	size_t elemSize = sizeof(RenderHeader);
 
 	elemPtr = (char*)elemPtr + sizeof(RenderHeader);
 
@@ -922,7 +922,7 @@ int drawRenderElem(RenderGroup* group, void* elemPtr, GLfloat ambient) {
 		case DrawType_RenderBoundedTexture: {
 			RenderBoundedTexture* render = (RenderBoundedTexture*)elemPtr;
 			setColor(group, createColor(255, 255, 255, 255));
-			drawTexture(group, render->tex.texture, render->bounds, render->tex.flipX, render->tex.orientation, render->tex.emissivity, ambient);
+			drawTexture(group, render->tex.texture, render->bounds, render->tex.flipX != 0, render->tex.orientation, render->tex.emissivity, ambient);
 			elemSize += sizeof(RenderBoundedTexture);
 		} break;
 
@@ -930,7 +930,7 @@ int drawRenderElem(RenderGroup* group, void* elemPtr, GLfloat ambient) {
 			RenderEntityTexture* render = (RenderEntityTexture*)elemPtr;
 			R2 bounds = rectCenterDiameter(*render->p + group->negativeCameraP, *render->renderSize);
 			setColor(group, createColor(255, 255, 255, 255));
-			drawTexture(group, render->tex.texture, bounds, render->tex.flipX, render->tex.orientation, render->tex.emissivity, ambient);
+			drawTexture(group, render->tex.texture, bounds, render->tex.flipX != 0, render->tex.orientation, render->tex.emissivity, ambient);
 			elemSize += sizeof(RenderEntityTexture);
 		} break;
 
@@ -980,7 +980,7 @@ RenderTexture* getRenderTexture(RenderHeader* header) {
 	return result;
 }
 
-int renderElemCompare(const void* a, const void* b) {
+s32 renderElemCompare(const void* a, const void* b) {
 	RenderHeader* e1 = *(RenderHeader**)a;
 	RenderHeader* e2 = *(RenderHeader**)b;
 
@@ -1070,12 +1070,12 @@ void drawRenderGroup(RenderGroup* group) {
 	GLfloat ambient = (GLfloat)1;//0.25;
 	setAmbient(group, ambient);
 
-	int uniformPointLightIndex = 0;
-	int uniformSpotLightIndex = 0;
+	s32 uniformPointLightIndex = 0;
+	s32 uniformSpotLightIndex = 0;
 
 	PointLight defaultPointLight = {};
 
-	for(int lightIndex = 0; lightIndex < group->forwardShader.numPointLights; lightIndex++) {
+	for(s32 lightIndex = 0; lightIndex < group->forwardShader.numPointLights; lightIndex++) {
 		PointLight* light = group->forwardShader.pointLights + lightIndex;
 
 		//TODO: account for z
@@ -1088,12 +1088,12 @@ void drawRenderGroup(RenderGroup* group) {
 		}
 	}
 
-	for(int uniformIndex = uniformPointLightIndex; uniformIndex < arrayCount(group->forwardShader.pointLightUniforms); uniformIndex++) {
+	for(s32 uniformIndex = uniformPointLightIndex; uniformIndex < arrayCount(group->forwardShader.pointLightUniforms); uniformIndex++) {
 		PointLightUniforms* lightUniforms = group->forwardShader.pointLightUniforms + uniformIndex;
 		setPointLightUniforms(lightUniforms, &defaultPointLight);
 	}
 
-	for(int lightIndex = 0; lightIndex < group->forwardShader.numSpotLights; lightIndex++) {
+	for(s32 lightIndex = 0; lightIndex < group->forwardShader.numSpotLights; lightIndex++) {
 		SpotLight* light = group->forwardShader.spotLights + lightIndex;
 
 		//TODO: account for z
@@ -1113,17 +1113,17 @@ void drawRenderGroup(RenderGroup* group) {
 		}
 	}
 
-	for(int uniformIndex = uniformSpotLightIndex; uniformIndex < arrayCount(group->forwardShader.spotLightUniforms); uniformIndex++) {
+	for(s32 uniformIndex = uniformSpotLightIndex; uniformIndex < arrayCount(group->forwardShader.spotLightUniforms); uniformIndex++) {
 		SpotLightUniforms* lightUniforms = group->forwardShader.spotLightUniforms + uniformIndex;
 		setPointLightUniforms(&lightUniforms->base, &defaultPointLight);
 	}
 
-	for(int elemIndex = 0; elemIndex < group->numSortPtrs; elemIndex++) {
+	for(s32 elemIndex = 0; elemIndex < group->numSortPtrs; elemIndex++) {
 		void* elemPtr = group->sortPtrs[elemIndex];
 		drawRenderElem(group, elemPtr, ambient);
 	}
 
-	uint groupByteIndex = group->sortAddressCutoff;
+	u32 groupByteIndex = group->sortAddressCutoff;
 
 	bindShader(group, &group->basicShader);
 

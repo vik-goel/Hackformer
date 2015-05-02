@@ -4,11 +4,11 @@ void freeConsoleField(ConsoleField* field, GameState* gameState) {
 	// 	field->next = NULL;
 	// }
 
-	//NOTE: Since the next pointer is only used in the free list and consoles in the free list should
+	//NOTE: Since the next pos32er is only used in the free list and consoles in the free list should
 	//		never be freed again, the next pointer should be null. 
 	assert(!field->next);
 
-	for (int childIndex = 0; childIndex < field->numChildren; childIndex++) {
+	for (s32 childIndex = 0; childIndex < field->numChildren; childIndex++) {
 		freeConsoleField(field->children[childIndex], gameState);
 		field->children[childIndex] = NULL;
 	}
@@ -34,7 +34,7 @@ ConsoleField* createConsoleField(GameState* gameState, char* name, ConsoleFieldT
 	return result;
 }
 
-ConsoleField* createUnlimitedIntField(GameState* gameState, char* name, int value, int tweakCost) {
+ConsoleField* createUnlimitedIntField(GameState* gameState, char* name, s32 value, s32 tweakCost) {
 	ConsoleField* result = createConsoleField(gameState, name, ConsoleField_unlimitedInt);
 
 	result->selectedIndex = result->initialIndex = value;
@@ -43,7 +43,7 @@ ConsoleField* createUnlimitedIntField(GameState* gameState, char* name, int valu
 	return result;
 }
 
-ConsoleField* createBoolField(GameState* gameState, char* name, bool value, int tweakCost) {
+ConsoleField* createBoolField(GameState* gameState, char* name, bool value, s32 tweakCost) {
 	ConsoleField* result = createConsoleField(gameState, name, ConsoleField_bool);
 
 	result->initialIndex = result->selectedIndex = value ? 1 : 0;
@@ -54,18 +54,18 @@ ConsoleField* createBoolField(GameState* gameState, char* name, bool value, int 
 }
 
 #define createPrimitiveField(type, gameState, name, values, numValues, initialIndex, tweakCost) createPrimitiveField_(gameState, name, values, sizeof(type), numValues, initialIndex, tweakCost, ConsoleField_##type)
-ConsoleField* createPrimitiveField_(GameState* gameState, char* name, void* values, int elemSize,
-				int numValues, int initialIndex, int tweakCost, ConsoleFieldType type) {
+ConsoleField* createPrimitiveField_(GameState* gameState, char* name, void* values, s32 elemSize,
+				s32 numValues, s32 initialIndex, s32 tweakCost, ConsoleFieldType type) {
 	assert(numValues > 0);
 	assert(initialIndex >= 0 && initialIndex < numValues);
 
 	ConsoleField* result = createConsoleField(gameState, name, type);
 
-	for (int valueIndex = 0; valueIndex < numValues; valueIndex++) {
+	for (s32 valueIndex = 0; valueIndex < numValues; valueIndex++) {
 		char* src = (char*)values + elemSize * valueIndex;
 		char* dst = (char*)result->doubleValues + elemSize * valueIndex;
 
-		for(int byteIndex = 0; byteIndex < elemSize; byteIndex++) {
+		for(s32 byteIndex = 0; byteIndex < elemSize; byteIndex++) {
 			*dst++ = *src++;
 		}
 	}
@@ -77,14 +77,14 @@ ConsoleField* createPrimitiveField_(GameState* gameState, char* name, void* valu
 	return result;
 }
 
-Entity* getEntityByRef(GameState*, int ref);
+Entity* getEntityByRef(GameState*, s32 ref);
 ConsoleField* getMovementField(Entity* entity);
 bool isMouseInside(Entity* entity, Input* input);
 
-int getNumVisibleFields(ConsoleField** fields, int fieldsCount) {
-	int result = fieldsCount;
+s32 getNumVisibleFields(ConsoleField** fields, s32 fieldsCount) {
+	s32 result = fieldsCount;
 
-	for (int fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
+	for (s32 fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
 		ConsoleField* field = fields[fieldIndex];
 
 		if (field->numChildren && isSet(field, ConsoleFlag_childrenVisible)) {
@@ -95,10 +95,10 @@ int getNumVisibleFields(ConsoleField** fields, int fieldsCount) {
 	return result;
 }
 
-double getTotalYOffset(ConsoleField** fields, int fieldsCount, FieldSpec* spec) {
+double getTotalYOffset(ConsoleField** fields, s32 fieldsCount, FieldSpec* spec) {
 	double result = fieldsCount * (spec->fieldSize.y + spec->spacing.y);
 
-	for (int fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
+	for (s32 fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
 		ConsoleField* field = fields[fieldIndex];
 		result += field->childYOffs;
 	}
@@ -154,20 +154,29 @@ V2 getBottomFieldP(Entity* entity, GameState* gameState, FieldSpec* spec) {
 }
 
 bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* spec) {
+	assert(field->numValues == 0);
+
 	bool result = false;
 
 	R2 bounds = rectCenterDiameter(field->p, spec->fieldSize);
 
-	if (gameState->input.leftMouseJustPressed) {
+	if (gameState->input.leftMouse.justPressed) {
 		if (pointInsideRect(bounds, gameState->input.mouseInMeters)) {
-			setFlags(field, ConsoleFlag_selected);
+			if(!isSet(field, ConsoleFlag_selected)) {
+				setFlags(field, ConsoleFlag_selected);
+				
+				if(gameState->input.shift.pressed) {
+
+				}
+			}
+
 			result = true;
 		}
 	}
 
 	if (isSet(field, ConsoleFlag_selected)) {
-		if (gameState->input.leftMousePressed) {
-			field->offs += gameState->input.dMouseMeters;
+		if (gameState->input.leftMouse.pressed) {
+			field->offs += gameState->input.mouseInMeters - field->p;
 		} else {
 			V2 center = getRectCenter(bounds);
 
@@ -194,8 +203,7 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 						addToSwapField = true;
 						removeFromParent = true;
 					}
-					else if (isConsoleFieldMovementType(gameState->swapField) && 
-							 isConsoleFieldMovementType(field)) {
+					else if (isConsoleFieldMovementType(gameState->swapField) && isConsoleFieldMovementType(field)) {
 						exchangeFields = true;
 					}
 				}
@@ -235,7 +243,7 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 
 				bool exchanged = false;
 
-				for(int fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
+				for(s32 fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
 					ConsoleField* f = consoleEntity->fields[fieldIndex];
 
 					if(f == field) {
@@ -268,7 +276,7 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 				bool shouldAddField = true;
 
 				if (canOnlyHaveOneFieldOfType(field->type)) {
-					for (int fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
+					for (s32 fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
 						ConsoleField* testField = consoleEntity->fields[fieldIndex];
 
 						if (testField->type == field->type) {
@@ -281,7 +289,7 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 				if (shouldAddField) {
 					V2 newBaseP = getBottomFieldP(consoleEntity, gameState, spec);
 
-					for (int fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
+					for (s32 fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
 						ConsoleField* f = consoleEntity->fields[fieldIndex];
 						f->offs = v2(0, -spec->fieldSize.y - field->childYOffs); 
 					}
@@ -300,7 +308,7 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 
 				bool encounteredField = false;
 
-				for (int fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
+				for (s32 fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
 					ConsoleField* f = consoleEntity->fields[fieldIndex];
 					if (f == field) encounteredField = true;
 					else if (!encounteredField) f->offs = v2(0, spec->fieldSize.y + field->childYOffs); 
@@ -364,7 +372,7 @@ bool drawOutlinedConsoleBox(ConsoleField* field, GameState* gameState,
 	return result;
 }
 
-void setConsoleFieldSelectedIndex(ConsoleField* field, int newIndex, GameState* gameState) {
+void setConsoleFieldSelectedIndex(ConsoleField* field, s32 newIndex, GameState* gameState) {
 	if (field->type == ConsoleField_unlimitedInt) {
 		field->selectedIndex = newIndex;
 	} else {
@@ -384,7 +392,7 @@ void setConsoleFieldSelectedIndex(ConsoleField* field, int newIndex, GameState* 
 }
 
 bool drawConsoleTriangle(GameState* gameState, V2 triangleP, FieldSpec* spec, 
-						 bool facesRight, bool facesDown, bool facesUp, bool yellow, ConsoleField* field, int tweakCost) {
+						 bool facesRight, bool facesDown, bool facesUp, bool yellow, ConsoleField* field, s32 tweakCost) {
 	bool result = false;
 
 	R2 triangleBounds = rectCenterDiameter(triangleP, spec->triangleSize);
@@ -407,14 +415,14 @@ bool drawConsoleTriangle(GameState* gameState, V2 triangleP, FieldSpec* spec,
 			triangleTex = &gameState->consoleTriangleSelected;
 		}
 
-		if (gameState->input.leftMouseJustPressed) {
+		if (gameState->input.leftMouse.justPressed) {
 			result = true;
 
 			if (field && enoughEnergyToHack) {
 				if (facesDown && tweakCost == 0) {
 					toggleFlags(field, ConsoleFlag_childrenVisible);
 				} else {
-					int dSelectedIndex = (facesRight || facesDown) ? -1 : 1;
+					s32 dSelectedIndex = (facesRight || facesDown) ? -1 : 1;
 					setConsoleFieldSelectedIndex(field, field->selectedIndex + dSelectedIndex, gameState);
 				}
 			}
@@ -467,7 +475,7 @@ bool drawConsoleField(ConsoleField* field, GameState* gameState, FieldSpec* spec
 		bool hasValue = true;
 
 		switch(field->type) {
-			case ConsoleField_int: {
+			case ConsoleField_s32: {
 				sprintf_s(field->valueStr, "%d", field->intValues[field->selectedIndex]);
 			} break;
 
@@ -532,8 +540,8 @@ bool drawConsoleField(ConsoleField* field, GameState* gameState, FieldSpec* spec
 	return result;
 }
 
-void moveFieldChildren(ConsoleField** fields, int fieldsCount, FieldSpec* spec, double dt) {
-	for (int fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
+void moveFieldChildren(ConsoleField** fields, s32 fieldsCount, FieldSpec* spec, double dt) {
+	for (s32 fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
 		ConsoleField* field = fields[fieldIndex];
 
 		if (field->numChildren) {
@@ -553,16 +561,17 @@ void moveFieldChildren(ConsoleField** fields, int fieldsCount, FieldSpec* spec, 
 	}
 }
 
-bool calcFieldPositions(GameState* gameState, ConsoleField** fields, int fieldsCount, double dt, V2* fieldP, FieldSpec* spec) {
+bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsCount, double dt, V2* fieldP, FieldSpec* spec) {
 	bool result = false;
 	double fieldHeight = spec->fieldSize.y + spec->spacing.y;
 
-	for (int fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
+	for (s32 fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
 		fieldP->y -= fieldHeight;
 		ConsoleField* field = fields[fieldIndex];
 		field->p = *fieldP + field->offs;
 
-		if (moveField(field, gameState, dt, spec)) result = true;
+		//NOTE: Currently, fields with values like speed cannot be moved.
+		if (field->numValues == 0 && moveField(field, gameState, dt, spec)) result = true;
 
 		field->p = *fieldP + field->offs;
 
@@ -585,10 +594,10 @@ bool calcFieldPositions(GameState* gameState, ConsoleField** fields, int fieldsC
 	return result;
 }
 
-bool drawFieldsRaw(GameState* gameState, ConsoleField** fields, int fieldsCount, FieldSpec* spec) {
+bool drawFieldsRaw(GameState* gameState, ConsoleField** fields, s32 fieldsCount, FieldSpec* spec) {
 	bool result = false;
 
-	for (int fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
+	for (s32 fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
 		ConsoleField* field = fields[fieldIndex];
 		if (drawConsoleField(field, gameState, spec)) result = true;
 
@@ -611,7 +620,7 @@ bool drawFieldsRaw(GameState* gameState, ConsoleField** fields, int fieldsCount,
 	return result;
 }
 
-bool drawFields(GameState* gameState, Entity* entity, int fieldSkip, double dt, V2* fieldP, FieldSpec* spec) {
+bool drawFields(GameState* gameState, Entity* entity, s32 fieldSkip, double dt, V2* fieldP, FieldSpec* spec) {
 	bool result = false;
 
 	double fieldHeight = spec->spacing.y + spec->fieldSize.y;
@@ -775,7 +784,7 @@ void updateConsole(GameState* gameState, double dt) {
 	bool wasConsoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
 
 	//NOTE: This deselects the console entity if somewhere else is clicked
-	if (!clickHandled && gameState->input.leftMouseJustPressed) {
+	if (!clickHandled && gameState->input.leftMouse.justPressed) {
 		gameState->consoleEntityRef = 0;
 	}
 
@@ -785,11 +794,11 @@ void updateConsole(GameState* gameState, double dt) {
 	Entity* player = getEntityByRef(gameState, gameState->playerRef);
 	bool playerCanHack = wasConsoleEntity || (player && isSet(player, EntityFlag_grounded)); //Don't allow hacking while the player is mid-air
 	bool noConsoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef) == NULL;
-	bool newConsoleEntityRequested = !clickHandled && gameState->input.leftMouseJustPressed;
+	bool newConsoleEntityRequested = !clickHandled && gameState->input.leftMouse.justPressed;
 
 	//TODO: The spatial partition could be used to make this faster (no need to loop through every entity in the game)
 	if(playerCanHack && noConsoleEntity && newConsoleEntityRequested) {
-		for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+		for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 			Entity* entity = gameState->entities + entityIndex;
 				
 			if(isSet(entity, EntityFlag_hackable) && isMouseInside(entity, &gameState->input)) {

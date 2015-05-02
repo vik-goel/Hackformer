@@ -60,7 +60,19 @@ New Features
 #define SHOW_COLLISION_BOUNDS 0
 #define SHOW_CLICK_BOUNDS 0
 
-#define uint unsigned int
+#include <stdint.h>
+
+typedef uint32_t u32;
+typedef uint16_t u16;
+typedef uint8_t u8;
+
+typedef int32_t s32;
+typedef int16_t s16;
+typedef int8_t s8;
+
+typedef int32_t bool32; 
+typedef int16_t bool16; 
+typedef int8_t bool8; 
 
 #include <cstdlib>
 #include <cstring>
@@ -81,51 +93,71 @@ New Features
 #include "hackformer_consoleField.h"
 #include "hackformer_entity.h"
 
+struct Key {
+	bool32 pressed;
+	bool32 justPressed;
+	s32 keyCode1, keyCode2;
+};
+
 struct Input {
 	V2 mouseInPixels;
 	V2 mouseInMeters;
 	V2 mouseInWorld;
+
+	//TODO: There might be a bug when this, it was noticeable when shift was held down 
+	//	 	while dragging something with the mouse
 	V2 dMouseMeters;
-	bool upPressed, leftPressed, rightPressed;
-	bool upJustPressed;
-	bool leftMousePressed, leftMouseJustPressed;
-	bool rPressed, rJustPressed;
-	bool xPressed, xJustPressed;
+
+	union {
+		//NOTE: The number of keys in the array must always be equal to the number of keys in the struct below
+		Key keys[8];
+
+		struct {
+			Key up;
+			Key down;
+			Key left;
+			Key right;
+			Key r;
+			Key x;
+			Key shift;
+			Key leftMouse;
+		};
+	};
 };
 
 struct MemoryArena {
 	void* base;
-	uint allocated;
-	uint size;
+	size_t allocated;
+	size_t size;
 };
 
 struct PathNode {
-	bool solid;
-	bool open;
-	bool closed;
+	bool32 solid;
+	bool32 open;
+	bool32 closed;
 	PathNode* parent;
 	double costToHere;
 	double costToGoal;
 	V2 p;
-	int tileX, tileY;
+	s32 tileX, tileY;
 };
 
 struct EntityChunk {
-	int entityRefs[16];
-	int numRefs;
+	s32 entityRefs[16];
+	s32 numRefs;
 	EntityChunk* next;
 };
 
 struct GameState {
 	Entity entities[1000];
-	int numEntities;
+	s32 numEntities;
 
 	//NOTE: 0 is the null reference
 	EntityReference entityRefs_[500];
 	
 
 	//NOTE: These must be sequential for laser collisions to work
-	int refCount;
+	s32 refCount;
 
 	MemoryArena permanentStorage;
 	MemoryArena levelStorage;
@@ -139,13 +171,13 @@ struct GameState {
 	V2 cameraP;
 	V2 newCameraP;
 
-	int shootTargetRef;
-	int consoleEntityRef;
-	int playerRef;
-	int playerDeathRef;
+	s32 shootTargetRef;
+	s32 consoleEntityRef;
+	s32 playerRef;
+	s32 playerDeathRef;
 
-	bool loadNextLevel;
-	bool doingInitialSim;
+	bool32 loadNextLevel;
+	bool32 doingInitialSim;
 
 	ConsoleField* consoleFreeList;
 	RefNode* refNodeFreeList;
@@ -156,16 +188,16 @@ struct GameState {
 	V2 swapFieldP;
 
 	PathNode* openPathNodes[10000];
-	int openPathNodesCount;
+	s32 openPathNodesCount;
 	PathNode* solidGrid;
-	int solidGridWidth, solidGridHeight;
+	s32 solidGridWidth, solidGridHeight;
 	double solidGridSquareSize;
 
 	EntityChunk* chunks;
-	int chunksWidth, chunksHeight;
+	s32 chunksWidth, chunksHeight;
 	V2 chunkSize;
 
-	int blueEnergy;
+	s32 blueEnergy;
 
 	double shootDelay;
 	double tileSize;
@@ -173,7 +205,7 @@ struct GameState {
 	V2 worldSize;
 
 	double pixelsPerMeter;
-	int windowWidth, windowHeight;
+	s32 windowWidth, windowHeight;
 	V2 windowSize;
 
 	V2 gravity;
@@ -219,7 +251,7 @@ struct GameState {
 #define pushArray(arena, type, count) (type*)pushIntoArena_(arena, count * sizeof(type))
 #define pushStruct(arena, type) (type*)pushIntoArena_(arena, sizeof(type))
 #define pushSize(arena, size) pushIntoArena_(arena, size);
-void* pushIntoArena_(MemoryArena* arena, uint amt) {
+void* pushIntoArena_(MemoryArena* arena, size_t amt) {
 	arena->allocated += amt;
 	assert(arena->allocated < arena->size);
 
@@ -227,9 +259,8 @@ void* pushIntoArena_(MemoryArena* arena, uint amt) {
 	return result;
 }
 
-//TODO: size_t?
-void zeroSize(void* base, int size) {
-	for (int byteIndex = 0; byteIndex < size; byteIndex++) {
+void zeroSize(void* base, size_t size) {
+	for (size_t byteIndex = 0; byteIndex < size; byteIndex++) {
 		*((char*)base + byteIndex) = 0;
 	}
 }

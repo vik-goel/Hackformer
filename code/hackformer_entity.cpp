@@ -17,13 +17,13 @@ void giveEntityRectangularCollisionBounds(Entity* entity, GameState* gameState,
 	entity->hitboxes = hitbox;
 }
 
-EntityReference* getEntityReferenceBucket(GameState* gameState, int ref) {
-	int bucketIndex = (ref % (arrayCount(gameState->entityRefs_) - 1)) + 1;
+EntityReference* getEntityReferenceBucket(GameState* gameState, s32 ref) {
+	s32 bucketIndex = (ref % (arrayCount(gameState->entityRefs_) - 1)) + 1;
 	EntityReference* result = gameState->entityRefs_ + bucketIndex;
 	return result;
 }
 
-EntityReference* getPreciseEntityReferenceBucket(GameState* gameState, int ref) {
+EntityReference* getPreciseEntityReferenceBucket(GameState* gameState, s32 ref) {
 	EntityReference* bucket = getEntityReferenceBucket(gameState, ref);
 
 	EntityReference* result = NULL;
@@ -40,7 +40,7 @@ EntityReference* getPreciseEntityReferenceBucket(GameState* gameState, int ref) 
 	return result;
 }
 
-Entity* getEntityByRef(GameState* gameState, int ref) {
+Entity* getEntityByRef(GameState* gameState, s32 ref) {
 	EntityReference* bucket = getPreciseEntityReferenceBucket(gameState, ref);
 
 	Entity* result = NULL;
@@ -49,7 +49,7 @@ Entity* getEntityByRef(GameState* gameState, int ref) {
 	return result;
 }
 
-Entity* getUnremovedEntityByRef(GameState* gameState, int ref) {
+Entity* getUnremovedEntityByRef(GameState* gameState, s32 ref) {
 	Entity* result = getEntityByRef(gameState, ref);
 	if (result && isSet(result, EntityFlag_remove)) result = NULL;
 	return result;
@@ -78,8 +78,8 @@ void freeEntityReference(EntityReference* reference, GameState* gameState) {
 }
 
 EntityChunk* getSpatialChunk(V2 p, GameState* gameState) {
-	int x = (int)(p.x / gameState->chunkSize.x);
-	int y = (int)(p.y / gameState->chunkSize.y);
+	s32 x = (s32)(p.x / gameState->chunkSize.x);
+	s32 y = (s32)(p.y / gameState->chunkSize.y);
 
 	EntityChunk* result = NULL;
 
@@ -117,7 +117,7 @@ bool removeFromSpatialPartition(Entity* entity, GameState* gameState) {
 	bool removed = false;
 
 	while(chunk) {
-		for (int refIndex = 0; refIndex < chunk->numRefs; refIndex++) {
+		for (s32 refIndex = 0; refIndex < chunk->numRefs; refIndex++) {
 			if (chunk->entityRefs[refIndex] == entity->ref) {
 				chunk->numRefs--;
 				chunk->entityRefs[refIndex] = chunk->entityRefs[chunk->numRefs];
@@ -197,7 +197,7 @@ void freeEntity(Entity* entity, GameState* gameState) {
 		case EntityType_text: {
 			//glDeleteTextures(1, &entity->texture->texId);
 
-			for (int messageIndex = 0; messageIndex < entity->numMessages; messageIndex++) {
+			for (s32 messageIndex = 0; messageIndex < entity->numMessages; messageIndex++) {
 				freeTexture(entity->messages[messageIndex]);
 				//SDL_DestroyTexture(entity->messages[messageIndex].tex);
 			}
@@ -210,7 +210,7 @@ void freeEntity(Entity* entity, GameState* gameState) {
 		} break;
 	}
 
-	for (int fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+	for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
 		freeConsoleField(entity->fields[fieldIndex], gameState);
 		entity->fields[fieldIndex] = NULL;
 	}
@@ -220,7 +220,7 @@ void removeEntities(GameState* gameState) {
 	//NOTE: Entities are removed here if their remove flag is set
 	//NOTE: There is a memory leak here if the entity allocated anything
 	//		Ensure this is cleaned up, the console is a big place where leaks can happen
-	for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+	for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 		Entity* entity = gameState->entities + entityIndex;
 
 		if (isSet(entity, EntityFlag_remove)) {
@@ -313,8 +313,8 @@ Entity* addEntity(GameState* gameState, EntityType type, DrawOrder drawOrder, V2
 	return result;
 }
 
-void removeFieldsIfSet(ConsoleField** fields, int* numFields) {
-	for (int fieldIndex = 0; fieldIndex < *numFields; fieldIndex++) {
+void removeFieldsIfSet(ConsoleField** fields, s32* numFields) {
+	for (s32 fieldIndex = 0; fieldIndex < *numFields; fieldIndex++) {
 		ConsoleField* field = fields[fieldIndex];
 
 		if (field->children) {
@@ -324,7 +324,7 @@ void removeFieldsIfSet(ConsoleField** fields, int* numFields) {
 		if (isSet(field, ConsoleFlag_remove)) {
 			clearFlags(field, ConsoleFlag_remove);
 
-			for (int moveIndex = fieldIndex; moveIndex < *numFields - 1; moveIndex++) {
+			for (s32 moveIndex = fieldIndex; moveIndex < *numFields - 1; moveIndex++) {
 				ConsoleField** dst = fields + moveIndex;
 				ConsoleField** src = fields + moveIndex + 1;
 
@@ -559,7 +559,7 @@ Entity* addHeavyTile(GameState* gameState, V2 p) {
 	return result;
 }
 
-void setSelectedText(Entity* text, int selectedIndex, GameState* gameState) {
+void setSelectedText(Entity* text, s32 selectedIndex, GameState* gameState) {
 	assert(text->type == EntityType_text);
 
 	text->defaultTex = text->messages + selectedIndex;
@@ -567,13 +567,13 @@ void setSelectedText(Entity* text, int selectedIndex, GameState* gameState) {
 	text->clickBox = rectCenterDiameter(v2(0, 0), text->renderSize);
 }
 
-Entity* addText(GameState* gameState, V2 p, char values[10][100], int numValues, int selectedIndex) {
+Entity* addText(GameState* gameState, V2 p, char values[10][100], s32 numValues, s32 selectedIndex) {
 	Entity* result = addEntity(gameState, EntityType_text, DrawOrder_text, p, v2(0, 0));
 
 	result->numMessages = numValues;
 	result->messages = (Texture*)malloc((numValues + 1) * sizeof(Texture));
 
-	for(int valueIndex = 0; valueIndex <= numValues; valueIndex++) {
+	for(s32 valueIndex = 0; valueIndex <= numValues; valueIndex++) {
 		Texture* tex = result->messages + valueIndex;
 		*tex = createText(gameState, gameState->textFont, values[valueIndex]);
 	}
@@ -586,14 +586,14 @@ Entity* addText(GameState* gameState, V2 p, char values[10][100], int numValues,
 	setFlags(result, EntityFlag_noMovementByDefault|
 					 EntityFlag_hackable);
 
-	int selectedIndexValues[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+	s32 selectedIndexValues[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 	addField(result, gameState, 
-		createPrimitiveField(int, gameState, "selected_index", selectedIndexValues, numValues + 1, selectedIndex, 1));
+		createPrimitiveField(s32, gameState, "selected_index", selectedIndexValues, numValues + 1, selectedIndex, 1));
 
 	return result;
 }
 
-Entity* addLaserBolt(GameState* gameState, V2 p, V2 target, int shooterRef, double speed) {
+Entity* addLaserBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, double speed) {
 	Entity* result = addEntity(gameState, EntityType_laserBolt, DrawOrder_laserBolt, p, v2(0.8f, 0.8f));
 
 	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
@@ -702,7 +702,7 @@ Entity* addFlyingVirus(GameState* gameState, V2 p) {
 ConsoleField* getMovementField(Entity* entity) {
 	ConsoleField* result = NULL;
 
-	for (int fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+	for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
 		ConsoleField* testField = entity->fields[fieldIndex];
 		if (isConsoleFieldMovementType(testField)) {
 			result = testField;
@@ -1037,13 +1037,13 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 	result.collisionTime = 1;
 	result.solidCollisionTime = 1;
 
-	int partitionCenterX = (int)(entity->p.x / gameState->chunkSize.x);
-	int partitionCenterY = (int)(entity->p.y / gameState->chunkSize.y);
+	s32 partitionCenterX = (s32)(entity->p.x / gameState->chunkSize.x);
+	s32 partitionCenterY = (s32)(entity->p.y / gameState->chunkSize.y);
 
-	for (int partitionXOffs = -1; partitionXOffs <= 1; partitionXOffs++) {
-		for (int partitionYOffs = -1; partitionYOffs <= 1; partitionYOffs++) {
-			int partitionX = partitionCenterX + partitionXOffs;
-			int partitionY = partitionCenterY + partitionYOffs;
+	for (s32 partitionXOffs = -1; partitionXOffs <= 1; partitionXOffs++) {
+		for (s32 partitionYOffs = -1; partitionYOffs <= 1; partitionYOffs++) {
+			s32 partitionX = partitionCenterX + partitionXOffs;
+			s32 partitionY = partitionCenterY + partitionYOffs;
 
 			if (partitionX >= 0 && 
 				partitionY >= 0 && 
@@ -1053,7 +1053,7 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 				EntityChunk* chunk = gameState->chunks + partitionY * gameState->chunksWidth + partitionX;
 
 				while(chunk) {
-					for (int colliderIndex = 0; colliderIndex < chunk->numRefs; colliderIndex++) {
+					for (s32 colliderIndex = 0; colliderIndex < chunk->numRefs; colliderIndex++) {
 						Entity* collider = getEntityByRef(gameState, chunk->entityRefs[colliderIndex]);
 
 						if (collider && collider != entity &&
@@ -1122,7 +1122,7 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP) {
 	V2 totalMovement = {};
 	V2 totalMovementNoEpsilon = {};
 
-	for (int moveIteration = 0; moveIteration < 4 && maxCollisionTime > 0; moveIteration++) {
+	for (s32 moveIteration = 0; moveIteration < 4 && maxCollisionTime > 0; moveIteration++) {
 		GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, delta);
 		double collisionTime = min(maxCollisionTime, collisionResult.collisionTime);
 
@@ -1265,7 +1265,7 @@ bool moveTowardsTarget(Entity* entity, GameState* gameState, double dt,
 ConsoleField* getField(Entity* entity, ConsoleFieldType type) {
 	ConsoleField* result = false;
 
-	for (int fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+	for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
 		if (entity->fields[fieldIndex]->type == type) {
 			result = entity->fields[fieldIndex];
 			break;
@@ -1280,7 +1280,7 @@ bool isMouseInside(Entity* entity, Input* input) {
 	return result;
 }
 
-bool inSolidGridBounds(GameState* gameState, int xTile, int yTile) {
+bool inSolidGridBounds(GameState* gameState, s32 xTile, s32 yTile) {
 	bool result = xTile >= 0 &&
 				  yTile >= 0 &&
 				  xTile < gameState->solidGridWidth &&
@@ -1290,8 +1290,8 @@ bool inSolidGridBounds(GameState* gameState, int xTile, int yTile) {
 }
 
 void addSolidLocation(double xPos, double yPos, GameState* gameState) {
-	int xTile = (int)(xPos / gameState->solidGridSquareSize);
-	int yTile = (int)(yPos / gameState->solidGridSquareSize);
+	s32 xTile = (s32)(xPos / gameState->solidGridSquareSize);
+	s32 yTile = (s32)(yPos / gameState->solidGridSquareSize);
 
 	if (inSolidGridBounds(gameState, xTile, yTile)) {
 		gameState->solidGrid[xTile * gameState->solidGridHeight + yTile].solid = true;
@@ -1306,8 +1306,8 @@ void testLocationAsClosestNonSolidNode(double xPos, double yPos, double* minDstS
 		drawFilledRect(gameState, rect, gameState->cameraP);
 	#endif
 
-	int xTile = (int)floor(xPos / gameState->solidGridSquareSize);
-	int yTile = (int)floor(yPos / gameState->solidGridSquareSize);
+	s32 xTile = (s32)floor(xPos / gameState->solidGridSquareSize);
+	s32 yTile = (s32)floor(yPos / gameState->solidGridSquareSize);
 
 	if (inSolidGridBounds(gameState, xTile, yTile)) {
 		PathNode* node = gameState->solidGrid + xTile * gameState->solidGridHeight + yTile;
@@ -1332,7 +1332,7 @@ PathNode* getClosestNonSolidNode(Entity* entity, GameState* gameState, Entity* o
 	V2 otherSize;
 
 	//TODO: Find a more robust way of doing this so entities don't get stuck
-	int radiusFudge = 5;
+	s32 radiusFudge = 5;
 
 	if(other) {
 		R2 otherHitbox = getMaxCollisionExtents(other);
@@ -1351,11 +1351,11 @@ PathNode* getClosestNonSolidNode(Entity* entity, GameState* gameState, Entity* o
 
 		V2 hitboxCenter = getRectCenter(hitbox);
 
-		int radiusX = (int)ceil(getRectWidth(hitbox) / (2 * gameState->solidGridSquareSize)) + radiusFudge;
-		int radiusY = (int)ceil(getRectHeight(hitbox) / (2 * gameState->solidGridSquareSize)) + radiusFudge;
+		s32 radiusX = (s32)ceil(getRectWidth(hitbox) / (2 * gameState->solidGridSquareSize)) + radiusFudge;
+		s32 radiusY = (s32)ceil(getRectHeight(hitbox) / (2 * gameState->solidGridSquareSize)) + radiusFudge;
 
-		for(int xOffs = -radiusX; xOffs <= radiusX; xOffs++) {
-			for (int yOffs = -radiusY; yOffs <= radiusY; yOffs++) {
+		for(s32 xOffs = -radiusX; xOffs <= radiusX; xOffs++) {
+			for (s32 yOffs = -radiusY; yOffs <= radiusY; yOffs++) {
 				double xPos = hitboxCenter.x + xOffs * gameState->solidGridSquareSize;
 				double yPos = hitboxCenter.y + yOffs * gameState->solidGridSquareSize;
 
@@ -1397,16 +1397,16 @@ bool pathLineClear(V2 p1, V2 p2, GameState* gameState) {
 	for(double linePos = 0; linePos < lineLength; linePos += increment) {
 		V2 p = p1 + delta * linePos;
 
-		int xTile = (int)floor(p.x / gameState->solidGridSquareSize);
-		int yTile = (int)floor(p.y / gameState->solidGridSquareSize);
+		s32 xTile = (s32)floor(p.x / gameState->solidGridSquareSize);
+		s32 yTile = (s32)floor(p.y / gameState->solidGridSquareSize);
 
 		if (inSolidGridBounds(gameState, xTile, yTile)) {
 			if (gameState->solidGrid[xTile * gameState->solidGridHeight + yTile].solid) return false;
 		}
 	}
 
-	int xTile = (int)floor(maxX / gameState->solidGridSquareSize);
-	int yTile = (int)floor(maxY / gameState->solidGridSquareSize);	
+	s32 xTile = (s32)floor(maxX / gameState->solidGridSquareSize);
+	s32 yTile = (s32)floor(maxY / gameState->solidGridSquareSize);	
 
 	if (inSolidGridBounds(gameState, xTile, yTile)) {
 		if (gameState->solidGrid[xTile * gameState->solidGridHeight + yTile].solid) return false;
@@ -1416,8 +1416,8 @@ bool pathLineClear(V2 p1, V2 p2, GameState* gameState) {
 }
 
 V2 computePath(GameState* gameState, Entity* start, Entity* goal) {
-	for (int tileX = 0; tileX < gameState->solidGridWidth; tileX++) {
-		for (int tileY = 0; tileY < gameState->solidGridHeight; tileY++) {
+	for (s32 tileX = 0; tileX < gameState->solidGridWidth; tileX++) {
+		for (s32 tileY = 0; tileY < gameState->solidGridHeight; tileY++) {
 			PathNode* node = gameState->solidGrid + tileX * gameState->solidGridHeight + tileY;
 			node->solid = false;
 			node->open = false;
@@ -1430,7 +1430,7 @@ V2 computePath(GameState* gameState, Entity* start, Entity* goal) {
 
 	gameState->openPathNodesCount = 0;
 
-	for (int colliderIndex = 0; colliderIndex < gameState->numEntities; colliderIndex++) {
+	for (s32 colliderIndex = 0; colliderIndex < gameState->numEntities; colliderIndex++) {
 		Entity* collider = gameState->entities + colliderIndex;
 
 		if (collider != start && collider != goal &&
@@ -1502,10 +1502,10 @@ V2 computePath(GameState* gameState, Entity* start, Entity* goal) {
 		
 		while(gameState->openPathNodesCount) {
 			PathNode* current = NULL;
-			int currentIndex = 0;
+			s32 currentIndex = 0;
 			double minEstimatedTotalCost = 1000000000000.0;
 
-			for (int nodeIndex = 0; nodeIndex < gameState->openPathNodesCount; nodeIndex++) {
+			for (s32 nodeIndex = 0; nodeIndex < gameState->openPathNodesCount; nodeIndex++) {
 				PathNode* testNode = gameState->openPathNodes[nodeIndex];
 
 				if (testNode->open) {
@@ -1582,11 +1582,11 @@ V2 computePath(GameState* gameState, Entity* start, Entity* goal) {
 				break;
 			}
 
-			for(int xOffs = -1; xOffs <= 1; xOffs++) {
-				for (int yOffs = -1; yOffs <= 1; yOffs++) {
+			for(s32 xOffs = -1; xOffs <= 1; xOffs++) {
+				for (s32 yOffs = -1; yOffs <= 1; yOffs++) {
 					if (xOffs != 0 || yOffs != 0) {
-						int tileX = current->tileX + xOffs;
-						int tileY = current->tileY + yOffs;
+						s32 tileX = current->tileX + xOffs;
+						s32 tileY = current->tileY + yOffs;
 
 						if (inSolidGridBounds(gameState, tileX, tileY)) {
 							PathNode* testNode = gameState->solidGrid + tileX * gameState->solidGridHeight + tileY;
@@ -1691,7 +1691,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		//TODO: It might be possible to combine the three loops which handle ground reference lists later
 		//TODO: An entities ground reference list could be reset right after it is done being updated and rendered
 		//NOTE: This is to reset all of the entities ground reference lists
-		for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+		for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 			Entity* entity = gameState->entities + entityIndex;
 
 			entity->timeSinceLastOnGround += dt;
@@ -1714,7 +1714,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 		//NOTE: This loops though all the entities to set if they are on the ground at the beginning of the frame
 		//		and to setup their groundReferenceList's
-		for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+		for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 			Entity* entity = gameState->entities + entityIndex;
 
 			Entity* above = getAbove(entity, gameState);
@@ -1730,7 +1730,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			}
 		}
 	} else {
-		for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+		for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 			Entity* entity = gameState->entities + entityIndex;
 			clearFlags(entity, EntityFlag_movedByGround);
 		}
@@ -1740,7 +1740,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 	double groundFriction = pow(E, frictionGroundCoefficient * dt);
 
 	//NOTE: This loops through all of the entities in the game state to update and render them
-	for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+	for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 		Entity* entity = gameState->entities + entityIndex;
 
 		removeFieldsIfSet(entity->fields, &entity->numFields);
@@ -1854,8 +1854,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						ConsoleField* doubleJumpField = movementField->children[2];
 						bool canDoubleJump = doubleJumpField->selectedIndex != 0;
 
-						if (gameState->input.rightPressed) xMove += xMoveAcceleration;
-						if (gameState->input.leftPressed) xMove -= xMoveAcceleration;
+						if (gameState->input.right.pressed) xMove += xMoveAcceleration;
+						if (gameState->input.left.pressed) xMove -= xMoveAcceleration;
 
 						ddP.x += xMove;
 
@@ -1864,13 +1864,13 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 						bool canJump = entity->jumpCount == 0 && 
 									   entity->timeSinceLastOnGround < 0.15 && 
-									   gameState->input.upPressed;
+									   gameState->input.up.pressed;
 
 						bool attemptingDoubleJump = false;
 						
 						if (!canJump) {
 							attemptingDoubleJump = true;
-							canJump = entity->jumpCount < 2 && canDoubleJump && gameState->input.upJustPressed;
+							canJump = entity->jumpCount < 2 && canDoubleJump && gameState->input.up.justPressed;
 						}
 
 						if (canJump) {
@@ -1906,7 +1906,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						V2 oldCollisionSize = entity->hitboxes->collisionSize;
 						V2 oldCollisionOffset = entity->hitboxes->collisionOffset;
 
-						bool initiallyOnGround = isSet(entity, EntityFlag_grounded);
+						bool32 initiallyOnGround = isSet(entity, EntityFlag_grounded);
 
 						if (isSet(entity, EntityFlag_facesLeft)) {
 							xMoveAcceleration *= -1;
@@ -2072,16 +2072,16 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				assert(entity->fields[0]->type == ConsoleField_unlimitedInt && 
 					   entity->fields[1]->type == ConsoleField_unlimitedInt);
 
-				int fieldXOffset = entity->fields[0]->selectedIndex;
-				int fieldYOffset = entity->fields[1]->selectedIndex;
+				s32 fieldXOffset = entity->fields[0]->selectedIndex;
+				s32 fieldYOffset = entity->fields[1]->selectedIndex;
 
 				if(movementField) {
 					entity->tileXOffset = fieldXOffset;
 					entity->tileYOffset = fieldYOffset;
 				}
 
-				int dXOffset = fieldXOffset - entity->tileXOffset;
-				int dYOffset = fieldYOffset - entity->tileYOffset;
+				s32 dXOffset = fieldXOffset - entity->tileXOffset;
+				s32 dYOffset = fieldYOffset - entity->tileYOffset;
 
 				if (dXOffset != 0 || dYOffset != 0) {
 					V2 target = entity->startPos + hadamard(v2((double)dXOffset, (double)dYOffset), 
@@ -2105,9 +2105,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 			case EntityType_text: {
 				assert(entity->numFields >= 1);
-				assert(entity->fields[0]->type == ConsoleField_int);
+				assert(entity->fields[0]->type == ConsoleField_s32);
 
-				int selectedIndex = entity->fields[0]->intValues[entity->fields[0]->selectedIndex];
+				s32 selectedIndex = entity->fields[0]->intValues[entity->fields[0]->selectedIndex];
 				setSelectedText(entity, selectedIndex, gameState);
 			} break;
 
@@ -2357,7 +2357,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		}
 
 		if (texture != NULL) {
-			bool drawLeft = isSet(entity, EntityFlag_facesLeft);
+			bool drawLeft = isSet(entity, EntityFlag_facesLeft) != 0;
 			if (entity->type == EntityType_laserBase) drawLeft = false;
 
 			if(entity->currentAnim == &gameState->playerHack && !isSet(entity, EntityFlag_animIntro|EntityFlag_animOutro)) {

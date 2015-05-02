@@ -49,7 +49,7 @@ enum EntityFlag {
 };
 
 struct RefNode {
-	int ref;
+	s32 ref;
 	RefNode* next;
 };
 
@@ -61,8 +61,8 @@ struct Hitbox {
 
 struct Entity {
 	EntityType type;
-	uint flags;
-	int ref;
+	u32 flags;
+	s32 ref;
 
 	V2 p;
 	V2 dP;
@@ -74,7 +74,7 @@ struct Entity {
 	R2 clickBox;
 
 	ConsoleField* fields[8];
-	int numFields;
+	s32 numFields;
 
 	RefNode* groundReferenceList;
 
@@ -85,22 +85,22 @@ struct Entity {
 	double shootTimer;
 
 	//Used by projectiles
-	int shooterRef;
+	s32 shooterRef;
 
 	//Used by tiles and player death
 	V2 startPos;
 
 	//Used by tiles
-	int tileXOffset;
-	int tileYOffset;
+	s32 tileXOffset;
+	s32 tileYOffset;
 
 	//Used by any entity that jumps
-	int jumpCount;
+	s32 jumpCount;
 	double timeSinceLastOnGround;
 
 	//Used by text entity
 	Texture* messages;
-	int numMessages;
+	s32 numMessages;
 
 	double animTime;
 	AnimNode* currentAnim;
@@ -140,19 +140,19 @@ struct GetCollisionTimeResult {
 	bool solidHorizontalCollision;
 };
 
-void setFlags(Entity* entity, uint flags) {
+void setFlags(Entity* entity, u32 flags) {
 	entity->flags |= flags;
 } 
 
-void clearFlags(Entity* entity, uint flags) {
+void clearFlags(Entity* entity, u32 flags) {
 	entity->flags &= ~flags;
 } 
 
-void toggleFlags(Entity* entity, uint toggle) {
+void toggleFlags(Entity* entity, u32 toggle) {
 	entity->flags ^= toggle;
 }
 
-bool isSet(Entity* entity, uint flags) {
-	bool result = (entity->flags & flags) != 0;
+bool32 isSet(Entity* entity, u32 flags) {
+	bool32 result = (entity->flags & flags) != 0;
 	return result;
 }

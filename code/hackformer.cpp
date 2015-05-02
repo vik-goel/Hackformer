@@ -5,14 +5,14 @@
 #include "hackformer_entity.cpp"
 
 bool stringsMatch(char* a, char * b) {
-	int len = strlen(b);
+	s32 len = strlen(b);
 	bool result = strncmp(a, b, len) == 0;
 	return result;
 }
 
-char* findFirstStringOccurrence(char* str, int strSize, char* subStr, int subStrSize) {
-	int strPos = 0;
-	int maxStrPos = strSize - subStrSize;
+char* findFirstStringOccurrence(char* str, s32 strSize, char* subStr, s32 subStrSize) {
+	s32 strPos = 0;
+	s32 maxStrPos = strSize - subStrSize;
 
 	for (; strPos < maxStrPos; strPos++) {
 		if (strncmp(str + strPos, subStr, subStrSize) == 0) {
@@ -23,8 +23,8 @@ char* findFirstStringOccurrence(char* str, int strSize, char* subStr, int subStr
 	return 0;
 }
 
-bool extractIntFromLine(char* line, int lineLen, char* intName, int* result) {
-	int nameLength = strlen(intName);
+bool extractS32FromLine(char* line, s32 lineLen, char* intName, s32* result) {
+	s32 nameLength = strlen(intName);
 	char* occurrence = findFirstStringOccurrence(line, lineLen, intName, nameLength);
 
 	if (occurrence) {
@@ -37,14 +37,14 @@ bool extractIntFromLine(char* line, int lineLen, char* intName, int* result) {
 	return false;
 }
 
-bool extractStringFromLine(char* line, int lineLen, char* intName, char* result, int maxResultSize) {
-	int nameLength = strlen(intName);
+bool extractStringFromLine(char* line, s32 lineLen, char* intName, char* result, s32 maxResultSize) {
+	s32 nameLength = strlen(intName);
 	char* occurrence = findFirstStringOccurrence(line, lineLen, intName, nameLength);
 
 	if (occurrence) {
 		//Need to add two to go past the ="
 		occurrence += nameLength + 2;
-		int resultSize = 0;
+		s32 resultSize = 0;
 
 		while (*occurrence != '"') {
 			result[resultSize] = *occurrence;
@@ -65,7 +65,7 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 	fopen_s(&file, fileName, "r");
 	assert(file);
 
-	int mapWidthTiles, mapHeightTiles;
+	s32 mapWidthTiles, mapHeightTiles;
 	bool foundMapSizeTiles = false;
 
 	//int tileWidth, tileHeight, tileSpacing;
@@ -75,17 +75,17 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 
 	bool loadingTileData = false;
 	bool doneLoadingTiles = false;
-	int tileX, tileY;
+	s32 tileX, tileY;
 
 	char line[1024];
 	char buffer[1024];
 
 	while (fgets (line, sizeof(line), file)) {
-		int lineLength = strlen(line);
+		s32 lineLength = strlen(line);
 
 		if (!foundMapSizeTiles) {
-			if (extractIntFromLine(line, lineLength, "width", &mapWidthTiles)) {
-				extractIntFromLine(line, lineLength, "height", &mapHeightTiles);
+			if (extractS32FromLine(line, lineLength, "width", &mapWidthTiles)) {
+				extractS32FromLine(line, lineLength, "height", &mapHeightTiles);
 				foundMapSizeTiles = true;
 
 				gameState->mapSize = v2((double)mapWidthTiles, (double)mapHeightTiles) * gameState->tileSize;
@@ -95,10 +95,10 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 
 				//NOTE: This sets up the spatial partition
 				{
-					gameState->chunksWidth = (int)ceil(gameState->mapSize.x / gameState->chunkSize.x);
-					gameState->chunksHeight = (int)ceil(gameState->windowSize.y / gameState->chunkSize.y);
+					gameState->chunksWidth = (s32)ceil(gameState->mapSize.x / gameState->chunkSize.x);
+					gameState->chunksHeight = (s32)ceil(gameState->windowSize.y / gameState->chunkSize.y);
 
-					int numChunks = gameState->chunksWidth * gameState->chunksHeight;
+					s32 numChunks = gameState->chunksWidth * gameState->chunksHeight;
 					gameState->chunks = pushArray(&gameState->levelStorage, EntityChunk, numChunks);
 					zeroSize(gameState->chunks, numChunks * sizeof(EntityChunk));
 				}
@@ -137,7 +137,7 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 				tileX = 0;
 
 				while(*linePtr) {
-					int tileIndex = atoi(linePtr) - 1;
+					s32 tileIndex = atoi(linePtr) - 1;
 
 					if (tileIndex >= 0) {
 						V2 tileP = v2(tileX + 0.5, tileY + 0.5) * gameState->tileSize;
@@ -155,9 +155,9 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 		}
 		else if (doneLoadingTiles) {
 			if (extractStringFromLine(line, lineLength, "name", buffer, arrayCount(buffer))) {
-				int entityX, entityY;
-				extractIntFromLine(line, lineLength, "\" x", &entityX);
-				extractIntFromLine(line, lineLength, "\" y", &entityY);
+				s32 entityX, entityY;
+				extractS32FromLine(line, lineLength, "\" x", &entityX);
+				extractS32FromLine(line, lineLength, "\" y", &entityY);
 
 				V2 p = v2((double)entityX, (double)entityY) * (gameState->tileSize / 120.0);
 				p.y = gameState->windowHeight / gameState->pixelsPerMeter - p.y;
@@ -192,9 +192,9 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 
 					fgets(line, sizeof(line), file);
 
-					int selectedIndex = -1;
+					s32 selectedIndex = -1;
 					char values[10][100];
-					int numValues = 0;
+					s32 numValues = 0;
 
 					while(true) {
 						fgets(line, sizeof(line), file);
@@ -203,7 +203,7 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 						extractStringFromLine(line, lineLength, "name", buffer, arrayCount(buffer));
 
 						bool selectedIndexString = false;
-						int valueIndex = -1;
+						s32 valueIndex = -1;
 						
 						if (stringsMatch(buffer, "selected index")) selectedIndexString = true;
 						else valueIndex = atoi(buffer);
@@ -277,14 +277,14 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 	//NOTE: This sets up the pathfinding array
 	{
 		//TODO: This can probably just persist for one frame, not the entire level
-		gameState->solidGridWidth = (int)ceil(gameState->mapSize.x / gameState->solidGridSquareSize);
-		gameState->solidGridHeight = (int)ceil(gameState->windowSize.y / gameState->solidGridSquareSize);
+		gameState->solidGridWidth = (s32)ceil(gameState->mapSize.x / gameState->solidGridSquareSize);
+		gameState->solidGridHeight = (s32)ceil(gameState->windowSize.y / gameState->solidGridSquareSize);
 
-		int numNodes = gameState->solidGridWidth * gameState->solidGridHeight;
+		s32 numNodes = gameState->solidGridWidth * gameState->solidGridHeight;
 		gameState->solidGrid = pushArray(&gameState->levelStorage, PathNode, numNodes);
 				
-		for (int rowIndex = 0; rowIndex < gameState->solidGridWidth; rowIndex++) {
-		 	for (int colIndex = 0; colIndex < gameState->solidGridHeight; colIndex++) {
+		for (s32 rowIndex = 0; rowIndex < gameState->solidGridWidth; rowIndex++) {
+		 	for (s32 colIndex = 0; colIndex < gameState->solidGridHeight; colIndex++) {
 		 		PathNode* node = gameState->solidGrid + rowIndex * gameState->solidGridHeight + colIndex;
 
 				node->p = v2(rowIndex + 0.5, colIndex + 0.5) * gameState->solidGridSquareSize;
@@ -296,10 +296,14 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 }
 
 void pollInput(GameState* gameState, bool* running) {
-	gameState->input.dMouseMeters = v2(0, 0);
-	gameState->input.rJustPressed = false;
-	gameState->input.upJustPressed = false;
-	gameState->input.xJustPressed = false;
+	Input* input = &gameState->input;
+
+	input->dMouseMeters = v2(0, 0);
+
+	for(s32 keyIndex = 0; keyIndex < arrayCount(input->keys); keyIndex++) {
+		Key* key = input->keys + keyIndex;
+		key->justPressed = false;
+	}
 
 	SDL_Event event;
 	while(SDL_PollEvent(&event) > 0) {
@@ -312,29 +316,20 @@ void pollInput(GameState* gameState, bool* running) {
 			case SDL_KEYDOWN:
 			case SDL_KEYUP: {
 				bool pressed = event.key.state == SDL_PRESSED;
-				SDL_Keycode key = event.key.keysym.sym;
+				SDL_Keycode keyCode = event.key.keysym.sym;
 
-				if (key == SDLK_w || key == SDLK_UP) {
-					if (pressed && !input->upPressed) input->upJustPressed = true;
-					input->upPressed = pressed;
+				for(s32 keyIndex = 0; keyIndex < arrayCount(input->keys); keyIndex++) {
+					Key* key = input->keys + keyIndex;
+
+					if(key->keyCode1 == keyCode || key->keyCode2 == keyCode) {
+						if(pressed && !key->pressed) key->justPressed = true;
+						key->pressed = pressed;
+					}
 				}
-
-				if (key == SDLK_r) {
-					if (pressed && !input->rPressed) input->rJustPressed = true;
-					input->rPressed = pressed;
-				}
-
-				if (key == SDLK_x) {
-					if (pressed && !input->xPressed) input->xJustPressed = true;
-					input->xPressed = pressed;
-				}
-
-				else if (key == SDLK_a || key == SDLK_LEFT) input->leftPressed = pressed;
-				else if (key == SDLK_d || key == SDLK_RIGHT) input->rightPressed = pressed;
 			} break;
 			case SDL_MOUSEMOTION: {
-				int mouseX = event.motion.x;
-				int mouseY = event.motion.y;
+				s32 mouseX = event.motion.x;
+				s32 mouseY = event.motion.y;
 
 				input->mouseInPixels.x = (double)mouseX;
 				input->mouseInPixels.y = (double)(gameState->windowHeight - mouseY);
@@ -351,9 +346,9 @@ void pollInput(GameState* gameState, bool* running) {
 			case SDL_MOUSEBUTTONUP:
 				if (event.button.button == SDL_BUTTON_LEFT) {
 					if (event.button.state == SDL_PRESSED) {
-						input->leftMousePressed = input->leftMouseJustPressed = true;
+						input->leftMouse.pressed = input->leftMouse.justPressed = true;
 					} else {
-						input->leftMousePressed = input->leftMouseJustPressed = false;
+						input->leftMouse.pressed = input->leftMouse.justPressed = false;
 					}
 				}
 				break;
@@ -361,19 +356,19 @@ void pollInput(GameState* gameState, bool* running) {
 	}
 }
 
-void loadLevel(GameState* gameState, char** maps, int numMaps, int* mapFileIndex, bool initPlayerDeath) {
+void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex, bool initPlayerDeath) {
 	gameState->shootTargetRef = 0;
 	gameState->consoleEntityRef = 0;
 	gameState->playerRef = 0;
 
-	for (int entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+	for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 		freeEntity(gameState->entities + entityIndex, gameState);
 	}
 
 	gameState->numEntities = 0;
 	gameState->blueEnergy = 0;
 
-	for (int refIndex = 0; refIndex < arrayCount(gameState->entityRefs_); refIndex++) {
+	for (s32 refIndex = 0; refIndex < arrayCount(gameState->entityRefs_); refIndex++) {
 		//freeEntityReference(gameState->entityRefs_ + refIndex, gameState);
 		EntityReference* reference = gameState->entityRefs_ + refIndex;
 		*reference = {};
@@ -409,7 +404,7 @@ void loadLevel(GameState* gameState, char** maps, int numMaps, int* mapFileIndex
 
 	double timeStep = 1.0 / 60.0;
 
-	for (int frame = 0; frame < 30; frame++) {
+	for (s32 frame = 0; frame < 30; frame++) {
 		updateAndRenderEntities(gameState, timeStep);
 	}
 
@@ -430,7 +425,7 @@ void loadLevel(GameState* gameState, char** maps, int numMaps, int* mapFileIndex
 	}
 }
 
-MemoryArena createArena(int size) {
+MemoryArena createArena(size_t size) {
 	MemoryArena result = {};
 	result.size = size;
 	result.base = (char*)calloc(size, 1);
@@ -439,7 +434,7 @@ MemoryArena createArena(int size) {
 }
 
 int main(int argc, char *argv[]) {
-	int windowWidth = 1280, windowHeight = 720;
+	s32 windowWidth = 1280, windowHeight = 720;
 
 	//TODO: Proper error handling if any of these libraries does not load
 	//TODO: Only initialize what is needed
@@ -520,6 +515,25 @@ int main(int argc, char *argv[]) {
 
 	gameState->renderGroup = createRenderGroup(gameState, 32 * 1024);
 	gameState->texel = hadamard(gameState->windowSize, v2(1.0 / windowWidth, 1.0 / windowHeight));
+
+	gameState->input.up.keyCode1 = SDLK_w;
+	gameState->input.up.keyCode2 = SDLK_UP;
+
+	gameState->input.down.keyCode1 = SDLK_s;
+	gameState->input.down.keyCode2 = SDLK_DOWN;
+
+	gameState->input.left.keyCode1 = SDLK_a;
+	gameState->input.left.keyCode2 = SDLK_LEFT;
+
+	gameState->input.right.keyCode1 = SDLK_d;
+	gameState->input.right.keyCode2 = SDLK_RIGHT;
+
+	gameState->input.r.keyCode1 = SDLK_r;
+	gameState->input.x.keyCode1 = SDLK_x;
+	gameState->input.shift.keyCode1 = SDLK_RSHIFT;
+	gameState->input.shift.keyCode2 = SDLK_LSHIFT;
+	
+
 //
 //	gameState->basicShader = createShader("shaders/basic.vert", "shaders/basic.frag", gameState->windowSize);
 
@@ -593,7 +607,7 @@ int main(int argc, char *argv[]) {
 	gameState->attribute = loadPNGTexture(gameState, "res/Attribute", false);
 	gameState->behaviour = loadPNGTexture(gameState, "res/Behaviour", false);
 
-	uint numTilesInAtlas;
+	u32 numTilesInAtlas;
 	gameState->tileAtlas = extractTextures(gameState, "res/tiles_floored", 120, 240, 12, &numTilesInAtlas);
 
 	char* mapFileNames[] = {
@@ -602,29 +616,26 @@ int main(int argc, char *argv[]) {
 		"map5.tmx",
 	};
 
-	int mapFileIndex = 0;
+	s32 mapFileIndex = 0;
 	loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, false);
 
 	bool running = true;
 	double frameTime = 1.0 / 60.0;
-	uint fpsCounterTimer = SDL_GetTicks();
-	uint fps = 0;
+	u32 fpsCounterTimer = SDL_GetTicks();
+	u32 fps = 0;
 	double dtForFrame = 0;
 	double maxDtForFrame = 1.0 / 6.0;
-	uint lastTime = SDL_GetTicks();
-	uint currentTime;
+	u32 lastTime = SDL_GetTicks();
+	u32 currentTime;
 
 	//printf("Error: %d\n", glGetError());
 
 	while (running) {
-		gameState->input.leftMouseJustPressed = false;
-		gameState->input.upJustPressed = false;
-
 		currentTime = SDL_GetTicks();
 		dtForFrame += (double)((currentTime - lastTime) / 1000.0); 
 		lastTime = currentTime;
 
-		uint frameStart = SDL_GetTicks();
+		u32 frameStart = SDL_GetTicks();
 
 		if (currentTime - fpsCounterTimer > 1000) {
 			fpsCounterTimer += 1000;
@@ -660,12 +671,12 @@ int main(int argc, char *argv[]) {
 				V2 barSlope = normalize(v2(1, -0.04));
 				double barLength = 5.41;
 
-				int maxEnergy = 40;
+				s32 maxEnergy = 40;
 				double energySize = barLength / (double)maxEnergy;
 
 				if(gameState->blueEnergy > maxEnergy) gameState->blueEnergy = maxEnergy;
 
-				for(int energyIndex = 0; energyIndex < gameState->blueEnergy; energyIndex++) {
+				for(s32 energyIndex = 0; energyIndex < gameState->blueEnergy; energyIndex++) {
 					//TODO: <= is only needed for the last energyIndex
 					for(double lerpIndex = 0; lerpIndex <= 1; lerpIndex += 0.5) {
 						V2 blueEnergyP = blueEnergyStartP + barSlope * ((energyIndex + lerpIndex) * energySize);
@@ -695,13 +706,13 @@ int main(int argc, char *argv[]) {
 
 			dtForFrame = 0;
 
-			if (gameState->input.xJustPressed) {
+			if (gameState->input.x.justPressed) {
 				gameState->blueEnergy += 10;
 			}
 
 			{ //NOTE: This reloads the game
 				bool resetLevel = !getEntityByRef(gameState, gameState->playerDeathRef) &&
-								  (!getEntityByRef(gameState, gameState->playerRef) || gameState->input.rJustPressed);
+								  (!getEntityByRef(gameState, gameState->playerRef) || gameState->input.r.justPressed);
 
 				
 				if (gameState->loadNextLevel || 
@@ -710,8 +721,8 @@ int main(int argc, char *argv[]) {
 				}
 			}
 
-			uint frameEnd = SDL_GetTicks();
-			uint frameTime = frameEnd - frameStart;
+			u32 frameEnd = SDL_GetTicks();
+			u32 frameTime = frameEnd - frameStart;
 
 			//printf("Frame Time: %d\n", frameTime);
 
