@@ -34,7 +34,6 @@ New Features
 
 - Trail effect on death
 
-- Cloning fields
 - Cloning entire entities 
 
 - When an entity dies, make its fields collectable in the world so they don't just disappear
@@ -50,11 +49,12 @@ New Features
 - Hack the text and type in new messages
 
 - Make entities resizable
+- Line of sight for enemies
 
 */
 
 #define arrayCount(array) sizeof(array) / sizeof(array[0])
-#define InvalidCodePath assert(!"Invalid Code Path");
+#define InvalidCodePath assert(!"Invalid Code Path")
 #define InvalidDefaultCase default: { assert(!"Invalid Default Case"); } break
 
 #define SHOW_COLLISION_BOUNDS 0
@@ -171,7 +171,7 @@ struct GameState {
 	V2 cameraP;
 	V2 newCameraP;
 
-	s32 shootTargetRef;
+	RefNode* targetRefs;
 	s32 consoleEntityRef;
 	s32 playerRef;
 	s32 playerDeathRef;

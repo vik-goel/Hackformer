@@ -357,7 +357,7 @@ void pollInput(GameState* gameState, bool* running) {
 }
 
 void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex, bool initPlayerDeath) {
-	gameState->shootTargetRef = 0;
+	gameState->targetRefs = NULL;
 	gameState->consoleEntityRef = 0;
 	gameState->playerRef = 0;
 
@@ -549,7 +549,7 @@ int main(int argc, char *argv[]) {
 	Texture playerJump = loadPNGTexture(gameState, "res/player/jump2");
 	Animation playerWalk = loadAnimation(gameState, "res/player/running 2", 256, 256, 0.0325f, true);
 	Animation playerStandWalkTransition = loadAnimation(gameState, "res/player/stand_run_transition", 256, 256, 0.01f, false);
-	Animation playerHackingAnimation = loadAnimation(gameState, "res/player/Hacking Flow Sprite", 512, 256, 0.07f, false);
+	Animation playerHackingAnimation = loadAnimation(gameState, "res/player/Hacking Flow Sprite", 512, 256, 0.07f, true);
 	Animation playerHackingAnimationTransition = loadAnimation(gameState, "res/player/Hacking Sprite Full 2", 256, 256, 0.025f, false);
 
 	gameState->playerStand = createAnimNode(&playerStand);

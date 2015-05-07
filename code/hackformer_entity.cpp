@@ -17,6 +17,64 @@ void giveEntityRectangularCollisionBounds(Entity* entity, GameState* gameState,
 	entity->hitboxes = hitbox;
 }
 
+RefNode* refNode(GameState* gameState, int ref) {
+	RefNode* result = NULL;
+
+	if (gameState->refNodeFreeList) {
+		result = gameState->refNodeFreeList;
+		gameState->refNodeFreeList = gameState->refNodeFreeList->next;
+	} else {
+		result = (RefNode*)pushStruct(&gameState->levelStorage, RefNode);
+	}
+
+	assert(result);
+
+	result->next = NULL;
+	result->ref = ref;
+
+	return result;
+}
+
+void freeRefNode(RefNode* node, GameState* gameState) {
+	if (node->next) {
+		freeRefNode(node->next, gameState);
+	}
+
+	node->ref = 0;
+	node->next = gameState->refNodeFreeList;
+	gameState->refNodeFreeList = node;
+}
+
+void removeTargetRef(int ref, GameState* gameState) {
+	RefNode* node = gameState->targetRefs;
+	RefNode* prevNode = NULL;
+
+	bool removed = false;
+
+	while(node) {
+		if(node->ref == ref) {
+			if(prevNode) prevNode->next = node->next;
+			else gameState->targetRefs = node->next;
+
+			freeRefNode(node, gameState);
+
+			removed = true;
+			break;
+		}
+
+		prevNode = node;
+		node = node->next;
+	}
+
+	assert(removed);
+}
+
+void addTargetRef(int ref, GameState* gameState) {
+	RefNode* node = refNode(gameState, ref);
+	node->next = gameState->targetRefs;
+	gameState->targetRefs = node;
+}
+
 EntityReference* getEntityReferenceBucket(GameState* gameState, s32 ref) {
 	s32 bucketIndex = (ref % (arrayCount(gameState->entityRefs_) - 1)) + 1;
 	EntityReference* result = gameState->entityRefs_ + bucketIndex;
@@ -140,8 +198,37 @@ void setEntityP(Entity* entity, V2 newP, GameState* gameState) {
 	addToSpatialPartition(entity, gameState);
 }
 
+bool affectedByGravity(Entity* entity, ConsoleField* movementField) {
+	bool result = true;
+
+	bool32 noMovementByDefault = isSet(entity, EntityFlag_noMovementByDefault);
+
+	if(movementField) {
+		switch(movementField->type) {
+			case ConsoleField_keyboardControlled: {
+				result = true;
+			} break;
+			case ConsoleField_movesBackAndForth: {
+				return !noMovementByDefault;
+			} break;
+			case ConsoleField_seeksTarget: {
+				result = false;
+			} break;
+
+			InvalidDefaultCase;
+		}
+	} else {
+		result = !noMovementByDefault;
+	}
+
+	return result;
+}
+
 void addGroundReference(Entity* top, Entity* ground, GameState* gameState) {
-	if(top->type == EntityType_tile && !getMovementField(top)) return;
+	ConsoleField* topMovementField = getMovementField(top);
+
+	if(top->type == EntityType_tile && !topMovementField) return;
+	if(!affectedByGravity(top, topMovementField)) return;
 
 	top->jumpCount = 0;
 	setFlags(top, EntityFlag_grounded);
@@ -161,21 +248,7 @@ void addGroundReference(Entity* top, Entity* ground, GameState* gameState) {
 		topNode = topNode->next;
 	}
 
-
-	RefNode* append = NULL;
-
-	if (gameState->refNodeFreeList) {
-		append = gameState->refNodeFreeList;
-		gameState->refNodeFreeList = gameState->refNodeFreeList->next;
-	} else {
-		append = (RefNode*)pushStruct(&gameState->levelStorage, RefNode);
-	}
-
-	assert(append);
-
-	*append = {};
-	append->ref = top->ref;
-
+	RefNode* append = refNode(gameState, top->ref);
 
 	RefNode* last = ground->groundReferenceList;
 	RefNode* previous = NULL;
@@ -404,6 +477,12 @@ void addShootField(Entity* entity, GameState* gameState) {
 	addField(entity, gameState, result);
 }
 
+void addIsTargetField(Entity* entity, GameState* gameState) {
+	addField(entity, gameState, createConsoleField(gameState, "is_target", ConsoleField_isShootTarget));
+	addTargetRef(entity->ref, gameState);
+}
+
+
 Entity* addPlayerDeath(GameState* gameState) {
 	assert(!getEntityByRef(gameState, gameState->playerDeathRef));
 
@@ -425,11 +504,10 @@ Entity* addPlayerDeath(GameState* gameState) {
 	return result;
 }
 
+
 Entity* addPlayer(GameState* gameState, V2 p) {
 	Entity* result = addEntity(gameState, EntityType_player, DrawOrder_player, p, v2(1, 1) * 1.75);
 
-	assert(!getUnremovedEntityByRef(gameState, gameState->shootTargetRef));
-	gameState->shootTargetRef = result->ref;
 	assert(!getUnremovedEntityByRef(gameState, gameState->playerRef));
 	gameState->playerRef = result->ref;
 
@@ -441,8 +519,9 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 	setFlags(result, EntityFlag_hackable);
 
 	addKeyboardField(result, gameState);
-	addField(result, gameState, createConsoleField(gameState, "is_target", ConsoleField_isShootTarget));
+	
 	addField(result, gameState, createConsoleField(gameState, "camera_followed", ConsoleField_cameraFollows));
+	addIsTargetField(result, gameState);
 
 	setEntityP(result, result->p + result->renderSize * 0.5, gameState);
 
@@ -911,16 +990,6 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool sol
 			}
 		} break;
 	}
-}
-
-void freeRefNode(RefNode* node, GameState* gameState) {
-	if (node->next) {
-		freeRefNode(node->next, gameState);
-	}
-
-	node->ref = 0;
-	node->next = gameState->refNodeFreeList;
-	gameState->refNodeFreeList = node;
 }
 
 R2 getHitbox(Entity* entity, Hitbox* hitbox) {
@@ -1668,11 +1737,46 @@ void centerCameraAround(Entity* entity, GameState* gameState) {
 	gameState->newCameraP.x = x;
 }
 
+bool isTarget(Entity* entity, GameState* gameState) {
+	RefNode* node = gameState->targetRefs;
+
+	while(node) {
+		if(node->ref == entity->ref) return true;
+		node = node->next;
+	}
+
+	return false;
+}
+
 bool canEntityShoot(Entity* entity, GameState* gameState) {
 	bool result = false;
 
 	ConsoleField* shootField = getField(entity, ConsoleField_shootsAtTarget);
-	result = shootField && gameState->shootTargetRef && gameState->shootTargetRef != entity->ref;
+	result = shootField && !isTarget(entity, gameState);
+
+	return result;
+}
+
+Entity* getClosestTarget(Entity* entity, GameState* gameState) {
+	Entity* result = NULL;
+	double minDstSq = 99999999999;
+
+	RefNode* node = gameState->targetRefs;
+
+	while(node) {
+		Entity* testTarget = getEntityByRef(gameState, node->ref);
+
+		if(testTarget) {
+			double testDstSq = dstSq(entity->p, testTarget->p);
+
+			if(testDstSq < minDstSq) {
+				minDstSq = testDstSq;
+				result = testTarget;
+			}
+		}
+
+		node = node->next;
+	}
 
 	return result;
 }
@@ -1751,7 +1855,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 		//NOTE:This handles shooting if the entity should shoot
 		if (shootingEnabled) {
-			Entity* target = getEntityByRef(gameState, gameState->shootTargetRef);
+			Entity* target = getClosestTarget(entity, gameState); 
 
 			if (target) {
 				double dstToTarget = dstSq(target->p, entity->p);
@@ -1817,9 +1921,17 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		//		like the player is falling to make the gravity seem less 'floaty'.
 		V2 gravity = gameState->gravity;
 		if (entity->dP.y < 0) gravity *= 2;		
-		V2 ddP = gravity;
+		V2 ddP;
+
 
 		ConsoleField* movementField = getMovementField(entity);
+		
+		if(affectedByGravity(entity, movementField)) {
+			ddP = gravity;
+		} else {
+			ddP = {};
+		}
+
 
 		if (entity->type != EntityType_laserBolt) {
 			entity->dP.x *= groundFriction;
@@ -1918,9 +2030,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						entity->hitboxes->collisionSize.x = 0;
 						ddP.x = xMoveAcceleration;
 
-						if (isSet(entity, EntityFlag_noMovementByDefault)) {
-							ddP.y = 0;
-						}
+						// if (isSet(entity, EntityFlag_noMovementByDefault)) {
+						// 	ddP.y = 0;
+						// }
 
 						double startX = entity->p.x;
 						move(entity, dt, gameState, ddP);
@@ -1959,7 +2071,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						ConsoleField* sightRadiusField = movementField->children[1];
 						double sightRadius = sightRadiusField->doubleValues[sightRadiusField->selectedIndex];
 
-						Entity* targetEntity = getEntityByRef(gameState, gameState->shootTargetRef);
+						//TODO: If obstacles were taken into account, this might not actually be the closest entity
+						//		Maybe something like a bfs should be used here to find the actuall closest entity
+						Entity* targetEntity = getClosestTarget(entity, gameState);
 						if (targetEntity) {
 							double dstToTarget = dst(targetEntity->p, entity->p);
 

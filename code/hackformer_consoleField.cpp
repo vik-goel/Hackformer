@@ -4,7 +4,7 @@ void freeConsoleField(ConsoleField* field, GameState* gameState) {
 	// 	field->next = NULL;
 	// }
 
-	//NOTE: Since the next pos32er is only used in the free list and consoles in the free list should
+	//NOTE: Since the next pointer is only used in the free list and consoles in the free list should
 	//		never be freed again, the next pointer should be null. 
 	assert(!field->next);
 
@@ -17,7 +17,7 @@ void freeConsoleField(ConsoleField* field, GameState* gameState) {
 	gameState->consoleFreeList = field;
 }
 
-ConsoleField* createConsoleField(GameState* gameState, char* name, ConsoleFieldType type) {
+ConsoleField* createConsoleField_(GameState* gameState) {
 	ConsoleField* result = NULL;
 
 	if (gameState->consoleFreeList) {
@@ -26,6 +26,18 @@ ConsoleField* createConsoleField(GameState* gameState, char* name, ConsoleFieldT
 	} else {
 		result = (ConsoleField*)pushStruct(&gameState->levelStorage, ConsoleField);
 	}
+
+	return result;
+}
+
+ConsoleField* createConsoleField(GameState* gameState, ConsoleField* copy) {
+	ConsoleField* result = createConsoleField_(gameState);
+	*result = *copy;
+	return result;
+}
+
+ConsoleField* createConsoleField(GameState* gameState, char* name, ConsoleFieldType type) {
+	ConsoleField* result = createConsoleField_(gameState);
 
 	*result = {};
 	result->type = type;
@@ -153,6 +165,17 @@ V2 getBottomFieldP(Entity* entity, GameState* gameState, FieldSpec* spec) {
 	return result;
 }
 
+bool isFieldCloneable(ConsoleField* field) {
+	bool result = true;
+
+	if(field->type == ConsoleField_cameraFollows) result = false;
+
+	return result;
+}
+
+void removeTargetRef(int, GameState*);
+void addTargetRef(int, GameState*);
+
 bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* spec) {
 	assert(field->numValues == 0);
 
@@ -163,10 +186,13 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 	if (gameState->input.leftMouse.justPressed) {
 		if (pointInsideRect(bounds, gameState->input.mouseInMeters)) {
 			if(!isSet(field, ConsoleFlag_selected)) {
-				setFlags(field, ConsoleFlag_selected);
-				
 				if(gameState->input.shift.pressed) {
-
+					if(!gameState->swapField && isFieldCloneable(field)) {
+						gameState->swapField = createConsoleField(gameState, field);
+						rebaseField(gameState->swapField, gameState->swapFieldP); 
+					}
+				} else {
+					setFlags(field, ConsoleFlag_selected);
 				}
 			}
 
@@ -178,13 +204,11 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 		if (gameState->input.leftMouse.pressed) {
 			field->offs += gameState->input.mouseInMeters - field->p;
 		} else {
-			V2 center = getRectCenter(bounds);
-
 			Entity* consoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef);
 			assert(consoleEntity);
 
-			double dstSqToConsoleEntity = dstSq(getBottomFieldP(consoleEntity, gameState, spec), center);
-			double dstSqToSwapField = dstSq(gameState->swapFieldP, center);
+			double dstSqToConsoleEntity = dstSq(getBottomFieldP(consoleEntity, gameState, spec), field->p);
+			double dstSqToSwapField = dstSq(gameState->swapFieldP, field->p);
 
 			bool addToParent = false;
 			bool removeFromParent = false;
@@ -228,8 +252,8 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 				}
 			}
 			else if (field->type == ConsoleField_isShootTarget) {
-				if (removeFromParent) gameState->shootTargetRef = 0;
-				else if (addToParent) gameState->shootTargetRef = gameState->consoleEntityRef;
+				if (removeFromParent) removeTargetRef(gameState->consoleEntityRef, gameState);
+				else if (addToParent) addTargetRef(gameState->consoleEntityRef, gameState);
 			}
 
 			if(exchangeFields) {
@@ -753,7 +777,6 @@ void updateConsole(GameState* gameState, double dt) {
 			clickHandled |= drawFields(gameState, entity, 0, dt, &fieldP, spec);
 		}
 	}
-
 
 
 
