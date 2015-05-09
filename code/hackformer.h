@@ -18,8 +18,6 @@ Bug Fixes
 - test remove when outside level to see that it works
 - if the entity which you are keyboard controlling is removed, the level should restart
 
-- If the text becomes keyboard controlled when inside an entity, ignore collisions with it until it gets outside
-
 
 New Features
 -------------
@@ -35,8 +33,6 @@ New Features
 - Trail effect on death
 
 - Cloning entire entities 
-
-- When an entity dies, make its fields collectable in the world so they don't just disappear
 
 - Handle shadows properly
 
@@ -87,6 +83,9 @@ typedef int8_t bool8;
 #include "SDL_image.h"
 #include "SDL_ttf.h"
 #include "SDL_opengl.h"
+
+struct GameState;
+struct Input;
 
 #include "hackformer_math.h"
 #include "hackformer_renderer.h"
@@ -165,7 +164,6 @@ struct GameState {
 	RenderGroup* renderGroup;
 	SDL_Renderer* renderer;
 	TTF_Font* textFont;
-	CachedFont consoleFont;
 
 	Input input;
 	V2 cameraP;
@@ -186,6 +184,7 @@ struct GameState {
 
 	ConsoleField* swapField;
 	V2 swapFieldP;
+	FieldSpec fieldSpec;
 
 	PathNode* openPathNodes[10000];
 	s32 openPathNodesCount;
@@ -196,8 +195,6 @@ struct GameState {
 	EntityChunk* chunks;
 	s32 chunksWidth, chunksHeight;
 	V2 chunkSize;
-
-	s32 blueEnergy;
 
 	double shootDelay;
 	double tileSize;
@@ -234,8 +231,6 @@ struct GameState {
 	Texture laserBolt;
 	Texture endPortal;
 
-	Texture consoleTriangle, consoleTriangleSelected, consoleTriangleGrey, consoleTriangleYellow;
-
 	Texture laserBaseOff, laserBaseOn;
 	Texture laserTopOff, laserTopOn;
 	Texture laserBeam;
@@ -245,7 +240,6 @@ struct GameState {
 
 	Texture dock;
 	Texture dockBlueEnergyTile;
-	Texture attribute, behaviour;
 };
 
 #define pushArray(arena, type, count) (type*)pushIntoArena_(arena, count * sizeof(type))

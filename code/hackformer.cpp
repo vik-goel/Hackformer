@@ -362,11 +362,11 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 	gameState->playerRef = 0;
 
 	for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-		freeEntity(gameState->entities + entityIndex, gameState);
+		freeEntity(gameState->entities + entityIndex, gameState, true);
 	}
 
 	gameState->numEntities = 0;
-	gameState->blueEnergy = 0;
+	gameState->fieldSpec.blueEnergy = 0;
 
 	for (s32 refIndex = 0; refIndex < arrayCount(gameState->entityRefs_); refIndex++) {
 		//freeEntityReference(gameState->entityRefs_ + refIndex, gameState);
@@ -391,7 +391,6 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 		(*mapFileIndex)++;
 		(*mapFileIndex) %= numMaps;
 		initPlayerDeath = false;
-		gameState->cameraP = gameState->newCameraP = v2(0, 0);
 	}
 
 	loadTmxMap(gameState, maps[*mapFileIndex]);
@@ -412,10 +411,13 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 	gameState->doingInitialSim = false;
 	gameState->playerDeathStartP = playerDeathStartP;
 
-	if (gameState->playerDeathSize.x && initPlayerDeath) {
-		Entity* player = getEntityByRef(gameState, gameState->playerRef);
-		assert(player);
+	Entity* player = getEntityByRef(gameState, gameState->playerRef);
+	assert(player);
 
+	if(!initPlayerDeath) {
+		centerCameraAround(player, gameState);
+		gameState->cameraP = gameState->newCameraP;
+	} else {
 		if (!epsilonEquals(player->p, gameState->playerDeathStartP, 0.1)) {
 			setFlags(player, EntityFlag_remove);
 			gameState->playerStartP = player->p;
@@ -542,7 +544,6 @@ int main(int argc, char *argv[]) {
 	gameState->tileSize = 0.9f; 
 	gameState->chunkSize = v2(7, 7);
 
-	gameState->consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
 	gameState->textFont = loadFont("fonts/Roboto-Regular.ttf", 64);
 
 	Texture playerStand = loadPNGTexture(gameState, "res/player/stand2");
@@ -589,11 +590,6 @@ int main(int argc, char *argv[]) {
 	gameState->laserBolt = loadPNGTexture(gameState, "res/virus1/laser bolt", false);
 	gameState->endPortal = loadPNGTexture(gameState, "res/end portal");
 
-	gameState->consoleTriangle = loadPNGTexture(gameState, "res/triangle_blue");
-	gameState->consoleTriangleSelected = loadPNGTexture(gameState, "res/triangle_light_blue");
-	gameState->consoleTriangleGrey = loadPNGTexture(gameState, "res/triangle_grey");
-	gameState->consoleTriangleYellow = loadPNGTexture(gameState, "res/triangle_yellow");
-
 	gameState->laserBaseOff = loadPNGTexture(gameState, "res/virus3/base off");
 	gameState->laserBaseOn = loadPNGTexture(gameState, "res/virus3/base on");
 	gameState->laserTopOff = loadPNGTexture(gameState, "res/virus3/top off");
@@ -602,10 +598,22 @@ int main(int argc, char *argv[]) {
 
 	gameState->heavyTileTex = loadPNGTexture(gameState, "res/Heavy1");
 
+	gameState->fieldSpec.fieldSize = v2(2.55, 0.6);
+	gameState->fieldSpec.triangleSize = (gameState->fieldSpec.fieldSize.y * 0.8) * v2(1, 1);
+	gameState->fieldSpec.valueSize = v2(gameState->fieldSpec.fieldSize.x * 0.5, gameState->fieldSpec.fieldSize.y);
+	gameState->fieldSpec.spacing = v2(0.05, 0);
+	gameState->fieldSpec.childInset = gameState->fieldSpec.fieldSize.x * 0.25;
+	gameState->fieldSpec.consoleTriangle = loadPNGTexture(gameState, "res/triangle_blue");
+	gameState->fieldSpec.consoleTriangleSelected = loadPNGTexture(gameState, "res/triangle_light_blue");
+	gameState->fieldSpec.consoleTriangleGrey = loadPNGTexture(gameState, "res/triangle_grey");
+	gameState->fieldSpec.consoleTriangleYellow = loadPNGTexture(gameState, "res/triangle_yellow");
+	gameState->fieldSpec.consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
+	gameState->fieldSpec.attribute = loadPNGTexture(gameState, "res/Attribute", false);
+	gameState->fieldSpec.behaviour = loadPNGTexture(gameState, "res/Behaviour", false);
+
+
 	gameState->dock = loadPNGTexture(gameState, "res/dock", false);
 	gameState->dockBlueEnergyTile = loadPNGTexture(gameState, "res/Blue Energy Tile", false);
-	gameState->attribute = loadPNGTexture(gameState, "res/Attribute", false);
-	gameState->behaviour = loadPNGTexture(gameState, "res/Behaviour", false);
 
 	u32 numTilesInAtlas;
 	gameState->tileAtlas = extractTextures(gameState, "res/tiles_floored", 120, 240, 12, &numTilesInAtlas);
@@ -674,9 +682,9 @@ int main(int argc, char *argv[]) {
 				s32 maxEnergy = 40;
 				double energySize = barLength / (double)maxEnergy;
 
-				if(gameState->blueEnergy > maxEnergy) gameState->blueEnergy = maxEnergy;
+				if(gameState->fieldSpec.blueEnergy > maxEnergy) gameState->fieldSpec.blueEnergy = maxEnergy;
 
-				for(s32 energyIndex = 0; energyIndex < gameState->blueEnergy; energyIndex++) {
+				for(s32 energyIndex = 0; energyIndex < gameState->fieldSpec.blueEnergy; energyIndex++) {
 					//TODO: <= is only needed for the last energyIndex
 					for(double lerpIndex = 0; lerpIndex <= 1; lerpIndex += 0.5) {
 						V2 blueEnergyP = blueEnergyStartP + barSlope * ((energyIndex + lerpIndex) * energySize);
@@ -688,7 +696,7 @@ int main(int argc, char *argv[]) {
 			}
 
 			updateConsole(gameState, dtForFrame);
-			drawRenderGroup(gameState->renderGroup);
+			drawRenderGroup(gameState->renderGroup, &gameState->fieldSpec);
 			removeEntities(gameState);
 
 
@@ -707,7 +715,7 @@ int main(int argc, char *argv[]) {
 			dtForFrame = 0;
 
 			if (gameState->input.x.justPressed) {
-				gameState->blueEnergy += 10;
+				gameState->fieldSpec.blueEnergy += 10;
 			}
 
 			{ //NOTE: This reloads the game

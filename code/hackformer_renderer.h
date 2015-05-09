@@ -35,6 +35,7 @@ enum DrawType {
 	DrawType_RenderText,
 	DrawType_RenderFillRect,
 	DrawType_RenderOutlinedRect,
+	DrawType_RenderConsoleField,
 };
 
 struct Color {
@@ -143,6 +144,12 @@ struct RenderOutlinedRect {
 	double thickness;
 };
 
+struct ConsoleField;
+
+struct RenderConsoleField {
+	ConsoleField* field;
+};
+
 struct RenderGroup {
 	ForwardShader forwardShader;
 	Shader basicShader;
@@ -152,12 +159,17 @@ struct RenderGroup {
 	GLuint nullNormalId;
 
 	SDL_Renderer* renderer;
+
 	double pixelsPerMeter;
 	s32 windowWidth;
 	s32 windowHeight;
 	R2 windowBounds;
 	V2 negativeCameraP;
+
+	GLfloat ambient;
+
 	bool32 enabled;
+	bool32 rendering;
 
 	R2 clipRect;
 	bool32 hasClipRect;

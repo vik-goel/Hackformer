@@ -56,6 +56,7 @@ void removeTargetRef(int ref, GameState* gameState) {
 			if(prevNode) prevNode->next = node->next;
 			else gameState->targetRefs = node->next;
 
+			node->next = NULL;
 			freeRefNode(node, gameState);
 
 			removed = true;
@@ -192,10 +193,14 @@ bool removeFromSpatialPartition(Entity* entity, GameState* gameState) {
 	return removed;
 }
 
+void attemptToRemovePenetrationReferences(Entity*, GameState*);
+
 void setEntityP(Entity* entity, V2 newP, GameState* gameState) {
 	removeFromSpatialPartition(entity, gameState);
 	entity->p = newP;
 	addToSpatialPartition(entity, gameState);
+
+	attemptToRemovePenetrationReferences(entity, gameState);
 }
 
 bool affectedByGravity(Entity* entity, ConsoleField* movementField) {
@@ -224,17 +229,31 @@ bool affectedByGravity(Entity* entity, ConsoleField* movementField) {
 	return result;
 }
 
-void addGroundReference(Entity* top, Entity* ground, GameState* gameState) {
+bool refNodeListContainsRef(RefNode* list, int ref) {
+	RefNode* node = list;
+
+	while(node) {
+		if (node->ref == ref) return true;
+		node = node->next;
+	}
+
+	return false;
+}
+
+void addGroundReference(Entity* top, Entity* ground, GameState* gameState, bool isLaserBaseToBeamReference = false) {
 	ConsoleField* topMovementField = getMovementField(top);
 
 	if(top->type == EntityType_tile && !topMovementField) return;
-	if(!affectedByGravity(top, topMovementField)) return;
+	if(!affectedByGravity(top, topMovementField) && !isLaserBaseToBeamReference) return;
 
 	top->jumpCount = 0;
 	setFlags(top, EntityFlag_grounded);
 	top->timeSinceLastOnGround = 0;
 
-	RefNode* groundNode = ground->groundReferenceList;
+	if(refNodeListContainsRef(ground->groundReferenceList, top->ref)) return;
+	if(refNodeListContainsRef(top->groundReferenceList, ground->ref)) return;
+
+	/*RefNode* groundNode = ground->groundReferenceList;
 
 	while(groundNode) {
 		if (groundNode->ref == top->ref) return;
@@ -246,7 +265,7 @@ void addGroundReference(Entity* top, Entity* ground, GameState* gameState) {
 	while(topNode) {
 		if (topNode->ref == ground->ref) return;
 		topNode = topNode->next;
-	}
+	}*/
 
 	RefNode* append = refNode(gameState, top->ref);
 
@@ -265,28 +284,93 @@ void addGroundReference(Entity* top, Entity* ground, GameState* gameState) {
 	}
 }
 
-void freeEntity(Entity* entity, GameState* gameState) {
+RefNode* getAllPenetratingEntities(Entity*, GameState*);
+
+void findCurrentPenetratingEntities(Entity* entity, GameState* gameState) {
+	if(entity->ignorePenetrationList) {
+		freeRefNode(entity->ignorePenetrationList, gameState);
+	}
+
+	entity->ignorePenetrationList = getAllPenetratingEntities(entity, gameState);
+}
+
+bool createsPickupFieldsOnDeath(Entity* entity) {
+	bool result = true;
+
+	if(entity->type == EntityType_pickupField || entity->type == EntityType_laserBolt) result = false;
+
+	return result;
+}
+
+Entity* addPickupField(GameState*, Entity*, ConsoleField*);
+
+void freeEntity(Entity* entity, GameState* gameState, bool endOfLevel) {
 	switch(entity->type) {
 		case EntityType_text: {
-			//glDeleteTextures(1, &entity->texture->texId);
 
 			for (s32 messageIndex = 0; messageIndex < entity->numMessages; messageIndex++) {
 				freeTexture(entity->messages[messageIndex]);
-				//SDL_DestroyTexture(entity->messages[messageIndex].tex);
 			}
 
-			//TODO: A free list could be used here instead
 			assert(entity->messages);
+			//TODO: A free list could be used here instead
 			free(entity->messages);
 			entity->messages = NULL;
 			entity->defaultTex = NULL;
 		} break;
 	}
 
-	for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
-		freeConsoleField(entity->fields[fieldIndex], gameState);
-		entity->fields[fieldIndex] = NULL;
+	//NOTE: At the end of the level no pickup fields should be created and no memory needs to be free
+	//		because the level storage will just be reset. 
+	if(!endOfLevel) {
+		if(createsPickupFieldsOnDeath(entity)) {
+			for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+				if(canFieldBeMoved(entity->fields[fieldIndex])) {
+					Entity* pickupField = addPickupField(gameState, entity, entity->fields[fieldIndex]);
+
+					pickupField->dP.x = (fieldIndex / 2 + 1) * 30;
+					pickupField->dP.y = (fieldIndex / 2 + 1) * 3;
+
+					if(fieldIndex % 2 == 0) pickupField->dP.x *= -1;
+				} else {
+					freeConsoleField(entity->fields[fieldIndex], gameState);
+				}
+
+				entity->fields[fieldIndex] = NULL;
+			}
+		} else {
+			for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+				freeConsoleField(entity->fields[fieldIndex], gameState);
+				entity->fields[fieldIndex] = NULL;
+			}
+		}
+
+		if(entity->groundReferenceList) {
+			freeRefNode(entity->groundReferenceList, gameState);
+			entity->groundReferenceList = NULL;
+		}
+
+		if(entity->ignorePenetrationList) {
+			freeRefNode(entity->ignorePenetrationList, gameState);
+			entity->ignorePenetrationList = NULL;
+		}
+
+		Hitbox* box = entity->hitboxes;
+		Hitbox* secondBox = NULL;
+
+		while(box) {
+			secondBox = box;
+			box = box->next;
+		}
+
+		if(secondBox) {
+			assert(!secondBox->next);
+			secondBox->next = gameState->hitboxFreeList;
+			gameState->hitboxFreeList = secondBox->next;
+		}
 	}
+
+	entity->numFields = 0;
 }
 
 void removeEntities(GameState* gameState) {
@@ -297,7 +381,7 @@ void removeEntities(GameState* gameState) {
 		Entity* entity = gameState->entities + entityIndex;
 
 		if (isSet(entity, EntityFlag_remove)) {
-			freeEntity(entity, gameState);
+			freeEntity(entity, gameState, false);
 
 			EntityReference* bucket = getEntityReferenceBucket(gameState, entity->ref);
 			EntityReference* previousBucket = bucket;
@@ -410,7 +494,7 @@ void removeFieldsIfSet(ConsoleField** fields, s32* numFields) {
 	}
 }
 
-void addField(Entity* entity, GameState* gameState, ConsoleField* field) {
+void addField(Entity* entity, ConsoleField* field) {
 	entity->fields[entity->numFields] = field;
 	entity->numFields++;
 	assert(arrayCount(entity->fields) > entity->numFields);
@@ -435,7 +519,7 @@ void addKeyboardField(Entity* entity, GameState* gameState) {
 													    arrayCount(keyboardJumpHeightFieldValues), 2, 1));
 	addChildToConsoleField(result, createBoolField(gameState, "double_jump", false, 3));
 
-	addField(entity, gameState, result);
+	addField(entity, result);
 }
 
 void addPatrolField(Entity* entity, GameState* gameState) {
@@ -446,7 +530,7 @@ void addPatrolField(Entity* entity, GameState* gameState) {
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", patrolSpeedFieldValues, 
 	 											   arrayCount(patrolSpeedFieldValues), 2, 1));
 
-	addField(entity, gameState, result);
+	addField(entity, result);
 }
 
 void addSeekTargetField(Entity* entity, GameState* gameState) {
@@ -460,7 +544,7 @@ void addSeekTargetField(Entity* entity, GameState* gameState) {
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "sight_radius", seekTargetRadiusFieldValues, 
 													    arrayCount(seekTargetRadiusFieldValues), 2, 2));
 
-	addField(entity, gameState, result);
+	addField(entity, result);
 }
 
 void addShootField(Entity* entity, GameState* gameState) {
@@ -474,11 +558,11 @@ void addShootField(Entity* entity, GameState* gameState) {
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "detect_radius", shootRadiusFieldValues, 
 													    arrayCount(shootRadiusFieldValues), 2, 2));
 
-	addField(entity, gameState, result);
+	addField(entity, result);
 }
 
 void addIsTargetField(Entity* entity, GameState* gameState) {
-	addField(entity, gameState, createConsoleField(gameState, "is_target", ConsoleField_isShootTarget));
+	addField(entity, createConsoleField(gameState, "is_target", ConsoleField_isShootTarget));
 	addTargetRef(entity->ref, gameState);
 }
 
@@ -520,7 +604,7 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 
 	addKeyboardField(result, gameState);
 	
-	addField(result, gameState, createConsoleField(gameState, "camera_followed", ConsoleField_cameraFollows));
+	addField(result, createConsoleField(gameState, "camera_followed", ConsoleField_cameraFollows));
 	addIsTargetField(result, gameState);
 
 	setEntityP(result, result->p + result->renderSize * 0.5, gameState);
@@ -568,6 +652,24 @@ Entity* addEndPortal(GameState* gameState, V2 p) {
 	return result;
 }
 
+Entity* addPickupField(GameState* gameState, Entity* parent, ConsoleField* field) {
+	//TODO: Find a better way of setting the renderSize of pickup fields
+	Entity* result = addEntity(gameState, EntityType_pickupField, DrawOrder_pickupField, parent->p, gameState->fieldSpec.fieldSize);
+
+	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, result->renderSize.x, result->renderSize.y);
+
+	addField(result, field);
+
+	result->emissivity = 1.0f;
+	setFlags(result, EntityFlag_removeWhenOutsideLevel);
+
+	assert(result->numFields == 1);
+
+	findCurrentPenetratingEntities(result, gameState);
+
+	return result;
+}
+
 Entity* addBlueEnergy(GameState* gameState, V2 p) {
 	Entity* result = addEntity(gameState, EntityType_blueEnergy, DrawOrder_blueEnergy, p, v2(0.8f, 0.8f));
 
@@ -611,8 +713,8 @@ void initTile(Entity* tile, GameState* gameState) {
 
 	setFlags(tile, EntityFlag_hackable);
 
-	addField(tile, gameState, createUnlimitedIntField(gameState, "x_offset", 0, 1));
-	addField(tile, gameState, createUnlimitedIntField(gameState, "y_offset", 0, 1));
+	addField(tile, createUnlimitedIntField(gameState, "x_offset", 0, 1));
+	addField(tile, createUnlimitedIntField(gameState, "y_offset", 0, 1));
 }
 
 Entity* addTile(GameState* gameState, V2 p, Texture* texture) {
@@ -666,8 +768,7 @@ Entity* addText(GameState* gameState, V2 p, char values[10][100], s32 numValues,
 					 EntityFlag_hackable);
 
 	s32 selectedIndexValues[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-	addField(result, gameState, 
-		createPrimitiveField(s32, gameState, "selected_index", selectedIndexValues, numValues + 1, selectedIndex, 1));
+	addField(result, createPrimitiveField(s32, gameState, "selected_index", selectedIndexValues, numValues + 1, selectedIndex, 1));
 
 	return result;
 }
@@ -686,7 +787,7 @@ Entity* addLaserBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, doub
 	setFlags(result, EntityFlag_removeWhenOutsideLevel|
 					 EntityFlag_hackable);
 
-	addField(result, gameState, createBoolField(gameState, "hurts_entities", true, 2));
+	addField(result, createBoolField(gameState, "hurts_entities", true, 2));
 
 	result->defaultTex = &gameState->laserBolt;
 
@@ -698,7 +799,7 @@ Entity* addLaserBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, doub
 Entity* addLaserBase_(GameState* gameState, V2 baseP, double height) {
 	Entity* result = addEntity(gameState, EntityType_laserBase, DrawOrder_laserBase, baseP, v2(0.9, 0.65));
 
-	addField(result, gameState, createBoolField(gameState, "enabled", true, 2));
+	addField(result, createBoolField(gameState, "enabled", true, 2));
 	addPatrolField(result, gameState);
 
 	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, result->renderSize.x, result->renderSize.y);
@@ -749,7 +850,7 @@ Entity* addLaserController(GameState* gameState, V2 baseP, double height) {
 
 	Entity* beam = addLaserBeam_(gameState, laserP, laserSize);
 
-	addGroundReference(beam, base, gameState);
+	addGroundReference(beam, base, gameState, true);
 
 	return base;
 }
@@ -781,11 +882,13 @@ Entity* addFlyingVirus(GameState* gameState, V2 p) {
 ConsoleField* getMovementField(Entity* entity) {
 	ConsoleField* result = NULL;
 
-	for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
-		ConsoleField* testField = entity->fields[fieldIndex];
-		if (isConsoleFieldMovementType(testField)) {
-			result = testField;
-			break;
+	if(entity->type != EntityType_pickupField && !isSet(entity, EntityFlag_remove)) {
+		for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+			ConsoleField* testField = entity->fields[fieldIndex];
+			if (isConsoleFieldMovementType(testField)) {
+				result = testField;
+				break;
+			}
 		}
 	}
 
@@ -800,6 +903,22 @@ bool isTileType(Entity* entity) {
 bool isLaserEntityType(Entity* entity) {
 	bool result = entity->type == EntityType_laserBase ||
 				  entity->type == EntityType_laserBeam;
+	return result;
+}
+
+bool canPickupField(Entity* pickupField, Entity* collider, GameState* gameState) {
+	assert(pickupField->type == EntityType_pickupField);
+
+	bool result = true;
+
+	if (pickupField->numFields == 1) {
+		if(gameState->swapField) result = false;
+		ConsoleField* field = getMovementField(collider);
+		if(!field || field->type != ConsoleField_keyboardControlled) result = false;
+	} else {
+		result = false;
+	}
+
 	return result;
 }
 
@@ -834,7 +953,8 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 		case EntityType_blueEnergy: {
 			if (b->type == EntityType_virus ||
 				b->type == EntityType_flyingVirus ||
-				b->type == EntityType_laserBolt) result = false;
+				b->type == EntityType_laserBolt || 
+				b->type == EntityType_pickupField) result = false;
 		} break;
 
 		case EntityType_endPortal: {
@@ -848,21 +968,38 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 			if (a->ref == b->ref + 1 || 
 				!isSet(a, EntityFlag_laserOn)) result = false;
 		} break;
-#if 1
+
 		case EntityType_tile: {
 			if (b->type == EntityType_tile && 
 				getMovementField(a) == NULL && 
 				getMovementField(b) == NULL) result = false;
 		} break;
-#endif
+
+		case EntityType_pickupField: {
+			result = false;
+
+			if(canPickupField(a, b, gameState) || 
+			  (isTileType(b) && getMovementField(b) == NULL)) result = true;
+		} break;
 	}
 
+	return result;
+}
+
+bool isIgnoringPenetrationRaw(Entity* a, Entity* b) {
+	bool result = refNodeListContainsRef(a->ignorePenetrationList, b->ref);
+	return result;
+}
+
+bool isIgnoringPenetration(Entity* a, Entity* b) {
+	bool result = isIgnoringPenetrationRaw(a, b) || isIgnoringPenetrationRaw(b, a);
 	return result;
 }
 
 bool collidesWith(Entity* a, Entity* b, GameState* gameState) {
 	bool result = !isSet(a, EntityFlag_remove) && !isSet(b, EntityFlag_remove);
 
+	result &= !isIgnoringPenetration(a, b);
 	result &= collidesWithRaw(a, b, gameState);
 	result &= collidesWithRaw(b, a, gameState);
 
@@ -895,7 +1032,7 @@ bool isEntityAbove(Entity* top, Entity* bottom) {
 	return result;
 }
 
-bool isSolidCollisionRaw(Entity* a, Entity* b) {
+bool isSolidCollisionRaw(Entity* a, Entity* b, GameState* gameState) {
 	bool result = true;
 
 	switch(a->type) {
@@ -915,13 +1052,17 @@ bool isSolidCollisionRaw(Entity* a, Entity* b) {
 				a->dP.y < 0 && 
 				isEntityAbove(a, b)) result = false; 
 		} break;
+
+		case EntityType_pickupField: {
+			result = !canPickupField(a, b, gameState);
+		} break;
 	}
 
 	return result;
 }
 
-bool isSolidCollision(Entity* a, Entity* b) {
-	bool result = isSolidCollisionRaw(a, b) && isSolidCollisionRaw(b, a);
+bool isSolidCollision(Entity* a, Entity* b, GameState* gameState) {
+	bool result = isSolidCollisionRaw(a, b, gameState) && isSolidCollisionRaw(b, a, gameState);
 	return result;
 }
 
@@ -929,10 +1070,23 @@ V2 moveRaw(Entity*, GameState*, V2, V2* ddP = 0);
 
 void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool solid, V2 entityVel) {
 	switch(entity->type) {
+		case EntityType_pickupField: {
+			if(canPickupField(entity, hitEntity, gameState)) {
+				assert(!gameState->swapField);
+				assert(entity->numFields == 1);
+				gameState->swapField = entity->fields[0];
+				gameState->swapField->p -= gameState->cameraP;
+				rebaseField(gameState->swapField, gameState->swapFieldP);
+
+				entity->numFields = 0;
+				setFlags(entity, EntityFlag_remove);
+			}
+		} break;
+
 		case EntityType_blueEnergy: {
 			if (hitEntity->type == EntityType_player) {
 				setFlags(entity, EntityFlag_remove);
-				gameState->blueEnergy++;
+				gameState->fieldSpec.blueEnergy++;
 			}
 		} break;
 
@@ -1060,7 +1214,7 @@ void getLineCollisionTime(double lx1, double lx2, double ly, double posX, double
 }
 
 void checkCollision(V2 delta, R2 colliderHitbox, Entity* entity, Entity* collider, Hitbox* colliderHitboxList, 
-					Hitbox* entityHitboxList, GetCollisionTimeResult* result) {
+					Hitbox* entityHitboxList, GetCollisionTimeResult* result, GameState* gameState) {
 	//Minkowski sum
 	R2 sum = addDiameterTo(colliderHitbox, entityHitboxList->collisionSize);
 	V2 center = entity->p + entityHitboxList->collisionOffset;
@@ -1096,9 +1250,106 @@ void checkCollision(V2 delta, R2 colliderHitbox, Entity* entity, Entity* collide
 		result->hitEntity = collider;
 	}
 
-	if (solidHit && isSolidCollision(entity, collider)) { 
+	if (solidHit && isSolidCollision(entity, collider, gameState)) { 
 		result->solidEntity = collider;
 	}
+}
+
+bool isEntityInside(Entity* entity, Entity* collider)  {
+	
+	Hitbox* colliderHitboxList = collider->hitboxes;
+
+	while(colliderHitboxList) {
+		R2 colliderHitbox = getHitbox(collider, colliderHitboxList);
+
+		Hitbox* entityHitboxList = entity->hitboxes;
+
+		while (entityHitboxList) {
+			V2 center = entity->p + entityHitboxList->collisionOffset;
+			R2 sum = addDiameterTo(colliderHitbox, entityHitboxList->collisionSize);
+
+			if(pointInsideRectExclusive(sum, center)) return true;
+
+			entityHitboxList = entityHitboxList->next;
+		}
+
+		colliderHitboxList = colliderHitboxList->next;
+	}
+
+	return false;
+}
+
+void attemptToRemovePenetrationReferences(Entity* entity, GameState* gameState) {
+	RefNode* node = entity->ignorePenetrationList;
+	RefNode* prevNode = NULL;
+
+	while(node) {
+		Entity* collider = getEntityByRef(gameState, node->ref);
+		bool removeRef = true;
+
+		if(collider && isEntityInside(entity, collider)) {
+			removeRef = false;
+		}
+
+		if(removeRef) {
+			if(prevNode) prevNode->next = node->next;
+			else entity->ignorePenetrationList = node->next;
+
+			RefNode* nextPtr = node->next;
+
+			node->next = NULL;
+			freeRefNode(node, gameState);
+
+			node = nextPtr;
+		} else {
+			prevNode = node;
+			node = node->next;
+		}
+
+	}
+}
+
+RefNode* getAllPenetratingEntities(Entity* entity, GameState* gameState) {
+	//NOTE: Most of this code is pasted from checkCollision and getCollisionTime
+	RefNode* result = NULL;
+
+	s32 partitionCenterX = (s32)(entity->p.x / gameState->chunkSize.x);
+	s32 partitionCenterY = (s32)(entity->p.y / gameState->chunkSize.y);
+
+	for (s32 partitionXOffs = -1; partitionXOffs <= 1; partitionXOffs++) {
+		for (s32 partitionYOffs = -1; partitionYOffs <= 1; partitionYOffs++) {
+			s32 partitionX = partitionCenterX + partitionXOffs;
+			s32 partitionY = partitionCenterY + partitionYOffs;
+
+			if (partitionX >= 0 && 
+				partitionY >= 0 && 
+				partitionX < gameState->chunksWidth && 
+				partitionY < gameState->chunksHeight) {
+
+				EntityChunk* chunk = gameState->chunks + partitionY * gameState->chunksWidth + partitionX;
+
+				while(chunk) {
+					for (s32 colliderIndex = 0; colliderIndex < chunk->numRefs; colliderIndex++) {
+						Entity* collider = getEntityByRef(gameState, chunk->entityRefs[colliderIndex]);
+
+						if (collider && collider != entity &&
+							collidesWith(entity, collider, gameState)) {
+
+							if(isEntityInside(entity, collider)) {
+								RefNode* node = refNode(gameState, collider->ref);
+								node->next = result;
+								result = node;
+							}
+									
+						}
+					}
+					chunk = chunk->next;
+				}
+			}
+		}
+	}
+
+	return result;
 }
 
 GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2 delta) {
@@ -1133,7 +1384,7 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 								tileHitbox.collisionSize = v2(1, 1) * gameState->tileSize;
 								tileHitbox.collisionOffset = v2(0, -gameState->tileSize / 2);
 								R2 colliderHitbox = getHitbox(collider, &tileHitbox);
-								checkCollision(delta, colliderHitbox, entity, collider, &tileHitbox, &tileHitbox, &result);
+								checkCollision(delta, colliderHitbox, entity, collider, &tileHitbox, &tileHitbox, &result, gameState);
 							} else {
 								Hitbox* colliderHitboxList = collider->hitboxes;
 
@@ -1144,7 +1395,7 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 
 									while (entityHitboxList) {
 										checkCollision(delta, colliderHitbox, entity, collider,
-											colliderHitboxList, entityHitboxList, &result);
+											colliderHitboxList, entityHitboxList, &result, gameState);
 										entityHitboxList = entityHitboxList->next;
 									}
 
@@ -1208,7 +1459,7 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP) {
 		if (collisionResult.hitEntity) {
 			bool solid = false;
 
-			if (isSolidCollision(collisionResult.hitEntity, entity)) {
+			if (isSolidCollision(collisionResult.hitEntity, entity, gameState)) {
 				solid = true;
     			if (collisionResult.horizontalCollision) {
 					bool hitGround = false;
@@ -1334,10 +1585,12 @@ bool moveTowardsTarget(Entity* entity, GameState* gameState, double dt,
 ConsoleField* getField(Entity* entity, ConsoleFieldType type) {
 	ConsoleField* result = false;
 
-	for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
-		if (entity->fields[fieldIndex]->type == type) {
-			result = entity->fields[fieldIndex];
-			break;
+	if(entity->type != EntityType_pickupField && !isSet(entity, EntityFlag_remove)) {
+		for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+			if (entity->fields[fieldIndex]->type == type) {
+				result = entity->fields[fieldIndex];
+				break;
+			}
 		}
 	}
 
@@ -1738,21 +1991,17 @@ void centerCameraAround(Entity* entity, GameState* gameState) {
 }
 
 bool isTarget(Entity* entity, GameState* gameState) {
-	RefNode* node = gameState->targetRefs;
-
-	while(node) {
-		if(node->ref == entity->ref) return true;
-		node = node->next;
-	}
-
-	return false;
+	bool result = refNodeListContainsRef(gameState->targetRefs, entity->ref);
+	return result;
 }
 
 bool canEntityShoot(Entity* entity, GameState* gameState) {
 	bool result = false;
 
 	ConsoleField* shootField = getField(entity, ConsoleField_shootsAtTarget);
-	result = shootField && !isTarget(entity, gameState);
+	result = shootField != NULL;
+
+	if(gameState->doingInitialSim) result = false;
 
 	return result;
 }
@@ -1766,7 +2015,7 @@ Entity* getClosestTarget(Entity* entity, GameState* gameState) {
 	while(node) {
 		Entity* testTarget = getEntityByRef(gameState, node->ref);
 
-		if(testTarget) {
+		if(testTarget && testTarget != entity) {
 			double testDstSq = dstSq(entity->p, testTarget->p);
 
 			if(testDstSq < minDstSq) {
@@ -1803,6 +2052,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 			//NOTE: A ground reference between the base and the beam always persists.
 			if(entity->type == EntityType_laserBase) {
+				assert(entity->groundReferenceList);
 				if (entity->groundReferenceList->next) {
 					freeRefNode(entity->groundReferenceList->next, gameState);
 					entity->groundReferenceList->next = NULL;
@@ -1936,16 +2186,22 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		if (entity->type != EntityType_laserBolt) {
 			entity->dP.x *= groundFriction;
 
-			if (movementField && movementField->type == ConsoleField_seeksTarget) {
+			bool airFriction = (movementField && movementField->type == ConsoleField_seeksTarget);
+
+			if (airFriction) {
 				entity->dP.y *= groundFriction;
 			}
 		}
+
+		bool defaultMove = true;
 
 
 		//NOTE: This handles moving the entity
 		if (movementField) {
 			ConsoleField* speedField = movementField->children[0];
 			double xMoveAcceleration = speedField->doubleValues[speedField->selectedIndex];
+
+			defaultMove = false;
 
 			switch(movementField->type) {
 
@@ -2060,6 +2316,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 						entity->hitboxes->collisionSize = oldCollisionSize;
 						entity->hitboxes->collisionOffset = oldCollisionOffset;
+					} else {
+						defaultMove = true;
 					}
 				} break;
 
@@ -2094,7 +2352,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 					}
 				} break;
 			}
-		} else {
+		} 
+
+		if(defaultMove) {
 			if (!isSet(entity, EntityFlag_noMovementByDefault)) {
 				if(entity->type == EntityType_laserBolt ||
 				   entity->type == EntityType_heavyTile && entity->startPos != entity->p) {
@@ -2323,7 +2583,18 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				//pushPointLight(gameState->renderGroup, &pointLight);
 			} break;
 
-		}
+
+
+			case EntityType_pickupField: {
+				//NOTE: If the pickupField has been removed and the field is transferred to the swap field
+				//		then it will have 0 fields
+				if(entity->numFields == 1) {
+					entity->fields[0]->p = entity->p;
+					pushConsoleField(gameState->renderGroup, &gameState->fieldSpec, entity->fields[0]);
+				}
+			} break;
+
+		} //End of switch statement on entity type
 
 
 
@@ -2482,7 +2753,11 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				pushTexture(gameState->renderGroup, texture, bounds, drawLeft, entity->drawOrder, true);
 			}
 			else if (entity->type != EntityType_laserBeam || isSet(entity, EntityFlag_laserOn)) {
-				pushEntityTexture(gameState->renderGroup, texture, entity, drawLeft, entity->drawOrder);
+				DrawOrder drawOrder = entity->drawOrder;
+
+				if(entity->type == EntityType_tile && getMovementField(entity) != NULL) drawOrder = DrawOrder_movingTile;
+
+				pushEntityTexture(gameState->renderGroup, texture, entity, drawLeft, drawOrder);
 			}
 		}
 

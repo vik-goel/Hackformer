@@ -57,6 +57,18 @@ struct FieldSpec {
 	V2 valueSize;
 	V2 spacing;
 	double childInset;
+
+	int blueEnergy;
+
+	Texture consoleTriangle;
+	Texture consoleTriangleYellow;
+	Texture consoleTriangleGrey;
+	Texture consoleTriangleSelected;
+
+	Texture attribute;
+	Texture behaviour;
+
+	CachedFont consoleFont;
 };
 
 bool isConsoleFieldMovementType(ConsoleField* field) {
@@ -90,3 +102,5 @@ bool32 isSet(ConsoleField* field, u32 flags) {
 	bool32 result = (field->flags & flags) != 0;
 	return result;
 }
+
+bool drawConsoleField(ConsoleField*, RenderGroup*, Input*, FieldSpec*, bool = true);

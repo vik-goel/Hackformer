@@ -478,14 +478,14 @@ Texture* getGlyph(CachedFont* cachedFont, RenderGroup* group, char c) {
 	return result;
 }
 
-double getTextWidth(CachedFont* cachedFont, GameState* gameState, char* msg) {
+double getTextWidth(CachedFont* cachedFont, RenderGroup* group, char* msg) {
 	double result = 0;
 
-	double metersPerPixel = 1.0 / (gameState->pixelsPerMeter * cachedFont->scaleFactor);
+	double metersPerPixel = 1.0 / (group->pixelsPerMeter * cachedFont->scaleFactor);
 	double invScaleFactor = 1.0 / cachedFont->scaleFactor;
 
 	while(*msg) {
-		result += getGlyph(cachedFont, gameState->renderGroup, *msg)->size.x * invScaleFactor;
+		result += getGlyph(cachedFont, group, *msg)->size.x * invScaleFactor;
 		msg++;
 	}
 
@@ -614,9 +614,9 @@ void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Or
 	}
 }
 
-void drawText(RenderGroup* group, RenderText* render) {
-	CachedFont* cachedFont = render->font;
-	char* msg = (char*)render->msg;
+void drawText(RenderGroup* group, CachedFont* cachedFont, char* msg, V2 p) {
+	//CachedFont* cachedFont = render->font;
+	//char* msg = (char*)render->msg;
 
 	double metersPerPixel = 1.0 / (group->pixelsPerMeter * cachedFont->scaleFactor);
 	double invScaleFactor = 1.0 / cachedFont->scaleFactor;
@@ -624,21 +624,22 @@ void drawText(RenderGroup* group, RenderText* render) {
 	while(*msg) {
 		Texture* texture = getGlyph(cachedFont, group, *msg);
 		V2 size = texture->size * invScaleFactor;
-		R2 bounds = r2(render->p, render->p + size);
+		R2 bounds = r2(p, p + size);
 
 		drawTexture(group, texture, bounds, false, Orientation_0, 0, 1);
 
-		render->p.x += size.x;
+		p.x += size.x;
 		msg++;
 	}
 }
 
-void drawFillRect(RenderGroup* group, R2 bounds) {
+void drawFillRect(RenderGroup* group, R2 bounds, Color color) {
 	// SDL_Rect dstRect = getPixelSpaceRect(group->pixelsPerMeter, group->windowHeight, rect);
 	// SDL_RenderFillRect(group->renderer, &dstRect);
 
 	bindTexture(&group->whiteTex, group, false);
-
+	setColor(group, color);
+			
 	glBegin(GL_QUADS);
 	glTexCoord2f(0, 0);
 	glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);
@@ -654,7 +655,7 @@ void drawFillRect(RenderGroup* group, R2 bounds) {
 	glEnd();
 }
 
-void drawOutlinedRect(RenderGroup* group, R2 rect, double thickness) {
+void drawOutlinedRect(RenderGroup* group, R2 rect, Color color, double thickness) {
 	V2 halfThickness = v2(thickness, thickness) * 0.5;
 	double width = getRectWidth(rect);
 	double height = getRectHeight(rect);
@@ -671,10 +672,16 @@ void drawOutlinedRect(RenderGroup* group, R2 rect, double thickness) {
 	V2 rightMinCorner = bottomMaxCorner - v2(thickness, 0);
 	V2 rightMaxCorner = topMaxCorner - v2(0, thickness);
 
-	drawFillRect(group, r2(bottomMinCorner, bottomMaxCorner));
-	drawFillRect(group, r2(topMinCorner, topMaxCorner));
-	drawFillRect(group, r2(leftMinCorner, leftMaxCorner));
-	drawFillRect(group, r2(rightMinCorner, rightMaxCorner));
+	drawFillRect(group, r2(bottomMinCorner, bottomMaxCorner), color);
+	drawFillRect(group, r2(topMinCorner, topMaxCorner), color);
+	drawFillRect(group, r2(leftMinCorner, leftMaxCorner), color);
+	drawFillRect(group, r2(rightMinCorner, rightMaxCorner), color);
+}
+
+void renderDrawConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field) {
+	field->p += group->negativeCameraP;
+	drawConsoleField(field, group, NULL, fieldSpec, false);
+	field->p -= group->negativeCameraP;
 }
 
 DrawType getRenderHeaderType(RenderHeader* header) {
@@ -757,6 +764,23 @@ RenderTexture createRenderTexture(DrawOrder drawOrder, Texture* texture, bool fl
 	return result;
 }
 
+
+//TODO: Cull console fields which are not currently visible
+void pushConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field) {
+	assert(field);
+
+	if(group->rendering) {
+		renderDrawConsoleField(group, fieldSpec, field);
+	} else {
+		RenderConsoleField* render = pushRenderElement(group, RenderConsoleField);
+
+		if(render) {
+			render->field = field;
+		}
+	}
+} 
+
+
 void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, DrawOrder drawOrder,
 	bool moveIntoCameraSpace = false, Orientation orientation = Orientation_0, float emissivity = 0) {
 
@@ -765,11 +789,15 @@ void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Dr
 	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, group->negativeCameraP) : bounds;
 
 	if(rectanglesOverlap(group->windowBounds, drawBounds)) {
-		RenderBoundedTexture* render = pushRenderElement(group, RenderBoundedTexture);
+		if(group->rendering) {
+			drawTexture(group, texture, drawBounds, flipX, orientation, emissivity, group->ambient);
+		} else {
+			RenderBoundedTexture* render = pushRenderElement(group, RenderBoundedTexture);
 
-		if (render) {
-			render->tex = createRenderTexture(drawOrder, texture, flipX, orientation, emissivity);
-			render->bounds = drawBounds;
+			if (render) {
+				render->tex = createRenderTexture(drawOrder, texture, flipX, orientation, emissivity);
+				render->bounds = drawBounds;
+			}
 		}
 	}
 }
@@ -780,31 +808,39 @@ void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, boo
 	R2 drawBounds = scaleRect(translateRect(rectCenterDiameter(entity->p, entity->renderSize), group->negativeCameraP), v2(1.05, 1.05));
 
 	if(rectanglesOverlap(group->windowBounds, drawBounds)) {
-		RenderEntityTexture* render = pushRenderElement(group, RenderEntityTexture);
+		if(group->rendering) {
+			drawTexture(group, texture, drawBounds, flipX, orientation, entity->emissivity, group->ambient);
+		} else {
+			RenderEntityTexture* render = pushRenderElement(group, RenderEntityTexture);
 
-		if (render) {
-			render->tex = createRenderTexture(drawOrder, texture, flipX, orientation, entity->emissivity);
-			render->p = &entity->p;
-			render->renderSize = &entity->renderSize;
+			if (render) {
+				render->tex = createRenderTexture(drawOrder, texture, flipX, orientation, entity->emissivity);
+				render->p = &entity->p;
+				render->renderSize = &entity->renderSize;
+			}
 		}
 	}
 }
 
 void pushText(RenderGroup* group, CachedFont* font, char* msg, V2 p) {
-	RenderText* render = pushRenderElement(group, RenderText);
+	if(group->rendering) {
+		drawText(group, font, msg, p);
+	} else {
+		RenderText* render = pushRenderElement(group, RenderText);
 
-	if (render) {
-		assert(strlen(msg) < arrayCount(render->msg) - 1);
+		if (render) {
+			assert(strlen(msg) < arrayCount(render->msg) - 1);
 
-		char* dstPtr = (char*)render->msg;
+			char* dstPtr = (char*)render->msg;
 
-		while(*msg) {
-			*dstPtr++ = *msg++;
+			while(*msg) {
+				*dstPtr++ = *msg++;
+			}
+			*dstPtr = 0;
+
+			render->p = p;
+			render->font = font;
 		}
-		*dstPtr = 0;
-
-		render->p = p;
-		render->font = font;
 	}
 }
 
@@ -812,11 +848,15 @@ void pushFilledRect(RenderGroup* group, R2 bounds, Color color, bool moveIntoCam
 	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, group->negativeCameraP) : bounds;
 
 	if(rectanglesOverlap(group->windowBounds, drawBounds)) {
-		RenderFillRect* render = pushRenderElement(group, RenderFillRect);
+		if(group->rendering) {
+			drawFillRect(group, drawBounds, color);
+		} else {
+			RenderFillRect* render = pushRenderElement(group, RenderFillRect);
 
-		if (render) {
-			render->color = color;
-			render->bounds = drawBounds;
+			if (render) {
+				render->color = color;
+				render->bounds = drawBounds;
+			}
 		}
 	}
 }
@@ -825,12 +865,17 @@ void pushOutlinedRect(RenderGroup* group, R2 bounds, double thickness, Color col
 	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, group->negativeCameraP) : bounds;
 
 	if(rectanglesOverlap(group->windowBounds, addDiameterTo(drawBounds, v2(1, 1) * thickness))) {
-		RenderOutlinedRect* render = pushRenderElement(group, RenderOutlinedRect);
+		if(group->rendering) {
+			drawOutlinedRect(group, drawBounds, color, thickness);
+		} else {
 
-		if (render) {
-			render->thickness = thickness;
-			render->color = color;
-			render->bounds = drawBounds;
+			RenderOutlinedRect* render = pushRenderElement(group, RenderOutlinedRect);
+
+			if (render) {
+				render->thickness = thickness;
+				render->color = color;
+				render->bounds = drawBounds;
+			}
 		}
 	}
 }
@@ -902,7 +947,7 @@ void pushDefaultClipRect(RenderGroup* group) {
 	group->hasClipRect = false;
 }
 
-size_t drawRenderElem(RenderGroup* group, void* elemPtr, GLfloat ambient) {
+size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, GLfloat ambient) {
 	RenderHeader* header = (RenderHeader*)elemPtr;
 	size_t elemSize = sizeof(RenderHeader);
 
@@ -937,27 +982,29 @@ size_t drawRenderElem(RenderGroup* group, void* elemPtr, GLfloat ambient) {
 		case DrawType_RenderText: {
 			RenderText* render = (RenderText*)elemPtr;
 			setColor(group, createColor(255, 255, 255, 255));
-			drawText(group, render);
+			drawText(group, render->font, render->msg, render->p);
 			elemSize += sizeof(RenderText);
 		} break;
 
 		case DrawType_RenderFillRect: {
 			RenderFillRect* render = (RenderFillRect*)elemPtr;
-			setColor(group, render->color);
-			drawFillRect(group, render->bounds);
+			drawFillRect(group, render->bounds, render->color);
 			elemSize += sizeof(RenderFillRect);
 		} break;
 
 		case DrawType_RenderOutlinedRect: {
 			RenderOutlinedRect* render = (RenderOutlinedRect*)elemPtr;
-			setColor(group, render->color);
-			drawOutlinedRect(group, render->bounds, render->thickness);
+			drawOutlinedRect(group, render->bounds, render->color, render->thickness);
 			elemSize += sizeof(RenderOutlinedRect);
 		} break;
 
-		default: {
-			assert(false);
+		case DrawType_RenderConsoleField: {
+			RenderConsoleField* render = (RenderConsoleField*)elemPtr;
+			renderDrawConsoleField(group, fieldSpec, render->field);
+			elemSize += sizeof(RenderConsoleField);
 		} break;
+
+		InvalidDefaultCase;
 	}
 
 	return elemSize;
@@ -980,6 +1027,20 @@ RenderTexture* getRenderTexture(RenderHeader* header) {
 	return result;
 }
 
+ConsoleField* getConsoleFieldFromRenderHeader(RenderHeader* header) {
+	assert(getRenderHeaderType(header) == DrawType_RenderConsoleField);
+
+	void* render = (char*)header + sizeof(RenderHeader);
+
+	if(renderElemClipRect(header)) {
+		render = (char*)render + sizeof(R2);
+	}
+
+	ConsoleField* result = ((RenderConsoleField*)render)->field;
+
+	return result;
+}
+
 s32 renderElemCompare(const void* a, const void* b) {
 	RenderHeader* e1 = *(RenderHeader**)a;
 	RenderHeader* e2 = *(RenderHeader**)b;
@@ -987,14 +1048,41 @@ s32 renderElemCompare(const void* a, const void* b) {
 	DrawType e1Type = getRenderHeaderType(e1);
 	DrawType e2Type = getRenderHeaderType(e2);
 
-	if(isRenderTextureType(e1Type)) {
-		if(!isRenderTextureType(e2Type)) return -1;
+	bool e1IsRenderTexture = isRenderTextureType(e1Type);
+	bool e2IsRenderTexture = isRenderTextureType(e2Type);
 
-		RenderTexture* r1 = getRenderTexture(e1);
-		RenderTexture* r2 = getRenderTexture(e2);
+	bool e1IsConsoleField = e1Type == DrawType_RenderConsoleField;
+	bool e2IsConsoleField = e2Type == DrawType_RenderConsoleField;
 
-		if(r1->drawOrder > r2->drawOrder) return 1;
-		if(r1->drawOrder < r2->drawOrder) return -1;
+	if(e1IsConsoleField && e2IsConsoleField) {
+		ConsoleField* f1 = getConsoleFieldFromRenderHeader(e1);
+		ConsoleField* f2 = getConsoleFieldFromRenderHeader(e2);
+
+		if(f1->p.y > f2->p.y) return 1;
+		if(f1->p.y < f2->p.y) return -1;
+
+		//NOTE: Arbitrary comparisons done to help ensure a consistent render order across frames
+		if(f1->p.x > f2->p.x) return 1;
+		if(f1->p.x < f2->p.x) return -1;
+		return *f1->name > *f2->name;
+	}
+
+	if(e1IsRenderTexture || e1IsConsoleField) {
+		if(!e2IsRenderTexture && !e2IsConsoleField) return -1;
+
+		RenderTexture* r1 = NULL;
+		if(e1IsRenderTexture) r1 = getRenderTexture(e1);
+		RenderTexture* r2 = NULL;
+		if(e2IsRenderTexture) r2 = getRenderTexture(e2);
+
+		DrawOrder r1DrawOrder = (r1 == NULL ? DrawOrder_pickupField : r1->drawOrder);
+		DrawOrder r2DrawOrder = (r2 == NULL ? DrawOrder_pickupField : r2->drawOrder);
+
+		if(r1DrawOrder > r2DrawOrder) return 1;
+		if(r1DrawOrder < r2DrawOrder) return -1;
+
+		assert(r1);
+		assert(r2);
 
 		double r1MinY, r2MinY;
 
@@ -1023,7 +1111,7 @@ s32 renderElemCompare(const void* a, const void* b) {
 		return r1->texture > r2->texture;
 	}
 
-	if (isRenderTextureType(e2Type)) return 1;
+	if (e2IsRenderTexture || e2IsConsoleField) return 1;
 
 	return 0;
 }
@@ -1049,7 +1137,8 @@ void bindShader(RenderGroup* group, Shader* shader) {
 	glUseProgram(shader->program);
 }
 
-void drawRenderGroup(RenderGroup* group) {
+void drawRenderGroup(RenderGroup* group, FieldSpec* fieldSpec) {
+	group->rendering = true;
 	qsort(group->sortPtrs, group->numSortPtrs, sizeof(RenderHeader*), renderElemCompare);
 	bindShader(group, &group->forwardShader.shader);
 
@@ -1067,8 +1156,8 @@ void drawRenderGroup(RenderGroup* group) {
 	pushSpotLight(group, &spotLight, true);
 #endif
 
-	GLfloat ambient = (GLfloat)1;//0.25;
-	setAmbient(group, ambient);
+	group->ambient = (GLfloat)1;
+	setAmbient(group, group->ambient);
 
 	s32 uniformPointLightIndex = 0;
 	s32 uniformSpotLightIndex = 0;
@@ -1120,7 +1209,7 @@ void drawRenderGroup(RenderGroup* group) {
 
 	for(s32 elemIndex = 0; elemIndex < group->numSortPtrs; elemIndex++) {
 		void* elemPtr = group->sortPtrs[elemIndex];
-		drawRenderElem(group, elemPtr, ambient);
+		drawRenderElem(group, fieldSpec, elemPtr, group->ambient);
 	}
 
 	u32 groupByteIndex = group->sortAddressCutoff;
@@ -1129,7 +1218,7 @@ void drawRenderGroup(RenderGroup* group) {
 
 	while(groupByteIndex < group->allocated) {
 		void* elemPtr = (char*)group->base + groupByteIndex;
-		groupByteIndex += drawRenderElem(group, elemPtr, ambient);
+		groupByteIndex += drawRenderElem(group, fieldSpec, elemPtr, group->ambient);
 	}
 
 	group->numSortPtrs = 0;
@@ -1138,4 +1227,5 @@ void drawRenderGroup(RenderGroup* group) {
 	group->forwardShader.numPointLights = 0;
 	group->forwardShader.numSpotLights = 0;
 	pushDefaultClipRect(group);
+	group->rendering = false;
 }

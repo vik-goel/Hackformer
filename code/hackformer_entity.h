@@ -12,6 +12,7 @@ enum EntityType {
 	EntityType_laserBase,
 	EntityType_laserBeam,
 	EntityType_flyingVirus,
+	EntityType_pickupField,
 };
 
 enum DrawOrder {
@@ -19,9 +20,10 @@ enum DrawOrder {
 	DrawOrder_middleground,
 	DrawOrder_text,
 	DrawOrder_tile,
+	DrawOrder_pickupField,
+	DrawOrder_movingTile,
 	DrawOrder_endPortal,
 	DrawOrder_blueEnergy,
-	DrawOrder_laserController,
 	DrawOrder_laserBeam,
 	DrawOrder_laserBase,
 	DrawOrder_virus,
@@ -77,6 +79,7 @@ struct Entity {
 	s32 numFields;
 
 	RefNode* groundReferenceList;
+	RefNode* ignorePenetrationList;
 
 	float emissivity;
 	double spotLightAngle;
@@ -156,3 +159,11 @@ bool32 isSet(Entity* entity, u32 flags) {
 	bool32 result = (entity->flags & flags) != 0;
 	return result;
 }
+
+Entity* getEntityByRef(GameState*, s32 ref);
+ConsoleField* getMovementField(Entity* entity);
+bool isMouseInside(Entity* entity, Input* input);
+void removeTargetRef(int, GameState*);
+void addTargetRef(int, GameState*);
+void addField(Entity*, ConsoleField*);
+void findCurrentPenetratingEntities(Entity*, GameState*);
