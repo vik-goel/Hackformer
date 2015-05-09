@@ -393,6 +393,14 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 		initPlayerDeath = false;
 	}
 
+	double gravityValues[] = {-9.8, -4.9, 0, 4.9, 9.8};
+	int gravityFieldModifyCost = 5;
+	gameState->gravityField = createPrimitiveField(double, gameState, "gravity", gravityValues, arrayCount(gravityValues), 0, gravityFieldModifyCost);
+	gameState->gravityField->p = gameState->fieldSpec.fieldSize * 0.5;
+	gameState->gravityField->p.y = gameState->windowSize.y - gameState->gravityField->p.y;
+	gameState->gravityField->p.x += gameState->windowSize.x * 0.07;
+	gameState->gravityField->p.y -= gameState->windowSize.y * 0.015;
+
 	loadTmxMap(gameState, maps[*mapFileIndex]);
 	addFlyingVirus(gameState, v2(7, 6));
 	addHeavyTile(gameState, v2(3, 7));
@@ -610,7 +618,6 @@ int main(int argc, char *argv[]) {
 	gameState->fieldSpec.consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
 	gameState->fieldSpec.attribute = loadPNGTexture(gameState, "res/Attribute", false);
 	gameState->fieldSpec.behaviour = loadPNGTexture(gameState, "res/Behaviour", false);
-
 
 	gameState->dock = loadPNGTexture(gameState, "res/dock", false);
 	gameState->dockBlueEnergyTile = loadPNGTexture(gameState, "res/Blue Energy Tile", false);

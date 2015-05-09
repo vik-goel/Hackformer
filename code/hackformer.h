@@ -36,7 +36,6 @@ New Features
 
 - Handle shadows properly
 
-- Hacking gravity
 - Hack the topology of the world
 - Hack to make player reflect bullets
 - Hack the mass of entities
@@ -182,6 +181,7 @@ struct GameState {
 	EntityReference* entityRefFreeList;
 	Hitbox* hitboxFreeList;
 
+	ConsoleField* gravityField;
 	ConsoleField* swapField;
 	V2 swapFieldP;
 	FieldSpec fieldSpec;

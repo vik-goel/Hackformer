@@ -297,7 +297,13 @@ void findCurrentPenetratingEntities(Entity* entity, GameState* gameState) {
 bool createsPickupFieldsOnDeath(Entity* entity) {
 	bool result = true;
 
-	if(entity->type == EntityType_pickupField || entity->type == EntityType_laserBolt) result = false;
+	if(entity->type == EntityType_pickupField) result = false;
+
+
+	//NOTE: This is just a hack to make the player death system work
+	//		Though the player should never make pickup fields because the level
+	//		should always end when the player is removed anyways
+	if(entity->type == EntityType_player) result = false;
 
 	return result;
 }
@@ -979,7 +985,7 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 			result = false;
 
 			if(canPickupField(a, b, gameState) || 
-			  (isTileType(b) && getMovementField(b) == NULL)) result = true;
+			  (b->type == EntityType_tile && getMovementField(b) == NULL)) result = true;
 		} break;
 	}
 
@@ -1426,13 +1432,23 @@ Entity* onGround(Entity* entity, GameState* gameState, double dt, V2 dP, V2 ddP)
 
 Entity* onGround(Entity* entity, GameState* gameState) {
 	double moveTime = 1.0 / 60.0;
-	Entity* result = onGround(entity, gameState, moveTime, v2(0, 0), gameState->gravity);
+
+	//NOTE: This is so that ground references can still be made in 0 gravity
+	V2 ddP = gameState->gravity;
+	if(ddP.y == 0) ddP.y = -0.01;
+
+	Entity* result = onGround(entity, gameState, moveTime, v2(0, 0), ddP);
 	return result;
 }
 
 Entity* getAbove(Entity* entity, GameState* gameState) {
 	double moveTime = 1.0 / 60.0;
-	Entity* result = onGround(entity, gameState, moveTime, v2(0, 0), -gameState->gravity);
+
+	//NOTE: This is so that ground references can still be made in 0 gravity
+	V2 ddP = -gameState->gravity;
+	if(ddP.y == 0) ddP.y = 0.01;
+
+	Entity* result = onGround(entity, gameState, moveTime, v2(0, 0), ddP);
 	return result;
 }
 
@@ -2330,7 +2346,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						double sightRadius = sightRadiusField->doubleValues[sightRadiusField->selectedIndex];
 
 						//TODO: If obstacles were taken into account, this might not actually be the closest entity
-						//		Maybe something like a bfs should be used here to find the actuall closest entity
+						//		Maybe something like a bfs should be used here to find the actual closest entity
 						Entity* targetEntity = getClosestTarget(entity, gameState);
 						if (targetEntity) {
 							double dstToTarget = dst(targetEntity->p, entity->p);
@@ -2394,12 +2410,18 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			}
 		}
 
-		//Remove entity if it is below the bottom of the world
+		//NOTE: Remove entity if it is below the bottom of the world
 		//The laser base and laser beams are not removed when the bottom is reached because their ground references
 		//are used to pull down the laser top.
 		//TODO: The laser base still needs to be removed somewhere though (once both hitboxes are outside of the level)
-		if (entity->p.y < -entity->renderSize.y
-			&& entity->type != EntityType_laserBase) {
+		if(entity->type != EntityType_laserBase) {
+			if((gameState->gravity.y <= 0 && entity->p.y < -entity->renderSize.y / 2) ||
+			  (gameState->gravity.y >= 0 && entity->p.y > gameState->windowSize.y + entity->renderSize.y / 2)) {
+				setFlags(entity, EntityFlag_remove);
+			}
+		}
+
+		if (entity->p.y < -entity->renderSize.y && entity->type != EntityType_laserBase) {
 			setFlags(entity, EntityFlag_remove);
 		}
 

@@ -800,6 +800,15 @@ void updateConsole(GameState* gameState, double dt) {
 		}
 	}  
 
+	{ //NOTE: This draws the gravity field
+		ConsoleField* gravityField = gameState->gravityField;
+		assert(gravityField);
+		drawFieldsRaw(gameState->renderGroup, &gameState->input, &gravityField, 1, spec);
+
+		gameState->gravity = v2(0, gravityField->doubleValues[gravityField->selectedIndex]);
+	}
+
+
 	bool wasConsoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
 
 	//NOTE: This deselects the console entity if somewhere else is clicked
