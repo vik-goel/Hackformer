@@ -1,6 +1,5 @@
 void loadShaderSource(char* fileName, char* source, s32 maxSourceLength) {
-	FILE* file;
-	fopen_s(&file, fileName, "r");
+	FILE* file = fopen(fileName, "r");
 	assert(file);
 
 	char line[1024];
@@ -97,54 +96,49 @@ ForwardShader createForwardShader(char* vertexShaderSourceFileName, char* fragme
 
 	result.ambientUniform = glGetUniformLocation(result.shader.program, "ambient");
 
-	std::string uniformPrefix = "pointLights[";
+	char* uniformPrefix = "pointLights[";
+	char uniformName[128];
 
-		for(s32 lightIndex = 0; lightIndex < arrayCount(result.pointLightUniforms); lightIndex++) {
-			PointLightUniforms* lightUniforms = result.pointLightUniforms + lightIndex;
+	for(s32 lightIndex = 0; lightIndex < arrayCount(result.pointLightUniforms); lightIndex++) {
+		PointLightUniforms* lightUniforms = result.pointLightUniforms + lightIndex;
 
-			char lightIndexStrMem[5];
-			_itoa_s(lightIndex, lightIndexStrMem, 10);
+		sprintf(uniformName, "%s%d].p", uniformPrefix, lightIndex);
+		lightUniforms->p = glGetUniformLocation(result.shader.program, uniformName);
 
-			std::string pUniformName = uniformPrefix + lightIndexStrMem + "].p";
-lightUniforms->p = glGetUniformLocation(result.shader.program, pUniformName.c_str());
+		sprintf(uniformName, "%s%d].color", uniformPrefix, lightIndex);
+		lightUniforms->color = glGetUniformLocation(result.shader.program, uniformName);
 
-std::string colorUniformName = uniformPrefix + lightIndexStrMem + "].color";
-lightUniforms->color = glGetUniformLocation(result.shader.program, colorUniformName.c_str());
+		sprintf(uniformName, "%s%d].range", uniformPrefix, lightIndex);
+		lightUniforms->range = glGetUniformLocation(result.shader.program, uniformName);
+	}
 
-std::string rangeUniformName = uniformPrefix + lightIndexStrMem + "].range";
-lightUniforms->range = glGetUniformLocation(result.shader.program, rangeUniformName.c_str());
-}
-
-uniformPrefix = "spotLights[";
+	uniformPrefix = "spotLights[";
 
 	for(s32 lightIndex = 0; lightIndex < arrayCount(result.spotLightUniforms); lightIndex++) {
 		SpotLightUniforms* lightUniforms = result.spotLightUniforms + lightIndex;
 
-		char lightIndexStrMem[5];
-		_itoa_s(lightIndex, lightIndexStrMem, 10);
+		sprintf(uniformName, "%s%d].base.p", uniformPrefix, lightIndex);
+		lightUniforms->base.p = glGetUniformLocation(result.shader.program, uniformName);
 
-		std::string pUniformName = uniformPrefix + lightIndexStrMem + "].base.p";
-lightUniforms->base.p = glGetUniformLocation(result.shader.program, pUniformName.c_str());
+		sprintf(uniformName, "%s%d].base.color", uniformPrefix, lightIndex);
+		lightUniforms->base.color = glGetUniformLocation(result.shader.program, uniformName);
 
-std::string colorUniformName = uniformPrefix + lightIndexStrMem + "].base.color";
-lightUniforms->base.color = glGetUniformLocation(result.shader.program, colorUniformName.c_str());
+		sprintf(uniformName, "%s%d].dir", uniformPrefix, lightIndex);
+		lightUniforms->dir = glGetUniformLocation(result.shader.program, uniformName);
 
-std::string dirUniformName = uniformPrefix + lightIndexStrMem + "].dir";
-lightUniforms->dir = glGetUniformLocation(result.shader.program, dirUniformName.c_str());
+		sprintf(uniformName, "%s%d].cutoff", uniformPrefix, lightIndex);
+		lightUniforms->cutoff = glGetUniformLocation(result.shader.program, uniformName);
 
-std::string cutoffUniformName = uniformPrefix + lightIndexStrMem + "].cutoff";
-lightUniforms->cutoff = glGetUniformLocation(result.shader.program, cutoffUniformName.c_str());
+		sprintf(uniformName, "%s%d].base.range", uniformPrefix, lightIndex);
+		lightUniforms->base.range = glGetUniformLocation(result.shader.program, uniformName);
+	}
 
-std::string rangeUniformName = uniformPrefix + lightIndexStrMem + "].base.range";
-lightUniforms->base.range = glGetUniformLocation(result.shader.program, rangeUniformName.c_str());
-}
+	result.normalXFlipUniform = glGetUniformLocation(result.shader.program, "normalXFlip");
 
-result.normalXFlipUniform = glGetUniformLocation(result.shader.program, "normalXFlip");
+	GLint normalLocation = glGetUniformLocation(result.shader.program, "normalTexture");
+	glUniform1i(normalLocation, 1);
 
-GLint normalLocation = glGetUniformLocation(result.shader.program, "normalTexture");
-glUniform1i(normalLocation, 1);
-
-return result;
+	return result;
 }
 
 void freeTexture(Texture texture) {
@@ -234,32 +228,30 @@ Texture createTexFromSurface(SDL_Surface* image, SDL_Surface* normal, RenderGrou
 	SDL_FreeSurface(image);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-
-	// result.srcRect.w = image->w;
-	// result.srcRect.h = image->h;
-
-	// result.tex = SDL_CreateTextureFromSurface(renderer, image);
-	// assert(result.tex);
-
-	// SDL_SetTextureBlendMode(result.tex, SDL_BLENDMODE_BLEND);
-	// SDL_FreeSurface(image);
-
 	return result;
 }
 
-Texture loadPNGTexture(GameState* gameState, char* fileName, bool loadNormalMap = true) {
-	std::string suffix = ".png";
-	std::string diffuseFileName = fileName + suffix;
+void addFileExtension(char* result, size_t resultSize, char* fileName, char* extension) {
+	assert(strlen(fileName) + strlen(extension) < resultSize);
+	result[0] = 0;
+	strcat(result, fileName);
+	strcat(result, extension);
+}
 
-	SDL_Surface* diffuse = IMG_Load(diffuseFileName.c_str());
-	if (!diffuse) fprintf(stderr, "Failed to load image from: %s\n", fileName);
+Texture loadPNGTexture(GameState* gameState, char* fileName, bool loadNormalMap = true) {
+	char* extension = ".png";
+	
+	char filePath[1024];
+	addFileExtension(filePath, sizeof(filePath), fileName, ".png");
+
+	SDL_Surface* diffuse = IMG_Load(filePath);
+	if (!diffuse) fprintf(stderr, "Failed to load image from: %s\n", filePath);
 	assert(diffuse);
 
-	std::string normalSuffix = "_NRM.png";
-	std::string normalFileName = fileName + normalSuffix;
+	addFileExtension(filePath, sizeof(filePath), fileName, "_NRM.png");
 
 	SDL_Surface* normal = NULL;
-	if (loadNormalMap) normal = IMG_Load(normalFileName.c_str());
+	if (loadNormalMap) normal = IMG_Load(filePath);
 
 	Texture result = createTexFromSurface(diffuse, normal, gameState->renderGroup);
 
@@ -441,10 +433,7 @@ SDL_Rect getPixelSpaceRect(double pixelsPerMeter, s32 windowHeight, R2 rect) {
 	return result;
 }
 
-void setClipRect(SDL_Renderer* renderer, double pixelsPerMeter, s32 windowHeight, R2 rect) {
-	// SDL_Rect clipRect = getPixelSpaceRect(pixelsPerMeter, windowHeight, rect);
-	// SDL_RenderSetClipRect(renderer, &clipRect);
-
+void setClipRect(double pixelsPerMeter, s32 windowHeight, R2 rect) {
 	GLint x = (GLint)(rect.min.x * pixelsPerMeter);
 	GLint y = (GLint)(rect.min.y * pixelsPerMeter);
 	GLsizei width = (GLsizei)(getRectWidth(rect) * pixelsPerMeter);
@@ -500,7 +489,6 @@ RenderGroup* createRenderGroup(GameState* gameState, size_t size) {
 	result->sortAddressCutoff = 0;
 	result->maxSize = size;
 	result->base = pushSize(&gameState->permanentStorage, size);
-	result->renderer = gameState->renderer;
 	result->pixelsPerMeter = gameState->pixelsPerMeter;
 	result->windowWidth = gameState->windowWidth;
 	result->windowHeight = gameState->windowHeight;
@@ -573,11 +561,6 @@ void setAmbient(RenderGroup* group, GLfloat ambient) {
 }
 
 void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Orientation orientation, float emissivity, GLfloat ambient) {
-	// SDL_Rect dstRect = getPixelSpaceRect(group->pixelsPerMeter, group->windowHeight, bounds);
-
-	// SDL_RendererFlip flip = flipX ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
-	// SDL_RenderCopyEx(group->renderer, texture->tex, &texture->srcRect, &dstRect, degrees, NULL, flip);
-
 	if(emissivity) {
 		setAmbient(group, ambient + (1 - ambient) * emissivity);
 	}
@@ -957,55 +940,47 @@ size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, G
 		R2* clipBounds = (R2*)elemPtr;
 		elemPtr = (char*)elemPtr + sizeof(R2);
 		elemSize += sizeof(R2);
-		setClipRect(group->renderer, group->pixelsPerMeter, group->windowHeight, *clipBounds);
+		setClipRect(group->pixelsPerMeter, group->windowHeight, *clipBounds);
 	} else {
 		//setClipRect(group->renderer, group->pixelsPerMeter, group->windowHeight, group->windowBounds);
 		glDisable(GL_SCISSOR_TEST);
 	}
 
+	#define START_CASE(type) case DrawType_##type: { type* render = (type*)elemPtr
+	#define END_CASE(type) elemSize += sizeof(type); } break
+
 	switch(getRenderHeaderType(header)) {
-		case DrawType_RenderBoundedTexture: {
-			RenderBoundedTexture* render = (RenderBoundedTexture*)elemPtr;
-			setColor(group, createColor(255, 255, 255, 255));
+
+		START_CASE(RenderBoundedTexture);
 			drawTexture(group, render->tex.texture, render->bounds, render->tex.flipX != 0, render->tex.orientation, render->tex.emissivity, ambient);
-			elemSize += sizeof(RenderBoundedTexture);
-		} break;
+		END_CASE(RenderBoundedTexture);
 
-		case DrawType_RenderEntityTexture: {
-			RenderEntityTexture* render = (RenderEntityTexture*)elemPtr;
+		START_CASE(RenderEntityTexture);
 			R2 bounds = rectCenterDiameter(*render->p + group->negativeCameraP, *render->renderSize);
-			setColor(group, createColor(255, 255, 255, 255));
 			drawTexture(group, render->tex.texture, bounds, render->tex.flipX != 0, render->tex.orientation, render->tex.emissivity, ambient);
-			elemSize += sizeof(RenderEntityTexture);
-		} break;
+		END_CASE(RenderEntityTexture);
 
-		case DrawType_RenderText: {
-			RenderText* render = (RenderText*)elemPtr;
-			setColor(group, createColor(255, 255, 255, 255));
+		START_CASE(RenderText);
 			drawText(group, render->font, render->msg, render->p);
-			elemSize += sizeof(RenderText);
-		} break;
+		END_CASE(RenderText);
 
-		case DrawType_RenderFillRect: {
-			RenderFillRect* render = (RenderFillRect*)elemPtr;
+		START_CASE(RenderFillRect);
 			drawFillRect(group, render->bounds, render->color);
-			elemSize += sizeof(RenderFillRect);
-		} break;
+		END_CASE(RenderFillRect);
 
-		case DrawType_RenderOutlinedRect: {
-			RenderOutlinedRect* render = (RenderOutlinedRect*)elemPtr;
+		START_CASE(RenderOutlinedRect);
 			drawOutlinedRect(group, render->bounds, render->color, render->thickness);
-			elemSize += sizeof(RenderOutlinedRect);
-		} break;
+		END_CASE(RenderOutlinedRect);
 
-		case DrawType_RenderConsoleField: {
-			RenderConsoleField* render = (RenderConsoleField*)elemPtr;
+		START_CASE(RenderConsoleField);
 			renderDrawConsoleField(group, fieldSpec, render->field);
-			elemSize += sizeof(RenderConsoleField);
-		} break;
+		END_CASE(RenderConsoleField);
 
 		InvalidDefaultCase;
 	}
+
+	#undef START_CASE
+	#undef END_CASE
 
 	return elemSize;
 }
@@ -1143,20 +1118,18 @@ void drawRenderGroup(RenderGroup* group, FieldSpec* fieldSpec) {
 	bindShader(group, &group->forwardShader.shader);
 
 #if 0
-	PointLight light1 = {v3(12, 5, 0), v3(1, 1, 1), 2};
-	//pushPointLight(group, &light1, true);
+	static float iter = 0;
+	iter += 0.01f;
+	float tempXOffset = 3 * sin(iter);
 
-	PointLight light2 = {v3(5, 3, 1), v3(1, 1, 1), 3};
-	pushPointLight(group, &light2, true);
+	PointLight light1 = {v3(15 + tempXOffset, 7, 0), v3(1, 0.3, 0.3), 6};
+	pushPointLight(group, &light1, true);
 
-	static float angle = 0;
-	angle += 1 / 60.0f;
-
-	SpotLight spotLight = {light1, angle, 30};
-	pushSpotLight(group, &spotLight, true);
+	group->ambient = (GLfloat)0.25;
+#else
+	group->ambient = (GLfloat)1;
 #endif
 
-	group->ambient = (GLfloat)1;
 	setAmbient(group, group->ambient);
 
 	s32 uniformPointLightIndex = 0;

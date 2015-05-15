@@ -17,7 +17,7 @@ void giveEntityRectangularCollisionBounds(Entity* entity, GameState* gameState,
 	entity->hitboxes = hitbox;
 }
 
-RefNode* refNode(GameState* gameState, int ref) {
+RefNode* refNode(GameState* gameState, int ref, RefNode* next = NULL) {
 	RefNode* result = NULL;
 
 	if (gameState->refNodeFreeList) {
@@ -29,7 +29,7 @@ RefNode* refNode(GameState* gameState, int ref) {
 
 	assert(result);
 
-	result->next = NULL;
+	result->next = next;
 	result->ref = ref;
 
 	return result;
@@ -71,8 +71,7 @@ void removeTargetRef(int ref, GameState* gameState) {
 }
 
 void addTargetRef(int ref, GameState* gameState) {
-	RefNode* node = refNode(gameState, ref);
-	node->next = gameState->targetRefs;
+	RefNode* node = refNode(gameState, ref, gameState->targetRefs);
 	gameState->targetRefs = node;
 }
 
@@ -97,7 +96,7 @@ EntityReference* getPreciseEntityReferenceBucket(GameState* gameState, s32 ref) 
 	}
 
 	return result;
-}
+		}
 
 Entity* getEntityByRef(GameState* gameState, s32 ref) {
 	EntityReference* bucket = getPreciseEntityReferenceBucket(gameState, ref);
@@ -253,20 +252,6 @@ void addGroundReference(Entity* top, Entity* ground, GameState* gameState, bool 
 	if(refNodeListContainsRef(ground->groundReferenceList, top->ref)) return;
 	if(refNodeListContainsRef(top->groundReferenceList, ground->ref)) return;
 
-	/*RefNode* groundNode = ground->groundReferenceList;
-
-	while(groundNode) {
-		if (groundNode->ref == top->ref) return;
-		groundNode = groundNode->next;
-	}
-
-	RefNode* topNode = top->groundReferenceList;
-
-	while(topNode) {
-		if (topNode->ref == ground->ref) return;
-		topNode = topNode->next;
-	}*/
-
 	RefNode* append = refNode(gameState, top->ref);
 
 	RefNode* last = ground->groundReferenceList;
@@ -284,21 +269,8 @@ void addGroundReference(Entity* top, Entity* ground, GameState* gameState, bool 
 	}
 }
 
-RefNode* getAllPenetratingEntities(Entity*, GameState*);
-
-void findCurrentPenetratingEntities(Entity* entity, GameState* gameState) {
-	if(entity->ignorePenetrationList) {
-		freeRefNode(entity->ignorePenetrationList, gameState);
-	}
-
-	entity->ignorePenetrationList = getAllPenetratingEntities(entity, gameState);
-}
-
 bool createsPickupFieldsOnDeath(Entity* entity) {
 	bool result = true;
-
-	if(entity->type == EntityType_pickupField) result = false;
-
 
 	//NOTE: This is just a hack to make the player death system work
 	//		Though the player should never make pickup fields because the level
@@ -331,18 +303,20 @@ void freeEntity(Entity* entity, GameState* gameState, bool endOfLevel) {
 	if(!endOfLevel) {
 		if(createsPickupFieldsOnDeath(entity)) {
 			for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
-				if(canFieldBeMoved(entity->fields[fieldIndex])) {
-					Entity* pickupField = addPickupField(gameState, entity, entity->fields[fieldIndex]);
+				if(entity->fields[fieldIndex]) {
+					if(canFieldBeMoved(entity->fields[fieldIndex])) {
+						Entity* pickupField = addPickupField(gameState, entity, entity->fields[fieldIndex]);
 
-					pickupField->dP.x = (fieldIndex / 2 + 1) * 30;
-					pickupField->dP.y = (fieldIndex / 2 + 1) * 3;
+						pickupField->dP.x = (fieldIndex / 2 + 1) * 30;
+						pickupField->dP.y = (fieldIndex / 2 + 1) * 3;
 
-					if(fieldIndex % 2 == 0) pickupField->dP.x *= -1;
-				} else {
-					freeConsoleField(entity->fields[fieldIndex], gameState);
+						if(fieldIndex % 2 == 0) pickupField->dP.x *= -1;
+					} else {
+						freeConsoleField(entity->fields[fieldIndex], gameState);
+					}
+
+					entity->fields[fieldIndex] = NULL;
 				}
-
-				entity->fields[fieldIndex] = NULL;
 			}
 		} else {
 			for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
@@ -476,6 +450,21 @@ Entity* addEntity(GameState* gameState, EntityType type, DrawOrder drawOrder, V2
 	return result;
 }
 
+void removeField(ConsoleField** fields, s32 numFields, s32 fieldIndex) {
+	assert(fieldIndex >= 0 && fieldIndex < numFields);
+
+	clearFlags(fields[fieldIndex], ConsoleFlag_remove);
+
+	for (s32 moveIndex = fieldIndex; moveIndex < numFields - 1; moveIndex++) {
+		ConsoleField** dst = fields + moveIndex;
+		ConsoleField** src = fields + moveIndex + 1;
+
+		*dst = *src;
+	}
+
+	fields[numFields - 1] = NULL;
+}
+
 void removeFieldsIfSet(ConsoleField** fields, s32* numFields) {
 	for (s32 fieldIndex = 0; fieldIndex < *numFields; fieldIndex++) {
 		ConsoleField* field = fields[fieldIndex];
@@ -485,17 +474,20 @@ void removeFieldsIfSet(ConsoleField** fields, s32* numFields) {
 		}
 
 		if (isSet(field, ConsoleFlag_remove)) {
-			clearFlags(field, ConsoleFlag_remove);
+			// clearFlags(field, ConsoleFlag_remove);
 
-			for (s32 moveIndex = fieldIndex; moveIndex < *numFields - 1; moveIndex++) {
-				ConsoleField** dst = fields + moveIndex;
-				ConsoleField** src = fields + moveIndex + 1;
+			// for (s32 moveIndex = fieldIndex; moveIndex < *numFields - 1; moveIndex++) {
+			// 	ConsoleField** dst = fields + moveIndex;
+			// 	ConsoleField** src = fields + moveIndex + 1;
 
-				*dst = *src;
-			}
+			// 	*dst = *src;
+			// }
 
-			fields[*numFields - 1] = 0;
-			(*numFields)--;
+			// fields[*numFields - 1] = 0;
+			// (*numFields)--;
+
+			removeField(fields, *numFields, fieldIndex);
+			*numFields = *numFields - 1;
 		}
 	}
 }
@@ -659,19 +651,20 @@ Entity* addEndPortal(GameState* gameState, V2 p) {
 }
 
 Entity* addPickupField(GameState* gameState, Entity* parent, ConsoleField* field) {
-	//TODO: Find a better way of setting the renderSize of pickup fields
 	Entity* result = addEntity(gameState, EntityType_pickupField, DrawOrder_pickupField, parent->p, gameState->fieldSpec.fieldSize);
 
 	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, result->renderSize.x, result->renderSize.y);
+	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
 
 	addField(result, field);
+	addField(result, createBoolField(gameState, "solid", false, 1));
+	addField(result, createBoolField(gameState, "can_pickup", true, 1));
 
 	result->emissivity = 1.0f;
-	setFlags(result, EntityFlag_removeWhenOutsideLevel);
+	setFlags(result, EntityFlag_removeWhenOutsideLevel|
+					 EntityFlag_hackable);
 
-	assert(result->numFields == 1);
-
-	findCurrentPenetratingEntities(result, gameState);
+	ignoreAllPenetratingEntities(result, gameState);
 
 	return result;
 }
@@ -840,7 +833,7 @@ Entity* addLaserBeam_(GameState* gameState, V2 p, V2 renderSize) {
 }
 
 Entity* addLaserController(GameState* gameState, V2 baseP, double height) {
-	//NOTE: The order which all the parts are added: base first, then top next, then finally the beam
+	//NOTE: The order which all the parts are added: base first then beam
 	//		is necessary. This is so that all of the other pieces of the laser can be easily found if you just
 	//		have one to start. This is mainly used for collision detection (eg. avoiding collisions between the base
 	//		and the other laser pieces)
@@ -888,8 +881,9 @@ Entity* addFlyingVirus(GameState* gameState, V2 p) {
 ConsoleField* getMovementField(Entity* entity) {
 	ConsoleField* result = NULL;
 
-	if(entity->type != EntityType_pickupField && !isSet(entity, EntityFlag_remove)) {
-		for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+	if(!isSet(entity, EntityFlag_remove)) {
+		int firstFieldIndex = entity->type == EntityType_pickupField ? 1 : 0;
+		for (s32 fieldIndex = firstFieldIndex; fieldIndex < entity->numFields; fieldIndex++) {
 			ConsoleField* testField = entity->fields[fieldIndex];
 			if (isConsoleFieldMovementType(testField)) {
 				result = testField;
@@ -915,17 +909,34 @@ bool isLaserEntityType(Entity* entity) {
 bool canPickupField(Entity* pickupField, Entity* collider, GameState* gameState) {
 	assert(pickupField->type == EntityType_pickupField);
 
-	bool result = true;
+	bool result = false;
 
-	if (pickupField->numFields == 1) {
-		if(gameState->swapField) result = false;
-		ConsoleField* field = getMovementField(collider);
-		if(!field || field->type != ConsoleField_keyboardControlled) result = false;
-	} else {
-		result = false;
+	if (!isSet(pickupField, EntityFlag_remove) && !gameState->swapField) {
+		assert(pickupField->type == EntityType_pickupField);
+		assert(pickupField->numFields >= 3);
+
+		ConsoleField* field = pickupField->fields[2];
+		bool32 canPickup = (field && field->selectedIndex);
+
+		if(canPickup) {
+			ConsoleField* field = getMovementField(collider);
+			if(field && field->type == ConsoleField_keyboardControlled) result = true;
+		}
 	}
 
 	return result;
+}
+
+bool32 isPickupFieldSolid(Entity* pickupField) {
+	if(isSet(pickupField, EntityFlag_remove)) return false;
+
+	assert(pickupField->type == EntityType_pickupField);
+	assert(pickupField->numFields >= 2);
+
+	ConsoleField* solidField = pickupField->fields[1];
+	bool32 solid = (solidField && solidField->selectedIndex);
+
+	return solid;
 }
 
 bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
@@ -984,8 +995,11 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 		case EntityType_pickupField: {
 			result = false;
 
-			if(canPickupField(a, b, gameState) || 
+			if(isPickupFieldSolid(a) ||
+			   canPickupField(a, b, gameState) || 
 			  (b->type == EntityType_tile && getMovementField(b) == NULL)) result = true;
+
+			if(b->type == EntityType_laserBeam || b->type == EntityType_laserBolt) result = false;
 		} break;
 	}
 
@@ -1079,12 +1093,13 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool sol
 		case EntityType_pickupField: {
 			if(canPickupField(entity, hitEntity, gameState)) {
 				assert(!gameState->swapField);
-				assert(entity->numFields == 1);
+				assert(entity->numFields >= 1);
 				gameState->swapField = entity->fields[0];
 				gameState->swapField->p -= gameState->cameraP;
 				rebaseField(gameState->swapField, gameState->swapFieldP);
 
-				entity->numFields = 0;
+				removeField(entity->fields, entity->numFields, 0);
+				entity->numFields--;
 				setFlags(entity, EntityFlag_remove);
 			}
 		} break;
@@ -1109,6 +1124,7 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool sol
 		case EntityType_laserBolt: {
 			if(
 			   hitEntity->type == EntityType_virus 
+			   || hitEntity->type == EntityType_text
 			   || hitEntity->type == EntityType_flyingVirus 
 			   //|| hitEntity->type == EntityType_player
 			 ) setFlags(hitEntity, EntityFlag_remove);
@@ -1262,7 +1278,6 @@ void checkCollision(V2 delta, R2 colliderHitbox, Entity* entity, Entity* collide
 }
 
 bool isEntityInside(Entity* entity, Entity* collider)  {
-	
 	Hitbox* colliderHitboxList = collider->hitboxes;
 
 	while(colliderHitboxList) {
@@ -1315,10 +1330,8 @@ void attemptToRemovePenetrationReferences(Entity* entity, GameState* gameState) 
 	}
 }
 
-RefNode* getAllPenetratingEntities(Entity* entity, GameState* gameState) {
+void ignoreAllPenetratingEntities(Entity* entity, GameState* gameState) {
 	//NOTE: Most of this code is pasted from checkCollision and getCollisionTime
-	RefNode* result = NULL;
-
 	s32 partitionCenterX = (s32)(entity->p.x / gameState->chunkSize.x);
 	s32 partitionCenterY = (s32)(entity->p.y / gameState->chunkSize.y);
 
@@ -1342,9 +1355,8 @@ RefNode* getAllPenetratingEntities(Entity* entity, GameState* gameState) {
 							collidesWith(entity, collider, gameState)) {
 
 							if(isEntityInside(entity, collider)) {
-								RefNode* node = refNode(gameState, collider->ref);
-								node->next = result;
-								result = node;
+								RefNode* node = refNode(gameState, collider->ref, entity->ignorePenetrationList);
+								entity->ignorePenetrationList = node;
 							}
 									
 						}
@@ -1354,8 +1366,6 @@ RefNode* getAllPenetratingEntities(Entity* entity, GameState* gameState) {
 			}
 		}
 	}
-
-	return result;
 }
 
 GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2 delta) {
@@ -1464,7 +1474,7 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP) {
 
 		maxCollisionTime -= collisionTime;
 
-		double collisionTimeEpsilon = 0.0001;
+		double collisionTimeEpsilon = 0.002;
 		double moveTime = max(0, collisionTime - collisionTimeEpsilon); 
 
 		V2 movement = delta * moveTime;
@@ -1601,8 +1611,9 @@ bool moveTowardsTarget(Entity* entity, GameState* gameState, double dt,
 ConsoleField* getField(Entity* entity, ConsoleFieldType type) {
 	ConsoleField* result = false;
 
-	if(entity->type != EntityType_pickupField && !isSet(entity, EntityFlag_remove)) {
-		for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+	if(!isSet(entity, EntityFlag_remove)) {
+		int firstFieldIndex = entity->type == EntityType_pickupField ? 1 : 0;
+		for (s32 fieldIndex = firstFieldIndex; fieldIndex < entity->numFields; fieldIndex++) {
 			if (entity->fields[fieldIndex]->type == type) {
 				result = entity->fields[fieldIndex];
 				break;
@@ -2287,24 +2298,12 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				case ConsoleField_movesBackAndForth: {
 					if (!shootingState) {
 						V2 oldP = entity->p;
-						V2 oldCollisionSize = entity->hitboxes->collisionSize;
-						V2 oldCollisionOffset = entity->hitboxes->collisionOffset;
-
-						bool32 initiallyOnGround = isSet(entity, EntityFlag_grounded);
 
 						if (isSet(entity, EntityFlag_facesLeft)) {
-							xMoveAcceleration *= -1;
-							entity->hitboxes->collisionOffset.x -= entity->hitboxes->collisionSize.x / 2;
-						} else {
-							entity->hitboxes->collisionOffset.x += entity->hitboxes->collisionSize.x / 2;
-						}
+						 	xMoveAcceleration *= -1;
+						} 
 
-						entity->hitboxes->collisionSize.x = 0;
 						ddP.x = xMoveAcceleration;
-
-						// if (isSet(entity, EntityFlag_noMovementByDefault)) {
-						// 	ddP.y = 0;
-						// }
 
 						double startX = entity->p.x;
 						move(entity, dt, gameState, ddP);
@@ -2315,11 +2314,27 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						if (isSet(entity, EntityFlag_noMovementByDefault)) {
 							shouldChangeDirection = startX == endX && dt > 0;
 						} else {
+							bool32 initiallyOnGround = isSet(entity, EntityFlag_grounded);
+
 							if (initiallyOnGround) {
+								V2 oldCollisionSize = entity->hitboxes->collisionSize;
+								V2 oldCollisionOffset = entity->hitboxes->collisionOffset;
+
+								if (isSet(entity, EntityFlag_facesLeft)) {
+								 	entity->hitboxes->collisionOffset.x -= entity->hitboxes->collisionSize.x / 2;
+								} else {
+									entity->hitboxes->collisionOffset.x += entity->hitboxes->collisionSize.x / 2;
+								}
+
+								entity->hitboxes->collisionSize.x = 0;
+
 								bool offOfGround = onGround(entity, gameState) == NULL;
 
+								entity->hitboxes->collisionSize = oldCollisionSize;
+								entity->hitboxes->collisionOffset = oldCollisionOffset;
+
 								if (offOfGround) {
-									entity->p = oldP;
+									setEntityP(entity, oldP, gameState);
 								}
 
 								shouldChangeDirection = offOfGround || entity->dP.x == 0;
@@ -2329,9 +2344,6 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						if (shouldChangeDirection) {
 							toggleFlags(entity, EntityFlag_facesLeft);
 						}
-
-						entity->hitboxes->collisionSize = oldCollisionSize;
-						entity->hitboxes->collisionOffset = oldCollisionOffset;
 					} else {
 						defaultMove = true;
 					}
@@ -2573,9 +2585,6 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 
 			case EntityType_flyingVirus: {
-				//double wantedAngle = 330;
-				//if(isSet(entity, EntityFlag_facesLeft)) wantedAngle = 210;
-
 				double wantedAngle = 330;
 
 				Entity* player = getEntityByRef(gameState, gameState->playerRef);
@@ -2606,13 +2615,21 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			} break;
 
 
-
 			case EntityType_pickupField: {
 				//NOTE: If the pickupField has been removed and the field is transferred to the swap field
-				//		then it will have 0 fields
-				if(entity->numFields == 1) {
-					entity->fields[0]->p = entity->p;
-					pushConsoleField(gameState->renderGroup, &gameState->fieldSpec, entity->fields[0]);
+				//		then it will have 1 field (the solid field)
+				if(entity->numFields >= 1 && !isSet(entity, EntityFlag_remove)) {
+					bool32 wasSolid = isSet(entity, EntityFlag_wasSolid);
+					if(isPickupFieldSolid(entity) != wasSolid) {
+						toggleFlags(entity, EntityFlag_wasSolid);
+
+						if(!wasSolid) ignoreAllPenetratingEntities(entity, gameState);
+					}
+
+					if(gameState->consoleEntityRef != entity->ref) {
+						entity->fields[0]->p = entity->p;
+						pushConsoleField(gameState->renderGroup, &gameState->fieldSpec, entity->fields[0]);
+					}
 				}
 			} break;
 

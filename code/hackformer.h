@@ -18,6 +18,7 @@ Bug Fixes
 - test remove when outside level to see that it works
 - if the entity which you are keyboard controlling is removed, the level should restart
 
+- Heavy tiles should be able to smash entities into the ceiling
 
 New Features
 -------------
@@ -48,6 +49,8 @@ New Features
 
 */
 
+#define _CRT_SECURE_NO_WARNINGS
+
 #define arrayCount(array) sizeof(array) / sizeof(array[0])
 #define InvalidCodePath assert(!"Invalid Code Path")
 #define InvalidDefaultCase default: { assert(!"Invalid Default Case"); } break
@@ -74,7 +77,6 @@ typedef int8_t bool8;
 #include <cmath>
 #include <cstdio>
 #include <cassert>
-#include <string>
 
 #include "glew.h"
 
@@ -161,7 +163,6 @@ struct GameState {
 	MemoryArena levelStorage;
 
 	RenderGroup* renderGroup;
-	SDL_Renderer* renderer;
 	TTF_Font* textFont;
 
 	Input input;

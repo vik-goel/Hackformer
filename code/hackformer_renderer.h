@@ -158,8 +158,6 @@ struct RenderGroup {
 	Texture whiteTex;
 	GLuint nullNormalId;
 
-	SDL_Renderer* renderer;
-
 	double pixelsPerMeter;
 	s32 windowWidth;
 	s32 windowHeight;

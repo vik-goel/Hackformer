@@ -61,8 +61,7 @@ bool extractStringFromLine(char* line, s32 lineLen, char* intName, char* result,
 }
 
 void loadTmxMap(GameState* gameState, char* fileName) {
-	FILE* file;
-	fopen_s(&file, fileName, "r");
+	FILE* file = fopen(fileName, "r");
 	assert(file);
 
 	s32 mapWidthTiles, mapHeightTiles;
@@ -450,7 +449,7 @@ int main(int argc, char *argv[]) {
 	//TODO: Only initialize what is needed
 	if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
 		fprintf(stderr, "Failed to initialize SDL. Error: %s", SDL_GetError());
-		assert(false);
+		InvalidCodePath;
 	}
 
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
@@ -458,7 +457,7 @@ int main(int argc, char *argv[]) {
 
 	if (IMG_Init(IMG_INIT_PNG) != IMG_INIT_PNG) {
 		fprintf(stderr, "Failed to initialize SDL Image.");
-		assert(false);
+		InvalidCodePath;
 	}
 
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
@@ -499,12 +498,6 @@ int main(int argc, char *argv[]) {
 		assert(false);
 	}
 
-	SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
-    if(!renderer) {
-        fprintf(stderr, "Failed to create renderer. Error: %s", SDL_GetError() );
-        assert(false);
-    }
-
 	if (TTF_Init()) {
 		fprintf(stderr, "Failed to initialize SDL_ttf.");
 		assert(false);
@@ -514,7 +507,6 @@ int main(int argc, char *argv[]) {
 
 	GameState* gameState = pushStruct(&arena_, GameState);
 	gameState->permanentStorage = arena_;
-	gameState->renderer = renderer;
 
 	gameState->levelStorage = createArena(8 * 1024 * 1024);
 

@@ -48,6 +48,7 @@ enum EntityFlag {
 	EntityFlag_movedByGround = 1 << 9,
 	EntityFlag_animIntro = 1 << 10,
 	EntityFlag_animOutro = 1 << 11,
+	EntityFlag_wasSolid = 1 << 12, //Used by pickup fields
 };
 
 struct RefNode {
@@ -162,8 +163,9 @@ bool32 isSet(Entity* entity, u32 flags) {
 
 Entity* getEntityByRef(GameState*, s32 ref);
 ConsoleField* getMovementField(Entity* entity);
+ConsoleField* getField(Entity* entity, ConsoleFieldType type);
 bool isMouseInside(Entity* entity, Input* input);
 void removeTargetRef(int, GameState*);
 void addTargetRef(int, GameState*);
 void addField(Entity*, ConsoleField*);
-void findCurrentPenetratingEntities(Entity*, GameState*);
+void ignoreAllPenetratingEntities(Entity*, GameState*);
