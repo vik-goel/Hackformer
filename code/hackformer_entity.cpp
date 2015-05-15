@@ -308,7 +308,7 @@ void freeEntity(Entity* entity, GameState* gameState, bool endOfLevel) {
 						Entity* pickupField = addPickupField(gameState, entity, entity->fields[fieldIndex]);
 
 						pickupField->dP.x = (fieldIndex / 2 + 1) * 30;
-						pickupField->dP.y = (fieldIndex / 2 + 1) * 3;
+						pickupField->dP.y = (fieldIndex / 2 + 1) * 4;
 
 						if(fieldIndex % 2 == 0) pickupField->dP.x *= -1;
 					} else {

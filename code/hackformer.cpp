@@ -456,8 +456,31 @@ int main(int argc, char *argv[]) {
 	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
 
 	if (IMG_Init(IMG_INIT_PNG) != IMG_INIT_PNG) {
-		fprintf(stderr, "Failed to initialize SDL Image.");
+		fprintf(stderr, "Failed to initialize SDL_image.");
 		InvalidCodePath;
+	}
+
+	{ //Load and play the music
+		s32 mixerFlags = MIX_INIT_MP3;
+		s32 mixerInitStatus = Mix_Init(mixerFlags);
+
+		if(mixerFlags != mixerInitStatus) {
+			fprintf(stderr, "Error initializing SDL_mixer: %s\n", Mix_GetError());
+			InvalidCodePath;
+		}
+
+		if (Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 1024) < 0) {
+		    fprintf(stderr, "Error initializing SDL_mixer: %s\n", Mix_GetError());
+		  	InvalidCodePath;
+		}
+
+		Mix_Music* music = Mix_LoadMUS("res/hackformer theme.mp3");
+		if(!music) {
+		    fprintf(stderr, "Error loading music: %s\n", Mix_GetError());
+		  	InvalidCodePath;
+		}
+
+		Mix_PlayMusic(music, -1); //loop forever
 	}
 
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
@@ -535,10 +558,6 @@ int main(int argc, char *argv[]) {
 	gameState->input.shift.keyCode1 = SDLK_RSHIFT;
 	gameState->input.shift.keyCode2 = SDLK_LSHIFT;
 	
-
-//
-//	gameState->basicShader = createShader("shaders/basic.vert", "shaders/basic.frag", gameState->windowSize);
-
 	gameState->gravity = v2(0, -9.81f);
 	gameState->solidGridSquareSize = 0.1;
 	gameState->tileSize = 0.9f; 
@@ -626,22 +645,23 @@ int main(int argc, char *argv[]) {
 	s32 mapFileIndex = 0;
 	loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, false);
 
-	bool running = true;
-	double frameTime = 1.0 / 60.0;
+#ifdef PRINT_FPS
 	u32 fpsCounterTimer = SDL_GetTicks();
 	u32 fps = 0;
+#endif
+
+	bool running = true;
 	double dtForFrame = 0;
 	double maxDtForFrame = 1.0 / 6.0;
 	u32 lastTime = SDL_GetTicks();
 	u32 currentTime;
-
-	//printf("Error: %d\n", glGetError());
 
 	while (running) {
 		currentTime = SDL_GetTicks();
 		dtForFrame += (double)((currentTime - lastTime) / 1000.0); 
 		lastTime = currentTime;
 
+	#ifdef PRINT_FPS
 		u32 frameStart = SDL_GetTicks();
 
 		if (currentTime - fpsCounterTimer > 1000) {
@@ -650,92 +670,81 @@ int main(int argc, char *argv[]) {
 			fps = 0;
 		}
 
-		//glClearColor(0, 0, 0, 1);
+		fps++;
+	#endif
 
-		//if (dtForFrame > frameTime) {
-			if (dtForFrame > maxDtForFrame) dtForFrame = maxDtForFrame;
+		glClearColor(0, 0, 0, 1);
+		glClear(GL_COLOR_BUFFER_BIT);
 
-			fps++;
-			gameState->swapFieldP = gameState->windowSize * 0.5 + v2(0, 4.25);
+		if (dtForFrame > maxDtForFrame) dtForFrame = maxDtForFrame;
 
-			pollInput(gameState, &running);
+		gameState->swapFieldP = gameState->windowSize * 0.5 + v2(0, 4.25);
 
-			glClear(GL_COLOR_BUFFER_BIT);
+		pollInput(gameState, &running);
+		updateAndRenderEntities(gameState, dtForFrame);
+		pushSortEnd(gameState->renderGroup);
 
-			//printf("Error: %d\n", glGetError());
-			updateAndRenderEntities(gameState, dtForFrame);
+		{ //Draw the dock
+			V2 size = gameState->windowSize.x * v2(1, gameState->dock.size.y / gameState->dock.size.x);
+			V2 dockP = v2(0, gameState->windowSize.y - size.y);
+			R2 bounds = r2(dockP, dockP + size);
+			pushTexture(gameState->renderGroup, &gameState->dock, bounds, false, DrawOrder_gui, false);
 
-			pushSortEnd(gameState->renderGroup);
+			V2 blueEnergySize = 0.45 * v2(1, 1);
+			V2 blueEnergyStartP = dockP + v2(1.6, 0.68);
+			V2 barSlope = normalize(v2(1, -0.04));
+			double barLength = 5.41;
 
-			{ //Draw the dock
-				V2 size = gameState->windowSize.x * v2(1, gameState->dock.size.y / gameState->dock.size.x);
-				V2 dockP = v2(0, gameState->windowSize.y - size.y);
-				R2 bounds = r2(dockP, dockP + size);
-				pushTexture(gameState->renderGroup, &gameState->dock, bounds, false, DrawOrder_gui, false);
+			s32 maxEnergy = 40;
+			double energySize = barLength / (double)maxEnergy;
 
-				V2 blueEnergySize = 0.45 * v2(1, 1);
-				V2 blueEnergyStartP = dockP + v2(1.6, 0.68);
-				V2 barSlope = normalize(v2(1, -0.04));
-				double barLength = 5.41;
+			if(gameState->fieldSpec.blueEnergy > maxEnergy) gameState->fieldSpec.blueEnergy = maxEnergy;
 
-				s32 maxEnergy = 40;
-				double energySize = barLength / (double)maxEnergy;
-
-				if(gameState->fieldSpec.blueEnergy > maxEnergy) gameState->fieldSpec.blueEnergy = maxEnergy;
-
-				for(s32 energyIndex = 0; energyIndex < gameState->fieldSpec.blueEnergy; energyIndex++) {
-					//TODO: <= is only needed for the last energyIndex
-					for(double lerpIndex = 0; lerpIndex <= 1; lerpIndex += 0.5) {
-						V2 blueEnergyP = blueEnergyStartP + barSlope * ((energyIndex + lerpIndex) * energySize);
-						R2 blueEnergyBounds = rectCenterDiameter(blueEnergyP, blueEnergySize);
-						pushTexture(gameState->renderGroup, &gameState->dockBlueEnergyTile, blueEnergyBounds, false, DrawOrder_gui, false);
-					}
-				}
-				
-			}
-
-			updateConsole(gameState, dtForFrame);
-			drawRenderGroup(gameState->renderGroup, &gameState->fieldSpec);
-			removeEntities(gameState);
-
-
-			{ //NOTE: This updates the camera position
-				V2 cameraPDiff = gameState->newCameraP - gameState->cameraP;
-				double maxCameraMovement = 30 * dtForFrame;
-
-				if (lengthSq(cameraPDiff) > square(maxCameraMovement)) {
-					cameraPDiff = normalize(cameraPDiff) * maxCameraMovement;
-				}
-
-				gameState->cameraP += cameraPDiff;
-				gameState->renderGroup->negativeCameraP = -gameState->cameraP;
-			}
-
-			dtForFrame = 0;
-
-			if (gameState->input.x.justPressed) {
-				gameState->fieldSpec.blueEnergy += 10;
-			}
-
-			{ //NOTE: This reloads the game
-				bool resetLevel = !getEntityByRef(gameState, gameState->playerDeathRef) &&
-								  (!getEntityByRef(gameState, gameState->playerRef) || gameState->input.r.justPressed);
-
-				
-				if (gameState->loadNextLevel || 
-					resetLevel) {
-					loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, true);
+			for(s32 energyIndex = 0; energyIndex < gameState->fieldSpec.blueEnergy; energyIndex++) {
+				//TODO: <= is only needed for the last energyIndex
+				for(double lerpIndex = 0; lerpIndex <= 1; lerpIndex += 0.5) {
+					V2 blueEnergyP = blueEnergyStartP + barSlope * ((energyIndex + lerpIndex) * energySize);
+					R2 blueEnergyBounds = rectCenterDiameter(blueEnergyP, blueEnergySize);
+					pushTexture(gameState->renderGroup, &gameState->dockBlueEnergyTile, blueEnergyBounds, false, DrawOrder_gui, false);
 				}
 			}
+			
+		}
 
-			u32 frameEnd = SDL_GetTicks();
-			u32 frameTime = frameEnd - frameStart;
+		updateConsole(gameState, dtForFrame);
+		drawRenderGroup(gameState->renderGroup, &gameState->fieldSpec);
+		removeEntities(gameState);
 
-			//printf("Frame Time: %d\n", frameTime);
+		{ //NOTE: This updates the camera position
+			V2 cameraPDiff = gameState->newCameraP - gameState->cameraP;
+			double maxCameraMovement = 30 * dtForFrame;
 
-			//SDL_RenderPresent(renderer); //Swap the buffers
-			SDL_GL_SwapWindow(window);
-		//}
+			if (lengthSq(cameraPDiff) > square(maxCameraMovement)) {
+				cameraPDiff = normalize(cameraPDiff) * maxCameraMovement;
+			}
+
+			gameState->cameraP += cameraPDiff;
+			gameState->renderGroup->negativeCameraP = -gameState->cameraP;
+		}
+
+		dtForFrame = 0;
+
+		if (gameState->input.x.justPressed) {
+			gameState->fieldSpec.blueEnergy += 10;
+		}
+
+		{ //NOTE: This reloads the game
+			bool resetLevel = !getEntityByRef(gameState, gameState->playerDeathRef) &&
+							  (!getEntityByRef(gameState, gameState->playerRef) || gameState->input.r.justPressed);
+
+			
+			if (gameState->loadNextLevel || 
+				resetLevel) {
+				loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, true);
+			}
+		}
+
+		SDL_GL_SwapWindow(window);
 	}
 
 	return 0;

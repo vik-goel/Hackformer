@@ -57,6 +57,7 @@ New Features
 
 #define SHOW_COLLISION_BOUNDS 0
 #define SHOW_CLICK_BOUNDS 0
+#define PRINT_FPS 0
 
 #include <stdint.h>
 
@@ -84,6 +85,7 @@ typedef int8_t bool8;
 #include "SDL_image.h"
 #include "SDL_ttf.h"
 #include "SDL_opengl.h"
+#include "SDL_mixer.h"
 
 struct GameState;
 struct Input;
