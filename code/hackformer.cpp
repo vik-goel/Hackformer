@@ -700,7 +700,8 @@ int main(int argc, char *argv[]) {
 			s32 maxEnergy = 40;
 			double energySize = barLength / (double)maxEnergy;
 
-			if(gameState->fieldSpec.blueEnergy > maxEnergy) gameState->fieldSpec.blueEnergy = maxEnergy;
+			if(gameState->fieldSpec.blueEnergy < 0) gameState->fieldSpec.blueEnergy = 0;
+			else if(gameState->fieldSpec.blueEnergy > maxEnergy) gameState->fieldSpec.blueEnergy = maxEnergy;
 
 			for(s32 energyIndex = 0; energyIndex < gameState->fieldSpec.blueEnergy; energyIndex++) {
 				//TODO: <= is only needed for the last energyIndex

@@ -301,10 +301,19 @@ void freeEntity(Entity* entity, GameState* gameState, bool endOfLevel) {
 	//NOTE: At the end of the level no pickup fields should be created and no memory needs to be free
 	//		because the level storage will just be reset. 
 	if(!endOfLevel) {
+		s32 startFieldIndex = entity->type == EntityType_pickupField ? 1 : 0;
+		for(s32 fieldIndex = startFieldIndex; fieldIndex < entity->numFields; fieldIndex++) {
+			ConsoleField* field = entity->fields[fieldIndex];
+
+			if(field->type == ConsoleField_givesEnergy) {
+				gameState->fieldSpec.blueEnergy += field->children[0]->selectedIndex;
+			}
+		}
+
 		if(createsPickupFieldsOnDeath(entity)) {
 			for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
 				if(entity->fields[fieldIndex]) {
-					if(canFieldBeMoved(entity->fields[fieldIndex])) {
+					if(canFieldBeMoved(entity->fields[fieldIndex]) && entity->fields[fieldIndex]->type != ConsoleField_givesEnergy) {
 						Entity* pickupField = addPickupField(gameState, entity, entity->fields[fieldIndex]);
 
 						pickupField->dP.x = (fieldIndex / 2 + 1) * 30;
@@ -545,12 +554,20 @@ void addSeekTargetField(Entity* entity, GameState* gameState) {
 	addField(entity, result);
 }
 
+void addGivesBlueEnergyField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "gives_energy", ConsoleField_givesEnergy, 1);
+
+	addChildToConsoleField(result, createUnlimitedIntField(gameState, "amount", 1, 1));
+
+	addField(entity, result);
+}
+
 void addShootField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "shoots", ConsoleField_shootsAtTarget, 4);
 
 	double bulletSpeedFieldValues[] = {1, 2, 3, 4, 5}; 
 	double shootRadiusFieldValues[] = {1, 3, 5, 7, 9}; 
-	
+
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "bullet_speed", bulletSpeedFieldValues, 
 													    arrayCount(bulletSpeedFieldValues), 2, 1));
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "detect_radius", shootRadiusFieldValues, 
@@ -676,6 +693,8 @@ Entity* addBlueEnergy(GameState* gameState, V2 p) {
 
 	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
 										 result->renderSize.x * 0.5f, result->renderSize.y * 0.65f);
+
+	addGivesBlueEnergyField(result, gameState);
 
 	setFlags(result, EntityFlag_hackable);
 
@@ -1109,7 +1128,6 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool sol
 		case EntityType_blueEnergy: {
 			if (hitEntity->type == EntityType_player) {
 				setFlags(entity, EntityFlag_remove);
-				gameState->fieldSpec.blueEnergy++;
 			}
 		} break;
 

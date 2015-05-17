@@ -5,6 +5,7 @@ enum ConsoleFieldType {
 	ConsoleField_seeksTarget,
 	ConsoleField_isShootTarget,
 	ConsoleField_shootsAtTarget,
+	ConsoleField_givesEnergy,
 	ConsoleField_double,
 	ConsoleField_unlimitedInt,
 	ConsoleField_s32,
