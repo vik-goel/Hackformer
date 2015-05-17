@@ -22,7 +22,7 @@
 </data>
  </layer>
  <objectgroup name="objects">
-  <object name="player" gid="9" x="3268" y="840"/>
+  <object name="player" gid="9" x="140" y="756"/>
   <object name="red energy" gid="8" x="1490" y="944"/>
   <object name="blue energy" gid="7" x="824" y="1044"/>
   <object name="virus" gid="10" x="3622" y="910"/>

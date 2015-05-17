@@ -36,31 +36,30 @@ ConsoleField* createConsoleField(GameState* gameState, ConsoleField* copy) {
 	return result;
 }
 
-ConsoleField* createConsoleField(GameState* gameState, char* name, ConsoleFieldType type) {
+ConsoleField* createConsoleField(GameState* gameState, char* name, ConsoleFieldType type, s32 tweakCost) {
 	ConsoleField* result = createConsoleField_(gameState);
 
 	*result = {};
 	result->type = type;
 	strcpy(result->name, name);
+	result->tweakCost = tweakCost;
 
 	return result;
 }
 
 ConsoleField* createUnlimitedIntField(GameState* gameState, char* name, s32 value, s32 tweakCost) {
-	ConsoleField* result = createConsoleField(gameState, name, ConsoleField_unlimitedInt);
+	ConsoleField* result = createConsoleField(gameState, name, ConsoleField_unlimitedInt, tweakCost);
 
 	result->selectedIndex = result->initialIndex = value;
-	result->tweakCost = tweakCost;
 
 	return result;
 }
 
 ConsoleField* createBoolField(GameState* gameState, char* name, bool value, s32 tweakCost) {
-	ConsoleField* result = createConsoleField(gameState, name, ConsoleField_bool);
+	ConsoleField* result = createConsoleField(gameState, name, ConsoleField_bool, tweakCost);
 
 	result->initialIndex = result->selectedIndex = value ? 1 : 0;
 	result->numValues = 2;
-	result->tweakCost = tweakCost;
 
 	return result;
 }
@@ -71,7 +70,7 @@ ConsoleField* createPrimitiveField_(GameState* gameState, char* name, void* valu
 	assert(numValues > 0);
 	assert(initialIndex >= 0 && initialIndex < numValues);
 
-	ConsoleField* result = createConsoleField(gameState, name, type);
+	ConsoleField* result = createConsoleField(gameState, name, type, tweakCost);
 
 	for (s32 valueIndex = 0; valueIndex < numValues; valueIndex++) {
 		char* src = (char*)values + elemSize * valueIndex;
@@ -84,7 +83,6 @@ ConsoleField* createPrimitiveField_(GameState* gameState, char* name, void* valu
 
 	result->selectedIndex = result->initialIndex = initialIndex;
 	result->numValues = numValues;
-	result->tweakCost = tweakCost;
 
 	return result;
 }
@@ -166,14 +164,6 @@ V2 getBottomFieldP(Entity* entity, GameState* gameState, FieldSpec* spec) {
 	return result;
 }
 
-bool isFieldCloneable(ConsoleField* field) {
-	bool result = true;
-
-	if(field->type == ConsoleField_cameraFollows) result = false;
-
-	return result;
-}
-
 bool canFieldBeMoved(ConsoleField* field) {
 	bool result = field->numValues == 0 && 
 				  field->type != ConsoleField_unlimitedInt &&
@@ -202,9 +192,12 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 		if (pointInsideRect(bounds, gameState->input.mouseInMeters)) {
 			if(!isSet(field, ConsoleFlag_selected)) {
 				if(gameState->input.shift.pressed) {
-					if(!gameState->swapField && isFieldCloneable(field)) {
-						gameState->swapField = createConsoleField(gameState, field);
-						rebaseField(gameState->swapField, gameState->swapFieldP); 
+					if(!gameState->swapField && field->type != ConsoleField_cameraFollows) {
+						if(spec->blueEnergy >= field->tweakCost) {
+							spec->blueEnergy -= field->tweakCost;
+							gameState->swapField = createConsoleField(gameState, field);
+							rebaseField(gameState->swapField, gameState->swapFieldP); 
+						}
 					}
 				} else {
 					setFlags(field, ConsoleFlag_selected);
@@ -266,57 +259,87 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 					}
 				}
 			}
-			else if (field->type == ConsoleField_isShootTarget) {
-				if (removeFromParent) removeTargetRef(gameState->consoleEntityRef, gameState);
-				else if (addToParent) addTargetRef(gameState->consoleEntityRef, gameState);
+
+			if(addToParent) {
+				bool alreadyHaveField = canOnlyHaveOneFieldOfType(field->type) && getField(consoleEntity, field->type);
+				if(alreadyHaveField) {
+					addToParent = false;
+					assert(removeFromSwapField);
+					removeFromSwapField = false;
+				}
 			}
 
-			if(exchangeFields) {
-				ConsoleField* swapField = gameState->swapField;
+			s32 totalCost = 0;
+			bool movementAllowed = true;
 
-				V2 fieldP = field->p;
-				V2 fieldOffs = field->offs;
+			if(exchangeFields || removeFromSwapField) {
+				assert(gameState->swapField);
+				assert(gameState->swapField->tweakCost > 0);
+				totalCost += gameState->swapField->tweakCost;
+			}
+			if(exchangeFields || removeFromParent) {
+				assert(field);
 
-				gameState->swapField = field;
-				rebaseField(gameState->swapField, gameState->swapFieldP);
+				if(field->tweakCost > 0) {
+					totalCost += field->tweakCost;
+				} else {
+					movementAllowed = false;
+				}
+			}
 
-				bool exchanged = false;
+			if(spec->blueEnergy < totalCost) movementAllowed = false;
 
-				for(s32 fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
-					ConsoleField* f = consoleEntity->fields[fieldIndex];
+			if(movementAllowed) {
+				spec->blueEnergy -= totalCost;
 
-					if(f == field) {
-						consoleEntity->fields[fieldIndex] = swapField;
-
-						if(exchangeChangedField) {
-							rebaseField(consoleEntity->fields[fieldIndex], field->p);
-						} else {
-							rebaseField(consoleEntity->fields[fieldIndex], fieldP - fieldOffs);	
-						}
-
-						exchanged = true;
-						break;
-					}
+				if (field->type == ConsoleField_isShootTarget) {
+					if (removeFromParent) removeTargetRef(gameState->consoleEntityRef, gameState);
+					else if (addToParent) addTargetRef(gameState->consoleEntityRef, gameState);
 				}
 
-				assert(exchanged);
+				if(exchangeFields) {
+					ConsoleField* swapField = gameState->swapField;
 
-				onAddConsoleFieldToEntity(consoleEntity, swapField, true, gameState);
-			}
+					V2 fieldP = field->p;
+					V2 fieldOffs = field->offs;
 
-			if(addToSwapField) {
-				gameState->swapField = field;
-				rebaseField(field, gameState->swapFieldP);
-			}
-			else if(removeFromSwapField) {
-				assert(gameState->swapField);
-				gameState->swapField = NULL;
-			}
+					gameState->swapField = field;
+					rebaseField(gameState->swapField, gameState->swapFieldP);
 
-			if (addToParent) {
-				bool alreadyHaveField = canOnlyHaveOneFieldOfType(field->type) && getField(consoleEntity, field->type);
+					bool exchanged = false;
 
-				if (!alreadyHaveField) {
+					for(s32 fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
+						ConsoleField* f = consoleEntity->fields[fieldIndex];
+
+						if(f == field) {
+							consoleEntity->fields[fieldIndex] = swapField;
+
+							if(exchangeChangedField) {
+								rebaseField(consoleEntity->fields[fieldIndex], field->p);
+							} else {
+								rebaseField(consoleEntity->fields[fieldIndex], fieldP - fieldOffs);	
+							}
+
+							exchanged = true;
+							break;
+						}
+					}
+
+					assert(exchanged);
+
+					onAddConsoleFieldToEntity(consoleEntity, swapField, true, gameState);
+				}
+
+				if(addToSwapField) {
+					gameState->swapField = field;
+					rebaseField(field, gameState->swapFieldP);
+				}
+				else if(removeFromSwapField) {
+					assert(gameState->swapField);
+					gameState->swapField = NULL;
+				}
+
+				if (addToParent) {
 					V2 newBaseP = getBottomFieldP(consoleEntity, gameState, spec);
 
 					for (s32 fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
@@ -328,24 +351,21 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 					rebaseField(field, newBaseP);
 
 					onAddConsoleFieldToEntity(consoleEntity, consoleEntity->fields[consoleEntity->numFields - 1], false, gameState);
-				} else {
-					assert(!gameState->swapField);
-					gameState->swapField = field;
-					rebaseField(gameState->swapField, gameState->swapFieldP);
 				}
-			}
-			else if (removeFromParent) {
-				setFlags(field, ConsoleFlag_remove);
+				else if (removeFromParent) {
+					setFlags(field, ConsoleFlag_remove);
 
-				bool encounteredField = false;
+					bool encounteredField = false;
 
-				for (s32 fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
-					ConsoleField* f = consoleEntity->fields[fieldIndex];
-					if (f == field) encounteredField = true;
-					else if (!encounteredField) f->offs = v2(0, spec->fieldSize.y + field->childYOffs); 
+					for (s32 fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {
+						ConsoleField* f = consoleEntity->fields[fieldIndex];
+						if (f == field) encounteredField = true;
+						else if (!encounteredField) f->offs = v2(0, spec->fieldSize.y + field->childYOffs); 
+					}
 				}
 			}
 
+			if(gameState->swapField) clearFlags(gameState->swapField, ConsoleFlag_selected);
 			clearFlags(field, ConsoleFlag_selected);
 		}
 	} else {
@@ -360,17 +380,15 @@ bool drawOutlinedConsoleBox(ConsoleField* field, RenderGroup* group,
 	bool result = false;
 	char* text = NULL;
 
+	double minBoundsXOffs = 0;
+
 	if (nameBox) {
 		Texture* texture = NULL;
 
-
 		if (hasValue) {
 			texture = &spec->attribute;
-			//color = createColor(255, 100, 100, 255);
-		}
-		else {
+		} else {
 			texture = &spec->behaviour;
-			//color = createColor(100, 100, 255, 255);
 		}
 
 		assert(texture);
@@ -379,7 +397,8 @@ bool drawOutlinedConsoleBox(ConsoleField* field, RenderGroup* group,
 
 		//NOTE: This takes into account the dot at the beginning and the feather at the end of the behaviour 
 		//	    and attribute sprites when positioning the text
-		bounds.min.x += getRectWidth(bounds) * 0.14;
+		minBoundsXOffs = getRectWidth(bounds) * 0.14;
+		bounds.min.x += minBoundsXOffs;
 
 		text = field->name;
 	} else {
@@ -399,6 +418,26 @@ bool drawOutlinedConsoleBox(ConsoleField* field, RenderGroup* group,
 							   (getRectHeight(bounds) - spec->consoleFont.lineHeight) / 4);
 
 	pushText(group, &spec->consoleFont, text, textP);
+
+	if(!hasValue) { //draw the cost in the red box
+		char tweakCostStr[25];
+		sprintf(tweakCostStr, "%d", field->tweakCost);
+
+		R2 textPadding = getTextPadding(&spec->consoleFont, group, tweakCostStr);
+
+		double height = spec->consoleFont.lineHeight;
+		double costStrWidth = getTextWidth(&spec->consoleFont, group, tweakCostStr);
+
+		bounds.min.x -= minBoundsXOffs;
+		bounds.min.y -= textPadding.min.y;
+
+		double redSize = minBoundsXOffs * 1.25;
+		//pushFilledRect(group, r2(bounds.min, bounds.min + v2(redSize, spec->fieldSize.y)), createColor(0, 255, 0, 150));
+
+		bounds.min.x += (redSize - costStrWidth) * 0.5;
+		bounds.min.y += (spec->fieldSize.y - height) * 0.5;
+		pushText(group, &spec->consoleFont, tweakCostStr, bounds.min); 
+	}
 
 	return result;
 }
@@ -562,7 +601,7 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 			} else {
 				if (field->numChildren &&
 					drawConsoleTriangle(triangleP, group, spec, input, 
-						false, true, false, false, field, field->tweakCost)) {
+						false, true, false, false, field, 0)) {
 					result = true;
 				}
 			}
@@ -593,7 +632,7 @@ void moveFieldChildren(ConsoleField** fields, s32 fieldsCount, FieldSpec* spec, 
 	}
 }
 
-bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsCount, double dt, V2* fieldP, FieldSpec* spec) {
+bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsCount, double dt, V2* fieldP, FieldSpec* spec, bool isPickupField) {
 	bool result = false;
 	double fieldHeight = spec->fieldSize.y + spec->spacing.y;
 
@@ -603,7 +642,7 @@ bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsC
 		field->p = *fieldP + field->offs;
 
 		//NOTE: Currently, fields with values like speed cannot be moved.
-		if (canFieldBeMoved(field)) {
+		if (canFieldBeMoved(field) && !(isPickupField && fieldIndex == fieldsCount - 1)) {
 			if(moveField(field, gameState, dt, spec)) result = true;
 		} else {
 			moveToEquilibrium(field, dt);
@@ -618,7 +657,7 @@ bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsC
 				fieldP->x += spec->childInset;
 				*fieldP += field->offs;
 
-				calcFieldPositions(gameState, field->children, field->numChildren, dt, fieldP, spec);
+				calcFieldPositions(gameState, field->children, field->numChildren, dt, fieldP, spec, isPickupField);
 
 				*fieldP = startFieldP - v2(0, field->childYOffs);
 			}
@@ -662,7 +701,7 @@ bool drawFields(GameState* gameState, Entity* entity, s32 fieldSkip, double dt, 
 	double fieldHeight = spec->spacing.y + spec->fieldSize.y;
 	fieldP->y -= fieldHeight * fieldSkip;
 
-	if(calcFieldPositions(gameState, entity->fields + fieldSkip, entity->numFields - fieldSkip, dt, fieldP, spec)) {
+	if(calcFieldPositions(gameState, entity->fields + fieldSkip, entity->numFields - fieldSkip, dt, fieldP, spec, entity->type == EntityType_pickupField)) {
 		result = true;
 	}
 
@@ -684,7 +723,7 @@ void updateConsole(GameState* gameState, double dt) {
 
 		V2 swapFieldP = gameState->swapFieldP + v2(0, spec->fieldSize.y);
 
-		if (calcFieldPositions(gameState, &gameState->swapField, 1, dt, &swapFieldP, spec))
+		if (calcFieldPositions(gameState, &gameState->swapField, 1, dt, &swapFieldP, spec, false))
 			clickHandled = true;
 
 		if (gameState->swapField) {

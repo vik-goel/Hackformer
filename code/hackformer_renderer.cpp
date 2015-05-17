@@ -452,18 +452,43 @@ Texture createText(GameState* gameState, TTF_Font* font, char* msg) {
 	return result;
 }
 
-Texture* getGlyph(CachedFont* cachedFont, RenderGroup* group, char c) {
-	if (!cachedFont->cache[c].texId) {	
+Glyph* getGlyph(CachedFont* cachedFont, RenderGroup* group, char c, double metersPerPixel) {
+	if (!cachedFont->cache[c].tex.texId) {	
 		SDL_Color black = {0, 0, 0, 255};
 
 		SDL_Surface* glyphSurface = TTF_RenderGlyph_Blended(cachedFont->font, c, black);
 		assert(glyphSurface);
 
-		cachedFont->cache[c] = createTexFromSurface(glyphSurface, NULL, group);
-		assert(cachedFont->cache[c].texId);
+		SDL_PixelFormat* format = glyphSurface->format;
+		s32 maxX = 0, minX = glyphSurface->w - 1, maxY = 0, minY = glyphSurface->h - 1;
+
+		for(s32 y = 0; y < glyphSurface->h; y++) {
+			for(s32 x = 0; x < glyphSurface->w; x++) {
+				void* pixelPtr = (u8*)glyphSurface->pixels + x * format->BytesPerPixel + y * glyphSurface->pitch; 
+				assert(format->BytesPerPixel == 4);
+
+				u32 pixel = *(u32*)pixelPtr;
+				u32 alpha = pixel & format-> Amask;
+
+				if(alpha) {
+					if(x > maxX) maxX = x;
+					if (x < minX) minX = x;
+					if(y > maxY) maxY = y;
+					if(y < minY) minY = y;
+				}
+			}
+		}
+
+		cachedFont->cache[c].padding.max.y = minY * metersPerPixel;
+		cachedFont->cache[c].padding.min.y = ((glyphSurface->h - 1) * metersPerPixel) - (maxY * metersPerPixel);
+		cachedFont->cache[c].padding.max.x = minX * metersPerPixel;
+		cachedFont->cache[c].padding.min.x = ((glyphSurface->w - 1) * metersPerPixel) - (maxX * metersPerPixel);
+
+		cachedFont->cache[c].tex = createTexFromSurface(glyphSurface, NULL, group);
+		assert(cachedFont->cache[c].tex.texId);
 	}
 
-	Texture* result = cachedFont->cache + c;
+	Glyph* result = cachedFont->cache + c;
 	return result;
 }
 
@@ -474,9 +499,31 @@ double getTextWidth(CachedFont* cachedFont, RenderGroup* group, char* msg) {
 	double invScaleFactor = 1.0 / cachedFont->scaleFactor;
 
 	while(*msg) {
-		result += getGlyph(cachedFont, group, *msg)->size.x * invScaleFactor;
+		result += getGlyph(cachedFont, group, *msg, metersPerPixel)->tex.size.x * invScaleFactor;
 		msg++;
 	}
+
+	return result;
+}
+
+R2 getTextPadding(CachedFont* cachedFont, RenderGroup* group, char* msg) {
+	R2 result = {v2(-1, -1), v2(-1, -1)};
+
+	double metersPerPixel = 1.0 / (group->pixelsPerMeter * cachedFont->scaleFactor);
+
+	while(char c = *msg++) {
+		Glyph* glyph = getGlyph(cachedFont, group, c, metersPerPixel);
+
+		if(result.min.x < 0 || glyph->padding.min.x < result.min.x) result.min.x = glyph->padding.min.x;
+		if(result.max.x < 0 || glyph->padding.max.x < result.max.x) result.max.x = glyph->padding.max.x;
+		if(result.min.y < 0 || glyph->padding.min.y < result.min.y) result.min.y = glyph->padding.min.y;
+		if(result.max.y < 0 || glyph->padding.max.y < result.max.y) result.max.y = glyph->padding.max.y;
+	}
+
+	if(result.min.x < 0) result.min.x = 0;
+	if(result.max.x < 0) result.max.x = 0;
+	if(result.min.y < 0) result.min.y = 0;
+	if(result.max.y < 0) result.max.y = 0;
 
 	return result;
 }
@@ -598,14 +645,11 @@ void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Or
 }
 
 void drawText(RenderGroup* group, CachedFont* cachedFont, char* msg, V2 p) {
-	//CachedFont* cachedFont = render->font;
-	//char* msg = (char*)render->msg;
-
 	double metersPerPixel = 1.0 / (group->pixelsPerMeter * cachedFont->scaleFactor);
 	double invScaleFactor = 1.0 / cachedFont->scaleFactor;
 
 	while(*msg) {
-		Texture* texture = getGlyph(cachedFont, group, *msg);
+		Texture* texture = &getGlyph(cachedFont, group, *msg, metersPerPixel)->tex;
 		V2 size = texture->size * invScaleFactor;
 		R2 bounds = r2(p, p + size);
 

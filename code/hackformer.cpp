@@ -393,7 +393,7 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 	}
 
 	double gravityValues[] = {-9.8, -4.9, 0, 4.9, 9.8};
-	int gravityFieldModifyCost = 5;
+	s32 gravityFieldModifyCost = 5;
 	gameState->gravityField = createPrimitiveField(double, gameState, "gravity", gravityValues, arrayCount(gravityValues), 0, gravityFieldModifyCost);
 	gameState->gravityField->p = gameState->fieldSpec.fieldSize * 0.5;
 	gameState->gravityField->p.y = gameState->windowSize.y - gameState->gravityField->p.y;
@@ -460,6 +460,7 @@ int main(int argc, char *argv[]) {
 		InvalidCodePath;
 	}
 
+#if 0
 	{ //Load and play the music
 		s32 mixerFlags = MIX_INIT_MP3;
 		s32 mixerInitStatus = Mix_Init(mixerFlags);
@@ -482,6 +483,7 @@ int main(int argc, char *argv[]) {
 
 		Mix_PlayMusic(music, -1); //loop forever
 	}
+#endif
 
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
@@ -661,7 +663,7 @@ int main(int argc, char *argv[]) {
 		dtForFrame += (double)((currentTime - lastTime) / 1000.0); 
 		lastTime = currentTime;
 
-	#ifdef PRINT_FPS
+	#if PRINT_FPS
 		u32 frameStart = SDL_GetTicks();
 
 		if (currentTime - fpsCounterTimer > 1000) {

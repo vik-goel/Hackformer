@@ -72,12 +72,23 @@ void main() {
 		result += spotLights[lightIndex].base.color * (brightness * intensity * inner);
 	}
 
+	result *= result * result;
 	result = clamp(result, vec3(0.0), vec3(1.0));
 
+#if 0 
+	//NOTE: This does the lighting in srgb space
 	vec3 gamma = vec3(1.0 / 2.2);
 	vec3 gammaCorrectedDiffuse = pow(texColor.xyz, gamma) * tint.xyz;
 	result *= gammaCorrectedDiffuse; 
 
 	gl_FragColor = vec4(result, texColor.a * tint.a);
+#else 
+	result *= texColor.xyz * tint.xyz; 
+	vec3 gamma = vec3(1.0 / 2.2);
+	vec3 gammaCorrectedResult = pow(result.xyz, gamma);
+
+	gl_FragColor = vec4(gammaCorrectedResult, texColor.a * tint.a);
+#endif
+
     //gl_FragColor = vec4(normal * 0.5 + vec3(0.5), texColor.a);
 }

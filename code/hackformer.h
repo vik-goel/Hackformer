@@ -26,26 +26,27 @@ New Features
 - locking fields so they can't be modified
 
 - Fade console fields in and out
-
 - Multiline text
-
 - use a priority queue to process path requests
-
 - Trail effect on death
-
-- Cloning entire entities 
-
 - Handle shadows properly
 
+
+OTHER HACKS
+- Cloning entire entities 
 - Hack the topology of the world
 - Hack to make player reflect bullets
 - Hack the mass of entities
-
 - Make the background hackable (change from sunset to marine)
 - Hack the text and type in new messages
-
 - Make entities resizable
+
+STEALTH
 - Line of sight for enemies
+- Distracting enemies
+- Patrols and seeks_target fields have alert and not alert states
+- Enemies react to noises that they hear
+- Enemies can alert other enemies
 
 */
 

@@ -81,7 +81,8 @@ bool isConsoleFieldMovementType(ConsoleField* field) {
 //TODO: This could be a flag instead
 bool canOnlyHaveOneFieldOfType(ConsoleFieldType type) {
 	bool result = type == ConsoleField_isShootTarget ||
-				  type == ConsoleField_shootsAtTarget;
+				  type == ConsoleField_shootsAtTarget ||
+				  type == ConsoleField_cameraFollows;
 
  	return result;
 }

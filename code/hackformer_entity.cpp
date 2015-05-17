@@ -17,7 +17,7 @@ void giveEntityRectangularCollisionBounds(Entity* entity, GameState* gameState,
 	entity->hitboxes = hitbox;
 }
 
-RefNode* refNode(GameState* gameState, int ref, RefNode* next = NULL) {
+RefNode* refNode(GameState* gameState, s32 ref, RefNode* next = NULL) {
 	RefNode* result = NULL;
 
 	if (gameState->refNodeFreeList) {
@@ -45,7 +45,7 @@ void freeRefNode(RefNode* node, GameState* gameState) {
 	gameState->refNodeFreeList = node;
 }
 
-void removeTargetRef(int ref, GameState* gameState) {
+void removeTargetRef(s32 ref, GameState* gameState) {
 	RefNode* node = gameState->targetRefs;
 	RefNode* prevNode = NULL;
 
@@ -70,7 +70,7 @@ void removeTargetRef(int ref, GameState* gameState) {
 	assert(removed);
 }
 
-void addTargetRef(int ref, GameState* gameState) {
+void addTargetRef(s32 ref, GameState* gameState) {
 	RefNode* node = refNode(gameState, ref, gameState->targetRefs);
 	gameState->targetRefs = node;
 }
@@ -228,7 +228,7 @@ bool affectedByGravity(Entity* entity, ConsoleField* movementField) {
 	return result;
 }
 
-bool refNodeListContainsRef(RefNode* list, int ref) {
+bool refNodeListContainsRef(RefNode* list, s32 ref) {
 	RefNode* node = list;
 
 	while(node) {
@@ -506,7 +506,7 @@ void addChildToConsoleField(ConsoleField* parent, ConsoleField* child) {
 
 //TODO: Clean up speed and jump height values
 void addKeyboardField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "keyboard_controlled", ConsoleField_keyboardControlled);
+	ConsoleField* result = createConsoleField(gameState, "keyboard_controlled", ConsoleField_keyboardControlled, 5);
 
 	double keyboardSpeedFieldValues[] = {20, 40, 60, 80, 100}; 
 	double keyboardJumpHeightFieldValues[] = {1, 3, 5, 7, 9}; 
@@ -521,7 +521,7 @@ void addKeyboardField(Entity* entity, GameState* gameState) {
 }
 
 void addPatrolField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "patrols", ConsoleField_movesBackAndForth);
+	ConsoleField* result = createConsoleField(gameState, "patrols", ConsoleField_movesBackAndForth, 3);
 
 	double patrolSpeedFieldValues[] = {0, 10, 20, 30, 40}; 
 	
@@ -532,7 +532,7 @@ void addPatrolField(Entity* entity, GameState* gameState) {
 }
 
 void addSeekTargetField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "seeks_target", ConsoleField_seeksTarget);
+	ConsoleField* result = createConsoleField(gameState, "seeks_target", ConsoleField_seeksTarget, 3);
 
 	double seekTargetSpeedFieldValues[] = {5, 10, 15, 20, 25}; 
 	double seekTargetRadiusFieldValues[] = {4, 8, 12, 16, 20}; 
@@ -546,7 +546,7 @@ void addSeekTargetField(Entity* entity, GameState* gameState) {
 }
 
 void addShootField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "shoots", ConsoleField_shootsAtTarget);
+	ConsoleField* result = createConsoleField(gameState, "shoots", ConsoleField_shootsAtTarget, 4);
 
 	double bulletSpeedFieldValues[] = {1, 2, 3, 4, 5}; 
 	double shootRadiusFieldValues[] = {1, 3, 5, 7, 9}; 
@@ -560,7 +560,9 @@ void addShootField(Entity* entity, GameState* gameState) {
 }
 
 void addIsTargetField(Entity* entity, GameState* gameState) {
-	addField(entity, createConsoleField(gameState, "is_target", ConsoleField_isShootTarget));
+	ConsoleField* field = createConsoleField(gameState, "is_target", ConsoleField_isShootTarget, 10);
+
+	addField(entity, field);
 	addTargetRef(entity->ref, gameState);
 }
 
@@ -602,7 +604,7 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 
 	addKeyboardField(result, gameState);
 	
-	addField(result, createConsoleField(gameState, "camera_followed", ConsoleField_cameraFollows));
+	addField(result, createConsoleField(gameState, "camera_followed", ConsoleField_cameraFollows, 2));
 	addIsTargetField(result, gameState);
 
 	setEntityP(result, result->p + result->renderSize * 0.5, gameState);
@@ -882,7 +884,7 @@ ConsoleField* getMovementField(Entity* entity) {
 	ConsoleField* result = NULL;
 
 	if(!isSet(entity, EntityFlag_remove)) {
-		int firstFieldIndex = entity->type == EntityType_pickupField ? 1 : 0;
+		s32 firstFieldIndex = entity->type == EntityType_pickupField ? 1 : 0;
 		for (s32 fieldIndex = firstFieldIndex; fieldIndex < entity->numFields; fieldIndex++) {
 			ConsoleField* testField = entity->fields[fieldIndex];
 			if (isConsoleFieldMovementType(testField)) {
@@ -1612,7 +1614,7 @@ ConsoleField* getField(Entity* entity, ConsoleFieldType type) {
 	ConsoleField* result = false;
 
 	if(!isSet(entity, EntityFlag_remove)) {
-		int firstFieldIndex = entity->type == EntityType_pickupField ? 1 : 0;
+		s32 firstFieldIndex = entity->type == EntityType_pickupField ? 1 : 0;
 		for (s32 fieldIndex = firstFieldIndex; fieldIndex < entity->numFields; fieldIndex++) {
 			if (entity->fields[fieldIndex]->type == type) {
 				result = entity->fields[fieldIndex];
@@ -2236,7 +2238,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 
 				case ConsoleField_keyboardControlled: {
-					if (!gameState->doingInitialSim && !isSet(entity, EntityFlag_remove)) {
+					if (!gameState->doingInitialSim && !isSet(entity, EntityFlag_remove) && dt > 0) {
 						// double numTexels = gameState->newCameraP.x / gameState->texel.x;
 						// double overflow = (numTexels - (int)numTexels) * gameState->texel.x;
 						// gameState->newCameraP.x -= overflow;

@@ -22,9 +22,17 @@ struct AnimNode {
 	bool32 finishMainBeforeOutro;
 };
 
+struct Glyph {
+	Texture tex;
+
+	//min for bottom and left
+	//max for top and right
+	R2 padding; //stored in meters
+};
+
 struct CachedFont {
 	TTF_Font* font;
-	Texture cache[1 << (sizeof(char) * 8)];
+	Glyph cache[1 << (sizeof(char) * 8)];
 	double scaleFactor;
 	double lineHeight;
 };
