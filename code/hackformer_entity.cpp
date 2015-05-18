@@ -808,6 +808,7 @@ Entity* addLaserBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, doub
 					 EntityFlag_hackable);
 
 	addField(result, createBoolField(gameState, "hurts_entities", true, 2));
+	addField(result, createConsoleField(gameState, "kills_enemies", ConsoleField_killsOnHit, 10));
 
 	result->defaultTex = &gameState->laserBolt;
 
@@ -1110,6 +1111,21 @@ bool isSolidCollision(Entity* a, Entity* b, GameState* gameState) {
 V2 moveRaw(Entity*, GameState*, V2, V2* ddP = 0);
 
 void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool solid, V2 entityVel) {
+	ConsoleField* killField = getField(entity, ConsoleField_killsOnHit); 
+	bool killed = false;
+
+	if(killField) {
+		if(entity->type == EntityType_laserBeam ||
+			hitEntity->type == EntityType_virus
+		   || hitEntity->type == EntityType_text
+		   || hitEntity->type == EntityType_flyingVirus 
+		   //|| hitEntity->type == EntityType_player
+		 ) {
+		 	killed = true;
+			setFlags(hitEntity, EntityFlag_remove);
+		}
+	}
+
 	switch(entity->type) {
 		case EntityType_pickupField: {
 			if(canPickupField(entity, hitEntity, gameState)) {
@@ -1142,13 +1158,6 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool sol
 
 
 		case EntityType_laserBolt: {
-			if(
-			   hitEntity->type == EntityType_virus 
-			   || hitEntity->type == EntityType_text
-			   || hitEntity->type == EntityType_flyingVirus 
-			   //|| hitEntity->type == EntityType_player
-			 ) setFlags(hitEntity, EntityFlag_remove);
-
 			setFlags(entity, EntityFlag_remove);
 		} break;
 
@@ -1185,6 +1194,11 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool sol
 				moveRaw(hitEntity, gameState, v2(0, squishY));
 			}
 		} break;
+	}
+
+	if(!killed && killField && isSet(entity, EntityFlag_remove)) {
+		setFlags(killField, ConsoleFlag_remove);
+		removeFieldsIfSet(entity->fields, &entity->numFields);
 	}
 }
 
@@ -2417,12 +2431,11 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			centerCameraAround(entity, gameState);
 		}
 
+		bool insideLevel = false;
 
 		//NOTE: This removes the entity if they are outside of the world
 		if (isSet(entity, EntityFlag_removeWhenOutsideLevel)) {
 			R2 world = r2(v2(0, 0), gameState->worldSize);
-
-			bool insideLevel = false;
 
 			Hitbox* hitboxList = entity->hitboxes;
 
@@ -2437,9 +2450,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				hitboxList = hitboxList->next;
 			}
 
-			if (!insideLevel) {
-				setFlags(entity, EntityFlag_remove);
-			}
+			
+		} else {
+			insideLevel = true;
 		}
 
 		//NOTE: Remove entity if it is below the bottom of the world
@@ -2449,14 +2462,19 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		if(entity->type != EntityType_laserBase) {
 			if((gameState->gravity.y <= 0 && entity->p.y < -entity->renderSize.y / 2) ||
 			  (gameState->gravity.y >= 0 && entity->p.y > gameState->windowSize.y + entity->renderSize.y / 2)) {
-				setFlags(entity, EntityFlag_remove);
+				insideLevel = false;
 			}
 		}
 
-		if (entity->p.y < -entity->renderSize.y && entity->type != EntityType_laserBase) {
+		if (!insideLevel) {
+			ConsoleField* killField = getField(entity, ConsoleField_killsOnHit); 
+			if (killField) {
+				setFlags(killField, ConsoleFlag_remove);
+				removeFieldsIfSet(entity->fields, &entity->numFields);
+			}
+
 			setFlags(entity, EntityFlag_remove);
 		}
-
 
 		//NOTE: Individual entity logic here
 		switch(entity->type) {

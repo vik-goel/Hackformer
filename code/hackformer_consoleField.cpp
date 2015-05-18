@@ -200,6 +200,7 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 						}
 					}
 				} else {
+					spec->mouseOffset = (gameState->input.mouseInMeters - field->p);
 					setFlags(field, ConsoleFlag_selected);
 				}
 			}
@@ -210,7 +211,7 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 
 	if (isSet(field, ConsoleFlag_selected)) {
 		if (gameState->input.leftMouse.pressed) {
-			field->offs += gameState->input.mouseInMeters - field->p;
+			field->offs += gameState->input.mouseInMeters - field->p - spec->mouseOffset;
 		} else {
 			Entity* consoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef);
 			assert(consoleEntity);
@@ -894,14 +895,22 @@ void updateConsole(GameState* gameState, double dt) {
 
 	//TODO: The spatial partition could be used to make this faster (no need to loop through every entity in the game)
 	if(playerCanHack && noConsoleEntity && newConsoleEntityRequested) {
+		Entity* newConsoleEntity = NULL;
+
 		for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-			Entity* entity = gameState->entities + entityIndex;
+			Entity* testEntity = gameState->entities + entityIndex;
+
+			bool clicked = isSet(testEntity, EntityFlag_hackable) && isMouseInside(testEntity, &gameState->input);
+			bool onTop = newConsoleEntity == NULL || testEntity->drawOrder > newConsoleEntity->drawOrder;
 				
-			if(isSet(entity, EntityFlag_hackable) && isMouseInside(entity, &gameState->input)) {
-				gameState->consoleEntityRef = entity->ref;
+			if(clicked && onTop) {
+				newConsoleEntity = testEntity;
 				clickHandled = true;
-				break;
 			}
+		}
+
+		if(newConsoleEntity) {
+			gameState->consoleEntityRef = newConsoleEntity->ref;
 		}
 	}
 }

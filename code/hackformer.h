@@ -31,6 +31,7 @@ New Features
 - Trail effect on death
 - Handle shadows properly
 
+- make laser beams use the killsOnHit field
 
 OTHER HACKS
 - Cloning entire entities 

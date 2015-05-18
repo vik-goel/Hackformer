@@ -6,6 +6,7 @@ enum ConsoleFieldType {
 	ConsoleField_isShootTarget,
 	ConsoleField_shootsAtTarget,
 	ConsoleField_givesEnergy,
+	ConsoleField_killsOnHit,
 	ConsoleField_double,
 	ConsoleField_unlimitedInt,
 	ConsoleField_s32,
@@ -59,6 +60,8 @@ struct FieldSpec {
 	V2 spacing;
 	double childInset;
 
+	V2 mouseOffset;
+
 	int blueEnergy;
 
 	Texture consoleTriangle;
@@ -83,7 +86,8 @@ bool isConsoleFieldMovementType(ConsoleField* field) {
 bool canOnlyHaveOneFieldOfType(ConsoleFieldType type) {
 	bool result = type == ConsoleField_isShootTarget ||
 				  type == ConsoleField_shootsAtTarget ||
-				  type == ConsoleField_cameraFollows;
+				  type == ConsoleField_cameraFollows || 
+				  type == ConsoleField_killsOnHit;
 
  	return result;
 }
