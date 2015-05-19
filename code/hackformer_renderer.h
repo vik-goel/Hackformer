@@ -124,6 +124,7 @@ struct RenderTexture {
 	bool8 flipX;
 	Orientation orientation;
 	float emissivity;
+	Color color;
 };
 
 struct RenderEntityTexture {
@@ -141,6 +142,7 @@ struct RenderRotatedTexture {
 	Texture* texture;
 	R2 bounds;
 	double rad;
+	Color color;
 };
 
 struct RenderText {

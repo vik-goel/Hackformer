@@ -562,10 +562,13 @@ void addFollowsWaypointsField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "follows_waypoints", ConsoleField_followsWaypoints, 3);
 
 	double followsWaypointsSpeedFieldValues[] = {1, 2, 3, 4, 5}; 
+	double waypointDelays[] = {0, 0.5, 1, 1.5, 2};
 	
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", followsWaypointsSpeedFieldValues, 
 	 												    arrayCount(followsWaypointsSpeedFieldValues), 2, 1));
 	addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "waypoint_delay", waypointDelays, 
+	 												    arrayCount(waypointDelays), 2, 1));
 
 	s32 numWaypoints = 4;
 	Waypoint* waypoints = pushArray(&gameState->levelStorage, Waypoint, numWaypoints);
@@ -582,6 +585,7 @@ void addFollowsWaypointsField(Entity* entity, GameState* gameState) {
 	waypoints[3].p = v2(11, 3);
 
 	result->curWaypoint = waypoints;
+	result->waypointDelay = 0;
 
 	addField(entity, result);
 }
@@ -1668,8 +1672,12 @@ bool moveTowardsTargetParabolic(Entity* entity, GameState* gameState, double dt,
 	// if(entity->type == EntityType_tile) {
 	// 	moveTile(entity, gameState, movement);
 	// } else {
-		moveRaw(entity, gameState, movement);
+	V2 change = moveRaw(entity, gameState, movement);
 	//}
+
+	if (change.x && change.x < 0 != isSet(entity, EntityFlag_facesLeft)) {
+		toggleFlags(entity, EntityFlag_facesLeft);
+	}
 
 	return entity->p == target;
 }
@@ -2492,18 +2500,57 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 					double initialDstToWaypoint = max(length(entity->p - cur->p), length(cur->p - prev->p));
 
-					// V2 toPoint = cur->p - entity->p;
-					// double dstToPoint = length(toPoint);
-					// V2 dirToPoint = normalize(toPoint);
+					bool canMove = true;
 
-					// double moveDst = min(xMoveAcceleration, dstToPoint);
-					// V2 movement = dirToPoint * moveDst;
+					if(movementField->waypointDelay > 0) {
+						movementField->waypointDelay += dt;
 
-					if(moveTowardsTargetParabolic(entity, gameState, dt, cur->p, initialDstToWaypoint, xMoveAcceleration)) {
-						movementField->curWaypoint = cur->next;
+						assert(movementField->numChildren >= 3);
+						ConsoleField* delayField = movementField->children[2];
+						double delay = delayField->doubleValues[delayField->selectedIndex];
+
+						if(movementField->waypointDelay >= delay) {
+							movementField->waypointDelay = 0;
+						} else {
+							canMove = false;
+						}
 					}
 
+					if(canMove) {
+						if(moveTowardsTargetParabolic(entity, gameState, dt, cur->p, initialDstToWaypoint, xMoveAcceleration)) {
+						movementField->curWaypoint = cur->next;
+						movementField->waypointDelay += dt;
+						}
+					} else {
+						defaultMove = true;
+					}
 
+					V2 toWaypoint = movementField->curWaypoint->p - entity->p;
+
+					double wantedAngle = getDegrees(toWaypoint);
+					double percentToTarget = (initialDstToWaypoint - length(toWaypoint)) / initialDstToWaypoint; 
+					double sinInput = percentToTarget * TAU;
+
+					double angleVariance = min(75, initialDstToWaypoint * 7);
+					wantedAngle += sin(sinInput) * angleVariance;
+
+					wantedAngle = angleIn0360(wantedAngle);
+					
+					double angleMoveSpeed = 180 * dt;
+
+					double clockwise = angleIn0360(wantedAngle - entity->spotLightAngle);
+					double counterClockwise = angleIn0360(entity->spotLightAngle - wantedAngle);
+
+					if(clockwise < counterClockwise) {
+						double movement = min(clockwise, angleMoveSpeed);
+						entity->spotLightAngle = angleIn0360(entity->spotLightAngle + movement);
+					} else {
+						double movement = min(counterClockwise, angleMoveSpeed);
+						entity->spotLightAngle = angleIn0360(entity->spotLightAngle - movement);
+					}
+
+					SpotLight spotLight = createSpotLight(entity->p, v3(1, 1, .9), 5, entity->spotLightAngle, 45);
+					pushSpotLight(gameState->renderGroup, &spotLight, true);
 				} break;
 
 
@@ -2561,11 +2608,18 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		}
 
 		if (!insideLevel) {
-			ConsoleField* killField = getField(entity, ConsoleField_killsOnHit); 
-			if (killField) {
-				setFlags(killField, ConsoleFlag_remove);
-				removeFieldsIfSet(entity->fields, &entity->numFields);
+			bool removeFields = false;
+
+			for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+				ConsoleField* field = entity->fields[fieldIndex];
+
+				if(field->type == ConsoleField_killsOnHit || field->type == ConsoleField_givesEnergy) {
+					removeFields = true;
+					setFlags(field, ConsoleFlag_remove);
+				}
 			}
+
+			if(removeFields) removeFieldsIfSet(entity->fields, &entity->numFields);
 
 			setFlags(entity, EntityFlag_remove);
 		}
@@ -2707,44 +2761,13 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				//NOTE: entity->hitboxes->collisionOffset is the height of the laser entity
 				R2 topBounds = translateRect(baseBounds, entity->hitboxes->collisionOffset);
 
-				pushTexture(gameState->renderGroup, topTexture, topBounds, false, entity->drawOrder, true, Orientation_0, entity->emissivity);
-				pushTexture(gameState->renderGroup, baseTexture, baseBounds, false, entity->drawOrder, true, Orientation_0, entity->emissivity);
+				pushTexture(gameState->renderGroup, topTexture, topBounds, false, entity->drawOrder, true, Orientation_0, createColor(255, 255, 255, 255), entity->emissivity);
+				pushTexture(gameState->renderGroup, baseTexture, baseBounds, false, entity->drawOrder, true, Orientation_0, createColor(255, 255, 255, 255), entity->emissivity);
 
 				//pushFilledRect(gameState->renderGroup, topBounds, createColor(255, 0, 0, 100), true);
 				//pushFilledRect(gameState->renderGroup, baseBounds, createColor(255, 0, 0, 100), true);
 			} break;
 
-
-
-			case EntityType_flyingVirus: {
-				double wantedAngle = 330;
-
-				Entity* player = getEntityByRef(gameState, gameState->playerRef);
-
-				if(player) {
-					wantedAngle = getDegreesBetween(entity->p, player->p);
-					wantedAngle = angleIn0360(wantedAngle);					
-				}
-
-				double angleMoveSpeed = 180 * dt;
-
-				double clockwise = angleIn0360(wantedAngle - entity->spotLightAngle);
-				double counterClockwise = angleIn0360(entity->spotLightAngle - wantedAngle);
-
-				if(clockwise < counterClockwise) {
-					double movement = min(clockwise, angleMoveSpeed);
-					entity->spotLightAngle = angleIn0360(entity->spotLightAngle + movement);
-				} else {
-					double movement = min(counterClockwise, angleMoveSpeed);
-					entity->spotLightAngle = angleIn0360(entity->spotLightAngle - movement);
-				}
-
-				SpotLight spotLight = createSpotLight(entity->p, v3(1, 1, .9), 5, entity->spotLightAngle, 45);
-				pushSpotLight(gameState->renderGroup, &spotLight, true);
-
-				//PointLight pointLight = createPointLight(v3(entity->p + v2(-0.24, -.2), 0), v3(1, .7, .7), 0.4);
-				//pushPointLight(gameState->renderGroup, &pointLight);
-			} break;
 
 
 			case EntityType_pickupField: {

@@ -45,7 +45,11 @@ struct ConsoleField {
 	union {
 		double doubleValues[5];
 		s32 intValues[10];
-		Waypoint* curWaypoint;
+
+		struct {
+			Waypoint* curWaypoint;
+			double waypointDelay;
+		};
 	};
 	s32 numValues;
 	

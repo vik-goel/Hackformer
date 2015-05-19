@@ -109,6 +109,11 @@ s32 getNumVisibleFields(ConsoleField** fields, s32 fieldsCount) {
 	return result;
 }
 
+double getMaxChildYOffset(ConsoleField* field, FieldSpec* spec) {
+	double result = field->numChildren * (spec->fieldSize.y + spec->spacing.y);
+	return result;
+}
+
 double getTotalYOffset(ConsoleField** fields, s32 fieldsCount, FieldSpec* spec, bool isPickupField) {
 	double result = fieldsCount * (spec->fieldSize.y + spec->spacing.y);
 
@@ -898,7 +903,7 @@ void updateConsole(GameState* gameState, double dt) {
 		}
 
 
-		//NOTE: This draws the waypoints
+		//NOTE: Draw the waypoints
 		for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
 			ConsoleField* field = entity->fields[fieldIndex];
 
@@ -907,12 +912,15 @@ void updateConsole(GameState* gameState, double dt) {
 					Waypoint* w = field->curWaypoint;
 					assert(w);
 
+					int alpha = (int)(field->childYOffs / getMaxChildYOffset(field, spec) * 255.0 + 0.5);
+
 					double waypointSize = 0.125;
 					double lineThickness = 0.025;
 					double lineDashSize = 0.3;
 					double lineSpaceSize = lineDashSize * 0.5;
-					Color lineColor = createColor(105, 255, 126, 255);
-					Color currentLineColor = createColor(105, 154, 255, 255);
+					Color lineColor = createColor(105, 255, 126, alpha);
+					Color currentLineColor = createColor(105, 154, 255, alpha);
+					Color arrowColor = createColor(255, 255, 255, alpha);
 					double arrowSize = 0.15;
 					V2 arrowDimens = v2(1, 1) * arrowSize;
 
@@ -930,7 +938,8 @@ void updateConsole(GameState* gameState, double dt) {
 
 						R2 waypointBounds = rectCenterRadius(w->p, v2(1, 1) * waypointSize);
 
-						pushTexture(gameState->renderGroup, waypointTex, waypointBounds, false, DrawOrder_gui, true);
+						pushTexture(gameState->renderGroup, waypointTex, waypointBounds, false, DrawOrder_gui, true, 
+									Orientation_0, arrowColor);
 
 						V2 lineStart = w->p;
 						V2 lineEnd = next->p;
@@ -946,7 +955,7 @@ void updateConsole(GameState* gameState, double dt) {
 						R2 arrowBounds = rectCenterRadius(arrowCenter, arrowDimens);
 
 						pushDashedLine(gameState->renderGroup, lineColor, lineStart, lineEnd, lineThickness, lineDashSize, lineSpaceSize, true);
-						pushRotatedTexture(gameState->renderGroup, waypointArrowTex, arrowBounds, rad, true);
+						pushRotatedTexture(gameState->renderGroup, waypointArrowTex, arrowBounds, rad, arrowColor, true);
 
 						w = next;
 						if(w == field->curWaypoint) break;

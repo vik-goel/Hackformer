@@ -224,6 +224,11 @@ double getRad(V2 a) {
 	return result;
 }
 
+double getDegrees(V2 a) {
+	double result = toDegrees(getRad(a));
+	return result;
+}
+
 //NOTE: V3 operations here
 
 V3 v3(double x, double y, double z) {
