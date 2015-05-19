@@ -11,12 +11,28 @@ enum ConsoleFieldType {
 	ConsoleField_unlimitedInt,
 	ConsoleField_s32,
 	ConsoleField_bool,
+	ConsoleField_Alertness,
+	ConsoleField_followsWaypoints,
 };
 
 enum ConsoleFieldFlags {
 	ConsoleFlag_selected = 1 << 0,
 	ConsoleFlag_remove = 1 << 1,
 	ConsoleFlag_childrenVisible = 1 << 2,
+};
+
+enum Alertness {
+	Alertness_asleep,
+	Alertness_patrolling,
+	Alertness_searching,
+	Alertness_detected,
+
+	Alertness_count
+};
+
+struct Waypoint {
+	V2 p;
+	Waypoint* next;
 };
 
 struct ConsoleField {
@@ -29,6 +45,7 @@ struct ConsoleField {
 	union {
 		double doubleValues[5];
 		s32 intValues[10];
+		Waypoint* curWaypoint;
 	};
 	s32 numValues;
 	
@@ -72,13 +89,19 @@ struct FieldSpec {
 	Texture attribute;
 	Texture behaviour;
 
+	Texture waypoint;
+	Texture currentWaypoint;
+	Texture waypointArrow;
+	Texture currentWaypointArrow;
+
 	CachedFont consoleFont;
 };
 
 bool isConsoleFieldMovementType(ConsoleField* field) {
 	bool result = field->type == ConsoleField_keyboardControlled ||
 				  field->type == ConsoleField_movesBackAndForth ||
-				  field->type == ConsoleField_seeksTarget;
+				  field->type == ConsoleField_seeksTarget ||
+				  field->type == ConsoleField_followsWaypoints;
 	return result;
 }
 

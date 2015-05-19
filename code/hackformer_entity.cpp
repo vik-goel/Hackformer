@@ -215,6 +215,7 @@ bool affectedByGravity(Entity* entity, ConsoleField* movementField) {
 			case ConsoleField_movesBackAndForth: {
 				return !noMovementByDefault;
 			} break;
+			case ConsoleField_followsWaypoints:
 			case ConsoleField_seeksTarget: {
 				result = false;
 			} break;
@@ -537,6 +538,8 @@ void addPatrolField(Entity* entity, GameState* gameState) {
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", patrolSpeedFieldValues, 
 	 											   arrayCount(patrolSpeedFieldValues), 2, 1));
 
+	addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
+
 	addField(entity, result);
 }
 
@@ -550,6 +553,35 @@ void addSeekTargetField(Entity* entity, GameState* gameState) {
 	 												    arrayCount(seekTargetSpeedFieldValues), 2, 1));
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "sight_radius", seekTargetRadiusFieldValues, 
 													    arrayCount(seekTargetRadiusFieldValues), 2, 2));
+	addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
+
+	addField(entity, result);
+}
+
+void addFollowsWaypointsField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "follows_waypoints", ConsoleField_followsWaypoints, 3);
+
+	double followsWaypointsSpeedFieldValues[] = {1, 2, 3, 4, 5}; 
+	
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", followsWaypointsSpeedFieldValues, 
+	 												    arrayCount(followsWaypointsSpeedFieldValues), 2, 1));
+	addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
+
+	s32 numWaypoints = 4;
+	Waypoint* waypoints = pushArray(&gameState->levelStorage, Waypoint, numWaypoints);
+
+	for(s32 waypointIndex = 0; waypointIndex < numWaypoints; waypointIndex++) {
+		Waypoint* w = waypoints + waypointIndex;
+		Waypoint* next = waypoints + (waypointIndex + 1) % numWaypoints;
+		w->next = next;
+	}
+
+	waypoints[0].p = v2(2, 4);
+	waypoints[1].p = v2(5, 7);
+	waypoints[2].p = v2(8, 6);
+	waypoints[3].p = v2(11, 3);
+
+	result->curWaypoint = waypoints;
 
 	addField(entity, result);
 }
@@ -890,7 +922,7 @@ Entity* addFlyingVirus(GameState* gameState, V2 p) {
 
 	result->clickBox = rectCenterDiameter(v2(0, -result->renderSize.y * 0.05), result->renderSize * 0.5);
 
-	addSeekTargetField(result, gameState);
+	addFollowsWaypointsField(result, gameState);
 	addShootField(result, gameState);
 
 	setEntityP(result, result->p + result->renderSize  * 0.5, gameState);
@@ -1508,7 +1540,7 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP) {
 
 		maxCollisionTime -= collisionTime;
 
-		double collisionTimeEpsilon = 0.002;
+		double collisionTimeEpsilon = 0;//0.002;
 		double moveTime = max(0, collisionTime - collisionTimeEpsilon); 
 
 		V2 movement = delta * moveTime;
@@ -1614,7 +1646,7 @@ void moveTile(Entity* entity, GameState* gameState, V2 movement) {
 }
 #endif
 
-bool moveTowardsTarget(Entity* entity, GameState* gameState, double dt,
+bool moveTowardsTargetParabolic(Entity* entity, GameState* gameState, double dt,
 					   V2 target, double initialDstToTarget, double maxSpeed) {
 	V2 delta = target - entity->p;
 	double dstToTarget = length(delta);
@@ -1642,17 +1674,52 @@ bool moveTowardsTarget(Entity* entity, GameState* gameState, double dt,
 	return entity->p == target;
 }
 
+bool moveTowardsWaypoint(Entity* entity, GameState* gameState, double dt, V2 target, double xMoveAcceleration) {
+	V2 delta = target - entity->p;
+	double deltaLen = length(delta);
+
+	if (deltaLen > 0) {
+		V2 ddP = normalize(delta) * xMoveAcceleration;
+
+		V2 velocity = getVelocity(dt, entity->dP, ddP);
+		double velocityLen = length(velocity);
+
+		if(deltaLen <= velocityLen) {
+			entity->dP = v2(0, 0);
+			moveRaw(entity, gameState, delta);
+		} else {
+			move(entity, dt, gameState, ddP);
+		}		
+
+		if (delta.x && delta.x < 0 == isSet(entity, EntityFlag_facesLeft)) {
+			toggleFlags(entity, EntityFlag_facesLeft);
+		}
+
+		return false;
+	}
+
+	return true;
+}
+
+ConsoleField* getField(ConsoleField** fields, int numFields, ConsoleFieldType type) {
+	ConsoleField* result = NULL;
+
+	for (s32 fieldIndex = 0; fieldIndex < numFields; fieldIndex++) {
+		if (fields[fieldIndex]->type == type) {
+			result = fields[fieldIndex];
+			break;
+		}
+	}
+
+	return result;
+}
+
 ConsoleField* getField(Entity* entity, ConsoleFieldType type) {
-	ConsoleField* result = false;
+	ConsoleField* result = NULL;
 
 	if(!isSet(entity, EntityFlag_remove)) {
 		s32 firstFieldIndex = entity->type == EntityType_pickupField ? 1 : 0;
-		for (s32 fieldIndex = firstFieldIndex; fieldIndex < entity->numFields; fieldIndex++) {
-			if (entity->fields[fieldIndex]->type == type) {
-				result = entity->fields[fieldIndex];
-				break;
-			}
-		}
+		result = getField(entity->fields + firstFieldIndex, entity->numFields - firstFieldIndex, type);
 	}
 
 	return result;
@@ -2387,7 +2454,12 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 
 				case ConsoleField_seeksTarget: {
-					if (!shootingState && !gameState->doingInitialSim) {
+					ConsoleField* alertnessField = getField(movementField->children, movementField->numChildren, ConsoleField_Alertness);
+					assert(alertnessField);
+
+					Alertness alertness = (Alertness)alertnessField->selectedIndex;
+
+					if (!shootingState && !gameState->doingInitialSim && alertness > Alertness_asleep) {
 						ConsoleField* sightRadiusField = movementField->children[1];
 						double sightRadius = sightRadiusField->doubleValues[sightRadiusField->selectedIndex];
 
@@ -2399,21 +2471,43 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 							if (dstToTarget <= sightRadius && dstToTarget > 0.1) {
 								V2 wayPoint = computePath(gameState, entity, targetEntity);
-								V2 delta = entity->p - wayPoint;
-
-								if (lengthSq(delta) > 0) {
-									ddP = normalize(delta) * -xMoveAcceleration;
-									move(entity, dt, gameState, ddP);
-
-									if (delta.x && delta.x < 0 == isSet(entity, EntityFlag_facesLeft)) {
-										toggleFlags(entity, EntityFlag_facesLeft);
-									}
-								}
+								moveTowardsWaypoint(entity, gameState, dt, wayPoint, xMoveAcceleration);
 							}
 						}
 					}
 				} break;
-			}
+
+
+
+				case ConsoleField_followsWaypoints: {
+					Waypoint* cur = movementField->curWaypoint;
+					assert(cur);
+
+					Waypoint* prev = cur;
+
+					while(prev->next != cur) {
+						prev = prev->next;
+						assert(prev);
+					}
+
+					double initialDstToWaypoint = max(length(entity->p - cur->p), length(cur->p - prev->p));
+
+					// V2 toPoint = cur->p - entity->p;
+					// double dstToPoint = length(toPoint);
+					// V2 dirToPoint = normalize(toPoint);
+
+					// double moveDst = min(xMoveAcceleration, dstToPoint);
+					// V2 movement = dirToPoint * moveDst;
+
+					if(moveTowardsTargetParabolic(entity, gameState, dt, cur->p, initialDstToWaypoint, xMoveAcceleration)) {
+						movementField->curWaypoint = cur->next;
+					}
+
+
+				} break;
+
+
+			} //end of movement field switch 
 		} 
 
 		if(defaultMove) {
@@ -2537,7 +2631,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 					double initialDst = max(gameState->tileSize, length(target - entity->p));
 
-					if (moveTowardsTarget(entity, gameState, dtForFrame, target, initialDst, 6.0f)) {
+					if (moveTowardsTargetParabolic(entity, gameState, dtForFrame, target, initialDst, 6.0f)) {
 						entity->tileXOffset = fieldXOffset;
 						entity->tileYOffset = fieldYOffset;
 					}
@@ -2564,7 +2658,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				double initialDstToTarget = length(gameState->playerDeathStartP - gameState->playerStartP);
 				double maxSpeed = 7.5 * cbrt(initialDstToTarget);
 
-				if (moveTowardsTarget(entity, gameState, dt, gameState->playerStartP, 
+				if (moveTowardsTargetParabolic(entity, gameState, dt, gameState->playerStartP, 
 										initialDstToTarget, maxSpeed)) {
 					setFlags(entity, EntityFlag_remove);
 					Entity* player = addPlayer(gameState, gameState->playerStartP - 0.5 * entity->renderSize);

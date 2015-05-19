@@ -1,9 +1,11 @@
 #define PI 3.14159265
+#define TAU (2*PI)
 #define E  2.71828182
 #define SQRT2 1.41421356237
 
-#define max(a, b) a > b ? a : b
-#define min(a, b) a < b ? a : b
+#define max(a, b) ((a) > (b) ? (a) : (b))
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#define swap(a, b) { auto temp##a##b = (a); (a) = (b); (b) = temp##a##b; }
 
 struct V2 {
 	double x, y;
@@ -55,6 +57,15 @@ double angleIn0360(double angle) {
 
 	while(result < 0) result += 360;
 	while(result > 360) result -= 360;
+
+	return result;
+}
+
+double angleIn0Tau(double angle) {
+	double result = angle;
+
+	while(result < 0) result += TAU;
+	while(result > TAU) result -= TAU;
 
 	return result;
 }
@@ -191,6 +202,27 @@ double getDegreesBetween(V2 a, V2 b) {
 	return result;
 }
 
+V2 perp(V2 a) {
+	V2 result = v2(-a.y, a.x);
+	return result;
+}
+
+V2 rotate(V2 a, double rad) {
+	V2 result = {};
+
+	double cosAngle = cos(rad);
+	double sinAngle = sin(rad);
+
+	result.x = a.x * cosAngle - a.y * sinAngle;
+	result.y = a.x * sinAngle + a.y * cosAngle;
+
+	return result;
+}
+
+double getRad(V2 a) {
+	double result = atan2(a.y, a.x);
+	return result;
+}
 
 //NOTE: V3 operations here
 

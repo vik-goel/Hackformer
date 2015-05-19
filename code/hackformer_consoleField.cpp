@@ -55,6 +55,14 @@ ConsoleField* createUnlimitedIntField(GameState* gameState, char* name, s32 valu
 	return result;
 }
 
+#define createEnumField(enumName, gameState, name, value, tweakCost) createEnumField_(gameState, name, value, enumName##_count, tweakCost, ConsoleField_##enumName)
+ConsoleField* createEnumField_(GameState* gameState, char* name, s32 value, s32 numValues, s32 tweakCost, ConsoleFieldType type) {
+	ConsoleField* result = createConsoleField(gameState, name, type, tweakCost);
+	result->initialIndex = result->selectedIndex = value;
+	result->numValues = numValues;
+	return result;
+}
+
 ConsoleField* createBoolField(GameState* gameState, char* name, bool value, s32 tweakCost) {
 	ConsoleField* result = createConsoleField(gameState, name, ConsoleField_bool, tweakCost);
 
@@ -446,7 +454,8 @@ bool drawOutlinedConsoleBox(ConsoleField* field, RenderGroup* group,
 void setConsoleFieldSelectedIndex(ConsoleField* field, s32 newIndex, FieldSpec* spec) {
 	if (field->type == ConsoleField_unlimitedInt) {
 		field->selectedIndex = newIndex;
-	} else {
+	} 
+	else {
 		if (field->type == ConsoleField_bool) {
 			field->selectedIndex = 1 - field->selectedIndex;
 		} else {
@@ -455,10 +464,9 @@ void setConsoleFieldSelectedIndex(ConsoleField* field, s32 newIndex, FieldSpec* 
 			field->selectedIndex = newIndex;
 		}
 
-		
 		assert(field->selectedIndex >= 0 && field->selectedIndex < field->numValues);
 	}
-
+	
 	spec->blueEnergy -= field->tweakCost;
 }
 
@@ -561,6 +569,26 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 					sprintf(field->valueStr, "false");
 				} else if (field->selectedIndex == 1) {
 					sprintf(field->valueStr, "true");
+				}
+			} break;
+
+			case ConsoleField_Alertness: {
+				assert(field->selectedIndex >= 0 && field->selectedIndex < Alertness_count);
+				Alertness value = (Alertness)field->selectedIndex;
+
+				switch(value) {
+					case Alertness_asleep: {
+						sprintf(field->valueStr, "asleep");
+					} break;
+					case Alertness_patrolling: {
+						sprintf(field->valueStr, "patrolling");
+					} break;
+					case Alertness_searching: {
+						sprintf(field->valueStr, "searching");
+					} break;
+					case Alertness_detected: {
+						sprintf(field->valueStr, "detected");
+					} break;
 				}
 			} break;
 
@@ -865,9 +893,68 @@ void updateConsole(GameState* gameState, double dt) {
 			entity->fields[0] = data;
 		}
 
-
 		else {
 			clickHandled |= drawFields(gameState, entity, 0, dt, &fieldP, spec);
+		}
+
+
+		//NOTE: This draws the waypoints
+		for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+			ConsoleField* field = entity->fields[fieldIndex];
+
+			if(field->type == ConsoleField_followsWaypoints) {
+				if(field->childYOffs > 0) {
+					Waypoint* w = field->curWaypoint;
+					assert(w);
+
+					double waypointSize = 0.125;
+					double lineThickness = 0.025;
+					double lineDashSize = 0.3;
+					double lineSpaceSize = lineDashSize * 0.5;
+					Color lineColor = createColor(105, 255, 126, 255);
+					Color currentLineColor = createColor(105, 154, 255, 255);
+					double arrowSize = 0.15;
+					V2 arrowDimens = v2(1, 1) * arrowSize;
+
+					Texture* waypointTex = &spec->currentWaypoint;
+					Texture* waypointArrowTex = &spec->waypointArrow;
+
+					while(w) {
+						Waypoint* next = w->next;
+						assert(next);
+						
+						if(next == field->curWaypoint) {
+							lineColor = currentLineColor;
+							waypointArrowTex = &spec->currentWaypointArrow;
+						}
+
+						R2 waypointBounds = rectCenterRadius(w->p, v2(1, 1) * waypointSize);
+
+						pushTexture(gameState->renderGroup, waypointTex, waypointBounds, false, DrawOrder_gui, true);
+
+						V2 lineStart = w->p;
+						V2 lineEnd = next->p;
+
+						V2 lineDir = normalize(lineEnd - lineStart);
+						V2 waypointOffset = lineDir * waypointSize;
+
+						lineStart += 2*waypointOffset;
+						lineEnd -= waypointOffset + lineDir * arrowSize;
+
+						double rad = getRad(lineDir);
+						V2 arrowCenter = lineEnd;
+						R2 arrowBounds = rectCenterRadius(arrowCenter, arrowDimens);
+
+						pushDashedLine(gameState->renderGroup, lineColor, lineStart, lineEnd, lineThickness, lineDashSize, lineSpaceSize, true);
+						pushRotatedTexture(gameState->renderGroup, waypointArrowTex, arrowBounds, rad, true);
+
+						w = next;
+						if(w == field->curWaypoint) break;
+
+						waypointTex = &spec->waypoint;
+					}
+				}
+			}
 		}	
 	}
 

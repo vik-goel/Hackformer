@@ -49,6 +49,12 @@ STEALTH
 - Enemies react to noises that they hear
 - Enemies can alert other enemies
 
+Waypoint following
+	-Add waypoints
+	-Delete waypoints
+	-Move around waypoints
+	-Clean up moving to first waypoint if not currently on the path
+
 */
 
 #define _CRT_SECURE_NO_WARNINGS

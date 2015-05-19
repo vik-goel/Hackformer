@@ -44,6 +44,8 @@ enum DrawType {
 	DrawType_RenderFillRect,
 	DrawType_RenderOutlinedRect,
 	DrawType_RenderConsoleField,
+	DrawType_RenderDashedLine,
+	DrawType_RenderRotatedTexture,
 };
 
 struct Color {
@@ -135,6 +137,12 @@ struct RenderBoundedTexture {
 	R2 bounds;
 };
 
+struct RenderRotatedTexture {
+	Texture* texture;
+	R2 bounds;
+	double rad;
+};
+
 struct RenderText {
 	CachedFont* font;
 	char msg[50];
@@ -156,6 +164,14 @@ struct ConsoleField;
 
 struct RenderConsoleField {
 	ConsoleField* field;
+};
+
+struct RenderDashedLine {
+	Color color;
+	V2 lineStart;
+	V2 lineEnd;
+	double thickness;
+	double dashSize, spaceSize;
 };
 
 struct RenderGroup {

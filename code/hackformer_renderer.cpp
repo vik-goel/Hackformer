@@ -626,22 +626,52 @@ void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Or
 	}
 
 	glBegin(GL_QUADS);
-	sendTexCoord(uvMin, uvMax, orientation);
-	glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);
+		sendTexCoord(uvMin, uvMax, orientation);
+		glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);
 
-	sendTexCoord(uvMin, uvMax, (orientation + 1) % Orientation_count); 
-	glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.min.y);
+		sendTexCoord(uvMin, uvMax, (orientation + 1) % Orientation_count); 
+		glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.min.y);
 
-	sendTexCoord(uvMin, uvMax, (orientation + 2) % Orientation_count); 
-	glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.max.y);
+		sendTexCoord(uvMin, uvMax, (orientation + 2) % Orientation_count); 
+		glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.max.y);
 
-	sendTexCoord(uvMin, uvMax, (orientation + 3) % Orientation_count); 
-	glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.max.y);
+		sendTexCoord(uvMin, uvMax, (orientation + 3) % Orientation_count); 
+		glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.max.y);
 	glEnd();
 
 	if(emissivity) {
 		setAmbient(group, ambient);
 	}
+}
+
+void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, double rot) {
+	bindTexture(texture, group, false);
+	setColor(group, createColor(255, 255, 255, 255));
+
+	V2 uvMin = texture->uv.min;
+	V2 uvMax = texture->uv.max;
+
+	V2 center = getRectCenter(bounds);
+
+	V2 originRelativeMin = bounds.min - center;
+	V2 originRelativeMax = bounds.max - center;
+
+	V2 originRelativeP2 = v2(originRelativeMax.x, originRelativeMin.y);
+	V2 originRelativeP3 = v2(originRelativeMin.x, originRelativeMax.y);
+
+	V2 p[4];
+
+	p[0] = rotate(originRelativeMin, rot) + center;
+	p[1] = rotate(originRelativeP2, rot) + center;
+	p[2] = rotate(originRelativeMax, rot) + center;
+	p[3] = rotate(originRelativeP3, rot) + center;
+
+	glBegin(GL_QUADS);
+		for(s32 pIndex = 0; pIndex < arrayCount(p); pIndex++) {
+			sendTexCoord(uvMin, uvMax, pIndex);
+			glVertex2f((GLfloat)p[pIndex].x, (GLfloat)p[pIndex].y);
+		}
+	glEnd();
 }
 
 void drawText(RenderGroup* group, CachedFont* cachedFont, char* msg, V2 p) {
@@ -668,17 +698,35 @@ void drawFillRect(RenderGroup* group, R2 bounds, Color color) {
 	setColor(group, color);
 			
 	glBegin(GL_QUADS);
-	glTexCoord2f(0, 0);
-	glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);
+		glTexCoord2f(0, 0);
+		glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);
 
-	glTexCoord2f(1, 0);
-	glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.min.y);
+		glTexCoord2f(1, 0);
+		glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.min.y);
 
-	glTexCoord2f(1, 1);
-	glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.max.y);
+		glTexCoord2f(1, 1);
+		glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.max.y);
 
-	glTexCoord2f(0, 1);
-	glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.max.y);
+		glTexCoord2f(0, 1);
+		glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.max.y);
+	glEnd();
+}
+
+void drawFillQuad(RenderGroup* group, V2 p1, V2 p2, V2 p3, V2 p4) {
+	bindTexture(&group->whiteTex, group, false);
+
+	glBegin(GL_QUADS);
+		glTexCoord2f(0, 0);
+		glVertex2f((GLfloat)p1.x, (GLfloat)p1.y);
+
+		glTexCoord2f(1, 0);
+		glVertex2f((GLfloat)p2.x, (GLfloat)p2.y);
+
+		glTexCoord2f(1, 1);
+		glVertex2f((GLfloat)p3.x, (GLfloat)p3.y);
+
+		glTexCoord2f(0, 1);
+		glVertex2f((GLfloat)p4.x, (GLfloat)p4.y);
 	glEnd();
 }
 
@@ -703,6 +751,43 @@ void drawOutlinedRect(RenderGroup* group, R2 rect, Color color, double thickness
 	drawFillRect(group, r2(topMinCorner, topMaxCorner), color);
 	drawFillRect(group, r2(leftMinCorner, leftMaxCorner), color);
 	drawFillRect(group, r2(rightMinCorner, rightMaxCorner), color);
+}
+
+void drawDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd,
+					 double thickness, double dashSize, double spaceSize) {
+	setColor(group, color);
+	if((lineStart.x > lineEnd.x) || (lineStart.x == lineEnd.x && lineStart.y > lineEnd.y)) {
+		swap(lineStart, lineEnd);
+	}
+
+	V2 dir = normalize(lineEnd - lineStart);
+	V2 normal = perp(dir) * thickness;
+
+	V2 dashSkip = dashSize * dir;
+	V2 spaceSkip = spaceSize * dir;
+
+	V2 start = lineStart;
+
+	while(true) {
+		bool doneDrawing = false;
+		V2 end = start + dashSkip;
+
+		if(end.x > lineEnd.x || (lineStart.x == lineEnd.x && end.y > lineEnd.y)) {
+			doneDrawing = true;
+			end = lineEnd;
+		}
+
+		V2 p1 = start + normal;
+		V2 p2 = start - normal;
+		V2 p3 = end - normal;
+		V2 p4 = end + normal;
+
+		drawFillQuad(group, p1, p2, p3, p4);
+
+		if(doneDrawing) break;
+
+		start = end + spaceSkip;
+	}
 }
 
 void renderDrawConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field) {
@@ -827,6 +912,55 @@ void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Dr
 			}
 		}
 	}
+}
+
+void pushRotatedTexture(RenderGroup* group, Texture* texture, R2 bounds, double rad, bool moveIntoCameraSpace = false) {
+	assert(texture);
+
+	if(moveIntoCameraSpace) {
+		bounds = translateRect(bounds, group->negativeCameraP);
+	}
+
+	if(group->rendering) {
+		drawTexture(group, texture, bounds, rad);
+	} else {
+		RenderRotatedTexture* render = pushRenderElement(group, RenderRotatedTexture);
+
+		if (render) {
+			render->texture = texture;
+			render->bounds = bounds;
+			render->rad = rad;
+		}
+	}
+}
+
+void pushDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd, double thickness,
+					 double dashSize, double spaceSize, bool moveIntoCameraSpace = false) {
+
+	if(lineStart == lineEnd) return;
+
+	if(moveIntoCameraSpace) {
+		lineStart += group->negativeCameraP;
+		lineEnd += group->negativeCameraP;
+	}
+
+	//TODO: No need to push lines on if they aren't visible
+
+	if(group->rendering) {
+		drawDashedLine(group, color, lineStart, lineEnd, thickness, dashSize, spaceSize);
+	} else {
+		RenderDashedLine* render = pushRenderElement(group, RenderDashedLine);
+
+		if (render) {
+			render->color = color;
+			render->lineStart = lineStart;
+			render->lineEnd = lineEnd;
+			render->thickness = thickness;
+			render->dashSize = dashSize;
+			render->spaceSize = spaceSize;
+		}
+	}
+
 }
 
 void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, bool flipX, DrawOrder drawOrder, Orientation orientation = Orientation_0) {
@@ -1019,6 +1153,14 @@ size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, G
 		START_CASE(RenderConsoleField);
 			renderDrawConsoleField(group, fieldSpec, render->field);
 		END_CASE(RenderConsoleField);
+
+		START_CASE(RenderDashedLine);
+			drawDashedLine(group, render->color, render->lineStart, render->lineEnd, render->thickness, render->dashSize, render->spaceSize);
+		END_CASE(RenderDashedLine);
+
+		START_CASE(RenderRotatedTexture);
+			drawTexture(group, render->texture, render->bounds, render->rad);
+		END_CASE(RenderRotatedTexture);
 
 		InvalidDefaultCase;
 	}

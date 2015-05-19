@@ -619,18 +619,24 @@ int main(int argc, char *argv[]) {
 
 	gameState->heavyTileTex = loadPNGTexture(gameState, "res/Heavy1");
 
-	gameState->fieldSpec.fieldSize = v2(2.55, 0.6);
-	gameState->fieldSpec.triangleSize = (gameState->fieldSpec.fieldSize.y * 0.8) * v2(1, 1);
-	gameState->fieldSpec.valueSize = v2(gameState->fieldSpec.fieldSize.x * 0.5, gameState->fieldSpec.fieldSize.y);
-	gameState->fieldSpec.spacing = v2(0.05, 0);
-	gameState->fieldSpec.childInset = gameState->fieldSpec.fieldSize.x * 0.25;
-	gameState->fieldSpec.consoleTriangle = loadPNGTexture(gameState, "res/triangle_blue");
-	gameState->fieldSpec.consoleTriangleSelected = loadPNGTexture(gameState, "res/triangle_light_blue");
-	gameState->fieldSpec.consoleTriangleGrey = loadPNGTexture(gameState, "res/triangle_grey");
-	gameState->fieldSpec.consoleTriangleYellow = loadPNGTexture(gameState, "res/triangle_yellow");
-	gameState->fieldSpec.consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
-	gameState->fieldSpec.attribute = loadPNGTexture(gameState, "res/Attribute", false);
-	gameState->fieldSpec.behaviour = loadPNGTexture(gameState, "res/Behaviour", false);
+	FieldSpec* spec = &gameState->fieldSpec;
+
+	spec->fieldSize = v2(2.55, 0.6);
+	spec->triangleSize = (gameState->fieldSpec.fieldSize.y * 0.8) * v2(1, 1);
+	spec->valueSize = v2(gameState->fieldSpec.fieldSize.x * 0.5, gameState->fieldSpec.fieldSize.y);
+	spec->spacing = v2(0.05, 0);
+	spec->childInset = gameState->fieldSpec.fieldSize.x * 0.25;
+	spec->consoleTriangle = loadPNGTexture(gameState, "res/triangle_blue");
+	spec->consoleTriangleSelected = loadPNGTexture(gameState, "res/triangle_light_blue");
+	spec->consoleTriangleGrey = loadPNGTexture(gameState, "res/triangle_grey");
+	spec->consoleTriangleYellow = loadPNGTexture(gameState, "res/triangle_yellow");
+	spec->consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
+	spec->attribute = loadPNGTexture(gameState, "res/Attribute", false);
+	spec->behaviour = loadPNGTexture(gameState, "res/Behaviour", false);
+	spec->waypoint = loadPNGTexture(gameState, "res/waypoint", false);
+	spec->currentWaypoint = loadPNGTexture(gameState, "res/current_waypoint", false);
+	spec->waypointArrow = loadPNGTexture(gameState, "res/waypoint_arrow", false);
+	spec->currentWaypointArrow = loadPNGTexture(gameState, "res/waypoint_selected_arrow", false);
 
 	gameState->dock = loadPNGTexture(gameState, "res/dock", false);
 	gameState->dockBlueEnergyTile = loadPNGTexture(gameState, "res/Blue Energy Tile", false);
