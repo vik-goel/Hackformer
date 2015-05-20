@@ -746,6 +746,62 @@ bool drawFields(GameState* gameState, Entity* entity, s32 fieldSkip, double dt, 
 	return result;
 }
 
+void drawWaypointInformation(ConsoleField* field, RenderGroup* group, FieldSpec* spec) {
+	if(field->type == ConsoleField_followsWaypoints) {
+		if(field->childYOffs > 0) {
+			Waypoint* w = field->curWaypoint;
+			assert(w);
+
+			int alpha = (int)(field->childYOffs / getMaxChildYOffset(field, spec) * 255.0 + 0.5);
+
+			double waypointSize = 0.125;
+			double lineThickness = 0.025;
+			double lineDashSize = 0.3;
+			double lineSpaceSize = lineDashSize * 0.5;
+			Color lineColor = createColor(105, 255, 126, alpha);
+			Color currentLineColor = createColor(105, 154, 255, alpha);
+			double arrowSize = 0.15;
+			V2 arrowDimens = v2(1, 1) * arrowSize;
+
+			Texture* waypointTex = &spec->waypoint;
+			Texture* waypointArrowTex = &spec->waypointArrow;
+
+			while(w) {
+				Waypoint* next = w->next;
+				assert(next);
+				
+				if(next == field->curWaypoint) {
+					lineColor = currentLineColor;
+				}
+
+				R2 waypointBounds = rectCenterRadius(w->p, v2(1, 1) * waypointSize);
+
+				pushTexture(group, waypointTex, waypointBounds, false, DrawOrder_gui, true, 
+							Orientation_0, lineColor);
+
+				V2 lineStart = w->p;
+				V2 lineEnd = next->p;
+
+				V2 lineDir = normalize(lineEnd - lineStart);
+				V2 waypointOffset = lineDir * waypointSize;
+
+				lineStart += 2*waypointOffset;
+				lineEnd -= waypointOffset + lineDir * arrowSize;
+
+				double rad = getRad(lineDir);
+				V2 arrowCenter = lineEnd;
+				R2 arrowBounds = rectCenterRadius(arrowCenter, arrowDimens);
+
+				pushDashedLine(group, lineColor, lineStart, lineEnd, lineThickness, lineDashSize, lineSpaceSize, true);
+				pushRotatedTexture(group, waypointArrowTex, arrowBounds, rad, lineColor, true);
+
+				w = next;
+				if(w == field->curWaypoint) break;
+			}
+		}
+	}
+}
+
 void updateConsole(GameState* gameState, double dt) {
 	bool clickHandled = false;
 
@@ -846,6 +902,7 @@ void updateConsole(GameState* gameState, double dt) {
 				}
 			}								   
 
+			fieldP.y += (spec->fieldSize.y + spec->spacing.y);
 			clickHandled |= drawFields(gameState, entity, 2, dt, &fieldP, spec);
 		} 
 
@@ -906,67 +963,11 @@ void updateConsole(GameState* gameState, double dt) {
 		//NOTE: Draw the waypoints
 		for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
 			ConsoleField* field = entity->fields[fieldIndex];
-
-			if(field->type == ConsoleField_followsWaypoints) {
-				if(field->childYOffs > 0) {
-					Waypoint* w = field->curWaypoint;
-					assert(w);
-
-					int alpha = (int)(field->childYOffs / getMaxChildYOffset(field, spec) * 255.0 + 0.5);
-
-					double waypointSize = 0.125;
-					double lineThickness = 0.025;
-					double lineDashSize = 0.3;
-					double lineSpaceSize = lineDashSize * 0.5;
-					Color lineColor = createColor(105, 255, 126, alpha);
-					Color currentLineColor = createColor(105, 154, 255, alpha);
-					Color arrowColor = createColor(255, 255, 255, alpha);
-					double arrowSize = 0.15;
-					V2 arrowDimens = v2(1, 1) * arrowSize;
-
-					Texture* waypointTex = &spec->currentWaypoint;
-					Texture* waypointArrowTex = &spec->waypointArrow;
-
-					while(w) {
-						Waypoint* next = w->next;
-						assert(next);
-						
-						if(next == field->curWaypoint) {
-							lineColor = currentLineColor;
-							waypointArrowTex = &spec->currentWaypointArrow;
-						}
-
-						R2 waypointBounds = rectCenterRadius(w->p, v2(1, 1) * waypointSize);
-
-						pushTexture(gameState->renderGroup, waypointTex, waypointBounds, false, DrawOrder_gui, true, 
-									Orientation_0, arrowColor);
-
-						V2 lineStart = w->p;
-						V2 lineEnd = next->p;
-
-						V2 lineDir = normalize(lineEnd - lineStart);
-						V2 waypointOffset = lineDir * waypointSize;
-
-						lineStart += 2*waypointOffset;
-						lineEnd -= waypointOffset + lineDir * arrowSize;
-
-						double rad = getRad(lineDir);
-						V2 arrowCenter = lineEnd;
-						R2 arrowBounds = rectCenterRadius(arrowCenter, arrowDimens);
-
-						pushDashedLine(gameState->renderGroup, lineColor, lineStart, lineEnd, lineThickness, lineDashSize, lineSpaceSize, true);
-						pushRotatedTexture(gameState->renderGroup, waypointArrowTex, arrowBounds, rad, arrowColor, true);
-
-						w = next;
-						if(w == field->curWaypoint) break;
-
-						waypointTex = &spec->waypoint;
-					}
-				}
-			}
+			drawWaypointInformation(field, gameState->renderGroup, spec);
 		}	
 	}
 
+	if(gameState->swapField) drawWaypointInformation(gameState->swapField, gameState->renderGroup, spec);
 
 
 	bool wasConsoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;

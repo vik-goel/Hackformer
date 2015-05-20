@@ -511,7 +511,7 @@ void addField(Entity* entity, ConsoleField* field) {
 void addChildToConsoleField(ConsoleField* parent, ConsoleField* child) {
 	parent->children[parent->numChildren] = child;
 	parent->numChildren++;
-	assert(parent->numChildren < arrayCount(parent->children));
+	assert(parent->numChildren <= arrayCount(parent->children));
 }
 
 //TODO: Clean up speed and jump height values
@@ -563,12 +563,15 @@ void addFollowsWaypointsField(Entity* entity, GameState* gameState) {
 
 	double followsWaypointsSpeedFieldValues[] = {1, 2, 3, 4, 5}; 
 	double waypointDelays[] = {0, 0.5, 1, 1.5, 2};
+	double sightRadii[] = {2, 4, 6, 8, 10};
 	
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", followsWaypointsSpeedFieldValues, 
 	 												    arrayCount(followsWaypointsSpeedFieldValues), 2, 1));
 	addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "waypoint_delay", waypointDelays, 
 	 												    arrayCount(waypointDelays), 2, 1));
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "sight_radius", sightRadii, 
+													    arrayCount(sightRadii), 2, 2));
 
 	s32 numWaypoints = 4;
 	Waypoint* waypoints = pushArray(&gameState->levelStorage, Waypoint, numWaypoints);
@@ -2486,7 +2489,6 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				} break;
 
 
-
 				case ConsoleField_followsWaypoints: {
 					Waypoint* cur = movementField->curWaypoint;
 					assert(cur);
@@ -2549,9 +2551,83 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						entity->spotLightAngle = angleIn0360(entity->spotLightAngle - movement);
 					}
 
-					SpotLight spotLight = createSpotLight(entity->p, v3(1, 1, .9), 5, entity->spotLightAngle, 45);
+					assert(movementField->numChildren >= 4);
+					ConsoleField* sightRadiusField = movementField->children[3];
+					assert(sightRadiusField);
+
+					double sightRadius = sightRadiusField->doubleValues[sightRadiusField->selectedIndex];
+
+					double fov = 45;
+					double halfFov = fov * 0.5;
+
+					double minSightAngle = angleIn0360(entity->spotLightAngle - halfFov);
+					double maxSightAngle = angleIn0360(entity->spotLightAngle + halfFov);
+
+					RefNode* targetNode = gameState->targetRefs;
+					Entity* target = NULL;
+					double targetDst;
+
+					while(targetNode) {
+						Entity* testEntity = getEntityByRef(gameState, targetNode->ref);
+
+						if(testEntity) {
+							V2 toTestEntity = testEntity->p - entity->p;
+							double dstToEntity = length(toTestEntity);
+
+							if(dstToEntity <= sightRadius) {
+								Hitbox* hitboxes = testEntity->hitboxes;
+								bool canSee = false;
+
+								double dir = getDegrees(toTestEntity);
+								canSee |= isDegreesBetween(dir, minSightAngle, maxSightAngle);
+
+								//TODO: Find a more robust way of determining if the entity is inside of the view arc
+								while(hitboxes && !canSee) {
+									V2 hitboxCenter = hitboxes->collisionOffset + testEntity->p - entity->p;
+
+									V2 testP = hitboxCenter + hitboxes->collisionOffset;
+									canSee |= isDegreesBetween(getDegrees(testP), minSightAngle, maxSightAngle);
+
+									testP = hitboxCenter - hitboxes->collisionOffset;
+									canSee |= isDegreesBetween(getDegrees(testP), minSightAngle, maxSightAngle);
+
+									V2 offset = v2(hitboxes->collisionOffset.x, -hitboxes->collisionOffset.y);
+
+									testP = hitboxCenter + offset;
+									canSee |= isDegreesBetween(getDegrees(testP), minSightAngle, maxSightAngle);
+
+									testP = hitboxCenter - offset;
+									canSee |= isDegreesBetween(getDegrees(testP), minSightAngle, maxSightAngle);
+
+									hitboxes = hitboxes->next;
+								}
+
+								if(canSee) {
+									GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, toTestEntity);
+
+									bool occluded = (collisionResult.hitEntity && collisionResult.hitEntity != testEntity);
+
+									if(!occluded) {
+										if(!target || dstToEntity < targetDst) {
+											targetDst = dstToEntity;
+											target = testEntity;
+										}
+									}
+								}
+							} 
+						}
+
+						targetNode = targetNode->next;
+					}
+
+					if(target) {
+						target->dP.y += 12 * dt;
+					}	
+
+					SpotLight spotLight = createSpotLight(entity->p, v3(1, 1, .9), sightRadius, entity->spotLightAngle, fov);
 					pushSpotLight(gameState->renderGroup, &spotLight, true);
 				} break;
+
 
 
 			} //end of movement field switch 

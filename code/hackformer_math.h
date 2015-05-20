@@ -70,6 +70,15 @@ double angleIn0Tau(double angle) {
 	return result;
 }
 
+bool isDegreesBetween(double testAngle, double minAngle, double maxAngle) {
+	testAngle = angleIn0360(testAngle);
+	minAngle = angleIn0360(minAngle);
+	maxAngle = angleIn0360(maxAngle);
+
+	bool result = (testAngle >= minAngle && testAngle <= maxAngle);
+	return result;
+}
+
 //NOTE: V2 operations here
 
 V2 v2(double x, double y) {

@@ -94,9 +94,7 @@ struct FieldSpec {
 	Texture behaviour;
 
 	Texture waypoint;
-	Texture currentWaypoint;
 	Texture waypointArrow;
-	Texture currentWaypointArrow;
 
 	CachedFont consoleFont;
 };

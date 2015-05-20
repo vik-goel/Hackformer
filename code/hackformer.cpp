@@ -460,7 +460,7 @@ int main(int argc, char *argv[]) {
 		InvalidCodePath;
 	}
 
-#if 0
+#if 1
 	{ //Load and play the music
 		s32 mixerFlags = MIX_INIT_MP3;
 		s32 mixerInitStatus = Mix_Init(mixerFlags);
@@ -636,9 +636,7 @@ int main(int argc, char *argv[]) {
 	spec->attribute = loadPNGTexture(gameState, "res/Attribute", false);
 	spec->behaviour = loadPNGTexture(gameState, "res/Behaviour", false);
 	spec->waypoint = loadPNGTexture(gameState, "res/waypoint", false);
-	spec->currentWaypoint = loadPNGTexture(gameState, "res/current_waypoint", false);
 	spec->waypointArrow = loadPNGTexture(gameState, "res/waypoint_arrow", false);
-	spec->currentWaypointArrow = loadPNGTexture(gameState, "res/waypoint_selected_arrow", false);
 
 	gameState->dock = loadPNGTexture(gameState, "res/dock", false);
 	gameState->dockBlueEnergyTile = loadPNGTexture(gameState, "res/Blue Energy Tile", false);
