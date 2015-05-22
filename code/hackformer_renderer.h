@@ -147,6 +147,7 @@ struct RenderText {
 	CachedFont* font;
 	char msg[50];
 	V2 p;
+	Color color;
 };
 
 struct RenderFillRect {

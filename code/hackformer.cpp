@@ -395,10 +395,8 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 	double gravityValues[] = {-9.8, -4.9, 0, 4.9, 9.8};
 	s32 gravityFieldModifyCost = 5;
 	gameState->gravityField = createPrimitiveField(double, gameState, "gravity", gravityValues, arrayCount(gravityValues), 0, gravityFieldModifyCost);
-	gameState->gravityField->p = gameState->fieldSpec.fieldSize * 0.5;
-	gameState->gravityField->p.y = gameState->windowSize.y - gameState->gravityField->p.y;
-	gameState->gravityField->p.x += gameState->windowSize.x * 0.07;
-	gameState->gravityField->p.y -= gameState->windowSize.y * 0.015;
+
+	gameState->gravityField->p = v2(2.25, gameState->windowSize.y - 0.625);
 
 	loadTmxMap(gameState, maps[*mapFileIndex]);
 	addFlyingVirus(gameState, v2(7, 6));
@@ -632,22 +630,31 @@ int main(int argc, char *argv[]) {
 
 	FieldSpec* spec = &gameState->fieldSpec;
 
-	spec->fieldSize = v2(2.55, 0.6);
-	spec->triangleSize = (gameState->fieldSpec.fieldSize.y * 0.8) * v2(1, 1);
-	spec->valueSize = v2(gameState->fieldSpec.fieldSize.x * 0.5, gameState->fieldSpec.fieldSize.y);
-	spec->spacing = v2(0.05, 0);
-	spec->childInset = gameState->fieldSpec.fieldSize.x * 0.25;
 	spec->consoleTriangle = loadPNGTexture(gameState, "res/triangle_blue");
 	spec->consoleTriangleSelected = loadPNGTexture(gameState, "res/triangle_light_blue");
 	spec->consoleTriangleGrey = loadPNGTexture(gameState, "res/triangle_grey");
 	spec->consoleTriangleYellow = loadPNGTexture(gameState, "res/triangle_yellow");
 	spec->consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
-	spec->attribute = loadPNGTexture(gameState, "res/Attribute", false);
-	spec->behaviour = loadPNGTexture(gameState, "res/Behaviour", false);
+	spec->attribute = loadPNGTexture(gameState, "res/Attribute 2", false);
+	spec->behaviour = loadPNGTexture(gameState, "res/Behaviour 2", false);
 	spec->waypoint = loadPNGTexture(gameState, "res/waypoint", false);
 	spec->waypointArrow = loadPNGTexture(gameState, "res/waypoint_arrow", false);
 
-	gameState->dock = loadPNGTexture(gameState, "res/dock", false);
+	double fieldSizeAspectRatio = getAspectRatio(&spec->behaviour);
+	double fieldHeight = 1;
+	double fieldWidth = fieldHeight * fieldSizeAspectRatio;
+
+		//spec->fieldSize = v2(2.55, 0.6);
+	spec->fieldSize = v2(fieldWidth, fieldHeight);
+	//spec->triangleSize = (gameState->fieldSpec.fieldSize.y * 0.8) * v2(1, 1);
+	spec->triangleSize = 0.6 * v2(1, 1);
+	//spec->valueSize = v2(gameState->fieldSpec.fieldSize.x * 0.5, gameState->fieldSpec.fieldSize.y);
+	spec->valueSize = v2(1.25, 0.6);
+	spec->spacing = v2(0.05, 0);
+	//spec->childInset = gameState->fieldSpec.fieldSize.x * 0.25;
+	spec->childInset = spec->fieldSize.x * 0.125;
+
+	gameState->dock = loadPNGTexture(gameState, "res/dock 2", false);
 	gameState->dockBlueEnergyTile = loadPNGTexture(gameState, "res/Blue Energy Tile", false);
 
 	gameState->pauseMenuBackground = loadPNGTexture(gameState, "res/Pause Menu", false);
@@ -700,7 +707,7 @@ int main(int argc, char *argv[]) {
 
 		if (dtForFrame > maxDtForFrame) dtForFrame = maxDtForFrame;
 
-		gameState->swapFieldP = gameState->windowSize * 0.5 + v2(0, 4.25);
+		gameState->swapFieldP = gameState->windowSize * 0.5 + v2(0.19, 4.4);
 
 		pollInput(gameState, &running);
 
@@ -726,26 +733,51 @@ int main(int argc, char *argv[]) {
 			R2 bounds = r2(dockP, dockP + size);
 			pushTexture(gameState->renderGroup, &gameState->dock, bounds, false, DrawOrder_gui, false);
 
-			V2 blueEnergySize = 0.45 * v2(1, 1);
-			V2 blueEnergyStartP = dockP + v2(1.6, 0.68);
-			V2 barSlope = normalize(v2(1, -0.04));
-			double barLength = 5.41;
+			s32 maxBlueEnergy = 60;
+			if(gameState->fieldSpec.blueEnergy > maxBlueEnergy) gameState->fieldSpec.blueEnergy = maxBlueEnergy;
+			else if(gameState->fieldSpec.blueEnergy < 0) gameState->fieldSpec.blueEnergy = 0;
 
-			s32 maxEnergy = 40;
-			double energySize = barLength / (double)maxEnergy;
+			int blueEnergy = gameState->fieldSpec.blueEnergy;
 
-			if(gameState->fieldSpec.blueEnergy < 0) gameState->fieldSpec.blueEnergy = 0;
-			else if(gameState->fieldSpec.blueEnergy > maxEnergy) gameState->fieldSpec.blueEnergy = maxEnergy;
+			if(blueEnergy > 0) {
+				char blueEnergyStr[25];
+				sprintf(blueEnergyStr, "%d", blueEnergy);
 
-			for(s32 energyIndex = 0; energyIndex < gameState->fieldSpec.blueEnergy; energyIndex++) {
-				//TODO: <= is only needed for the last energyIndex
-				for(double lerpIndex = 0; lerpIndex <= 1; lerpIndex += 0.5) {
-					V2 blueEnergyP = blueEnergyStartP + barSlope * ((energyIndex + lerpIndex) * energySize);
-					R2 blueEnergyBounds = rectCenterDiameter(blueEnergyP, blueEnergySize);
-					pushTexture(gameState->renderGroup, &gameState->dockBlueEnergyTile, blueEnergyBounds, false, DrawOrder_gui, false);
+				CachedFont* font = &gameState->fieldSpec.consoleFont;
+				double textWidth = getTextWidth(font, gameState->renderGroup, blueEnergyStr);
+				R2 textPadding = getTextPadding(font, gameState->renderGroup, blueEnergyStr);
+
+				V2 blueEnergyP = dockP + v2(1.84, 0.6);
+				Color blue = createColor(66, 217, 255, 255);
+				V2 blueEnergySize = v2(1, 1) * 0.49;
+
+				R2 blueEnergyBounds = rectCenterDiameter(blueEnergyP, blueEnergySize);
+				pushTexture(gameState->renderGroup, &gameState->dockBlueEnergyTile, blueEnergyBounds, false, DrawOrder_gui, false);
+				
+				V2 textP = blueEnergyP - blueEnergySize * 0.5 - textPadding.min;
+				textP += (blueEnergySize - v2(textWidth, font->lineHeight)) * 0.5;
+				pushText(gameState->renderGroup, font, blueEnergyStr, textP);
+
+				if(blueEnergy > 1) {
+					double rectHeight = 0.15;
+					V2 rectOffs = v2(0.22, -0.03);
+					double maxRectLength = 6.32;
+					double rectLength = maxRectLength * (double)blueEnergy/(double)(maxBlueEnergy - 2);
+					if(rectLength > maxRectLength) rectLength = maxRectLength;
+
+					V2 rectStartP = blueEnergyP + rectOffs + v2(0, -rectHeight / 2);
+					V2 rectEndP = rectStartP + v2(rectLength, rectHeight);
+
+					R2 rectBounds = r2(rectStartP, rectEndP);
+					pushFilledRect(gameState->renderGroup, rectBounds, blue);
+
+					if(blueEnergy >= maxBlueEnergy) {
+						blueEnergyP += v2(maxRectLength + 0.02, 0) + rectOffs;
+						blueEnergyBounds = rectCenterDiameter(blueEnergyP, 0.16 * v2(1, 1));
+						pushTexture(gameState->renderGroup, &gameState->dockBlueEnergyTile, blueEnergyBounds, false, DrawOrder_gui, false);
+					}
 				}
 			}
-			
 		}
 
 		updateConsole(gameState, dtForFrame, paused);

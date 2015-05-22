@@ -258,6 +258,11 @@ Texture loadPNGTexture(GameState* gameState, char* fileName, bool loadNormalMap 
 	return result;
 }
 
+double getAspectRatio(Texture* texture) {
+	double result = texture->size.x / texture->size.y;
+	return result;
+}
+
 TTF_Font* loadFont(char* fileName, s32 fontSize) {
 	TTF_Font *font = TTF_OpenFont(fileName, fontSize);
 
@@ -454,9 +459,9 @@ Texture createText(GameState* gameState, TTF_Font* font, char* msg) {
 
 Glyph* getGlyph(CachedFont* cachedFont, RenderGroup* group, char c, double metersPerPixel) {
 	if (!cachedFont->cache[c].tex.texId) {	
-		SDL_Color black = {0, 0, 0, 255};
+		SDL_Color white = {255, 255, 255, 255};
 
-		SDL_Surface* glyphSurface = TTF_RenderGlyph_Blended(cachedFont->font, c, black);
+		SDL_Surface* glyphSurface = TTF_RenderGlyph_Blended(cachedFont->font, c, white);
 		assert(glyphSurface);
 
 		SDL_PixelFormat* format = glyphSurface->format;
@@ -675,11 +680,9 @@ void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, double rot, Co
 	glEnd();
 }
 
-void drawText(RenderGroup* group, CachedFont* cachedFont, char* msg, V2 p) {
+void drawText(RenderGroup* group, CachedFont* cachedFont, char* msg, V2 p, Color color) {
 	double metersPerPixel = 1.0 / (group->pixelsPerMeter * cachedFont->scaleFactor);
 	double invScaleFactor = 1.0 / cachedFont->scaleFactor;
-
-	Color color = createColor(255, 255, 255, 255);
 
 	while(*msg) {
 		Texture* texture = &getGlyph(cachedFont, group, *msg, metersPerPixel)->tex;
@@ -990,9 +993,9 @@ void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, boo
 	}
 }
 
-void pushText(RenderGroup* group, CachedFont* font, char* msg, V2 p) {
+void pushText(RenderGroup* group, CachedFont* font, char* msg, V2 p, Color color = createColor(0, 0, 0, 255)) {
 	if(group->rendering) {
-		drawText(group, font, msg, p);
+		drawText(group, font, msg, p, color);
 	} else {
 		RenderText* render = pushRenderElement(group, RenderText);
 
@@ -1008,6 +1011,7 @@ void pushText(RenderGroup* group, CachedFont* font, char* msg, V2 p) {
 
 			render->p = p;
 			render->font = font;
+			render->color = color;
 		}
 	}
 }
@@ -1148,7 +1152,7 @@ size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, G
 		END_CASE(RenderEntityTexture);
 
 		START_CASE(RenderText);
-			drawText(group, render->font, render->msg, render->p);
+			drawText(group, render->font, render->msg, render->p, render->color);
 		END_CASE(RenderText);
 
 		START_CASE(RenderFillRect);

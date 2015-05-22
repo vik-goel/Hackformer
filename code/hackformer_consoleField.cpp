@@ -399,6 +399,8 @@ bool drawOutlinedConsoleBox(ConsoleField* field, RenderGroup* group,
 	char* text = NULL;
 
 	double minBoundsXOffs = 0;
+	V2 textOffset = v2(0, 0);
+	Color textColor = createColor(255, 255, 255, 255);
 
 	if (nameBox) {
 		Texture* texture = NULL;
@@ -419,8 +421,10 @@ bool drawOutlinedConsoleBox(ConsoleField* field, RenderGroup* group,
 		bounds.min.x += minBoundsXOffs;
 
 		text = field->name;
+		textOffset = v2(-0.32, 0.15);
 	} else {
 		Color color = createColor(100, 255, 100, 255); //green
+		textColor = createColor(0, 0, 0, 255);
 
 		R2 strokedBounds = scaleRect(bounds, 0.9 * v2(1, 1));
 		double stroke = 0.03;
@@ -432,10 +436,12 @@ bool drawOutlinedConsoleBox(ConsoleField* field, RenderGroup* group,
 	}
 
 	double strWidth = getTextWidth(&spec->consoleFont, group, text);
+
+	
 	V2 textP = bounds.min + v2((getRectWidth(bounds) - strWidth) / 2, 
 							   (getRectHeight(bounds) - spec->consoleFont.lineHeight) / 4);
 
-	pushText(group, &spec->consoleFont, text, textP);
+	pushText(group, &spec->consoleFont, text, textP + textOffset, textColor);
 
 	if(!hasValue) { //draw the cost in the red box
 		char tweakCostStr[25];
@@ -454,7 +460,10 @@ bool drawOutlinedConsoleBox(ConsoleField* field, RenderGroup* group,
 
 		bounds.min.x += (redSize - costStrWidth) * 0.5;
 		bounds.min.y += (spec->fieldSize.y - height) * 0.5;
-		pushText(group, &spec->consoleFont, tweakCostStr, bounds.min); 
+
+		bounds.min.x += 0.22;
+
+		pushText(group, &spec->consoleFont, tweakCostStr, bounds.min, createColor(255, 255, 255, 255)); 
 	}
 
 	return result;
