@@ -561,6 +561,9 @@ int main(int argc, char *argv[]) {
 	gameState->input.x.keyCode1 = SDLK_x;
 	gameState->input.shift.keyCode1 = SDLK_RSHIFT;
 	gameState->input.shift.keyCode2 = SDLK_LSHIFT;
+
+	gameState->input.pause.keyCode1 = SDLK_p;
+	gameState->input.pause.keyCode2 = SDLK_ESCAPE;
 	
 	gameState->gravity = v2(0, -9.81f);
 	gameState->solidGridSquareSize = 0.1;
@@ -647,6 +650,9 @@ int main(int argc, char *argv[]) {
 	gameState->dock = loadPNGTexture(gameState, "res/dock", false);
 	gameState->dockBlueEnergyTile = loadPNGTexture(gameState, "res/Blue Energy Tile", false);
 
+	gameState->pauseMenuBackground = loadPNGTexture(gameState, "res/Pause Menu", false);
+	gameState->pauseMenuAnim = loadAnimation(gameState, "res/Pause Menu Sprite", 1280, 720, 1.f, true);
+
 	u32 numTilesInAtlas;
 	gameState->tileAtlas = extractTextures(gameState, "res/tiles_floored", 120, 240, 12, &numTilesInAtlas);
 
@@ -669,6 +675,8 @@ int main(int argc, char *argv[]) {
 	double maxDtForFrame = 1.0 / 6.0;
 	u32 lastTime = SDL_GetTicks();
 	u32 currentTime;
+
+	bool paused = false;
 
 	while (running) {
 		currentTime = SDL_GetTicks();
@@ -695,6 +703,20 @@ int main(int argc, char *argv[]) {
 		gameState->swapFieldP = gameState->windowSize * 0.5 + v2(0, 4.25);
 
 		pollInput(gameState, &running);
+
+		if(gameState->input.pause.justPressed) {
+			paused = !paused;
+			gameState->pauseMenuAnimCounter = 0;
+		}
+
+		Input oldInput;
+
+		if(paused) {
+			gameState->pauseMenuAnimCounter += dtForFrame;
+			dtForFrame = 0;
+			oldInput = gameState->input;
+		}
+
 		updateAndRenderEntities(gameState, dtForFrame);
 		pushSortEnd(gameState->renderGroup);
 
@@ -726,7 +748,30 @@ int main(int argc, char *argv[]) {
 			
 		}
 
-		updateConsole(gameState, dtForFrame);
+		updateConsole(gameState, dtForFrame, paused);
+
+		if(paused) {
+			R2 windowBounds = r2(v2(0, 0), gameState->windowSize);
+
+			Texture* frame1 = getAnimationFrame(&gameState->pauseMenuAnim, gameState->pauseMenuAnimCounter);
+			Texture* frame2 = getAnimationFrame(&gameState->pauseMenuAnim, gameState->pauseMenuAnimCounter + gameState->pauseMenuAnim.secondsPerFrame);
+
+			double frameIndex = gameState->pauseMenuAnimCounter / gameState->pauseMenuAnim.secondsPerFrame;
+			double frameIndexPercent = frameIndex - (int)frameIndex;
+
+			assert(frameIndexPercent >= 0 && frameIndexPercent <= 1);
+
+			int frame1Alpha = (int)(255 * (1 - frameIndexPercent) + 0.5);
+			int frame2Alpha = 255 - frame1Alpha;
+
+			Color frame1Color = createColor(255, 255, 255, frame1Alpha);
+			Color frame2Color = createColor(255, 255, 255, frame2Alpha);
+
+			pushTexture(gameState->renderGroup, &gameState->pauseMenuBackground, windowBounds, false, DrawOrder_gui, false);
+			pushTexture(gameState->renderGroup, frame1, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame1Color);
+			pushTexture(gameState->renderGroup, frame2, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame2Color);
+		}
+
 		drawRenderGroup(gameState->renderGroup, &gameState->fieldSpec);
 		removeEntities(gameState);
 
@@ -757,6 +802,10 @@ int main(int argc, char *argv[]) {
 				resetLevel) {
 				loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, true);
 			}
+		}
+
+		if(paused) {
+			gameState->input = oldInput;
 		}
 
 		SDL_GL_SwapWindow(window);

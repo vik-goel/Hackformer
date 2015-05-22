@@ -120,8 +120,9 @@ struct Input {
 
 	union {
 		//NOTE: The number of keys in the array must always be equal to the number of keys in the struct below
-		Key keys[8];
+		Key keys[9];
 
+		//TODO: The members of this struct may not be packed such that they align perfectly with the array of keys
 		struct {
 			Key up;
 			Key down;
@@ -130,6 +131,7 @@ struct Input {
 			Key r;
 			Key x;
 			Key shift;
+			Key pause;
 			Key leftMouse;
 		};
 	};
@@ -251,6 +253,10 @@ struct GameState {
 
 	Texture dock;
 	Texture dockBlueEnergyTile;
+
+	Texture pauseMenuBackground;
+	Animation pauseMenuAnim;
+	double pauseMenuAnimCounter;
 };
 
 #define pushArray(arena, type, count) (type*)pushIntoArena_(arena, count * sizeof(type))
