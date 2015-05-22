@@ -86,7 +86,9 @@ struct Entity {
 	double spotLightAngle;
 
 	//Used by any entity that shoots
+	//TODO: This could be stored in the shoot console field
 	double shootTimer;
+	s32 targetRef;
 
 	//Used by projectiles
 	s32 shooterRef;

@@ -3,8 +3,6 @@ struct Texture {
 	GLuint normalId;
 	R2 uv;
 	V2 size;
-	// SDL_Texture* tex;
-	// SDL_Rect srcRect;
 };
 
 struct Animation {

@@ -70,6 +70,15 @@ double angleIn0Tau(double angle) {
 	return result;
 }
 
+double yReflectDegrees(double angle) {
+	double result = angleIn0360(angle);
+
+	if(result <= 180) result = 180 - result;
+	else result = 540 - result;
+	
+	return result;
+}
+
 bool isDegreesBetween(double testAngle, double minAngle, double maxAngle) {
 	testAngle = angleIn0360(testAngle);
 	minAngle = angleIn0360(minAngle);

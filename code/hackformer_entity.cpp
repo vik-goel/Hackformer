@@ -484,18 +484,6 @@ void removeFieldsIfSet(ConsoleField** fields, s32* numFields) {
 		}
 
 		if (isSet(field, ConsoleFlag_remove)) {
-			// clearFlags(field, ConsoleFlag_remove);
-
-			// for (s32 moveIndex = fieldIndex; moveIndex < *numFields - 1; moveIndex++) {
-			// 	ConsoleField** dst = fields + moveIndex;
-			// 	ConsoleField** src = fields + moveIndex + 1;
-
-			// 	*dst = *src;
-			// }
-
-			// fields[*numFields - 1] = 0;
-			// (*numFields)--;
-
 			removeField(fields, *numFields, fieldIndex);
 			*numFields = *numFields - 1;
 		}
@@ -563,15 +551,12 @@ void addFollowsWaypointsField(Entity* entity, GameState* gameState) {
 
 	double followsWaypointsSpeedFieldValues[] = {1, 2, 3, 4, 5}; 
 	double waypointDelays[] = {0, 0.5, 1, 1.5, 2};
-	double sightRadii[] = {2, 4, 6, 8, 10};
 	
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", followsWaypointsSpeedFieldValues, 
 	 												    arrayCount(followsWaypointsSpeedFieldValues), 2, 1));
 	addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "waypoint_delay", waypointDelays, 
 	 												    arrayCount(waypointDelays), 2, 1));
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "sight_radius", sightRadii, 
-													    arrayCount(sightRadii), 2, 2));
 
 	s32 numWaypoints = 4;
 	Waypoint* waypoints = pushArray(&gameState->levelStorage, Waypoint, numWaypoints);
@@ -605,13 +590,26 @@ void addShootField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "shoots", ConsoleField_shootsAtTarget, 4);
 
 	double bulletSpeedFieldValues[] = {1, 2, 3, 4, 5}; 
-	double shootRadiusFieldValues[] = {1, 3, 5, 7, 9}; 
+	double sightRadii[] = {2, 4, 6, 8, 10};
 
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "bullet_speed", bulletSpeedFieldValues, 
 													    arrayCount(bulletSpeedFieldValues), 2, 1));
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "detect_radius", shootRadiusFieldValues, 
-													    arrayCount(shootRadiusFieldValues), 2, 2));
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "sight_radius", sightRadii, 
+													    arrayCount(sightRadii), 2, 2));
 
+	addField(entity, result);
+}
+
+void addSpotlightField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "spotlight", ConsoleField_spotlight, 15);
+
+	double sightRadii[] = {2, 4, 6, 8, 10};
+	double fovs[] = {15, 30, 45, 60, 75};
+	
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "sight_radius", sightRadii, 
+													    arrayCount(sightRadii), 2, 2));
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "field_of_view", fovs, 
+													    arrayCount(fovs), 2, 1));
 	addField(entity, result);
 }
 
@@ -931,6 +929,7 @@ Entity* addFlyingVirus(GameState* gameState, V2 p) {
 
 	addFollowsWaypointsField(result, gameState);
 	addShootField(result, gameState);
+	addSpotlightField(result, gameState);
 
 	setEntityP(result, result->p + result->renderSize  * 0.5, gameState);
 	result->spotLightAngle = 210;
@@ -1632,29 +1631,7 @@ void move(Entity* entity, double dt, GameState* gameState, V2 ddP) {
 	entity->dP += ddP * dt;
 }
 
-#if 0
-void moveTile(Entity* entity, GameState* gameState, V2 movement) {
-	assert(entity->type == EntityType_tile);
-
-	//NOTE: Tiles must be moving on x or on y, but not both
-	assert(movement.x || movement.y);
-	assert(!movement.x || !movement.y);
-
-	if(movement.x || movement.y < 0) {
-		GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, movement);
-
-		if(collisionResult.hitEntity && collisionResult.hitEntity->type == EntityType_tile) {
-			V2 pushAmt = movement * (1 - collisionResult.collisionTime);
-			moveTile(collisionResult.hitEntity, gameState, pushAmt);
-		}
-	}
-
-	moveRaw(entity, gameState, movement);
-}
-#endif
-
-bool moveTowardsTargetParabolic(Entity* entity, GameState* gameState, double dt,
-					   V2 target, double initialDstToTarget, double maxSpeed) {
+bool moveTowardsTargetParabolic(Entity* entity, GameState* gameState, double dt, V2 target, double initialDstToTarget, double maxSpeed) {
 	V2 delta = target - entity->p;
 	double dstToTarget = length(delta);
 
@@ -1759,14 +1736,7 @@ void addSolidLocation(double xPos, double yPos, GameState* gameState) {
 	}
 }
 
-void testLocationAsClosestNonSolidNode(double xPos, double yPos, double* minDstSq, GameState* gameState, 
-									   Entity* entity, PathNode** result) {
-	#if 0
-		setColor(gameState->renderer, 0, 255, 0, 255);
-		R2 rect = rectCenterRadius(v2(xPos, yPos), v2(0.01, 0.01));
-		drawFilledRect(gameState, rect, gameState->cameraP);
-	#endif
-
+void testLocationAsClosestNonSolidNode(double xPos, double yPos, double* minDstSq, GameState* gameState, Entity* entity, PathNode** result) {
 	s32 xTile = (s32)floor(xPos / gameState->solidGridSquareSize);
 	s32 yTile = (s32)floor(yPos / gameState->solidGridSquareSize);
 
@@ -1933,21 +1903,7 @@ V2 computePath(GameState* gameState, Entity* start, Entity* goal) {
 		}
 	}
 
-#if 0
-	SDL_SetRenderDrawBlendMode(gameState->renderer, SDL_BLENDMODE_BLEND);
-	setColor(gameState->renderer, 0, 0, 0, 100);
 
-	for (int tileX = 0; tileX < gameState->solidGridWidth; tileX++) {
-		for (int tileY = 0; tileY < gameState->solidGridHeight; tileY++) {
-			PathNode* node = gameState->solidGrid[tileX] + tileY;
-
-			if (node->solid) {
-				drawFilledRect(gameState, rectCenterDiameter(node->p, 
-					v2(gameState->solidGridSquareSize, gameState->solidGridSquareSize)), gameState->cameraP);
-			}
-		}
-	}
-#endif
 
 	if (pathLineClear(start->p, goal->p, gameState)) {
 		return goal->p;
@@ -2134,17 +2090,6 @@ bool isTarget(Entity* entity, GameState* gameState) {
 	return result;
 }
 
-bool canEntityShoot(Entity* entity, GameState* gameState) {
-	bool result = false;
-
-	ConsoleField* shootField = getField(entity, ConsoleField_shootsAtTarget);
-	result = shootField != NULL;
-
-	if(gameState->doingInitialSim) result = false;
-
-	return result;
-}
-
 Entity* getClosestTarget(Entity* entity, GameState* gameState) {
 	Entity* result = NULL;
 	double minDstSq = 99999999999;
@@ -2167,6 +2112,442 @@ Entity* getClosestTarget(Entity* entity, GameState* gameState) {
 	}
 
 	return result;
+}
+
+Entity* getClosestTargetInSight(Entity* entity, GameState* gameState, double sightRadius, double fov) {
+	double halfFov = fov * 0.5;
+
+	double minSightAngle = angleIn0360(entity->spotLightAngle - halfFov);
+	double maxSightAngle = angleIn0360(entity->spotLightAngle + halfFov);
+
+	RefNode* targetNode = gameState->targetRefs;
+	Entity* target = NULL;
+	double targetDst;
+
+	while(targetNode) {
+		Entity* testEntity = getEntityByRef(gameState, targetNode->ref);
+
+		if(testEntity) {
+			V2 toTestEntity = testEntity->p - entity->p;
+			double dstToEntity = length(toTestEntity);
+
+			if(dstToEntity <= sightRadius) {
+				Hitbox* hitboxes = testEntity->hitboxes;
+				bool canSee = false;
+
+				double dir = getDegrees(toTestEntity);
+				canSee |= isDegreesBetween(dir, minSightAngle, maxSightAngle);
+
+				//TODO: Find a more robust way of determining if the entity is inside of the view arc
+				while(hitboxes && !canSee) {
+					V2 hitboxCenter = hitboxes->collisionOffset + testEntity->p - entity->p;
+
+					V2 testP = hitboxCenter + hitboxes->collisionOffset;
+					canSee |= isDegreesBetween(getDegrees(testP), minSightAngle, maxSightAngle);
+
+					testP = hitboxCenter - hitboxes->collisionOffset;
+					canSee |= isDegreesBetween(getDegrees(testP), minSightAngle, maxSightAngle);
+
+					V2 offset = v2(hitboxes->collisionOffset.x, -hitboxes->collisionOffset.y);
+
+					testP = hitboxCenter + offset;
+					canSee |= isDegreesBetween(getDegrees(testP), minSightAngle, maxSightAngle);
+
+					testP = hitboxCenter - offset;
+					canSee |= isDegreesBetween(getDegrees(testP), minSightAngle, maxSightAngle);
+
+					hitboxes = hitboxes->next;
+				}
+
+				if(canSee) {
+					GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, toTestEntity);
+
+					bool occluded = (collisionResult.hitEntity && collisionResult.hitEntity != testEntity);
+
+					if(!occluded) {
+						if(!target || dstToEntity < targetDst) {
+							targetDst = dstToEntity;
+							target = testEntity;
+						}
+					}
+				}
+			} 
+		}
+
+		targetNode = targetNode->next;
+	}
+
+	return target;
+}
+
+void updateSpotlightBasedOnSpotlightField(Entity* entity, GameState* gameState) {
+	ConsoleField* spotlightField = getField(entity, ConsoleField_spotlight);
+
+	if(spotlightField) {
+		ConsoleField* radiusField = spotlightField->children[0];
+		double sightRadius = radiusField->doubleValues[radiusField->selectedIndex];
+
+		ConsoleField* fovField = spotlightField->children[1];
+		double fov = fovField->doubleValues[fovField->selectedIndex];
+
+		SpotLight spotLight = createSpotLight(entity->p, v3(1, 1, .9), sightRadius, entity->spotLightAngle, fov);
+		pushSpotLight(gameState->renderGroup, &spotLight, true);
+
+		Entity* target = getClosestTargetInSight(entity, gameState, sightRadius, fov); 
+
+		if(target) {
+			entity->targetRef = target->ref;
+		} else {
+			entity->targetRef = 0;
+		}
+	}
+}
+
+bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt) {
+	ConsoleField* shootField = getField(entity, ConsoleField_shootsAtTarget);
+	bool shootingEnabled = shootField && !gameState->doingInitialSim;
+	bool shootingState = shootingEnabled;
+
+	//NOTE:This handles shooting if the entity should shoot
+	if (shootingEnabled) {
+		if (isSet(entity, EntityFlag_unchargingAfterShooting)) {
+			entity->shootTimer -= dt;
+
+			if (entity->shootTimer <= 0) {
+				entity->shootTimer = 0;
+				clearFlags(entity, EntityFlag_unchargingAfterShooting);
+			} 
+		} else {
+			Entity* target = getEntityByRef(gameState, entity->targetRef); 
+
+			if (target) {
+				if (target->p.x < entity->p.x) setFlags(entity, EntityFlag_facesLeft);
+				else clearFlags(entity, EntityFlag_facesLeft);
+			}
+
+			if(isSet(entity, EntityFlag_shooting)) {
+				entity->shootTimer += dt;
+
+				//TODO: Make shoot delay a child of the shoots console field?
+				if (entity->shootTimer >= gameState->shootDelay) {
+					entity->shootTimer = gameState->shootDelay;
+					clearFlags(entity, EntityFlag_shooting);
+					setFlags(entity, EntityFlag_unchargingAfterShooting);
+
+					V2 spawnOffset = v2(0, 0);
+
+					switch(entity->type) {
+						case EntityType_virus:
+							spawnOffset = v2(0, -0.3);
+							break;
+						case EntityType_flyingVirus:
+							spawnOffset = v2(0.2, -0.29);
+							break;
+					}
+
+					if (isSet(entity, EntityFlag_facesLeft)) {
+						spawnOffset.x *= -1;
+					}
+
+					if(target) {
+						ConsoleField* bulletSpeedField = shootField->children[0];
+						double bulletSpeed = bulletSpeedField->doubleValues[bulletSpeedField->selectedIndex];
+
+						addLaserBolt(gameState, entity->p + spawnOffset, target->p, entity->ref, bulletSpeed);
+					}
+				}
+			} else { 
+				if (target) {
+					entity->shootTimer = 0;
+					setFlags(entity, EntityFlag_shooting);
+				} else {
+					//No target was found (not in shooting state anymore)
+					shootingState = false;
+				}
+			} 
+		} 
+	}
+
+	return shootingState;
+}
+
+void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double dt, double groundFriction, bool shootingState) {
+	//NOTE: This is a hack to make the gravity feel better. There is more gravity when an object
+	//		like the player is falling to make the gravity seem less 'floaty'.
+	V2 gravity = gameState->gravity;
+	if (entity->dP.y < 0) gravity *= 2;		
+	V2 ddP;
+
+
+	ConsoleField* movementField = getMovementField(entity);
+	
+	if(affectedByGravity(entity, movementField)) {
+		ddP = gravity;
+	} else {
+		ddP = {};
+	}
+
+
+	if (entity->type != EntityType_laserBolt) {
+		entity->dP.x *= groundFriction;
+
+		bool airFriction = (movementField && movementField->type == ConsoleField_seeksTarget);
+
+		if (airFriction) {
+			entity->dP.y *= groundFriction;
+		}
+	}
+
+	bool defaultMove = true;
+
+
+	//NOTE: This handles moving the entity
+	if (movementField) {
+		ConsoleField* speedField = movementField->children[0];
+		double xMoveAcceleration = speedField->doubleValues[speedField->selectedIndex];
+
+		defaultMove = false;
+
+		double wantedSpotLightAngle = entity->spotLightAngle;
+
+		switch(movementField->type) {
+
+
+
+
+			case ConsoleField_keyboardControlled: {
+				if (!gameState->doingInitialSim && !isSet(entity, EntityFlag_remove) && dt > 0) {
+					wantedSpotLightAngle = entity->spotLightAngle = getDegrees(gameState->input.mouseInWorld - entity->p);
+
+					double xMove = 0;
+
+					ConsoleField* jumpField = movementField->children[1];
+					double jumpHeight = jumpField->doubleValues[jumpField->selectedIndex];
+
+					ConsoleField* doubleJumpField = movementField->children[2];
+					bool canDoubleJump = doubleJumpField->selectedIndex != 0;
+
+					if (gameState->input.right.pressed) xMove += xMoveAcceleration;
+					if (gameState->input.left.pressed) xMove -= xMoveAcceleration;
+
+					ddP.x += xMove;
+
+					if (xMove > 0) {
+						clearFlags(entity, EntityFlag_facesLeft);
+					}
+					else if (xMove < 0) {
+						setFlags(entity, EntityFlag_facesLeft);
+					}
+
+
+					bool canJump = entity->jumpCount == 0 && 
+								   entity->timeSinceLastOnGround < 0.15 && 
+								   gameState->input.up.pressed;
+
+					bool attemptingDoubleJump = false;
+					
+					if (!canJump) {
+						attemptingDoubleJump = true;
+						canJump = entity->jumpCount < 2 && canDoubleJump && gameState->input.up.justPressed;
+					}
+
+					if (canJump) {
+						entity->dP.y = jumpHeight;
+						if (attemptingDoubleJump) entity->jumpCount = 2;
+						else entity->jumpCount++;
+					}
+				}
+
+				move(entity, dt, gameState, ddP);
+
+				//NOTE: This ensures the entity stays within the bounds of the map on x
+				Hitbox* hitbox = entity->hitboxes;
+				while(hitbox) {
+					double minX = hitbox->collisionSize.x / 2;
+					double maxX = gameState->mapSize.x - minX;
+
+					double xPos = hitbox->collisionOffset.x + entity->p.x;
+
+					if (xPos < minX) moveRaw(entity, gameState, v2(minX - xPos, 0));
+					else if (xPos > maxX) moveRaw(entity, gameState, v2(maxX - xPos, 0));
+
+					hitbox = hitbox->next;
+				}
+			} break;
+
+
+
+
+			case ConsoleField_movesBackAndForth: {
+				if (!shootingState) {
+					V2 oldP = entity->p;
+
+					if (isSet(entity, EntityFlag_facesLeft)) {
+					 	xMoveAcceleration *= -1;
+					} 
+
+					ddP.x = xMoveAcceleration;
+
+					double startX = entity->p.x;
+					move(entity, dt, gameState, ddP);
+					double endX = entity->p.x;
+
+					bool shouldChangeDirection = false;
+
+					if (isSet(entity, EntityFlag_noMovementByDefault)) {
+						shouldChangeDirection = startX == endX && dt > 0;
+					} else {
+						bool32 initiallyOnGround = isSet(entity, EntityFlag_grounded);
+
+						if (initiallyOnGround) {
+							V2 oldCollisionSize = entity->hitboxes->collisionSize;
+							V2 oldCollisionOffset = entity->hitboxes->collisionOffset;
+
+							if (isSet(entity, EntityFlag_facesLeft)) {
+							 	entity->hitboxes->collisionOffset.x -= entity->hitboxes->collisionSize.x / 2;
+							} else {
+								entity->hitboxes->collisionOffset.x += entity->hitboxes->collisionSize.x / 2;
+							}
+
+							entity->hitboxes->collisionSize.x = 0;
+
+							bool offOfGround = onGround(entity, gameState) == NULL;
+
+							entity->hitboxes->collisionSize = oldCollisionSize;
+							entity->hitboxes->collisionOffset = oldCollisionOffset;
+
+							if (offOfGround) {
+								setEntityP(entity, oldP, gameState);
+							}
+
+							shouldChangeDirection = offOfGround || entity->dP.x == 0;
+						}
+					}
+
+					if (shouldChangeDirection) {
+						toggleFlags(entity, EntityFlag_facesLeft);
+						entity->spotLightAngle = yReflectDegrees(entity->spotLightAngle);
+					}
+				} else {
+					defaultMove = true;
+				}
+			} break;
+
+
+
+
+			case ConsoleField_seeksTarget: {
+				ConsoleField* alertnessField = getField(movementField->children, movementField->numChildren, ConsoleField_Alertness);
+				assert(alertnessField);
+
+				Alertness alertness = (Alertness)alertnessField->selectedIndex;
+
+				if (!shootingState && !gameState->doingInitialSim && alertness > Alertness_asleep) {
+					ConsoleField* sightRadiusField = movementField->children[1];
+					double sightRadius = sightRadiusField->doubleValues[sightRadiusField->selectedIndex];
+
+					//TODO: If obstacles were taken into account, this might not actually be the closest entity
+					//		Maybe something like a bfs should be used here to find the actual closest entity
+					Entity* targetEntity = getClosestTarget(entity, gameState);
+					if (targetEntity) {
+						double dstToTarget = dst(targetEntity->p, entity->p);
+
+						if (dstToTarget <= sightRadius && dstToTarget > 0.1) {
+							V2 wayPoint = computePath(gameState, entity, targetEntity);
+							moveTowardsWaypoint(entity, gameState, dt, wayPoint, xMoveAcceleration);
+						}
+					}
+				}
+			} break;
+
+
+			case ConsoleField_followsWaypoints: {
+				if(!shootingState) {
+					Waypoint* cur = movementField->curWaypoint;
+					assert(cur);
+
+					Waypoint* prev = cur;
+
+					while(prev->next != cur) {
+						prev = prev->next;
+						assert(prev);
+					}
+
+					double initialDstToWaypoint = max(length(entity->p - cur->p), length(cur->p - prev->p));
+
+					bool canMove = true;
+
+					if(movementField->waypointDelay > 0) {
+						movementField->waypointDelay += dt;
+
+						assert(movementField->numChildren >= 3);
+						ConsoleField* delayField = movementField->children[2];
+						double delay = delayField->doubleValues[delayField->selectedIndex];
+
+						if(movementField->waypointDelay >= delay) {
+							movementField->waypointDelay = 0;
+						} else {
+							canMove = false;
+						}
+					}
+
+					if(canMove) {
+						if(moveTowardsTargetParabolic(entity, gameState, dt, cur->p, initialDstToWaypoint, xMoveAcceleration)) {
+						movementField->curWaypoint = cur->next;
+						movementField->waypointDelay += dt;
+						}
+					} else {
+						defaultMove = true;
+					}
+
+					V2 toWaypoint = movementField->curWaypoint->p - entity->p;
+
+					wantedSpotLightAngle = getDegrees(toWaypoint);
+					double percentToTarget = (initialDstToWaypoint - length(toWaypoint)) / initialDstToWaypoint; 
+					double sinInput = percentToTarget * TAU;
+
+					double angleVariance = min(75, initialDstToWaypoint * 7);
+					wantedSpotLightAngle += sin(sinInput) * angleVariance;
+				}
+			} break;
+		} //end of movement field switch 
+
+
+		if(movementField->type != ConsoleField_followsWaypoints &&
+		   movementField->type != ConsoleField_keyboardControlled) {
+			wantedSpotLightAngle = getDegrees(entity->dP);
+		}
+
+		wantedSpotLightAngle = angleIn0360(wantedSpotLightAngle);
+		
+		double spotlightAngleMoveSpeed = 180 * dt;
+
+		double clockwise = angleIn0360(wantedSpotLightAngle - entity->spotLightAngle);
+		double counterClockwise = angleIn0360(entity->spotLightAngle - wantedSpotLightAngle);
+
+		if(clockwise < counterClockwise) {
+			double movement = min(clockwise, spotlightAngleMoveSpeed);
+			entity->spotLightAngle = angleIn0360(entity->spotLightAngle + movement);
+		} else {
+			double movement = min(counterClockwise, spotlightAngleMoveSpeed);
+			entity->spotLightAngle = angleIn0360(entity->spotLightAngle - movement);
+		}
+	} 
+
+	if(defaultMove) {
+		if (!isSet(entity, EntityFlag_noMovementByDefault)) {
+			if(entity->type == EntityType_laserBolt ||
+			   entity->type == EntityType_heavyTile && entity->startPos != entity->p) {
+				ddP.y = 0;
+			} 
+
+			move(entity, dt, gameState, ddP);
+		}
+	}
+
+	if(getField(entity, ConsoleField_cameraFollows)) {
+		centerCameraAround(entity, gameState);
+	}
 }
 
 void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
@@ -2238,415 +2619,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 		removeFieldsIfSet(entity->fields, &entity->numFields);
 
-		bool shootingState = false;
-		ConsoleField* shootField = getField(entity, ConsoleField_shootsAtTarget);
-		bool shootingEnabled = canEntityShoot(entity, gameState);
-
-		//NOTE:This handles shooting if the entity should shoot
-		if (shootingEnabled) {
-			Entity* target = getClosestTarget(entity, gameState); 
-
-			if (target) {
-				double dstToTarget = dstSq(target->p, entity->p);
-
-				ConsoleField* bulletSpeedField = shootField->children[0];
-				double bulletSpeed = bulletSpeedField->doubleValues[bulletSpeedField->selectedIndex];
-
-				ConsoleField* radiusField = shootField->children[1];
-				double radius = radiusField->doubleValues[radiusField->selectedIndex];
-
-				double shootRadius = square(radius);
-
-				V2 spawnOffset = v2(0, 0);
-
-				switch(entity->type) {
-					case EntityType_virus:
-						spawnOffset = v2(0, -0.3);
-						break;
-					case EntityType_flyingVirus:
-						spawnOffset = v2(0.2, -0.29);
-				}
-
-				if (isSet(entity, EntityFlag_facesLeft)) {
-					spawnOffset.x *= -1;
-				}
-
-				bool shouldShoot = isSet(entity, EntityFlag_shooting) ||
-								   isSet(entity, EntityFlag_unchargingAfterShooting) || 
-								   dstToTarget <= shootRadius;
-
-				if (shouldShoot) {
-					shootingState = true;
-
-					if (target->p.x < entity->p.x) setFlags(entity, EntityFlag_facesLeft);
-					else clearFlags(entity, EntityFlag_facesLeft);
-
-					if (isSet(entity, EntityFlag_unchargingAfterShooting)) {
-						entity->shootTimer -= dt;
-
-						if (entity->shootTimer <= 0) {
-							entity->shootTimer = 0;
-							clearFlags(entity, EntityFlag_unchargingAfterShooting);
-						} 
-					} else if (!isSet(entity, EntityFlag_shooting)) {
-						entity->shootTimer = 0;
-						setFlags(entity, EntityFlag_shooting);
-					} else {
-						entity->shootTimer += dt;
-
-						if (entity->shootTimer >= gameState->shootDelay) {
-							entity->shootTimer = gameState->shootDelay;
-							clearFlags(entity, EntityFlag_shooting);
-							setFlags(entity, EntityFlag_unchargingAfterShooting);
-							addLaserBolt(gameState, entity->p + spawnOffset, target->p, entity->ref, bulletSpeed);
-						}
-					}
-				}
-			}
-		}
-
-
-		//NOTE: This is a hack to make the gravity feel better. There is more gravity when an object
-		//		like the player is falling to make the gravity seem less 'floaty'.
-		V2 gravity = gameState->gravity;
-		if (entity->dP.y < 0) gravity *= 2;		
-		V2 ddP;
-
-
-		ConsoleField* movementField = getMovementField(entity);
-		
-		if(affectedByGravity(entity, movementField)) {
-			ddP = gravity;
-		} else {
-			ddP = {};
-		}
-
-
-		if (entity->type != EntityType_laserBolt) {
-			entity->dP.x *= groundFriction;
-
-			bool airFriction = (movementField && movementField->type == ConsoleField_seeksTarget);
-
-			if (airFriction) {
-				entity->dP.y *= groundFriction;
-			}
-		}
-
-		bool defaultMove = true;
-
-
-		//NOTE: This handles moving the entity
-		if (movementField) {
-			ConsoleField* speedField = movementField->children[0];
-			double xMoveAcceleration = speedField->doubleValues[speedField->selectedIndex];
-
-			defaultMove = false;
-
-			switch(movementField->type) {
-
-
-
-
-				case ConsoleField_keyboardControlled: {
-					if (!gameState->doingInitialSim && !isSet(entity, EntityFlag_remove) && dt > 0) {
-						// double numTexels = gameState->newCameraP.x / gameState->texel.x;
-						// double overflow = (numTexels - (int)numTexels) * gameState->texel.x;
-						// gameState->newCameraP.x -= overflow;
-
-						double xMove = 0;
-
-						ConsoleField* jumpField = movementField->children[1];
-						double jumpHeight = jumpField->doubleValues[jumpField->selectedIndex];
-
-						ConsoleField* doubleJumpField = movementField->children[2];
-						bool canDoubleJump = doubleJumpField->selectedIndex != 0;
-
-						if (gameState->input.right.pressed) xMove += xMoveAcceleration;
-						if (gameState->input.left.pressed) xMove -= xMoveAcceleration;
-
-						ddP.x += xMove;
-
-						if (xMove > 0) clearFlags(entity, EntityFlag_facesLeft);
-						else if (xMove < 0) setFlags(entity, EntityFlag_facesLeft);
-
-						bool canJump = entity->jumpCount == 0 && 
-									   entity->timeSinceLastOnGround < 0.15 && 
-									   gameState->input.up.pressed;
-
-						bool attemptingDoubleJump = false;
-						
-						if (!canJump) {
-							attemptingDoubleJump = true;
-							canJump = entity->jumpCount < 2 && canDoubleJump && gameState->input.up.justPressed;
-						}
-
-						if (canJump) {
-							entity->dP.y = jumpHeight;
-							if (attemptingDoubleJump) entity->jumpCount = 2;
-							else entity->jumpCount++;
-						}
-					}
-
-					move(entity, dt, gameState, ddP);
-
-					//NOTE: This ensures the entity stays within the bounds of the map on x
-					Hitbox* hitbox = entity->hitboxes;
-					while(hitbox) {
-						double minX = hitbox->collisionSize.x / 2;
-						double maxX = gameState->mapSize.x - minX;
-
-						double xPos = hitbox->collisionOffset.x + entity->p.x;
-
-						if (xPos < minX) moveRaw(entity, gameState, v2(minX - xPos, 0));
-						else if (xPos > maxX) moveRaw(entity, gameState, v2(maxX - xPos, 0));
-
-						hitbox = hitbox->next;
-					}
-				} break;
-
-
-
-
-				case ConsoleField_movesBackAndForth: {
-					if (!shootingState) {
-						V2 oldP = entity->p;
-
-						if (isSet(entity, EntityFlag_facesLeft)) {
-						 	xMoveAcceleration *= -1;
-						} 
-
-						ddP.x = xMoveAcceleration;
-
-						double startX = entity->p.x;
-						move(entity, dt, gameState, ddP);
-						double endX = entity->p.x;
-
-						bool shouldChangeDirection = false;
-
-						if (isSet(entity, EntityFlag_noMovementByDefault)) {
-							shouldChangeDirection = startX == endX && dt > 0;
-						} else {
-							bool32 initiallyOnGround = isSet(entity, EntityFlag_grounded);
-
-							if (initiallyOnGround) {
-								V2 oldCollisionSize = entity->hitboxes->collisionSize;
-								V2 oldCollisionOffset = entity->hitboxes->collisionOffset;
-
-								if (isSet(entity, EntityFlag_facesLeft)) {
-								 	entity->hitboxes->collisionOffset.x -= entity->hitboxes->collisionSize.x / 2;
-								} else {
-									entity->hitboxes->collisionOffset.x += entity->hitboxes->collisionSize.x / 2;
-								}
-
-								entity->hitboxes->collisionSize.x = 0;
-
-								bool offOfGround = onGround(entity, gameState) == NULL;
-
-								entity->hitboxes->collisionSize = oldCollisionSize;
-								entity->hitboxes->collisionOffset = oldCollisionOffset;
-
-								if (offOfGround) {
-									setEntityP(entity, oldP, gameState);
-								}
-
-								shouldChangeDirection = offOfGround || entity->dP.x == 0;
-							}
-						}
-
-						if (shouldChangeDirection) {
-							toggleFlags(entity, EntityFlag_facesLeft);
-						}
-					} else {
-						defaultMove = true;
-					}
-				} break;
-
-
-
-
-				case ConsoleField_seeksTarget: {
-					ConsoleField* alertnessField = getField(movementField->children, movementField->numChildren, ConsoleField_Alertness);
-					assert(alertnessField);
-
-					Alertness alertness = (Alertness)alertnessField->selectedIndex;
-
-					if (!shootingState && !gameState->doingInitialSim && alertness > Alertness_asleep) {
-						ConsoleField* sightRadiusField = movementField->children[1];
-						double sightRadius = sightRadiusField->doubleValues[sightRadiusField->selectedIndex];
-
-						//TODO: If obstacles were taken into account, this might not actually be the closest entity
-						//		Maybe something like a bfs should be used here to find the actual closest entity
-						Entity* targetEntity = getClosestTarget(entity, gameState);
-						if (targetEntity) {
-							double dstToTarget = dst(targetEntity->p, entity->p);
-
-							if (dstToTarget <= sightRadius && dstToTarget > 0.1) {
-								V2 wayPoint = computePath(gameState, entity, targetEntity);
-								moveTowardsWaypoint(entity, gameState, dt, wayPoint, xMoveAcceleration);
-							}
-						}
-					}
-				} break;
-
-
-				case ConsoleField_followsWaypoints: {
-					Waypoint* cur = movementField->curWaypoint;
-					assert(cur);
-
-					Waypoint* prev = cur;
-
-					while(prev->next != cur) {
-						prev = prev->next;
-						assert(prev);
-					}
-
-					double initialDstToWaypoint = max(length(entity->p - cur->p), length(cur->p - prev->p));
-
-					bool canMove = true;
-
-					if(movementField->waypointDelay > 0) {
-						movementField->waypointDelay += dt;
-
-						assert(movementField->numChildren >= 3);
-						ConsoleField* delayField = movementField->children[2];
-						double delay = delayField->doubleValues[delayField->selectedIndex];
-
-						if(movementField->waypointDelay >= delay) {
-							movementField->waypointDelay = 0;
-						} else {
-							canMove = false;
-						}
-					}
-
-					if(canMove) {
-						if(moveTowardsTargetParabolic(entity, gameState, dt, cur->p, initialDstToWaypoint, xMoveAcceleration)) {
-						movementField->curWaypoint = cur->next;
-						movementField->waypointDelay += dt;
-						}
-					} else {
-						defaultMove = true;
-					}
-
-					V2 toWaypoint = movementField->curWaypoint->p - entity->p;
-
-					double wantedAngle = getDegrees(toWaypoint);
-					double percentToTarget = (initialDstToWaypoint - length(toWaypoint)) / initialDstToWaypoint; 
-					double sinInput = percentToTarget * TAU;
-
-					double angleVariance = min(75, initialDstToWaypoint * 7);
-					wantedAngle += sin(sinInput) * angleVariance;
-
-					wantedAngle = angleIn0360(wantedAngle);
-					
-					double angleMoveSpeed = 180 * dt;
-
-					double clockwise = angleIn0360(wantedAngle - entity->spotLightAngle);
-					double counterClockwise = angleIn0360(entity->spotLightAngle - wantedAngle);
-
-					if(clockwise < counterClockwise) {
-						double movement = min(clockwise, angleMoveSpeed);
-						entity->spotLightAngle = angleIn0360(entity->spotLightAngle + movement);
-					} else {
-						double movement = min(counterClockwise, angleMoveSpeed);
-						entity->spotLightAngle = angleIn0360(entity->spotLightAngle - movement);
-					}
-
-					assert(movementField->numChildren >= 4);
-					ConsoleField* sightRadiusField = movementField->children[3];
-					assert(sightRadiusField);
-
-					double sightRadius = sightRadiusField->doubleValues[sightRadiusField->selectedIndex];
-
-					double fov = 45;
-					double halfFov = fov * 0.5;
-
-					double minSightAngle = angleIn0360(entity->spotLightAngle - halfFov);
-					double maxSightAngle = angleIn0360(entity->spotLightAngle + halfFov);
-
-					RefNode* targetNode = gameState->targetRefs;
-					Entity* target = NULL;
-					double targetDst;
-
-					while(targetNode) {
-						Entity* testEntity = getEntityByRef(gameState, targetNode->ref);
-
-						if(testEntity) {
-							V2 toTestEntity = testEntity->p - entity->p;
-							double dstToEntity = length(toTestEntity);
-
-							if(dstToEntity <= sightRadius) {
-								Hitbox* hitboxes = testEntity->hitboxes;
-								bool canSee = false;
-
-								double dir = getDegrees(toTestEntity);
-								canSee |= isDegreesBetween(dir, minSightAngle, maxSightAngle);
-
-								//TODO: Find a more robust way of determining if the entity is inside of the view arc
-								while(hitboxes && !canSee) {
-									V2 hitboxCenter = hitboxes->collisionOffset + testEntity->p - entity->p;
-
-									V2 testP = hitboxCenter + hitboxes->collisionOffset;
-									canSee |= isDegreesBetween(getDegrees(testP), minSightAngle, maxSightAngle);
-
-									testP = hitboxCenter - hitboxes->collisionOffset;
-									canSee |= isDegreesBetween(getDegrees(testP), minSightAngle, maxSightAngle);
-
-									V2 offset = v2(hitboxes->collisionOffset.x, -hitboxes->collisionOffset.y);
-
-									testP = hitboxCenter + offset;
-									canSee |= isDegreesBetween(getDegrees(testP), minSightAngle, maxSightAngle);
-
-									testP = hitboxCenter - offset;
-									canSee |= isDegreesBetween(getDegrees(testP), minSightAngle, maxSightAngle);
-
-									hitboxes = hitboxes->next;
-								}
-
-								if(canSee) {
-									GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, toTestEntity);
-
-									bool occluded = (collisionResult.hitEntity && collisionResult.hitEntity != testEntity);
-
-									if(!occluded) {
-										if(!target || dstToEntity < targetDst) {
-											targetDst = dstToEntity;
-											target = testEntity;
-										}
-									}
-								}
-							} 
-						}
-
-						targetNode = targetNode->next;
-					}
-
-					if(target) {
-						target->dP.y += 12 * dt;
-					}	
-
-					SpotLight spotLight = createSpotLight(entity->p, v3(1, 1, .9), sightRadius, entity->spotLightAngle, fov);
-					pushSpotLight(gameState->renderGroup, &spotLight, true);
-				} break;
-
-
-
-			} //end of movement field switch 
-		} 
-
-		if(defaultMove) {
-			if (!isSet(entity, EntityFlag_noMovementByDefault)) {
-				if(entity->type == EntityType_laserBolt ||
-				   entity->type == EntityType_heavyTile && entity->startPos != entity->p) {
-					ddP.y = 0;
-				} 
-
-				move(entity, dt, gameState, ddP);
-			}
-		}
-
-		if(getField(entity, ConsoleField_cameraFollows)) {
-			centerCameraAround(entity, gameState);
-		}
+		updateSpotlightBasedOnSpotlightField(entity, gameState);
+		bool shootingState = shootBasedOnShootingField(entity, gameState, dt);
+		moveEntityBasedOnMovementField(entity, gameState, dt, groundFriction, shootingState);
 
 		bool insideLevel = false;
 
@@ -2745,7 +2720,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				s32 fieldXOffset = entity->fields[0]->selectedIndex;
 				s32 fieldYOffset = entity->fields[1]->selectedIndex;
 
-				if(movementField) {
+				if(getMovementField(entity)) {
 					entity->tileXOffset = fieldXOffset;
 					entity->tileYOffset = fieldYOffset;
 				}

@@ -369,6 +369,10 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 				else if (removeFromParent) {
 					setFlags(field, ConsoleFlag_remove);
 
+					if(field->type == ConsoleField_shootsAtTarget) {
+						clearFlags(consoleEntity, EntityFlag_shooting|EntityFlag_unchargingAfterShooting);
+					}
+
 					bool encounteredField = false;
 
 					for (s32 fieldIndex = 0; fieldIndex < consoleEntity->numFields; fieldIndex++) {

@@ -570,14 +570,20 @@ int main(int argc, char *argv[]) {
 	gameState->textFont = loadFont("fonts/Roboto-Regular.ttf", 64);
 
 	Texture playerStand = loadPNGTexture(gameState, "res/player/stand2");
-	Texture playerJump = loadPNGTexture(gameState, "res/player/jump2");
+	Texture playerJump = loadPNGTexture(gameState, "res/player/jump3");
+	Animation playerStandJumpTransition = loadAnimation(gameState, "res/player/jump_transition", 256, 256, 0.025f, false);
 	Animation playerWalk = loadAnimation(gameState, "res/player/running 2", 256, 256, 0.0325f, true);
 	Animation playerStandWalkTransition = loadAnimation(gameState, "res/player/stand_run_transition", 256, 256, 0.01f, false);
 	Animation playerHackingAnimation = loadAnimation(gameState, "res/player/Hacking Flow Sprite", 512, 256, 0.07f, true);
 	Animation playerHackingAnimationTransition = loadAnimation(gameState, "res/player/Hacking Sprite Full 2", 256, 256, 0.025f, false);
 
 	gameState->playerStand = createAnimNode(&playerStand);
-	gameState->playerJump = createAnimNode(&playerJump);
+
+
+	gameState->playerJump.intro = playerStandJumpTransition;
+	gameState->playerJump.main = createAnimation(&playerJump);
+	gameState->playerJump.outro = createReversedAnimation(&playerStandJumpTransition);
+
 
 	gameState->playerWalk.main = playerWalk;
 	gameState->playerWalk.intro = playerStandWalkTransition;

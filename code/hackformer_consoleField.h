@@ -13,6 +13,7 @@ enum ConsoleFieldType {
 	ConsoleField_bool,
 	ConsoleField_Alertness,
 	ConsoleField_followsWaypoints,
+	ConsoleField_spotlight,
 };
 
 enum ConsoleFieldFlags {
@@ -112,7 +113,8 @@ bool canOnlyHaveOneFieldOfType(ConsoleFieldType type) {
 	bool result = type == ConsoleField_isShootTarget ||
 				  type == ConsoleField_shootsAtTarget ||
 				  type == ConsoleField_cameraFollows || 
-				  type == ConsoleField_killsOnHit;
+				  type == ConsoleField_killsOnHit || 
+				  type == ConsoleField_spotlight;
 
  	return result;
 }
