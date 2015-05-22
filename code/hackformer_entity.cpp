@@ -2276,7 +2276,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 	//		like the player is falling to make the gravity seem less 'floaty'.
 	V2 gravity = gameState->gravity;
 	if (entity->dP.y < 0) gravity *= 2;		
-	V2 ddP;
+	V2 ddP;	
 
 
 	ConsoleField* movementField = getMovementField(entity);

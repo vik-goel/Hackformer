@@ -160,6 +160,24 @@ struct EntityChunk {
 	EntityChunk* next;
 };
 
+struct Button {
+	Texture texture;
+	R2 bounds;
+	bool32 selected;
+	double scale;
+};
+
+struct PauseMenu {
+	Texture background;
+	Animation backgroundAnim;
+	double animCounter;
+
+	Button quit;
+	Button restart;
+	Button resume;
+	Button settings;
+};
+
 struct GameState {
 	Entity entities[1000];
 	s32 numEntities;
@@ -254,9 +272,7 @@ struct GameState {
 	Texture dock;
 	Texture dockBlueEnergyTile;
 
-	Texture pauseMenuBackground;
-	Animation pauseMenuAnim;
-	double pauseMenuAnimCounter;
+	PauseMenu pauseMenu;
 };
 
 #define pushArray(arena, type, count) (type*)pushIntoArena_(arena, count * sizeof(type))

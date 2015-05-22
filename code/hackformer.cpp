@@ -440,6 +440,54 @@ MemoryArena createArena(size_t size) {
 	return result;
 }
 
+Button createPauseMenuButton(GameState* gameState, char* textureFilePath, V2 p, double buttonHeight) {
+	Button result = {};
+
+	result.texture = loadPNGTexture(gameState, textureFilePath, false);
+
+	double buttonWidth = getAspectRatio(&result.texture) * buttonHeight;
+
+	V2 size = v2(buttonWidth, buttonHeight);
+	result.bounds = rectCenterDiameter(p, size);
+	result.scale = 1;
+	result.selected = false;
+
+	return result;
+}
+
+bool updateAndDrawButton(Button* button, RenderGroup* group, Input* input, double dt) {
+	bool clicked = false;
+
+	if(input->leftMouse.justPressed) {
+		button->selected = pointInsideRect(button->bounds, input->mouseInMeters);
+	}
+
+	double scaleSpeed = 2.25 * dt;
+	double minScale = 0.825;
+
+	if(button->selected) {
+		if(input->leftMouse.pressed) {
+			button->scale -= scaleSpeed;
+		} else {
+			button->selected = false;
+			clicked = true;
+		}
+	} 
+
+	if(!button->selected) {
+		button->scale += scaleSpeed;
+	}
+
+	if(button->scale < minScale) button->scale = minScale;
+	else if(button->scale > 1) button->scale = 1;
+
+	R2 scaledBounds = scaleRect(button->bounds, v2(1, 1) * button->scale);
+
+	pushTexture(group, &button->texture, scaledBounds, false, DrawOrder_gui);
+
+	return clicked;
+}
+
 int main(int argc, char *argv[]) {
 	s32 windowWidth = 1280, windowHeight = 720;
 
@@ -644,21 +692,24 @@ int main(int argc, char *argv[]) {
 	double fieldHeight = 1;
 	double fieldWidth = fieldHeight * fieldSizeAspectRatio;
 
-		//spec->fieldSize = v2(2.55, 0.6);
 	spec->fieldSize = v2(fieldWidth, fieldHeight);
-	//spec->triangleSize = (gameState->fieldSpec.fieldSize.y * 0.8) * v2(1, 1);
 	spec->triangleSize = 0.6 * v2(1, 1);
-	//spec->valueSize = v2(gameState->fieldSpec.fieldSize.x * 0.5, gameState->fieldSpec.fieldSize.y);
 	spec->valueSize = v2(1.25, 0.6);
 	spec->spacing = v2(0.05, 0);
-	//spec->childInset = gameState->fieldSpec.fieldSize.x * 0.25;
 	spec->childInset = spec->fieldSize.x * 0.125;
 
 	gameState->dock = loadPNGTexture(gameState, "res/dock 2", false);
 	gameState->dockBlueEnergyTile = loadPNGTexture(gameState, "res/Blue Energy Tile", false);
 
-	gameState->pauseMenuBackground = loadPNGTexture(gameState, "res/Pause Menu", false);
-	gameState->pauseMenuAnim = loadAnimation(gameState, "res/Pause Menu Sprite", 1280, 720, 1.f, true);
+	PauseMenu* pauseMenu = &gameState->pauseMenu;
+
+	pauseMenu->background = loadPNGTexture(gameState, "res/Pause Menu", false);
+	pauseMenu->backgroundAnim = loadAnimation(gameState, "res/Pause Menu Sprite", 1280, 720, 1.f, true);
+
+	pauseMenu->quit = createPauseMenuButton(gameState, "res/Quit Button", v2(15.51, 2.62), 1.5);
+	pauseMenu->restart = createPauseMenuButton(gameState, "res/Restart Button", v2(6.54, 4.49), 1.1);
+	pauseMenu->resume = createPauseMenuButton(gameState, "res/Resume Button", v2(3.21, 8.2), 1.18);
+	pauseMenu->settings = createPauseMenuButton(gameState, "res/Settings Button", v2(12.4, 6.8), 1.08);
 
 	u32 numTilesInAtlas;
 	gameState->tileAtlas = extractTextures(gameState, "res/tiles_floored", 120, 240, 12, &numTilesInAtlas);
@@ -706,6 +757,7 @@ int main(int argc, char *argv[]) {
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		if (dtForFrame > maxDtForFrame) dtForFrame = maxDtForFrame;
+		double unpausedDtForFrame = dtForFrame;
 
 		gameState->swapFieldP = gameState->windowSize * 0.5 + v2(0.19, 4.4);
 
@@ -713,13 +765,13 @@ int main(int argc, char *argv[]) {
 
 		if(gameState->input.pause.justPressed) {
 			paused = !paused;
-			gameState->pauseMenuAnimCounter = 0;
+			gameState->pauseMenu.animCounter = 0;
 		}
 
 		Input oldInput;
 
 		if(paused) {
-			gameState->pauseMenuAnimCounter += dtForFrame;
+			gameState->pauseMenu.animCounter += dtForFrame;
 			dtForFrame = 0;
 			oldInput = gameState->input;
 		}
@@ -782,13 +834,15 @@ int main(int argc, char *argv[]) {
 
 		updateConsole(gameState, dtForFrame, paused);
 
+		bool levelResetRequested = false;
+
 		if(paused) {
 			R2 windowBounds = r2(v2(0, 0), gameState->windowSize);
 
-			Texture* frame1 = getAnimationFrame(&gameState->pauseMenuAnim, gameState->pauseMenuAnimCounter);
-			Texture* frame2 = getAnimationFrame(&gameState->pauseMenuAnim, gameState->pauseMenuAnimCounter + gameState->pauseMenuAnim.secondsPerFrame);
+			Texture* frame1 = getAnimationFrame(&pauseMenu->backgroundAnim, pauseMenu->animCounter);
+			Texture* frame2 = getAnimationFrame(&pauseMenu->backgroundAnim, pauseMenu->animCounter + pauseMenu->backgroundAnim.secondsPerFrame);
 
-			double frameIndex = gameState->pauseMenuAnimCounter / gameState->pauseMenuAnim.secondsPerFrame;
+			double frameIndex = pauseMenu->animCounter / pauseMenu->backgroundAnim.secondsPerFrame;
 			double frameIndexPercent = frameIndex - (int)frameIndex;
 
 			assert(frameIndexPercent >= 0 && frameIndexPercent <= 1);
@@ -799,9 +853,26 @@ int main(int argc, char *argv[]) {
 			Color frame1Color = createColor(255, 255, 255, frame1Alpha);
 			Color frame2Color = createColor(255, 255, 255, frame2Alpha);
 
-			pushTexture(gameState->renderGroup, &gameState->pauseMenuBackground, windowBounds, false, DrawOrder_gui, false);
+			pushTexture(gameState->renderGroup, &pauseMenu->background, windowBounds, false, DrawOrder_gui, false);
 			pushTexture(gameState->renderGroup, frame1, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame1Color);
 			pushTexture(gameState->renderGroup, frame2, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame2Color);
+		
+			if (updateAndDrawButton(&pauseMenu->quit, gameState->renderGroup, &gameState->input, unpausedDtForFrame)) {
+				running = false;
+			}
+
+			if (updateAndDrawButton(&pauseMenu->restart, gameState->renderGroup, &gameState->input, unpausedDtForFrame)) {
+				levelResetRequested = true;
+				paused = false;
+			}
+
+			if (updateAndDrawButton(&pauseMenu->resume, gameState->renderGroup, &gameState->input, unpausedDtForFrame)) {
+				paused = false;
+			}
+
+			if (updateAndDrawButton(&pauseMenu->settings, gameState->renderGroup, &gameState->input, unpausedDtForFrame)) {
+				//TODO: Implement settings
+			}
 		}
 
 		drawRenderGroup(gameState->renderGroup, &gameState->fieldSpec);
@@ -827,7 +898,7 @@ int main(int argc, char *argv[]) {
 
 		{ //NOTE: This reloads the game
 			bool resetLevel = !getEntityByRef(gameState, gameState->playerDeathRef) &&
-							  (!getEntityByRef(gameState, gameState->playerRef) || gameState->input.r.justPressed);
+							  (!getEntityByRef(gameState, gameState->playerRef) || gameState->input.r.justPressed || levelResetRequested);
 
 			
 			if (gameState->loadNextLevel || 
