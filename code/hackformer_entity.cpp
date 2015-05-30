@@ -3007,7 +3007,6 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				DrawOrder drawOrder = entity->drawOrder;
 
 				if(entity->type == EntityType_tile && getMovementField(entity) != NULL) drawOrder = DrawOrder_movingTile;
-
 				pushEntityTexture(gameState->renderGroup, texture, entity, drawLeft, drawOrder);
 			}
 		}

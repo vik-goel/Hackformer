@@ -419,12 +419,6 @@ Color createColor(u8 r, u8 g, u8 b, u8 a) {
 }
 
 void setColor(RenderGroup* group, Color color) {
-	// assert(color.r >= 0 && color.r <= 255);
-	// assert(color.g >= 0 && color.g <= 255);
-	// assert(color.b >= 0 && color.b <= 255);
-	// assert(color.a >= 0 && color.a <= 255);
-	//SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-
 	GLfloat r = (GLfloat)((color.r + 0.5) / 255.0);
 	GLfloat g = (GLfloat)((color.g + 0.5) / 255.0);
 	GLfloat b = (GLfloat)((color.b + 0.5) / 255.0);

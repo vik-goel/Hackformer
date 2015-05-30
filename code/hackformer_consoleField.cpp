@@ -600,6 +600,8 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 					case Alertness_detected: {
 						sprintf(field->valueStr, "detected");
 					} break;
+
+					InvalidDefaultCase;
 				}
 			} break;
 
@@ -618,7 +620,6 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 				pushTexture(group, &spec->valueBackground, valueBounds, false, DrawOrder_gui);
 
 				V2 textP = valueP - v2(0, 0.225);
-
 				pushText(group, &spec->consoleFont, field->valueStr, textP, WHITE, TextAlignment_center);
 
 				V2 leftTriangleP = v2(valueP.x - spec->valueSize.x*0.5, fieldP.y - spec->valueBackgroundPenetration * 0.5);
@@ -818,9 +819,15 @@ void updateConsole(GameState* gameState, double dt, bool paused) {
 	{ //NOTE: This draws the gravity field
 		ConsoleField* gravityField = gameState->gravityField;
 		assert(gravityField);
-		drawFieldsRaw(gameState->renderGroup, &gameState->input, &gravityField, 1, spec, paused);
+		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gravityField, 1, spec, paused)) clickHandled = true;
 
 		gameState->gravity = v2(0, gravityField->doubleValues[gravityField->selectedIndex]);
+	}
+
+	{ //NOTE: This draws the time field
+		ConsoleField* timeField = gameState->timeField;
+		assert(timeField);
+		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &timeField, 1, spec, paused)) clickHandled = true;
 	}
 
 		//NOTE: This draws the swap field

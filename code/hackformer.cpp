@@ -392,11 +392,19 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 		initPlayerDeath = false;
 	}
 
-	double gravityValues[] = {-9.8, -4.9, 0, 4.9, 9.8};
-	s32 gravityFieldModifyCost = 5;
-	gameState->gravityField = createPrimitiveField(double, gameState, "gravity", gravityValues, arrayCount(gravityValues), 0, gravityFieldModifyCost);
+	{
+		double gravityValues[] = {-9.8, -4.9, 0, 4.9, 9.8};
+		s32 gravityFieldModifyCost = 10;
+		gameState->gravityField = createPrimitiveField(double, gameState, "gravity", gravityValues, arrayCount(gravityValues), 0, gravityFieldModifyCost);
+		gameState->gravityField->p = v2(2.25, gameState->windowSize.y - 0.8);
+	}
 
-	gameState->gravityField->p = v2(2.25, gameState->windowSize.y - 0.8);
+	{
+		double timeValues[] = {0, 0.2, 0.5, 1, 2};
+		s32 timeFieldModifyCost = 10;
+		gameState->timeField = createPrimitiveField(double, gameState, "time", timeValues, arrayCount(timeValues), 3, timeFieldModifyCost);
+		gameState->timeField->p = v2(gameState->windowSize.x - 2.5, gameState->windowSize.y - 0.8);
+	}
 
 	loadTmxMap(gameState, maps[*mapFileIndex]);
 	addFlyingVirus(gameState, v2(7, 6));
@@ -759,6 +767,7 @@ int main(int argc, char* argv[]) {
 		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT);
 
+		dtForFrame *= gameState->timeField->doubleValues[gameState->timeField->selectedIndex];
 		if (dtForFrame > maxDtForFrame) dtForFrame = maxDtForFrame;
 		double unpausedDtForFrame = dtForFrame;
 
