@@ -396,7 +396,7 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 	s32 gravityFieldModifyCost = 5;
 	gameState->gravityField = createPrimitiveField(double, gameState, "gravity", gravityValues, arrayCount(gravityValues), 0, gravityFieldModifyCost);
 
-	gameState->gravityField->p = v2(2.25, gameState->windowSize.y - 0.625);
+	gameState->gravityField->p = v2(2.25, gameState->windowSize.y - 0.8);
 
 	loadTmxMap(gameState, maps[*mapFileIndex]);
 	addFlyingVirus(gameState, v2(7, 6));
@@ -488,7 +488,7 @@ bool updateAndDrawButton(Button* button, RenderGroup* group, Input* input, doubl
 	return clicked;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
 	s32 windowWidth = 1280, windowHeight = 720;
 
 	//TODO: Proper error handling if any of these libraries does not load
@@ -563,17 +563,17 @@ int main(int argc, char *argv[]) {
 
 	if (glewStatus != GLEW_OK) {
 		fprintf(stderr, "Failed to initialize glew. Error: %s\n", glewGetErrorString(glewStatus));
-		assert(false);
+		InvalidCodePath;
 	}
 
 	if (!window) {
 		fprintf(stderr, "Failed to create window. Error: %s", SDL_GetError());
-		assert(false);
+		InvalidCodePath;
 	}
 
 	if (TTF_Init()) {
 		fprintf(stderr, "Failed to initialize SDL_ttf.");
-		assert(false);
+		InvalidCodePath;
 	}
 
 	MemoryArena arena_ = createArena(1024 * 1024);
@@ -683,18 +683,21 @@ int main(int argc, char *argv[]) {
 	spec->consoleTriangleGrey = loadPNGTexture(gameState, "res/triangle_grey");
 	spec->consoleTriangleYellow = loadPNGTexture(gameState, "res/triangle_yellow");
 	spec->consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
-	spec->attribute = loadPNGTexture(gameState, "res/Attribute 2", false);
-	spec->behaviour = loadPNGTexture(gameState, "res/Behaviour 2", false);
+	spec->attribute = loadPNGTexture(gameState, "res/attributes/Attribute", false);
+	spec->behaviour = loadPNGTexture(gameState, "res/attributes/Behaviour", false);
+	spec->valueBackground = loadPNGTexture(gameState, "res/attributes/Changer Readout", false);
+	spec->leftButtonDefault = loadPNGTexture(gameState, "res/attributes/Left Button", false);
+	spec->leftButtonClicked = loadPNGTexture(gameState, "res/attributes/Left Button Clicked", false);
+	spec->leftButtonUnavailable = loadPNGTexture(gameState, "res/attributes/Left Button Unavailable", false);
 	spec->waypoint = loadPNGTexture(gameState, "res/waypoint", false);
 	spec->waypointArrow = loadPNGTexture(gameState, "res/waypoint_arrow", false);
+	spec->tileHackShield = loadPNGTexture(gameState, "res/Tile Hack Shield", false);
 
-	double fieldSizeAspectRatio = getAspectRatio(&spec->behaviour);
-	double fieldHeight = 1;
-	double fieldWidth = fieldHeight * fieldSizeAspectRatio;
-
-	spec->fieldSize = v2(fieldWidth, fieldHeight);
-	spec->triangleSize = 0.6 * v2(1, 1);
-	spec->valueSize = v2(1.25, 0.6);
+	spec->fieldSize = getDrawSize(&spec->behaviour, 0.5);
+	spec->valueSize = getDrawSize(&spec->valueBackground, 0.8);
+	spec->valueBackgroundPenetration = 0.4;
+	
+	spec->triangleSize = getDrawSize(&spec->leftButtonDefault, spec->valueSize.y - spec->valueBackgroundPenetration + spec->fieldSize.y);
 	spec->spacing = v2(0.05, 0);
 	spec->childInset = spec->fieldSize.x * 0.125;
 
@@ -759,13 +762,17 @@ int main(int argc, char *argv[]) {
 		if (dtForFrame > maxDtForFrame) dtForFrame = maxDtForFrame;
 		double unpausedDtForFrame = dtForFrame;
 
-		gameState->swapFieldP = gameState->windowSize * 0.5 + v2(0.19, 4.4);
+		gameState->swapFieldP = gameState->windowSize * 0.5 + v2(0.08, 4.43);
 
 		pollInput(gameState, &running);
 
 		if(gameState->input.pause.justPressed) {
 			paused = !paused;
 			gameState->pauseMenu.animCounter = 0;
+			pauseMenu->quit.scale = 1;
+			pauseMenu->restart.scale = 1;
+			pauseMenu->settings.scale = 1;
+			pauseMenu->resume.scale = 1;
 		}
 
 		Input oldInput;

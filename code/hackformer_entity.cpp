@@ -145,6 +145,7 @@ EntityChunk* getSpatialChunk(V2 p, GameState* gameState) {
 		y >= 0 && 
 		x < gameState->chunksWidth &&
 		y < gameState->chunksHeight) {
+		
 		result = gameState->chunks + y * gameState->chunksWidth + x;
 	}
 
@@ -314,7 +315,7 @@ void freeEntity(Entity* entity, GameState* gameState, bool endOfLevel) {
 		if(createsPickupFieldsOnDeath(entity)) {
 			for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
 				if(entity->fields[fieldIndex]) {
-					if(canFieldBeMoved(entity->fields[fieldIndex]) && entity->fields[fieldIndex]->type != ConsoleField_givesEnergy) {
+					if(!hasValues(entity->fields[fieldIndex]) && entity->fields[fieldIndex]->type != ConsoleField_givesEnergy) {
 						Entity* pickupField = addPickupField(gameState, entity, entity->fields[fieldIndex]);
 
 						pickupField->dP.x = (fieldIndex / 2 + 1) * 30;
@@ -2248,7 +2249,7 @@ bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt) 
 					if (isSet(entity, EntityFlag_facesLeft)) {
 						spawnOffset.x *= -1;
 					}
-
+					
 					if(target) {
 						ConsoleField* bulletSpeedField = shootField->children[0];
 						double bulletSpeed = bulletSpeedField->doubleValues[bulletSpeedField->selectedIndex];
@@ -2462,7 +2463,12 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 
 
 			case ConsoleField_followsWaypoints: {
-				if(!shootingState) {
+				ConsoleField* alertnessField = getField(movementField->children, movementField->numChildren, ConsoleField_Alertness);
+				assert(alertnessField);
+
+				Alertness alertness = (Alertness)alertnessField->selectedIndex;
+
+				if(!shootingState && alertness > Alertness_asleep) {
 					Waypoint* cur = movementField->curWaypoint;
 					assert(cur);
 

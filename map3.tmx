@@ -21,6 +21,11 @@
 2,0,0,0,0,0,2,4,4,3,0,0,0,0,0,0,0,0,0,0,2,4,4,4,3,2,4,4,4,4,4,4,4,4,4,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,4,4,4,3,0,0,0,2,0,2,4,3,0,0,2,4,4,4,4,4,4,4,4,4,4
 </data>
  </layer>
+ <objectgroup name="waypoints">
+  <object name="path 1" x="496" y="608">
+   <polygon points="0,0 404,-276 1900,-496 1928,-108 1688,48 876,80"/>
+  </object>
+ </objectgroup>
  <objectgroup name="objects">
   <object name="player" gid="9" x="8" y="792"/>
   <object name="red energy" gid="8" x="1490" y="944"/>

@@ -4,8 +4,52 @@
 		"selected_items":
 		[
 			[
+				"getTot",
+				"getTotalFieldHeight"
+			],
+			[
+				"paus",
+				"pauseMenuBackground"
+			],
+			[
+				"getColl",
+				"GetCollisionTimeResult"
+			],
+			[
 				"ne",
-				"newR"
+				"negativeCameraP"
+			],
+			[
+				"child",
+				"childYOffs"
+			],
+			[
+				"removeF",
+				"removeFieldsIfSet"
+			],
+			[
+				"twea",
+				"tweakCost"
+			],
+			[
+				"pene",
+				"ignoreAllPenetratingEntities"
+			],
+			[
+				"on",
+				"onScreenRight"
+			],
+			[
+				"EntityType_p",
+				"EntityType_pickupField"
+			],
+			[
+				"triang",
+				"triangleSize"
+			],
+			[
+				"ignore",
+				"ignoreAllPenetratingEntities"
 			],
 			[
 				"fragmentS",
@@ -340,42 +384,34 @@
 	"buffers":
 	[
 		{
-			"file": "code/hackformer_consoleField.cpp",
+			"file": "/C/Users/Vik/workspace/c++former/code/hackformer.cpp",
 			"settings":
 			{
-				"buffer_size": 26390,
+				"buffer_size": 30426,
 				"line_ending": "Windows"
 			}
 		},
 		{
-			"file": "code/hackformer.cpp",
+			"file": "/C/Users/Vik/workspace/c++former/code/hackformer_consoleField.cpp",
 			"settings":
 			{
-				"buffer_size": 24323,
+				"buffer_size": 33511,
 				"line_ending": "Windows"
 			}
 		},
 		{
-			"file": "code/hackformer_entity.cpp",
+			"file": "/C/Users/Vik/workspace/c++former/code/hackformer_entity.cpp",
 			"settings":
 			{
-				"buffer_size": 84078,
+				"buffer_size": 92287,
 				"line_ending": "Windows"
 			}
 		},
 		{
-			"file": "code/hackformer_renderer.cpp",
+			"file": "/C/Users/Vik/workspace/c++former/code/hackformer_renderer.cpp",
 			"settings":
 			{
-				"buffer_size": 36920,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "code/hackformer_consoleField.h",
-			"settings":
-			{
-				"buffer_size": 2201,
+				"buffer_size": 42654,
 				"line_ending": "Windows"
 			}
 		},
@@ -383,15 +419,7 @@
 			"file": "code/hackformer_renderer.h",
 			"settings":
 			{
-				"buffer_size": 2748,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "code/hackformer.h",
-			"settings":
-			{
-				"buffer_size": 5201,
+				"buffer_size": 3120,
 				"line_ending": "Windows"
 			}
 		},
@@ -399,7 +427,34 @@
 			"file": "code/hackformer_entity.h",
 			"settings":
 			{
-				"buffer_size": 3167,
+				"buffer_size": 3357,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"contents": "enum ConsoleFieldType {\n	ConsoleField_cameraFollows,\n	ConsoleField_keyboardControlled,\n	ConsoleField_movesBackAndForth,\n	ConsoleField_seeksTarget,\n	ConsoleField_isShootTarget,\n	ConsoleField_shootsAtTarget,\n	ConsoleField_givesEnergy,\n	ConsoleField_killsOnHit,\n	ConsoleField_double,\n	ConsoleField_unlimitedInt,\n	ConsoleField_s32,\n	ConsoleField_bool,\n	ConsoleField_Alertness,\n	ConsoleField_followsWaypoints,\n	ConsoleField_spotlight,\n};\n\nenum ConsoleFieldFlags {\n	ConsoleFlag_selected = 1 << 0,\n	ConsoleFlag_remove = 1 << 1,\n	ConsoleFlag_childrenVisible = 1 << 2,\n};\n\nenum Alertness {\n	Alertness_asleep,\n	Alertness_patrolling,\n	Alertness_searching,\n	Alertness_detected,\n\n	Alertness_count\n};\n\nstruct Waypoint {\n	V2 p;\n	Waypoint* next;\n};\n\nstruct ConsoleField {\n	ConsoleFieldType type;\n	u32 flags;\n\n	char name[100];\n	\n	//NOTE: These attributes are used for fields with many values\n	union {\n		double doubleValues[5];\n		s32 intValues[10];\n\n		struct {\n			Waypoint* curWaypoint;\n			double waypointDelay;\n		};\n	};\n	s32 numValues;\n	\n	s32 selectedIndex;\n	s32 initialIndex;\n\n	s32 tweakCost;\n	\n	char valueStr[100];\n\n	V2 p;\n\n	//NOTE: These attributes are used for drag and droppable fields\n	V2 offs;\n\n	//NOTE: This is used for storage in the free list\n	ConsoleField* next;\n\n	//NOTE: This is used for hierarchal console fields\n	ConsoleField* children[4];\n	s32 numChildren;\n	double childYOffs;\n};\n\nstruct FieldSpec {\n	V2 fieldSize;\n	V2 triangleSize;\n	V2 valueSize;\n	\n	V2 spacing;\n	double childInset;\n\n	V2 mouseOffset;\n\n	int blueEnergy;\n\n	Texture consoleTriangle;\n	Texture consoleTriangleYellow;\n	Texture consoleTriangleGrey;\n	Texture consoleTriangleSelected;\n\n	Texture attribute;\n	Texture behaviour;\n	Texture valueBackground;\n	Texture leftButtonClicked;\n	Texture leftButtonUnavailable;\n	Texture leftButtonDefault;\n\n	Texture waypoint;\n	Texture waypointArrow;\n\n	Texture tileHackShield;\n\n	CachedFont consoleFont;\n};\n\nbool isConsoleFieldMovementType(ConsoleField* field) {\n	bool result = field->type == ConsoleField_keyboardControlled ||\n				  field->type == ConsoleField_movesBackAndForth ||\n				  field->type == ConsoleField_seeksTarget ||\n				  field->type == ConsoleField_followsWaypoints;\n	return result;\n}\n\n//TODO: This could be a flag instead\nbool canOnlyHaveOneFieldOfType(ConsoleFieldType type) {\n	bool result = type == ConsoleField_isShootTarget ||\n				  type == ConsoleField_shootsAtTarget ||\n				  type == ConsoleField_cameraFollows || \n				  type == ConsoleField_killsOnHit || \n				  type == ConsoleField_spotlight;\n\n 	return result;\n}\n\nvoid setFlags(ConsoleField* field, u32 flags) {\n	field->flags |= flags;\n} \n\nvoid clearFlags(ConsoleField* field, u32 flags) {\n	field->flags &= ~flags;\n} \n\nvoid toggleFlags(ConsoleField* field, u32 toggle) {\n	field->flags ^= toggle;\n}\n\nbool32 isSet(ConsoleField* field, u32 flags) {\n	bool32 result = (field->flags & flags) != 0;\n	return result;\n}\n\nbool drawConsoleField(ConsoleField*, RenderGroup*, Input*, FieldSpec*, bool, bool = true);",
+			"file": "code/hackformer_consoleField.h",
+			"file_size": 3107,
+			"file_write_time": 130772352762881870,
+			"settings":
+			{
+				"buffer_size": 2965,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer.h",
+			"settings":
+			{
+				"buffer_size": 6012,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_math.h",
+			"settings":
+			{
+				"buffer_size": 8360,
 				"line_ending": "Windows"
 			}
 		}
@@ -458,29 +513,68 @@
 	],
 	"file_history":
 	[
+		"/C/Users/Vik/workspace/android-stotra-apps/android-stotra-apps/settings.gradle",
+		"/C/Users/Vik/workspace/android-stotra-apps/android-stotra-apps/build.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/UILibrary/build.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/settings.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/BhajanPlayer/build.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/build.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/local.properties",
+		"/W/android-stotra-apps/android-stotra-apps/UILibrary/local.properties",
+		"/W/android-stotra-apps/android-stotra-apps/Guru-Gita/build.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/Bhagavad-Gita/build.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/Vishnu-Sahasranamam/build.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/Shatashloki-Ramayana/build.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/Lalita-Sahasranamam/build.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/Kavacha-Manjari/build.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/Hanuman-Chalisa-Telugu/build.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/Hanuman-Chalisa-Tamil/build.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/Hanuman-Chalisa-Kannada/build.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/Hanuman-Chalisa/build.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/Hanuman-Chalisa-Hindi/build.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/Vishnu-Sahasranamam/settings.gradle",
+		"/W/android-stotra-apps/local.properties",
+		"/W/c++former/code/hackformer_renderer.cpp",
+		"/W/c++former/code/hackformer.cpp",
 		"/W/c++former/code/hackformer_consoleField.cpp",
+		"/W/c++former/code/hackformer_entity.cpp",
+		"/W/android-stotra-apps/android-stotra-apps/Bhagavad-Gita/project.properties",
+		"/W/android-stotra-apps/settings.gradle",
+		"/W/android-stotra-apps/android-stotra-apps/Bhagavad-Gita/local.properties",
+		"/W/c++former/code/hackformer_consoleField.h",
+		"/C/Users/Vik/Downloads/sources/Wav_File.jai",
+		"/C/Users/Vik/Downloads/sources/demo.jai",
+		"/C/Users/Vik/Downloads/sources/Build.jai",
+		"/C/Users/Vik/Downloads/sources/Basic.jai",
+		"/C/Users/Vik/Downloads/sources/Print.jai",
+		"/C/Users/Vik/Downloads/sources/Mixer_Win32.jai",
+		"/C/Users/Vik/Downloads/sources/Preload.jai",
+		"/C/Users/Vik/Downloads/sources/stb_image.jai",
+		"/C/Users/Vik/Downloads/sources/File.jai",
+		"/C/Users/Vik/Downloads/sources/GL.jai",
+		"/C/Users/Vik/Downloads/sources/Thread.jai",
+		"/C/Users/Vik/Downloads/sources/Mixer.jai",
+		"/C/Users/Vik/Downloads/sources/Math.jai",
+		"/C/Users/Vik/Downloads/sources/Pool.jai",
 		"/W/c++former/code/hackformer_math.h",
+		"/W/c++former/code/hackformer_entity.h",
+		"/W/c++former/code/hackformer.h",
+		"/W/c++former/code/hackformer_renderer.h",
+		"/W/c++former/shaders/forward.frag",
+		"/C/Users/Vik/AppData/Local/Temp/Temp1_iaca-win64.zip/iaca-win64/iacaMarks.h",
 		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/Default (Windows).sublime-keymap",
 		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/Default/Default (Windows).sublime-keymap",
 		"/C/Users/Vik/Downloads/handmade_hero_038_source/handmade_hero_day_038_source/code/handmade_platform.h",
-		"/W/c++former/code/hackformer.cpp",
-		"/W/c++former/shaders/forward.frag",
 		"/C/Users/Vik/Downloads/handmade_hero_108_source/handmade_hero_day_108_source/code/handmade_render_group.cpp",
 		"/C/Users/Vik/Downloads/handmade_hero_108_source/handmade_hero_day_108_source/code/handmade.cpp",
 		"/C/Users/Vik/Downloads/handmade_hero_108_source/handmade_hero_day_108_source/code/win32_handmade.cpp",
 		"/W/c++former/shaders/basic.frag",
 		"/W/c++former/shaders/basic.vert",
 		"/W/c++former/release/shaders/basic.frag",
-		"/W/c++former/code/hackformer_renderer.cpp",
 		"/W/Dunjun/data/shaders/default.frag",
 		"/C/Users/Vik/Downloads/pixel_exact/pixel_exact/glsl/simple.vert",
 		"/C/Users/Vik/Downloads/pixel_exact/pixel_exact/glsl/simple.frag",
-		"/W/c++former/code/hackformer_entity.cpp",
 		"/W/Dunjun/code/Dunjun.cpp",
-		"/W/c++former/code/hackformer.h",
-		"/W/c++former/code/hackformer_entity.h",
-		"/W/c++former/code/hackformer_consoleField.h",
-		"/W/c++former/code/hackformer_renderer.h",
 		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_093_source.zip/code/handmade_render_group.h",
 		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_093_source.zip/code/handmade_render_group.cpp",
 		"/W/c++former/shaders/basic.frag.txt",
@@ -547,6 +641,59 @@
 		"case_sensitive": false,
 		"find_history":
 		[
+			"loadPNG",
+			"\\",
+			");\n",
+			"swapFIeldP =",
+			"paused",
+			"_W",
+			"get_wav_header",
+			"struct",
+			"serialize_simple",
+			"use_preexisting_code",
+			"removeFromP",
+			"#if 0",
+			"ConsoleFIeld_followsW",
+			"drawDashedLine",
+			"x",
+			"followsW",
+			"follows",
+			"startPos",
+			"moveTowardsW",
+			"movementField",
+			"ConsoleField_seeks",
+			"newIndex",
+			"mouse",
+			"drawConsoleT",
+			"addField",
+			"right",
+			"consoleFont",
+			"tweakCost",
+			"int",
+			"moveField(",
+			"moveField",
+			"#if 0",
+			"entity->p.y =",
+			"entity->p.x =",
+			"entity->p =",
+			"chunkSize",
+			"ConsoleField_moves",
+			"#if 0",
+			">= 2",
+			">= ",
+			">= 2",
+			"getTota",
+			"calcFieldPositions",
+			"moveToE",
+			"addField",
+			"getBot",
+			"		\n",
+			"fieldSkip",
+			"refNode(",
+			"entity->numFields",
+			"EntityType_pickupField",
+			"_s",
+			"#if 0",
 			"moveTime",
 			"gravity",
 			"moveField",
@@ -621,60 +768,7 @@
 			"moveField",
 			"EntityType_back",
 			"moveTime",
-			"showPlayerHackingAnim",
-			"playerHack",
-			"keyboardCo",
-			"vsync",
-			"animTime",
-			"keyboard",
-			"breakHere",
-			"currentAnim = ",
-			"animTime",
-			"showPlayerHackingAnim",
-			"ambient",
-			"addF",
-			"gl",
-			"facesLeft",
-			"setUniform",
-			"white",
-			"pushText",
-			"camera",
-			"setColor",
-			"metersPerPixel",
-			"AnimState_standing",
-			"groundFriction",
-			"gravity",
-			"remove if",
-			"remove when",
-			"entity->ref -1",
-			"entity->ref + 2",
-			"entity->ref + 1",
-			"shoot",
-			"372",
-			"EntityType_tile",
-			"EntityType_heavyTile",
-			"EntityFlag_removeWhenOutsideLevel",
-			"EntityType_tile",
-			"EntityType_laserBeam",
-			"getMovementField",
-			"epsilon",
-			"moveEp",
-			"drawTexture",
-			"isTileT",
-			"doubleValues",
-			"sprin",
-			"addPrimitiveField",
-			"addPrimi",
-			"moveFieldChildren",
-			"case EntityType_player",
-			"drawConsoleTriangle",
-			"moveField",
-			"drawOutlinedConsoleBox",
-			"moveField",
-			"f = ",
-			"animTime = ",
-			"isLaserC",
-			"moveTime"
+			"showPlayerHackingAnim"
 		],
 		"highlight": true,
 		"in_selection": false,
@@ -682,6 +776,8 @@
 		"regex": false,
 		"replace_history":
 		[
+			"/",
+			"y",
 			"gameState->fieldSpec.",
 			"result",
 			"s32",
@@ -710,34 +806,33 @@
 	"groups":
 	[
 		{
-			"selected": 3,
+			"selected": 1,
 			"sheets":
 			[
 				{
 					"buffer": 0,
-					"file": "code/hackformer_consoleField.cpp",
+					"file": "/C/Users/Vik/workspace/c++former/code/hackformer.cpp",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 26390,
+						"buffer_size": 30426,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								21736,
-								21736
+								21673,
+								21673
 							]
 						],
 						"settings":
 						{
-							"history_list_is_closing": true,
 							"syntax": "Packages/C++/C++.tmLanguage",
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 9248.0,
+						"translation.y": 9234.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 2,
@@ -745,171 +840,19 @@
 				},
 				{
 					"buffer": 1,
-					"file": "code/hackformer.cpp",
+					"file": "/C/Users/Vik/workspace/c++former/code/hackformer_consoleField.cpp",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 24323,
+						"buffer_size": 33511,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								19561,
-								19561
-							]
-						],
-						"settings":
-						{
-							"history_list_is_closing": true,
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 8226.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 3,
-					"type": "text"
-				},
-				{
-					"buffer": 2,
-					"file": "code/hackformer_entity.cpp",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 84078,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								31777,
-								31777
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 15176.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 4,
-					"type": "text"
-				},
-				{
-					"buffer": 3,
-					"file": "code/hackformer_renderer.cpp",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 36920,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								33822,
-								33822
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 15652.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 0,
-					"type": "text"
-				}
-			]
-		},
-		{
-			"selected": 2,
-			"sheets":
-			[
-				{
-					"buffer": 4,
-					"file": "code/hackformer_consoleField.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 2201,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								625,
-								625
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 0.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 6,
-					"type": "text"
-				},
-				{
-					"buffer": 5,
-					"file": "code/hackformer_renderer.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 2748,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								2426,
-								2426
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 1893.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 7,
-					"type": "text"
-				},
-				{
-					"buffer": 6,
-					"file": "code/hackformer.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 5201,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								927,
-								927
+								31059,
+								31059
 							]
 						],
 						"settings":
@@ -925,20 +868,84 @@
 					"type": "text"
 				},
 				{
-					"buffer": 7,
-					"file": "code/hackformer_entity.h",
+					"buffer": 2,
+					"file": "/C/Users/Vik/workspace/c++former/code/hackformer_entity.cpp",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 3167,
+						"buffer_size": 92287,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								1427,
-								1427
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 3,
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "/C/Users/Vik/workspace/c++former/code/hackformer_renderer.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 42654,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								369,
+								369
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 6,
+					"type": "text"
+				}
+			]
+		},
+		{
+			"selected": 2,
+			"sheets":
+			[
+				{
+					"buffer": 4,
+					"file": "code/hackformer_renderer.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 3120,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								260,
+								242
 							]
 						],
 						"settings":
@@ -951,6 +958,123 @@
 						"zoom_level": 1.0
 					},
 					"stack_index": 5,
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "code/hackformer_entity.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 3357,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1234,
+								1234
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 448.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 8,
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "code/hackformer_consoleField.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 2965,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1450,
+								1450
+							]
+						],
+						"settings":
+						{
+							"history_list_is_closing": true,
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 1003.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 0,
+					"type": "text"
+				},
+				{
+					"buffer": 7,
+					"file": "code/hackformer.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 6012,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								2414,
+								2414
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 1697.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 4,
+					"type": "text"
+				},
+				{
+					"buffer": 8,
+					"file": "code/hackformer_math.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 8360,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								2126,
+								2283
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 1285.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 7,
 					"type": "text"
 				}
 			]
@@ -984,7 +1108,7 @@
 		"cols":
 		[
 			0.0,
-			0.506249999999,
+			0.513665547741,
 			1.0
 		],
 		"rows":
@@ -1033,10 +1157,14 @@
 	},
 	"select_symbol":
 	{
-		"height": 288.0,
-		"last_filter": "canF",
+		"height": 392.0,
+		"last_filter": "",
 		"selected_items":
 		[
+			[
+				"square",
+				"square"
+			],
 			[
 				"canF",
 				"canFieldBeMoved"
@@ -1072,7 +1200,7 @@
 		],
 		"width": 392.0
 	},
-	"selected_group": 0,
+	"selected_group": 1,
 	"settings":
 	{
 	},

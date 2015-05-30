@@ -1,3 +1,11 @@
+#define WHITE (createColor(255, 255, 255, 255))
+#define RED (createColor(255, 0, 0, 255))
+#define GREEN (createColor(0, 255, 0, 255))
+#define BLUE (createColor(0, 0, 255, 255))
+#define YELLOW (createColor(255, 255, 0, 255))
+#define MAGENTA (createColor(255, 0, 255, 255))
+#define BLACK (createColor(0, 0, 0, 255))
+
 struct Texture {
 	GLuint texId;
 	GLuint normalId;
@@ -18,6 +26,11 @@ struct AnimNode {
 	Animation main;
 	Animation outro;
 	bool32 finishMainBeforeOutro;
+};
+
+enum TextAlignment {
+	TextAlignment_center,
+	TextAlignment_bottomLeft,
 };
 
 struct Glyph {

@@ -16,10 +16,12 @@ enum ConsoleFieldType {
 	ConsoleField_spotlight,
 };
 
-enum ConsoleFieldFlags {
+enum ConsoleFlag {
 	ConsoleFlag_selected = 1 << 0,
 	ConsoleFlag_remove = 1 << 1,
 	ConsoleFlag_childrenVisible = 1 << 2,
+	ConsoleFlag_wasLeftArrowSelected = 1 << 3,
+	ConsoleFlag_wasRightArrowSelected = 1 << 4,
 };
 
 enum Alertness {
@@ -79,8 +81,10 @@ struct FieldSpec {
 	V2 fieldSize;
 	V2 triangleSize;
 	V2 valueSize;
+	
 	V2 spacing;
 	double childInset;
+	double valueBackgroundPenetration;
 
 	V2 mouseOffset;
 
@@ -93,9 +97,15 @@ struct FieldSpec {
 
 	Texture attribute;
 	Texture behaviour;
+	Texture valueBackground;
+	Texture leftButtonClicked;
+	Texture leftButtonUnavailable;
+	Texture leftButtonDefault;
 
 	Texture waypoint;
 	Texture waypointArrow;
+
+	Texture tileHackShield;
 
 	CachedFont consoleFont;
 };

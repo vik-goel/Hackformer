@@ -263,6 +263,16 @@ double getAspectRatio(Texture* texture) {
 	return result;
 }
 
+V2 getDrawSize(Texture* texture, double height) {
+	V2 result = {};
+
+	double aspectRatio = getAspectRatio(texture);
+	result.x = height * aspectRatio;
+	result.y = height;
+
+	return result;
+}
+
 TTF_Font* loadFont(char* fileName, s32 fontSize) {
 	TTF_Font *font = TTF_OpenFont(fileName, fontSize);
 
@@ -508,6 +518,28 @@ double getTextWidth(CachedFont* cachedFont, RenderGroup* group, char* msg) {
 		msg++;
 	}
 
+	return result;
+}
+
+double getTextHeight(CachedFont* cachedFont, RenderGroup* group, char* msg) {
+	double result = 0;
+
+	double metersPerPixel = 1.0 / (group->pixelsPerMeter * cachedFont->scaleFactor);
+	double invScaleFactor = 1.0 / cachedFont->scaleFactor;
+
+	while(*msg) {
+		Glyph* glyph = getGlyph(cachedFont, group, *msg, metersPerPixel);
+		double glyphHeight = glyph->tex.size.y * invScaleFactor - glyph->padding.min.y - glyph->padding.max.y;
+		if(glyphHeight > result) result = glyphHeight;
+
+		msg++;
+	}
+
+	return result;
+}
+
+V2 getTextSize(CachedFont* cachedFont, RenderGroup* group, char* msg) {
+	V2 result = v2(getTextWidth(cachedFont, group, msg), getTextHeight(cachedFont, group, msg));
 	return result;
 }
 
@@ -993,7 +1025,22 @@ void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, boo
 	}
 }
 
-void pushText(RenderGroup* group, CachedFont* font, char* msg, V2 p, Color color = createColor(0, 0, 0, 255)) {
+void pushText(RenderGroup* group, CachedFont* font, char* msg, V2 p, Color color = createColor(0, 0, 0, 255),
+			  TextAlignment alignment = TextAlignment_bottomLeft) {
+
+	switch(alignment) {
+		case TextAlignment_center: {
+			V2 strSize = getTextSize(font, group, msg);
+			p -= v2(strSize.x, strSize.y) * 0.5;
+		} break;
+
+		case TextAlignment_bottomLeft:
+			break;
+
+		InvalidDefaultCase;
+	}
+
+
 	if(group->rendering) {
 		drawText(group, font, msg, p, color);
 	} else {
@@ -1324,7 +1371,7 @@ void drawRenderGroup(RenderGroup* group, FieldSpec* fieldSpec) {
 	PointLight light1 = {v3(15 + tempXOffset, 7, 0), v3(1, 0.3, 0.3), 6};
 	pushPointLight(group, &light1, true);
 
-	group->ambient = (GLfloat)0.25;
+	group->ambient = (GLfloat)0.4;
 #else
 	group->ambient = (GLfloat)1;
 #endif
