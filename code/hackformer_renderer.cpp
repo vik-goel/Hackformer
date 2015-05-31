@@ -230,23 +230,24 @@ void addFileName(TextureData* data, char* fileName) {
 	strcpy(data->fileName, fileName);
 }
 
-TextureData loadPNGTexture(GameState* gameState, char* fileName, bool loadNormalMap = true) {
+TextureData loadPNGTexture(GameState* gameState, char* fileName, bool32 loadNormalMap = true) {
 	char* extension = ".png";
 	
 	char filePath[1024];
-	addFileExtension(filePath, sizeof(filePath), fileName, ".png");
-
-	SDL_Surface* diffuse = IMG_Load(filePath);
-	if (!diffuse) fprintf(stderr, "Failed to load image from: %s\n", filePath);
-	assert(diffuse);
 
 	addFileExtension(filePath, sizeof(filePath), fileName, "_NRM.png");
 
 	SDL_Surface* normal = NULL;
 	if (loadNormalMap) normal = IMG_Load(filePath);
 
+	addFileExtension(filePath, sizeof(filePath), fileName, ".png");
+
+	SDL_Surface* diffuse = IMG_Load(filePath);
+	if (!diffuse) fprintf(stderr, "Failed to load image from: %s\n", filePath);
+	assert(diffuse);
+
 	TextureData result = createTexFromSurface(diffuse, normal, gameState->renderGroup);
-	addFileName(&result, filePath);
+	addFileName(&result, fileName);
 
 	return result;
 }

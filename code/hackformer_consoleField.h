@@ -44,17 +44,18 @@ struct ConsoleField {
 
 	char name[100];
 	
+	s32 numValues;
+
 	//NOTE: These attributes are used for fields with many values
 	union {
 		double doubleValues[5];
-		s32 intValues[10];
+		s32 s32Values[10];
 
 		struct {
 			Waypoint* curWaypoint;
 			double waypointDelay;
 		};
 	};
-	s32 numValues;
 	
 	s32 selectedIndex;
 	s32 initialIndex;

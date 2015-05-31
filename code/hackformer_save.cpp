@@ -1,17 +1,19 @@
 void writeS32(FILE* file, s32 value) {
-	fprintf(file, "%d", value);
+	fprintf(file, "%d ", value);
 }
 
 void writeU32(FILE* file, u32 value) {
-	fprintf(file, "%u", value);
+	fprintf(file, "%u ", value);
 }
 
 void writeDouble(FILE* file, double value) {
-	fprintf(file, "%f", value);
+	fprintf(file, "%f ", value);
 }
 
 void writeString(FILE* file, char* value) {
+	fprintf(file, "\"");
 	fprintf(file, value);
+	fprintf(file, "\" ");
 }
 
 void writeV2(FILE* file, V2 value) {
@@ -24,7 +26,7 @@ void writeR2(FILE* file, R2 value) {
 	writeV2(file, value.max);
 }
 
-#define writeLinkedListCount(file, list) {s32 listCount = 0; auto listNodePtr = (list); while(listNodePtr) { listCount++; listNodePtr = listNodePtr->next;} writeS32(file, listCount); }
+#define writeLinkedListCount(file, list) {s32 listCount = 0; auto listNodePtr = (list); while(listNodePtr) { listCount++; listNodePtr = listNodePtr->next;} writeS32((file), listCount); }
 
 void writeHitboxes(FILE* file, Hitbox* hitboxes) {
 	writeLinkedListCount(file, hitboxes);
@@ -52,13 +54,44 @@ void writeConsoleField(FILE* file, ConsoleField* field) {
 		writeU32(file, field->flags);
 		writeString(file, field->name);
 
-		//TODO: Something like a memcpy would be better here in case doubleValues isn't the biggest thing in the union
-		for(s32 i = 0; i < arrayCount(field->doubleValues); i++) {
-			writeDouble(file, field->doubleValues[i]);
+		writeS32(file, field->numValues);
+
+		if(field->type == ConsoleField_double) {
+			for(s32 i = 0; i < field->numValues; i++) {
+				writeDouble(file, field->doubleValues[i]);
+			}
+		}
+		else if(field->type == ConsoleField_s32) {
+			for(s32 i = 0; i < field->numValues; i++) {
+				writeS32(file, field->s32Values[i]);
+			}
+		}
+		else if(field->type == ConsoleField_followsWaypoints) {
+			Waypoint* wp = field->curWaypoint;
+			
+			s32 count = (wp != NULL);
+			wp = wp->next;
+
+			while(wp && wp != field->curWaypoint) {
+				count++;
+				wp = wp->next;
+			}
+
+			writeS32(file, count);
+
+			wp = field->curWaypoint;
+
+			while(wp && count > 0) {
+				writeV2(file, wp->p);
+				wp = wp->next;
+				count--;
+			}
+
+			writeDouble(file, field->waypointDelay);
 		}
 
-		writeS32(file, field->numValues);
 		writeS32(file, field->selectedIndex);
+		writeS32(file, field->initialIndex);
 		writeS32(file, field->tweakCost);
 		writeString(file, field->valueStr);
 		writeV2(file, field->p);
@@ -80,7 +113,7 @@ void writeMessages(FILE* file, Messages* messages) {
 		writeS32(file, messages->count);
 		writeS32(file, messages->selectedIndex);
 
-		for(s32 textIndex = 0; textIndex < messages->count; textIndex++) {
+		for(s32 textIndex = 0; textIndex <= messages->count; textIndex++) {
 			writeString(file, messages->text[textIndex]);
 		}
 	} else {
@@ -88,10 +121,22 @@ void writeMessages(FILE* file, Messages* messages) {
 	}
 }
 
-void saveEntity(FILE* file, Entity* entity) {
+void writeTexture(FILE* file, Texture texture) {
+	writeS32(file, texture.dataIndex);
+}
+
+void writeAnimNode(FILE* file, AnimNode anim) {
+	writeS32(file, anim.dataIndex);
+}
+
+void writeCharacterAnim(FILE* file, CharacterAnim anim) {
+	writeS32(file, anim.dataIndex);
+}
+
+void writeEntity(FILE* file, Entity* entity) {
+	writeS32(file, entity->ref);
 	writeS32(file, entity->type);
 	writeU32(file, entity->flags);
-	writeS32(file, entity->ref);
 	writeV2(file, entity->p);
 	writeV2(file, entity->dP);
 	writeV2(file, entity->renderSize);
@@ -121,10 +166,10 @@ void saveEntity(FILE* file, Entity* entity) {
 	writeMessages(file, entity->messages);
 
 	writeDouble(file, entity->animTime);
-	writeS32(file, entity->currentAnim.dataIndex);
-	writeS32(file, entity->nextAnim.dataIndex);
-	writeS32(file, entity->defaultTex.dataIndex);
-	writeS32(file, entity->characterAnim.dataIndex);
+	writeAnimNode(file, entity->currentAnim);
+	writeAnimNode(file, entity->nextAnim);
+	writeTexture(file, entity->defaultTex);
+	writeCharacterAnim(file, entity->characterAnim);
 }
 
 void writeFieldSpec(FILE* file, FieldSpec* spec) {
@@ -136,12 +181,20 @@ void writeAnimation(FILE* file, Animation* anim) {
 	writeS32(file, anim->numFrames);
 
 	for(s32 frameIndex = 0; frameIndex < anim->numFrames; frameIndex++) {
-		writeS32(file, anim->frames[frameIndex].dataIndex);
+		writeTexture(file, anim->frames[frameIndex]);
 	}
 
 	writeDouble(file, anim->secondsPerFrame);
 	writeS32(file, anim->pingPong);
 	writeS32(file, anim->reverse);
+}
+
+void writeCamera(FILE* file, Camera* camera) {
+	writeV2(file, camera->p);
+	writeV2(file, camera->newP);
+	writeS32(file, camera->moveToTarget);
+	writeS32(file, camera->deferredMoveToTarget);
+	writeDouble(file, camera->scale);
 }
 
 void writeButton(FILE* file, Button* button) {
@@ -161,14 +214,8 @@ void saveGame(GameState* gameState, char* fileName) {
 	FILE* file = fopen(fileName, "w");
 	assert(file);
 
-	writeS32(file, gameState->numEntities);
-
-	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-		Entity* entity = gameState->entities + entityIndex;
-		saveEntity(file, entity);
-	}
-
 	writeS32(file, gameState->refCount);
+	writeCamera(file, &gameState->camera);
 	writeRefNode(file, gameState->targetRefs);
 	writeS32(file, gameState->consoleEntityRef);
 	writeS32(file, gameState->playerRef);
@@ -189,15 +236,39 @@ void saveGame(GameState* gameState, char* fileName) {
 	writeV2(file, gameState->playerDeathStartP);
 	writeV2(file, gameState->playerDeathSize);
 
+	writeAnimNode(file, gameState->playerHack);
+	writeCharacterAnim(file, gameState->playerAnim);
+	writeCharacterAnim(file, gameState->playerDeathAnim);
+	writeCharacterAnim(file, gameState->virus1Anim);
+	writeCharacterAnim(file, gameState->flyingVirusAnim);
+
+	writeTexture(file, gameState->bgTex);
+	writeTexture(file, gameState->mgTex);
+	writeTexture(file, gameState->blueEnergyTex);
+	writeTexture(file, gameState->laserBolt);
+	writeTexture(file, gameState->endPortal);
+	writeTexture(file, gameState->laserBaseOff);
+	writeTexture(file, gameState->laserBaseOn);
+	writeTexture(file, gameState->laserTopOff);
+	writeTexture(file, gameState->laserTopOn);
+	writeTexture(file, gameState->laserBeam);
+	writeTexture(file, gameState->heavyTileTex);
+
+	writeS32(file, gameState->tileAtlasCount);
+
+	for(s32 texIndex = 0; texIndex < gameState->tileAtlasCount; texIndex++) {
+		writeTexture(file, gameState->tileAtlas[texIndex]);
+	}
+
 	writeS32(file, gameState->textureDataCount);
 
 	for(s32 texIndex = 1; texIndex < gameState->textureDataCount; texIndex++) {
 		TextureData* data = gameState->textureData + texIndex;
 		assert(data->hasFileName);
 
-		writeR2(file, data->uv);
-		writeV2(file, data->size);
 		writeString(file, data->fileName);
+		writeS32(file, data->normalId > 0);
+		writeR2(file, data->uv);
 	}
 
 	writeS32(file, gameState->animDataCount);
@@ -216,13 +287,20 @@ void saveGame(GameState* gameState, char* fileName) {
 	for(s32 characterIndex = 1; characterIndex < gameState->characterAnimDataCount; characterIndex++) {
 		CharacterAnimData* data = gameState->characterAnimData + characterIndex;
 
-		writeS32(file, data->standAnim.dataIndex);
-		writeS32(file, data->jumpAnim.dataIndex);
-		writeS32(file, data->shootAnim.dataIndex);
-		writeS32(file, data->walkAnim.dataIndex);
+		writeAnimNode(file, data->standAnim);
+		writeAnimNode(file, data->jumpAnim);
+		writeAnimNode(file, data->shootAnim);
+		writeAnimNode(file, data->walkAnim);
 	}
 
 	writePauseMenu(file, &gameState->pauseMenu);
+
+	writeS32(file, gameState->numEntities);
+
+	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+		Entity* entity = gameState->entities + entityIndex;
+		writeEntity(file, entity);
+	}
 
 	fclose(file);
 }
@@ -241,8 +319,34 @@ u32 readU32(FILE* file) {
 
 double readDouble(FILE* file) {
 	double result = 0;
-	fscanf (file, "%f", &result);
+	fscanf(file, "%lf", &result);
 	return result;  
+}
+
+void readString(FILE* file, char* buffer) {
+	char tempBuffer[1024];
+	s32 offset = 0;
+	bool32 firstWord = true;
+
+	while(true) {
+		fscanf (file, "%s", tempBuffer);
+
+		s32 strSize = strlen(tempBuffer) - 2; //-2 for the ""
+		memcpy(buffer + offset, tempBuffer + firstWord, strSize);
+
+		offset += strSize;
+		firstWord = false;
+
+		if(tempBuffer[strSize + 1] == '\"') {
+			break;
+		}
+		else {
+			buffer[offset++] = tempBuffer[strSize + 1];
+			buffer[offset++] = ' ';
+		}
+	}
+
+	buffer[offset] = 0;
 }
 
 V2 readV2(FILE* file) {
@@ -252,18 +356,353 @@ V2 readV2(FILE* file) {
 	return result;
 }
 
-Entity readEntity(FILE* file) {
-	return {};
+R2 readR2(FILE* file) {
+	R2 result = {};
+	result.min = readV2(file);
+	result.max = readV2(file);
+	return result;
+}
+
+ConsoleField* readConsoleField(FILE* file, GameState* gameState) {
+	ConsoleField* field = NULL;
+	s32 type = readS32(file);
+
+	if(type >= 0) {
+		field = createConsoleField_(gameState);
+		*field = {};
+
+		field->type = (ConsoleFieldType)type;
+		field->flags = readU32(file);
+		readString(file, field->name);
+
+		field->numValues = readS32(file);
+
+		if(field->type == ConsoleField_double) {
+			for(s32 i = 0; i < field->numValues; i++) {
+				field->doubleValues[i] = readDouble(file);
+			}
+		}
+		else if(field->type == ConsoleField_s32) {
+			for(s32 i = 0; i < field->numValues; i++) {
+				field->s32Values[i] = readS32(file);
+			}
+		}
+		else if(field->type == ConsoleField_followsWaypoints) {
+			s32 numWaypoints = readS32(file);
+			Waypoint* prevPoint = NULL;
+
+			for(s32 waypointIndex = 0; waypointIndex < numWaypoints; waypointIndex++) {
+				V2 p = readV2(file);
+				Waypoint* wp = createWaypoint(gameState, p);
+
+				if(prevPoint) prevPoint->next = wp;
+				else field->curWaypoint = wp;
+
+				prevPoint = wp;
+				if(waypointIndex == numWaypoints - 1) wp->next = field->curWaypoint;
+			}
+
+			field->waypointDelay = readDouble(file);
+		}
+
+		field->selectedIndex = readS32(file);
+		field->initialIndex = readS32(file);
+		field->tweakCost = readS32(file);
+
+		readString(file, field->valueStr);
+
+		field->p = readV2(file);
+		field->offs = readV2(file);
+
+		field->next = NULL;
+
+		field->numChildren = readS32(file);
+
+		for(s32 fieldIndex = 0; fieldIndex < field->numChildren; fieldIndex++) {
+			field->children[fieldIndex] = readConsoleField(file, gameState);
+		}
+
+		field->childYOffs = readDouble(file);
+	}
+
+	return field;
+}
+
+RefNode* readRefNode(FILE* file, GameState* gameState) {
+	RefNode* result = NULL;
+
+	s32 numNodes = readS32(file);
+
+	for(s32 nodeIndex = 0; nodeIndex < numNodes; nodeIndex++) {
+		s32 ref = readS32(file);
+		RefNode* node = refNode(gameState, ref);
+
+		node->next = result;
+		result = node;
+	}
+
+	return result;
+}
+
+Messages* readMessages(FILE* file, GameState* gameState) {
+	Messages* result = NULL;
+
+	s32 count = readS32(file);
+
+	if(count >= 0) {
+		s32 selectedIndex = readS32(file);
+		char text[10][100];
+
+		for(s32 textIndex = 0; textIndex <= count; textIndex++) {
+			readString(file, text[textIndex]);
+		}
+
+		result = createMessages(gameState, text, count, selectedIndex);
+	}
+
+	return result;
+}
+
+Texture readTexture(FILE* file) {
+	Texture result = {};
+	result.dataIndex = readS32(file);
+	return result;
+}
+
+AnimNode readAnimNode(FILE* file) {
+	AnimNode result = {};
+	result.dataIndex = readS32(file);
+	return result;
+}
+
+CharacterAnim readCharacterAnim(FILE* file) {
+	CharacterAnim result = {};
+	result.dataIndex = readS32(file);
+	return result;
+}
+
+void readEntity(FILE* file, GameState* gameState, s32 entityIndex) {
+	s32 ref = readS32(file);
+
+	Entity* entity = addEntity(gameState, ref, entityIndex);
+	entity->type = (EntityType)readS32(file);
+	entity->flags = readU32(file);
+	entity->p = readV2(file);
+	entity->dP = readV2(file);
+	entity->renderSize = readV2(file);
+	entity->drawOrder = (DrawOrder)readS32(file);
+
+	s32 numHitboxes = readS32(file);
+
+	for(s32 hitboxIndex = 0; hitboxIndex < numHitboxes; hitboxIndex++) {
+		Hitbox* hitbox = createHitbox(gameState);
+		hitbox->collisionSize = readV2(file);
+		hitbox->collisionOffset = readV2(file);
+
+		hitbox->next = entity->hitboxes;
+		entity->hitboxes = hitbox;
+	}
+
+	entity->clickBox = readR2(file);
+	entity->numFields = readS32(file);
+
+	for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+		entity->fields[fieldIndex] = readConsoleField(file, gameState);
+	}
+
+	entity->groundReferenceList = readRefNode(file, gameState);
+	entity->ignorePenetrationList = readRefNode(file, gameState);
+
+	entity->emissivity = (float)readDouble(file);
+	entity->spotLightAngle = readDouble(file);
+	entity->shootTimer = readDouble(file);
+
+	entity->targetRef = readS32(file);
+	entity->shooterRef = readS32(file);
+
+	entity->startPos = readV2(file);
+
+	entity->tileXOffset = readS32(file);
+	entity->tileYOffset = readS32(file);
+	entity->jumpCount = readS32(file);
+	entity->timeSinceLastOnGround = readDouble(file);
+
+	entity->messages = readMessages(file, gameState);
+
+	entity->animTime = readDouble(file);
+	entity->currentAnim = readAnimNode(file);
+	entity->nextAnim = readAnimNode(file);
+	entity->defaultTex = readTexture(file);
+	entity->characterAnim = readCharacterAnim(file);
+
+	addToSpatialPartition(entity, gameState);
+}
+
+Camera readCamera(FILE* file) {
+	Camera result = {};
+
+	result.p = readV2(file);
+	result.newP = readV2(file);
+
+	result.moveToTarget = readS32(file);
+	result.deferredMoveToTarget = readS32(file);
+	result.scale = readDouble(file);
+
+	return result;
+}
+
+Animation readAnimation(FILE* file, GameState* gameState) {
+	Animation result = {};
+
+	result.numFrames = readS32(file);
+	result.frames = pushArray(&gameState->permanentStorage, Texture, result.numFrames);
+
+	for(s32 frameIndex = 0; frameIndex < result.numFrames; frameIndex++) {
+		result.frames[frameIndex] = readTexture(file);
+	}
+
+	result.secondsPerFrame = readDouble(file);
+	result.pingPong = readS32(file);
+	result.reverse = readS32(file);
+
+	return result;
+}
+
+void readButton(FILE* file, Button* button) {
+	button->selected = readS32(file);
+	button->scale = readDouble(file);
+}
+
+void readPauseMenu(FILE* file, PauseMenu* menu) {
+	menu->animCounter = readDouble(file);
+	readButton(file, &menu->quit);
+	readButton(file, &menu->restart);
+	readButton(file, &menu->resume);
+	readButton(file, &menu->settings);
 }
 
 void loadGame(GameState* gameState, char* fileName) {
 	FILE* file = fopen(fileName, "r");
 	assert(file);
 
+	gameState->refCount = readS32(file);
+	gameState->camera = readCamera(file);
+	
+	gameState->targetRefs = readRefNode(file, gameState);
+	gameState->consoleEntityRef = readS32(file);
+	gameState->playerRef = readS32(file);
+	gameState->playerDeathRef = readS32(file);
+
+	gameState->loadNextLevel = readS32(file);
+	gameState->doingInitialSim = readS32(file);
+
+	gameState->timeField = readConsoleField(file, gameState);
+	gameState->gravityField = readConsoleField(file, gameState);
+	gameState->swapField = readConsoleField(file, gameState);
+	gameState->swapFieldP = readV2(file);
+	gameState->fieldSpec.mouseOffset = readV2(file);
+	gameState->fieldSpec.blueEnergy = readS32(file);
+
+	gameState->mapSize = readV2(file);
+	gameState->worldSize = readV2(file);
+	gameState->gravity = readV2(file);
+	gameState->playerStartP = readV2(file);
+	gameState->playerDeathStartP = readV2(file);
+	gameState->playerDeathSize = readV2(file);
+
+	gameState->playerHack = readAnimNode(file);
+	gameState->playerAnim = readCharacterAnim(file);
+	gameState->playerDeathAnim = readCharacterAnim(file);
+	gameState->virus1Anim = readCharacterAnim(file);
+	gameState->flyingVirusAnim = readCharacterAnim(file);
+
+	gameState->bgTex = readTexture(file);
+	gameState->mgTex = readTexture(file);
+	gameState->blueEnergyTex = readTexture(file);
+	gameState->laserBolt = readTexture(file);
+	gameState->endPortal = readTexture(file);
+	gameState->laserBaseOff = readTexture(file);
+	gameState->laserBaseOn = readTexture(file);
+	gameState->laserTopOff = readTexture(file);
+	gameState->laserTopOn = readTexture(file);
+	gameState->laserBeam = readTexture(file);
+	gameState->heavyTileTex = readTexture(file);
+
+	gameState->tileAtlasCount = readS32(file);
+	//TODO: If there is already a tile atlas this will leak
+	gameState->tileAtlas = pushArray(&gameState->levelStorage, Texture, gameState->tileAtlasCount);
+
+	for(s32 texIndex = 0; texIndex < gameState->tileAtlasCount; texIndex++) {
+		gameState->tileAtlas[texIndex] = readTexture(file);
+	}
+
+	gameState->textureDataCount = readS32(file);
+
+	//TODO: Many textures that need to be loaded in have probably already been loaded in
+	//		If any textures are unecessary delete them
+	//		This just orphans all of the already loaded textures
+	for(s32 texIndex = 1; texIndex < gameState->textureDataCount; texIndex++) {
+		TextureData* data = gameState->textureData + texIndex;
+		readString(file, data->fileName);
+		data->hasFileName = true;
+
+		bool32 loadNormalMap = readS32(file);
+		TextureData* dataToCopy = NULL;
+
+		for(s32 testIndex = 1; testIndex < texIndex; testIndex++) {
+			TextureData* testData = gameState->textureData + testIndex;
+
+			if(strcmp(testData->fileName, data->fileName) == 0) {
+				dataToCopy = testData;
+				break;
+			}
+		}
+
+		TextureData loadedData;
+
+		if(!dataToCopy) {
+			loadedData = loadPNGTexture(gameState, data->fileName, loadNormalMap);
+			dataToCopy = &loadedData;
+		}
+
+		assert(dataToCopy);
+
+		data->texId = dataToCopy->texId;
+		data->normalId = dataToCopy->normalId;
+		data->size = dataToCopy->size;
+
+		data->uv = readR2(file);
+	}
+
+	gameState->animDataCount = readS32(file);
+
+	for(s32 nodeIndex = 1; nodeIndex < gameState->animDataCount; nodeIndex++) {
+		AnimNodeData* data = gameState->animData + nodeIndex;
+		data->intro = readAnimation(file, gameState);
+		data->main = readAnimation(file, gameState);
+		data->outro = readAnimation(file, gameState);
+		data->finishMainBeforeOutro = readS32(file);
+	}
+
+	gameState->characterAnimDataCount = readS32(file);
+
+	for(s32 dataIndex = 1; dataIndex < gameState->characterAnimDataCount; dataIndex++) {
+		CharacterAnimData* data = gameState->characterAnimData + dataIndex;
+
+		data->standAnim = readAnimNode(file);
+		data->jumpAnim = readAnimNode(file);
+		data->shootAnim = readAnimNode(file);
+		data->walkAnim = readAnimNode(file);
+	}
+
+	readPauseMenu(file, &gameState->pauseMenu);
+
+	initSpatialPartition(gameState);
+
 	gameState->numEntities = readS32(file);
 
 	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-		gameState->entities[entityIndex] = readEntity(file);
+		readEntity(file, gameState, entityIndex);
 	}
 
 	fclose(file);

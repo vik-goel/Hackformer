@@ -120,7 +120,7 @@ struct Input {
 
 	union {
 		//NOTE: The number of keys in the array must always be equal to the number of keys in the struct below
-		Key keys[9];
+		Key keys[11];
 
 		//TODO: The members of this struct may not be packed such that they align perfectly with the array of keys
 		struct {
@@ -130,6 +130,8 @@ struct Input {
 			Key right;
 			Key r;
 			Key x;
+			Key n;
+			Key m;
 			Key shift;
 			Key pause;
 			Key leftMouse;
@@ -257,7 +259,7 @@ struct GameState {
 	CharacterAnim virus1Anim;
 	CharacterAnim flyingVirusAnim;
 
-	TextureData bgTex, mgTex;
+	Texture bgTex, mgTex;
 	TextureData sunsetCityBg, sunsetCityMg;
 	TextureData marineCityBg, marineCityMg;
 
@@ -270,6 +272,7 @@ struct GameState {
 	Texture laserBeam;
 
 	Texture heavyTileTex;
+	s32 tileAtlasCount;
 	Texture* tileAtlas;
 
 	TextureData dock;
@@ -309,5 +312,6 @@ void setCameraTarget(Camera* camera, V2 target) {
 	camera->moveToTarget = true;
 }
 
+void initSpatialPartition(GameState* gameState);
 void saveGame(GameState* gameState, char* fileName);
 void loadGame(GameState* gameState, char* fileName);

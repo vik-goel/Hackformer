@@ -455,19 +455,8 @@ void removeEntities(GameState* gameState) {
 	}
 }
 
-Entity* addEntity(GameState* gameState, EntityType type, DrawOrder drawOrder, V2 p, V2 renderSize) {
-	assert(gameState->numEntities < arrayCount(gameState->entities));
-
-	Entity* result = gameState->entities + gameState->numEntities;
-
-	*result = {};
-	result->ref = gameState->refCount;
-	result->type = type;
-	result->drawOrder = drawOrder;
-	result->p = p;
-	result->renderSize = renderSize;
-
-	EntityReference* bucket = getEntityReferenceBucket(gameState, result->ref);
+void initEntityReference(Entity* entity, GameState* gameState) {
+	EntityReference* bucket = getEntityReferenceBucket(gameState, entity->ref);
 	while(bucket->next) {
 		bucket = bucket->next;
 	}
@@ -485,7 +474,35 @@ Entity* addEntity(GameState* gameState, EntityType type, DrawOrder drawOrder, V2
 		bucket->next = NULL;
 	}
 
-	bucket->entity = result;
+	bucket->entity = entity;
+}
+
+Entity* addEntity(GameState* gameState, s32 ref, s32 entityIndex) {
+	assert(entityIndex >= 0);	
+	assert(entityIndex < arrayCount(gameState->entities));
+
+	Entity* result = gameState->entities + entityIndex;
+	*result = {};
+
+	result->ref = ref;
+	initEntityReference(result, gameState);
+
+	return result;
+}
+
+Entity* addEntity(GameState* gameState, EntityType type, DrawOrder drawOrder, V2 p, V2 renderSize) {
+	assert(gameState->numEntities < arrayCount(gameState->entities));
+
+	Entity* result = gameState->entities + gameState->numEntities;
+
+	*result = {};
+	result->ref = gameState->refCount;
+	result->type = type;
+	result->drawOrder = drawOrder;
+	result->p = p;
+	result->renderSize = renderSize;
+
+	initEntityReference(result, gameState);
 
 	gameState->numEntities++;
 	gameState->refCount++;
@@ -579,6 +596,14 @@ void addSeekTargetField(Entity* entity, GameState* gameState) {
 	addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
 
 	addField(entity, result);
+}
+
+Waypoint* createWaypoint(GameState* gameState, V2 p, Waypoint* next = NULL) {
+	Waypoint* result = pushStruct(&gameState->levelStorage, Waypoint);
+	*result = {};
+	result->p = p;
+	result->next = next;
+	return result;
 }
 
 void addFollowsWaypointsField(Entity* entity, GameState* gameState) {
@@ -2723,8 +2748,11 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame, bool pause
 
 
 			case EntityType_background: {
-				TextureData* bg = &gameState->bgTex;
-				TextureData* mg = &gameState->mgTex;
+				Texture* bgTex = &gameState->bgTex;
+				Texture* mgTex = &gameState->mgTex;
+
+				TextureData* bg = getTextureData(bgTex, gameState);
+				TextureData* mg = getTextureData(mgTex, gameState);
 
 				double bgTexWidth = (double)bg->size.x;
 				double mgTexWidth = (double)mg->size.x;
@@ -2788,7 +2816,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame, bool pause
 				assert(entity->numFields >= 1);
 				assert(entity->fields[0]->type == ConsoleField_s32);
 
-				s32 selectedIndex = entity->fields[0]->intValues[entity->fields[0]->selectedIndex];
+				s32 selectedIndex = entity->fields[0]->s32Values[entity->fields[0]->selectedIndex];
 				setSelectedText(entity, selectedIndex, gameState);
 			} break;
 

@@ -575,7 +575,7 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 
 		switch(field->type) {
 			case ConsoleField_s32: {
-				sprintf(field->valueStr, "%d", field->intValues[field->selectedIndex]);
+				sprintf(field->valueStr, "%d", field->s32Values[field->selectedIndex]);
 			} break;
 
 			case ConsoleField_double: {

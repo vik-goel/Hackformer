@@ -74,9 +74,9 @@ struct Messages {
 };
 
 struct Entity {
+	s32 ref;
 	EntityType type;
 	u32 flags;
-	s32 ref;
 
 	V2 p;
 	V2 dP;

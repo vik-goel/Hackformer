@@ -61,6 +61,15 @@ bool extractStringFromLine(char* line, s32 lineLen, char* intName, char* result,
 	return false;
 }
 
+void initSpatialPartition(GameState* gameState) {
+	gameState->chunksWidth = (s32)ceil(gameState->mapSize.x / gameState->chunkSize.x);
+	gameState->chunksHeight = (s32)ceil(gameState->windowSize.y / gameState->chunkSize.y);
+
+	s32 numChunks = gameState->chunksWidth * gameState->chunksHeight;
+	gameState->chunks = pushArray(&gameState->levelStorage, EntityChunk, numChunks);
+	zeroSize(gameState->chunks, numChunks * sizeof(EntityChunk));
+}
+
 void loadTmxMap(GameState* gameState, char* fileName) {
 	FILE* file = fopen(fileName, "r");
 	assert(file);
@@ -93,15 +102,7 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 										  max(gameState->mapSize.y, gameState->windowHeight));
 
 
-				//NOTE: This sets up the spatial partition
-				{
-					gameState->chunksWidth = (s32)ceil(gameState->mapSize.x / gameState->chunkSize.x);
-					gameState->chunksHeight = (s32)ceil(gameState->windowSize.y / gameState->chunkSize.y);
-
-					s32 numChunks = gameState->chunksWidth * gameState->chunksHeight;
-					gameState->chunks = pushArray(&gameState->levelStorage, EntityChunk, numChunks);
-					zeroSize(gameState->chunks, numChunks * sizeof(EntityChunk));
-				}
+				initSpatialPartition(gameState);
 			}
 		}
 		// else if(!foundTilesetInfo) {
@@ -233,12 +234,12 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 					extractStringFromLine(line, lineLength, "value", buffer, arrayCount(buffer));
 
 					if (stringsMatch(buffer, "marine")) {
-						gameState->bgTex = gameState->marineCityBg;
-						gameState->mgTex = gameState->marineCityMg;
+						gameState->bgTex = createTextureFromData(&gameState->marineCityBg, gameState);
+						gameState->mgTex = createTextureFromData(&gameState->marineCityMg, gameState);
 					}
 					else if (stringsMatch(buffer, "sunset")) {
-						gameState->bgTex = gameState->sunsetCityBg;
-						gameState->mgTex = gameState->sunsetCityMg;
+						gameState->bgTex = createTextureFromData(&gameState->sunsetCityBg, gameState);
+						gameState->mgTex = createTextureFromData(&gameState->sunsetCityMg, gameState);
 					}
 					else {
 						//NOTE: This means that there was an invalid background type
@@ -354,7 +355,7 @@ void pollInput(GameState* gameState, bool* running) {
 	}
 }
 
-void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex, bool initPlayerDeath) {
+void freeLevel(GameState* gameState) {
 	gameState->targetRefs = NULL;
 	gameState->consoleEntityRef = 0;
 	gameState->playerRef = 0;
@@ -384,6 +385,12 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 
 	gameState->levelStorage.allocated = 0;
 	gameState->swapField = NULL;
+
+	gameState->camera.scale = 1;
+}
+
+void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex, bool initPlayerDeath) {
+	freeLevel(gameState);
 
 	if (gameState->loadNextLevel) {
 		gameState->loadNextLevel = false;
@@ -426,8 +433,6 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 
 	Entity* player = getEntityByRef(gameState, gameState->playerRef);
 	assert(player);
-
-	gameState->camera.scale = 1;
 
 	if(!initPlayerDeath) {
 		centerCameraAround(player, gameState);
@@ -532,7 +537,7 @@ int main(int argc, char* argv[]) {
 		  	InvalidCodePath;
 		}
 
-		Mix_Music* music = Mix_LoadMUS("res/hackformer theme.mp3");
+		Mix_Music* music = Mix_LoadMUS("res/hackformer_theme.mp3");
 		if(!music) {
 		    fprintf(stderr, "Error loading music: %s\n", Mix_GetError());
 		  	InvalidCodePath;
@@ -627,6 +632,9 @@ int main(int argc, char* argv[]) {
 
 	input->pause.keyCode1 = SDLK_p;
 	input->pause.keyCode2 = SDLK_ESCAPE;
+
+	input->n.keyCode1 = SDLK_n;
+	input->m.keyCode1 = SDLK_m;
 	
 	gameState->gravity = v2(0, -9.81f);
 	gameState->solidGridSquareSize = 0.1;
@@ -638,10 +646,10 @@ int main(int argc, char* argv[]) {
 	TextureData playerStand = loadPNGTexture(gameState, "res/player/stand2");
 	TextureData playerJump = loadPNGTexture(gameState, "res/player/jump3");
 	Animation playerStandJumpTransition = loadAnimation(gameState, "res/player/jump_transition", 256, 256, 0.025f, false);
-	Animation playerWalk = loadAnimation(gameState, "res/player/running 2", 256, 256, 0.0325f, true);
+	Animation playerWalk = loadAnimation(gameState, "res/player/running_2", 256, 256, 0.0325f, true);
 	Animation playerStandWalkTransition = loadAnimation(gameState, "res/player/stand_run_transition", 256, 256, 0.01f, false);
-	Animation playerHackingAnimation = loadAnimation(gameState, "res/player/Hacking Flow Sprite", 512, 256, 0.07f, true);
-	Animation playerHackingAnimationTransition = loadAnimation(gameState, "res/player/Hacking Sprite Full 2", 256, 256, 0.025f, false);
+	Animation playerHackingAnimation = loadAnimation(gameState, "res/player/hacking_flow_sprite", 512, 256, 0.07f, true);
+	Animation playerHackingAnimationTransition = loadAnimation(gameState, "res/player/hacking_sprite_full_2", 256, 256, 0.025f, false);
 
 	AnimNodeData playerWalkAnimNodeData = {};
 	AnimNodeData playerJumpAnimNodeData = {};
@@ -693,20 +701,20 @@ int main(int argc, char* argv[]) {
 	gameState->flyingVirusAnim = createCharacterAnim(gameState, flyingVirusStandAnimNode, {}, flyingVirusShootAnimNode, {});
 
 
-	gameState->sunsetCityBg = loadPNGTexture(gameState, "res/backgrounds/sunset city bg", false);
-	gameState->sunsetCityMg = loadPNGTexture(gameState, "res/backgrounds/sunset city mg", false);
-	gameState->marineCityBg = loadPNGTexture(gameState, "res/backgrounds/marine city bg", false);
-	gameState->marineCityMg = loadPNGTexture(gameState, "res/backgrounds/marine city mg", false);
+	gameState->sunsetCityBg = loadPNGTexture(gameState, "res/backgrounds/sunset_city_bg", false);
+	gameState->sunsetCityMg = loadPNGTexture(gameState, "res/backgrounds/sunset_city_mg", false);
+	gameState->marineCityBg = loadPNGTexture(gameState, "res/backgrounds/marine_city_bg", false);
+	gameState->marineCityMg = loadPNGTexture(gameState, "res/backgrounds/marine_city_mg", false);
 
-	gameState->blueEnergyTex = loadTexture(gameState, "res/blue energy");
-	gameState->laserBolt = loadTexture(gameState, "res/virus1/laser bolt", false);
-	gameState->endPortal = loadTexture(gameState, "res/end portal");
+	gameState->blueEnergyTex = loadTexture(gameState, "res/blue_energy");
+	gameState->laserBolt = loadTexture(gameState, "res/virus1/laser_bolt", false);
+	gameState->endPortal = loadTexture(gameState, "res/end_portal");
 
-	gameState->laserBaseOff = loadTexture(gameState, "res/virus3/base off");
-	gameState->laserBaseOn = loadTexture(gameState, "res/virus3/base on");
-	gameState->laserTopOff = loadTexture(gameState, "res/virus3/top off");
-	gameState->laserTopOn = loadTexture(gameState, "res/virus3/top on");
-	gameState->laserBeam = loadTexture(gameState, "res/virus3/laser beam");
+	gameState->laserBaseOff = loadTexture(gameState, "res/virus3/base_off");
+	gameState->laserBaseOn = loadTexture(gameState, "res/virus3/base_on");
+	gameState->laserTopOff = loadTexture(gameState, "res/virus3/top_off");
+	gameState->laserTopOn = loadTexture(gameState, "res/virus3/top_on");
+	gameState->laserBeam = loadTexture(gameState, "res/virus3/laser_beam");
 
 	gameState->heavyTileTex = loadTexture(gameState, "res/Heavy1");
 
@@ -719,13 +727,13 @@ int main(int argc, char* argv[]) {
 	spec->consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
 	spec->attribute = loadPNGTexture(gameState, "res/attributes/Attribute", false);
 	spec->behaviour = loadPNGTexture(gameState, "res/attributes/Behaviour", false);
-	spec->valueBackground = loadPNGTexture(gameState, "res/attributes/Changer Readout", false);
-	spec->leftButtonDefault = loadPNGTexture(gameState, "res/attributes/Left Button", false);
-	spec->leftButtonClicked = loadPNGTexture(gameState, "res/attributes/Left Button Clicked", false);
-	spec->leftButtonUnavailable = loadPNGTexture(gameState, "res/attributes/Left Button Unavailable", false);
+	spec->valueBackground = loadPNGTexture(gameState, "res/attributes/changer_readout", false);
+	spec->leftButtonDefault = loadPNGTexture(gameState, "res/attributes/left_button", false);
+	spec->leftButtonClicked = loadPNGTexture(gameState, "res/attributes/left_button_clicked", false);
+	spec->leftButtonUnavailable = loadPNGTexture(gameState, "res/attributes/left_button_unavailable", false);
 	spec->waypoint = loadPNGTexture(gameState, "res/waypoint", false);
 	spec->waypointArrow = loadPNGTexture(gameState, "res/waypoint_arrow", false);
-	spec->tileHackShield = loadPNGTexture(gameState, "res/Tile Hack Shield", false);
+	spec->tileHackShield = loadPNGTexture(gameState, "res/tile_hack_shield", false);
 
 	spec->fieldSize = getDrawSize(&spec->behaviour, 0.5);
 	spec->valueSize = getDrawSize(&spec->valueBackground, 0.8);
@@ -735,21 +743,20 @@ int main(int argc, char* argv[]) {
 	spec->spacing = v2(0.05, 0);
 	spec->childInset = spec->fieldSize.x * 0.125;
 
-	gameState->dock = loadPNGTexture(gameState, "res/dock 2", false);
-	gameState->dockBlueEnergyTile = loadPNGTexture(gameState, "res/Blue Energy Tile", false);
+	gameState->dock = loadPNGTexture(gameState, "res/dock_2", false);
+	gameState->dockBlueEnergyTile = loadPNGTexture(gameState, "res/blue_energy_tile", false);
 
 	PauseMenu* pauseMenu = &gameState->pauseMenu;
 
-	pauseMenu->background = loadPNGTexture(gameState, "res/Pause Menu", false);
-	pauseMenu->backgroundAnim = loadAnimation(gameState, "res/Pause Menu Sprite", 1280, 720, 1.f, true);
+	pauseMenu->background = loadPNGTexture(gameState, "res/pause_menu", false);
+	pauseMenu->backgroundAnim = loadAnimation(gameState, "res/pause_menu_sprite", 1280, 720, 1.f, true);
 
-	pauseMenu->quit = createPauseMenuButton(gameState, "res/Quit Button", v2(15.51, 2.62), 1.5);
-	pauseMenu->restart = createPauseMenuButton(gameState, "res/Restart Button", v2(6.54, 4.49), 1.1);
-	pauseMenu->resume = createPauseMenuButton(gameState, "res/Resume Button", v2(3.21, 8.2), 1.18);
-	pauseMenu->settings = createPauseMenuButton(gameState, "res/Settings Button", v2(12.4, 6.8), 1.08);
+	pauseMenu->quit = createPauseMenuButton(gameState, "res/quit_button", v2(15.51, 2.62), 1.5);
+	pauseMenu->restart = createPauseMenuButton(gameState, "res/restart_button", v2(6.54, 4.49), 1.1);
+	pauseMenu->resume = createPauseMenuButton(gameState, "res/resume_button", v2(3.21, 8.2), 1.18);
+	pauseMenu->settings = createPauseMenuButton(gameState, "res/settings_button", v2(12.4, 6.8), 1.08);
 
-	s32 numTilesInAtlas;
-	gameState->tileAtlas = extractTextures(gameState, "res/tiles_floored", 120, 240, 12, &numTilesInAtlas);
+	gameState->tileAtlas = extractTextures(gameState, "res/tiles_floored", 120, 240, 12, &gameState->tileAtlasCount);
 
 	char* mapFileNames[] = {
 		"map3.tmx",
@@ -773,7 +780,7 @@ int main(int argc, char* argv[]) {
 
 	bool paused = false;
 
-	saveGame(gameState, "test_save.txt");
+	char* saveFileName = "test_save.txt";
 
 	while (running) {
 		currentTime = SDL_GetTicks();
@@ -975,6 +982,14 @@ int main(int argc, char* argv[]) {
 		}
 
 		dtForFrame = 0;
+
+		if (input->n.justPressed) {
+			saveGame(gameState, saveFileName);
+		}
+		if (input->m.justPressed) {
+			freeLevel(gameState);
+			loadGame(gameState, saveFileName);
+		}
 
 		if (input->x.justPressed) {
 			gameState->fieldSpec.blueEnergy += 10;
