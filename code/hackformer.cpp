@@ -379,6 +379,7 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 	gameState->consoleFreeList = NULL;
 	gameState->hitboxFreeList = NULL;
 	gameState->refNodeFreeList = NULL;
+	gameState->messagesFreeList = NULL;
 
 	gameState->levelStorage.allocated = 0;
 	gameState->swapField = NULL;
@@ -424,6 +425,8 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 
 	Entity* player = getEntityByRef(gameState, gameState->playerRef);
 	assert(player);
+
+	gameState->camera.scale = 1;
 
 	if(!initPlayerDeath) {
 		centerCameraAround(player, gameState);
@@ -635,19 +638,19 @@ int main(int argc, char* argv[]) {
 	Animation playerHackingAnimation = loadAnimation(gameState, "res/player/Hacking Flow Sprite", 512, 256, 0.07f, true);
 	Animation playerHackingAnimationTransition = loadAnimation(gameState, "res/player/Hacking Sprite Full 2", 256, 256, 0.025f, false);
 
-	gameState->playerStand = createAnimNode(&playerStand);
+	AnimNode playerStandAnimNode = createAnimNode(&playerStand);
+	AnimNode playerJumpAnimNode = {}, playerWalkAnimNode = {};
 
+	playerJumpAnimNode.intro = playerStandJumpTransition;
+	playerJumpAnimNode.main = createAnimation(&playerJump);
+	playerJumpAnimNode.outro = createReversedAnimation(&playerStandJumpTransition);
 
-	gameState->playerJump.intro = playerStandJumpTransition;
-	gameState->playerJump.main = createAnimation(&playerJump);
-	gameState->playerJump.outro = createReversedAnimation(&playerStandJumpTransition);
+	playerWalkAnimNode.main = playerWalk;
+	playerWalkAnimNode.intro = playerStandWalkTransition;
+	playerWalkAnimNode.finishMainBeforeOutro = true;
 
-
-	gameState->playerWalk.main = playerWalk;
-	gameState->playerWalk.intro = playerStandWalkTransition;
-	//gameState->playerWalk.outro = createReversedAnimation(&playerStandWalkTransition);
-	//gameState->playerWalk.outro.secondsPerFrame *= 2;
-	gameState->playerWalk.finishMainBeforeOutro = true;
+	gameState->playerAnim = createCharacterAnim(&playerStandAnimNode, &playerJumpAnimNode, NULL, &playerWalkAnimNode);
+	gameState->playerDeathAnim = createCharacterAnim(&playerStandAnimNode, NULL, NULL, NULL);
 
 	gameState->playerHack.main = playerHackingAnimation;
 	gameState->playerHack.intro = playerHackingAnimationTransition;
@@ -657,15 +660,21 @@ int main(int argc, char* argv[]) {
 	Animation virus1Shoot = loadAnimation(gameState, "res/virus1/shoot", 256, 256, 0.04f, true);
 	gameState->shootDelay = getAnimationDuration(&virus1Shoot);
 
-	gameState->virus1Stand = createAnimNode(&virus1Stand);
-	gameState->virus1Shoot.main = virus1Shoot;
+	AnimNode virus1StandAnimNode = createAnimNode(&virus1Stand);
+	AnimNode virus1ShootAnimNode = {};
+	virus1ShootAnimNode.main = virus1Shoot;
+
+	gameState->virus1Anim = createCharacterAnim(&virus1StandAnimNode, NULL, &virus1ShootAnimNode, NULL);
 
 	//TODO: Make shoot animation time per frame be set by the shootDelay
 	Texture flyingVirusStand = loadPNGTexture(gameState, "res/virus2/full");
 	Animation flyingVirusShoot = loadAnimation(gameState, "res/virus2/shoot", 256, 256, 0.04f, true);
 
-	gameState->flyingVirusStand = createAnimNode(&flyingVirusStand);
-	gameState->flyingVirusShoot.main = flyingVirusShoot;
+	AnimNode flyingVirusStandAnimNode = createAnimNode(&flyingVirusStand);
+	AnimNode flyingVirusShootAnimNode = {};
+	flyingVirusShootAnimNode.main = flyingVirusShoot;
+
+	gameState->flyingVirusAnim = createCharacterAnim(&flyingVirusStandAnimNode, NULL, &flyingVirusShootAnimNode, NULL);
 
 
 	gameState->sunsetCityBg = loadPNGTexture(gameState, "res/backgrounds/sunset city bg", false);
@@ -922,7 +931,7 @@ int main(int argc, char* argv[]) {
 				V2 cameraPDiff = gameState->camera.newP - gameState->camera.p;
 				double lenCameraPDiff = length(cameraPDiff);
 
-				double maxCameraMovement = (7.5 +1.5 * lenCameraPDiff) * dtForFrame;
+				double maxCameraMovement = (7.5 + 1.5 * lenCameraPDiff) * dtForFrame;
 
 				if (lenCameraPDiff < maxCameraMovement) {
 					gameState->camera.p = gameState->camera.newP;
@@ -939,8 +948,6 @@ int main(int argc, char* argv[]) {
 				camera->moveToTarget = true;
 			}
 			
-			gameState->renderGroup->negativeCameraP = -camera->p;
-
 			R2 windowBounds = r2(v2(0, 0), maxComponents(gameState->mapSize, gameState->windowSize));
 			R2 screenBounds = r2(camera->p, camera->p + gameState->windowSize);
 			R2 clipRect = intersect(windowBounds, screenBounds);

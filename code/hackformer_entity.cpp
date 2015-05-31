@@ -45,6 +45,39 @@ void freeRefNode(RefNode* node, GameState* gameState) {
 	gameState->refNodeFreeList = node;
 }
 
+Messages* messages(GameState* gameState, char text[10][100], s32 count, s32 selectedIndex) {
+	Messages* result = NULL;
+
+	if (gameState->messagesFreeList) {
+		result = gameState->messagesFreeList;
+		gameState->messagesFreeList = gameState->messagesFreeList->next;
+	} else {
+		result = pushStruct(&gameState->levelStorage, Messages);
+	}
+
+	assert(result);
+
+	result->count = count;
+	result->next = NULL;
+
+	assert(count < arrayCount(result->textures) - 1);
+	assert(arrayCount(result->textures) == arrayCount(result->text));
+
+	for(s32 textIndex = 0; textIndex <= count; textIndex++) {
+		result->textures[textIndex].texId = 0;
+		strcpy(result->text[textIndex], text[textIndex]);
+	}
+
+	return result;
+}
+
+void freeMessages(Messages* messages, GameState* gameState) {
+	assert(!messages->next);
+
+	messages->next = gameState->messagesFreeList;
+	gameState->messagesFreeList = messages;
+}
+
 void removeTargetRef(s32 ref, GameState* gameState) {
 	RefNode* node = gameState->targetRefs;
 	RefNode* prevNode = NULL;
@@ -285,19 +318,13 @@ bool createsPickupFieldsOnDeath(Entity* entity) {
 Entity* addPickupField(GameState*, Entity*, ConsoleField*);
 
 void freeEntity(Entity* entity, GameState* gameState, bool endOfLevel) {
-	switch(entity->type) {
-		case EntityType_text: {
+	Messages* messages = entity->messages;
+	if(messages) {
+		for (s32 messageIndex = 0; messageIndex < messages->count; messageIndex++) {
+			freeTexture(messages->textures[messageIndex]);
+		}
 
-			for (s32 messageIndex = 0; messageIndex < entity->numMessages; messageIndex++) {
-				freeTexture(entity->messages[messageIndex]);
-			}
-
-			assert(entity->messages);
-			//TODO: A free list could be used here instead
-			free(entity->messages);
-			entity->messages = NULL;
-			entity->defaultTex = NULL;
-		} break;
+		freeMessages(messages, gameState);
 	}
 
 	//NOTE: At the end of the level no pickup fields should be created and no memory needs to be free
@@ -636,7 +663,7 @@ Entity* addPlayerDeath(GameState* gameState) {
 
 	setFlags(result, EntityFlag_noMovementByDefault);
 
-	result->standAnim = &gameState->playerStand;
+	result->characterAnim = &gameState->playerDeathAnim;
 
 	return result;
 }
@@ -662,9 +689,7 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 
 	setEntityP(result, result->p + result->renderSize * 0.5, gameState);
 
-	result->standAnim = &gameState->playerStand;
-	result->jumpAnim = &gameState->playerJump;
-	result->walkAnim = &gameState->playerWalk;
+	result->characterAnim = &gameState->playerAnim;
 
 	return result;
 }
@@ -686,8 +711,7 @@ Entity* addVirus(GameState* gameState, V2 p) {
 
 	setEntityP(result, result->p + result->renderSize * 0.5, gameState);
 
-	result->standAnim = &gameState->virus1Stand;
-	result->shootAnim = &gameState->virus1Shoot;
+	result->characterAnim = &gameState->virus1Anim;
 
 	return result;
 }
@@ -800,7 +824,16 @@ Entity* addHeavyTile(GameState* gameState, V2 p) {
 void setSelectedText(Entity* text, s32 selectedIndex, GameState* gameState) {
 	assert(text->type == EntityType_text);
 
-	text->defaultTex = text->messages + selectedIndex;
+	Messages* messages = text->messages;
+	assert(messages);
+
+	Texture* texture = messages->textures + selectedIndex;
+
+	if(!texture->texId) {
+		*texture = createText(gameState, gameState->textFont, messages->text[selectedIndex]);
+	}
+
+	text->defaultTex = texture;
 	text->renderSize = text->defaultTex->size;
 	text->clickBox = rectCenterDiameter(v2(0, 0), text->renderSize);
 }
@@ -808,14 +841,7 @@ void setSelectedText(Entity* text, s32 selectedIndex, GameState* gameState) {
 Entity* addText(GameState* gameState, V2 p, char values[10][100], s32 numValues, s32 selectedIndex) {
 	Entity* result = addEntity(gameState, EntityType_text, DrawOrder_text, p, v2(0, 0));
 
-	result->numMessages = numValues;
-	result->messages = (Texture*)malloc((numValues + 1) * sizeof(Texture));
-
-	for(s32 valueIndex = 0; valueIndex <= numValues; valueIndex++) {
-		Texture* tex = result->messages + valueIndex;
-		*tex = createText(gameState, gameState->textFont, values[valueIndex]);
-	}
-
+	result->messages = messages(gameState, values, numValues, selectedIndex);
 	setSelectedText(result, selectedIndex, gameState);
 
 	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
@@ -916,8 +942,7 @@ Entity* addLaserController(GameState* gameState, V2 baseP, double height) {
 Entity* addFlyingVirus(GameState* gameState, V2 p) {
 	Entity* result = addEntity(gameState, EntityType_flyingVirus, DrawOrder_flyingVirus, p, v2(1.5, 1.5));
 
-	result->standAnim = &gameState->flyingVirusStand;
-	result->shootAnim = &gameState->flyingVirusShoot;
+	result->characterAnim = &gameState->flyingVirusAnim;
 
 	setFlags(result, EntityFlag_hackable|
 					 EntityFlag_noMovementByDefault);
@@ -2121,7 +2146,7 @@ Entity* getClosestTargetInSight(Entity* entity, GameState* gameState, double sig
 	Entity* target = NULL;
 	double targetDst;
 
-	while(targetNode) {
+	while(targetNode && targetNode->ref != entity->ref) {
 		Entity* testEntity = getEntityByRef(gameState, targetNode->ref);
 
 		if(testEntity) {
@@ -2215,6 +2240,7 @@ bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt) 
 				clearFlags(entity, EntityFlag_unchargingAfterShooting);
 			} 
 		} else {
+			assert(entity->targetRef != entity->ref);
 			Entity* target = getEntityByRef(gameState, entity->targetRef); 
 
 			if (target) {
@@ -2847,6 +2873,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame, bool pause
 
 		//NOTE: This handles rendering all the entities
 		bool showPlayerHackingAnim = entity->type == EntityType_player && getEntityByRef(gameState, gameState->consoleEntityRef);
+		CharacterAnim* characterAnim = entity->characterAnim;
 
 		if (entity->type == EntityType_player && hacking) {
 			entity->animTime += dtForFrame;
@@ -2854,116 +2881,118 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame, bool pause
 			entity->animTime += dt;
 		}
 
-		if(isSet(entity, EntityFlag_animIntro)) {
-			assert(!isSet(entity, EntityFlag_animOutro));
-			assert(entity->currentAnim);
-			assert(entity->currentAnim->intro.frames);
-			double duration = getAnimationDuration(&entity->currentAnim->intro);
-
-			if(entity->animTime >= duration) {
-				clearFlags(entity, EntityFlag_animIntro);
-				entity->animTime -= duration;
-			}
-		}
-
-		else if(isSet(entity, EntityFlag_animOutro)) {
-			assert(entity->currentAnim && entity->nextAnim);
-			assert(entity->currentAnim->outro.frames);
-			double duration = getAnimationDuration(&entity->currentAnim->outro);
-
-			if(entity->animTime >= duration) {
-				clearFlags(entity, EntityFlag_animOutro);
-				entity->animTime -= duration;
-				entity->currentAnim = entity->nextAnim;
-			}
-		}
-
-		else if(entity->currentAnim) {
-			assert(entity->currentAnim->main.frames);
-
-			double duration = getAnimationDuration(&entity->currentAnim->main);
-			//if(entity->currentAnim->main.pingPong) duration *= 2;
-
-			if(duration <= 0) {
-				entity->animTime = 0;
-			}
-		}
-
-		if(showPlayerHackingAnim) {
-			entity->nextAnim = &gameState->playerHack;
-		}
-		else if(shootingState && entity->shootAnim) {
-			entity->nextAnim = entity->shootAnim;
-		}
-		else if((entity->dP.y != 0 || !isSet(entity, EntityFlag_grounded)) && entity->jumpAnim) {
-			entity->nextAnim = entity->jumpAnim;
-		}
-		else if(abs(entity->dP.x) > 0.1f && entity->walkAnim) {
-			entity->nextAnim = entity->walkAnim;
-		}
-		else if (entity->standAnim) {
-			entity->nextAnim = entity->standAnim;
-		}
-
-		if(entity->nextAnim == entity->currentAnim) {
-			entity->nextAnim = NULL;
-		}
-
-		if (entity->nextAnim) {
+		if(characterAnim) {
 			if(isSet(entity, EntityFlag_animIntro)) {
+				assert(!isSet(entity, EntityFlag_animOutro));
 				assert(entity->currentAnim);
 				assert(entity->currentAnim->intro.frames);
-				if(entity->currentAnim->intro.frames &&
-				    entity->currentAnim->intro.frames == entity->currentAnim->outro.frames) {
-					assert(entity->currentAnim);
+				double duration = getAnimationDuration(&entity->currentAnim->intro);
+
+				if(entity->animTime >= duration) {
 					clearFlags(entity, EntityFlag_animIntro);
-					setFlags(entity, EntityFlag_animOutro);
-					entity->animTime = getAnimationDuration(&entity->currentAnim->intro) - entity->animTime;
-				}
-			} else if(!isSet(entity, EntityFlag_animOutro)) {
-				bool transitionToOutro = true;
-				bool transitionToNext = (entity->nextAnim == entity->jumpAnim);
-
-				if(entity->currentAnim && entity->currentAnim->finishMainBeforeOutro) {
-					transitionToOutro = (entity->animTime >= getAnimationDuration(&entity->currentAnim->main));
-				}
-
-				if(transitionToOutro) {
-					entity->animTime = 0;
-
-					if(entity->currentAnim && entity->currentAnim->outro.frames) {
-						setFlags(entity, EntityFlag_animOutro);
-					}
-					else {
-						transitionToNext = true;
-					}
-				}
-
-				if(transitionToNext) {
-					clearFlags(entity, EntityFlag_animOutro);
-					entity->animTime = 0;
-					entity->currentAnim = entity->nextAnim;
-					assert(entity->currentAnim);
-
-					if(entity->currentAnim->intro.frames) {
-						setFlags(entity, EntityFlag_animIntro);
-					} else {
-						clearFlags(entity, EntityFlag_animIntro);
-					}
+					entity->animTime -= duration;
 				}
 			}
-		} else {
-			clearFlags(entity, EntityFlag_animOutro);
-		}
 
-		if((!entity->nextAnim || !entity->currentAnim || !entity->currentAnim->outro.frames) && 
-			isSet(entity, EntityFlag_animOutro)) {
-			InvalidCodePath;
-		}
+			else if(isSet(entity, EntityFlag_animOutro)) {
+				assert(entity->currentAnim && entity->nextAnim);
+				assert(entity->currentAnim->outro.frames);
+				double duration = getAnimationDuration(&entity->currentAnim->outro);
 
-		if((!entity->currentAnim || !entity->currentAnim->intro.frames) && 
-			isSet(entity, EntityFlag_animIntro)) {
-			InvalidCodePath;
+				if(entity->animTime >= duration) {
+					clearFlags(entity, EntityFlag_animOutro);
+					entity->animTime -= duration;
+					entity->currentAnim = entity->nextAnim;
+				}
+			}
+
+			else if(entity->currentAnim) {
+				assert(entity->currentAnim->main.frames);
+
+				double duration = getAnimationDuration(&entity->currentAnim->main);
+				//if(entity->currentAnim->main.pingPong) duration *= 2;
+
+				if(duration <= 0) {
+					entity->animTime = 0;
+				}
+			}
+
+			if(showPlayerHackingAnim) {
+				entity->nextAnim = &gameState->playerHack;
+			}
+			else if(shootingState && characterAnim->shootAnim) {
+				entity->nextAnim = characterAnim->shootAnim;
+			}
+			else if((entity->dP.y != 0 || !isSet(entity, EntityFlag_grounded)) && characterAnim->jumpAnim) {
+				entity->nextAnim = characterAnim->jumpAnim;
+			}
+			else if(abs(entity->dP.x) > 0.1f && characterAnim->walkAnim) {
+				entity->nextAnim = characterAnim->walkAnim;
+			}
+			else if (characterAnim->standAnim) {
+				entity->nextAnim = characterAnim->standAnim;
+			}
+
+			if(entity->nextAnim == entity->currentAnim) {
+				entity->nextAnim = NULL;
+			}
+
+			if (entity->nextAnim) {
+				if(isSet(entity, EntityFlag_animIntro)) {
+					assert(entity->currentAnim);
+					assert(entity->currentAnim->intro.frames);
+					if(entity->currentAnim->intro.frames &&
+					    entity->currentAnim->intro.frames == entity->currentAnim->outro.frames) {
+						assert(entity->currentAnim);
+						clearFlags(entity, EntityFlag_animIntro);
+						setFlags(entity, EntityFlag_animOutro);
+						entity->animTime = getAnimationDuration(&entity->currentAnim->intro) - entity->animTime;
+					}
+				} else if(!isSet(entity, EntityFlag_animOutro)) {
+					bool transitionToOutro = true;
+					bool transitionToNext = (entity->nextAnim == characterAnim->jumpAnim);
+
+					if(entity->currentAnim && entity->currentAnim->finishMainBeforeOutro) {
+						transitionToOutro = (entity->animTime >= getAnimationDuration(&entity->currentAnim->main));
+					}
+
+					if(transitionToOutro) {
+						entity->animTime = 0;
+
+						if(entity->currentAnim && entity->currentAnim->outro.frames) {
+							setFlags(entity, EntityFlag_animOutro);
+						}
+						else {
+							transitionToNext = true;
+						}
+					}
+
+					if(transitionToNext) {
+						clearFlags(entity, EntityFlag_animOutro);
+						entity->animTime = 0;
+						entity->currentAnim = entity->nextAnim;
+						assert(entity->currentAnim);
+
+						if(entity->currentAnim->intro.frames) {
+							setFlags(entity, EntityFlag_animIntro);
+						} else {
+							clearFlags(entity, EntityFlag_animIntro);
+						}
+					}
+				}
+			} else {
+				clearFlags(entity, EntityFlag_animOutro);
+			}
+
+			if((!entity->nextAnim || !entity->currentAnim || !entity->currentAnim->outro.frames) && 
+				isSet(entity, EntityFlag_animOutro)) {
+				InvalidCodePath;
+			}
+
+			if((!entity->currentAnim || !entity->currentAnim->intro.frames) && 
+				isSet(entity, EntityFlag_animIntro)) {
+				InvalidCodePath;
+			}
 		}
 
 		Texture* texture = NULL;

@@ -96,6 +96,7 @@ typedef int8_t bool8;
 
 struct GameState;
 struct Input;
+struct Camera;
 
 #include "hackformer_math.h"
 #include "hackformer_renderer.h"
@@ -147,6 +148,7 @@ struct Camera {
 	V2 newP;
 	bool32 moveToTarget;
 	bool32 deferredMoveToTarget;
+	double scale;
 };
 
 struct PathNode {
@@ -216,6 +218,7 @@ struct GameState {
 	RefNode* refNodeFreeList;
 	EntityReference* entityRefFreeList;
 	Hitbox* hitboxFreeList;
+	Messages* messagesFreeList;
 
 	ConsoleField* timeField;
 	ConsoleField* gravityField;
@@ -249,16 +252,11 @@ struct GameState {
 	V2 playerDeathStartP;
 	V2 playerDeathSize;
 
-	AnimNode playerStand;
-	AnimNode playerWalk;
 	AnimNode playerHack;
-	AnimNode playerJump;
-
-	AnimNode virus1Stand;
-	AnimNode virus1Shoot;
-
-	AnimNode flyingVirusStand;
-	AnimNode flyingVirusShoot;
+	CharacterAnim playerAnim;
+	CharacterAnim playerDeathAnim;
+	CharacterAnim virus1Anim;
+	CharacterAnim flyingVirusAnim;
 
 	Texture bgTex, mgTex;
 	Texture sunsetCityBg, sunsetCityMg;

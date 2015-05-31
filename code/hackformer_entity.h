@@ -62,6 +62,16 @@ struct Hitbox {
 	Hitbox* next;
 };
 
+struct Messages {
+	char text[10][100];
+	Texture textures[10];
+	s32 count;
+
+	//NOTE: This is currently used for the free list
+	//TODO: This could be used to support having more than 10 messages
+	Messages* next;
+};
+
 struct Entity {
 	EntityType type;
 	u32 flags;
@@ -105,18 +115,14 @@ struct Entity {
 	double timeSinceLastOnGround;
 
 	//Used by text entity
-	Texture* messages;
-	s32 numMessages;
+	Messages* messages;
 
 	double animTime;
 	AnimNode* currentAnim;
 	AnimNode* nextAnim;
 
 	Texture* defaultTex;
-	AnimNode* standAnim;
-	AnimNode* jumpAnim;
-	AnimNode* shootAnim;
-	AnimNode* walkAnim;
+	CharacterAnim* characterAnim;
 };
 
 struct EntityReference {

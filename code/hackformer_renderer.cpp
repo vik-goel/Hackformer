@@ -142,12 +142,12 @@ ForwardShader createForwardShader(char* vertexShaderSourceFileName, char* fragme
 }
 
 void freeTexture(Texture texture) {
-	glDeleteTextures(1, &texture.texId);
-	texture.texId = 0;
+	if(texture.texId) {
+		glDeleteTextures(1, &texture.texId);
+		texture.texId = 0;
+	}
 
 	//TODO: Free the normal map if it is not the null normal
-
-	//SDL_DestroyTexture(texture.tex);
 }
 
 GLuint generateTexture(SDL_Surface* image, bool srgb = false) {
@@ -379,6 +379,17 @@ AnimNode createAnimNode(Texture* stand) {
 	return node;
 }
 
+CharacterAnim createCharacterAnim(AnimNode* standAnim, AnimNode* jumpAnim, AnimNode* shootAnim, AnimNode* walkAnim) {
+	CharacterAnim result = {};
+
+	result.standAnim = standAnim;
+	result.jumpAnim = jumpAnim;
+	result.shootAnim = shootAnim;
+	result.walkAnim = walkAnim;
+
+	return result;
+}
+
 double getAnimationDuration(Animation* animation) {
 	double result = animation->numFrames * animation->secondsPerFrame;
 	return result;
@@ -571,6 +582,7 @@ RenderGroup* createRenderGroup(GameState* gameState, size_t size) {
 	result->windowWidth = gameState->windowWidth;
 	result->windowHeight = gameState->windowHeight;
 	result->windowBounds = r2(v2(0, 0), gameState->windowSize);
+	result->camera = &gameState->camera;
 	result->forwardShader = createForwardShader("shaders/forward.vert", "shaders/forward.frag", gameState->windowSize);
 	result->basicShader = createShader("shaders/basic.vert", "shaders/basic.frag", gameState->windowSize);
 
@@ -823,9 +835,9 @@ void drawDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd,
 }
 
 void renderDrawConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field) {
-	field->p += group->negativeCameraP;
+	field->p -= group->camera->p;
 	drawConsoleField(field, group, NULL, fieldSpec, false);
-	field->p -= group->negativeCameraP;
+	field->p += group->camera->p;
 }
 
 DrawType getRenderHeaderType(RenderHeader* header) {
@@ -932,7 +944,7 @@ void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Dr
 
 	assert(texture);
 
-	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, group->negativeCameraP) : bounds;
+	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, -group->camera->p) : bounds;
 
 	if(rectanglesOverlap(group->windowBounds, drawBounds)) {
 		if(group->rendering) {
@@ -952,7 +964,7 @@ void pushRotatedTexture(RenderGroup* group, Texture* texture, R2 bounds, double 
 	assert(texture);
 
 	if(moveIntoCameraSpace) {
-		bounds = translateRect(bounds, group->negativeCameraP);
+		bounds = translateRect(bounds, -group->camera->p);
 	}
 
 	if(group->rendering) {
@@ -975,8 +987,8 @@ void pushDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd, d
 	if(lineStart == lineEnd) return;
 
 	if(moveIntoCameraSpace) {
-		lineStart += group->negativeCameraP;
-		lineEnd += group->negativeCameraP;
+		lineStart -= group->camera->p;
+		lineEnd -= group->camera->p;
 	}
 
 	//TODO: No need to push lines on if they aren't visible
@@ -1002,7 +1014,7 @@ void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, boo
 					Orientation orientation = Orientation_0, Color color = createColor(255, 255, 255, 255)) {
 	assert(texture);
 
-	R2 drawBounds = scaleRect(translateRect(rectCenterDiameter(entity->p, entity->renderSize), group->negativeCameraP), v2(1.05, 1.05));
+	R2 drawBounds = scaleRect(translateRect(rectCenterDiameter(entity->p, entity->renderSize), -group->camera->p), v2(1.05, 1.05));
 
 	if(rectanglesOverlap(group->windowBounds, drawBounds)) {
 		if(group->rendering) {
@@ -1058,7 +1070,7 @@ void pushText(RenderGroup* group, CachedFont* font, char* msg, V2 p, Color color
 }
 
 void pushFilledRect(RenderGroup* group, R2 bounds, Color color, bool moveIntoCameraSpace = false) {
-	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, group->negativeCameraP) : bounds;
+	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, -group->camera->p) : bounds;
 
 	if(rectanglesOverlap(group->windowBounds, drawBounds)) {
 		if(group->rendering) {
@@ -1075,7 +1087,7 @@ void pushFilledRect(RenderGroup* group, R2 bounds, Color color, bool moveIntoCam
 }
 
 void pushOutlinedRect(RenderGroup* group, R2 bounds, double thickness, Color color, bool moveIntoCameraSpace = false) {
-	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, group->negativeCameraP) : bounds;
+	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, -group->camera->p) : bounds;
 
 	if(rectanglesOverlap(group->windowBounds, addDiameterTo(drawBounds, v2(1, 1) * thickness))) {
 		if(group->rendering) {
@@ -1128,7 +1140,7 @@ void pushPointLight(RenderGroup* group, PointLight* pl, bool moveIntoCameraSpace
 			PointLight* light = group->forwardShader.pointLights + group->forwardShader.numPointLights;
 			group->forwardShader.numPointLights++;
 
-			*light = getRenderablePointLight(pl, moveIntoCameraSpace, group->negativeCameraP);
+			*light = getRenderablePointLight(pl, moveIntoCameraSpace, -group->camera->p);
 		} else {
 			InvalidCodePath;
 		}
@@ -1141,7 +1153,7 @@ void pushSpotLight(RenderGroup* group, SpotLight* sl, bool moveIntoCameraSpace =
 			SpotLight* light = group->forwardShader.spotLights + group->forwardShader.numSpotLights;
 			group->forwardShader.numSpotLights++;
 
-			light->base = getRenderablePointLight(&sl->base, moveIntoCameraSpace, group->negativeCameraP);
+			light->base = getRenderablePointLight(&sl->base, moveIntoCameraSpace, -group->camera->p);
 			light->angle = sl->angle;
 			light->spread = sl->spread;
 		} else {
@@ -1188,7 +1200,7 @@ size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, G
 		END_CASE(RenderBoundedTexture);
 
 		START_CASE(RenderEntityTexture);
-			R2 bounds = rectCenterDiameter(*render->p + group->negativeCameraP, *render->renderSize);
+			R2 bounds = rectCenterDiameter(*render->p - group->camera->p, *render->renderSize);
 			drawTexture(group, render->tex.texture, bounds, render->tex.flipX != 0, render->tex.orientation,
 						 render->tex.emissivity, ambient, render->tex.color);
 		END_CASE(RenderEntityTexture);

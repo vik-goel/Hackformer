@@ -28,6 +28,13 @@ struct AnimNode {
 	bool32 finishMainBeforeOutro;
 };
 
+struct CharacterAnim {
+	AnimNode* standAnim;
+	AnimNode* jumpAnim;
+	AnimNode* shootAnim;
+	AnimNode* walkAnim;
+};
+
 enum TextAlignment {
 	TextAlignment_center,
 	TextAlignment_bottomLeft,
@@ -200,7 +207,7 @@ struct RenderGroup {
 	s32 windowWidth;
 	s32 windowHeight;
 	R2 windowBounds;
-	V2 negativeCameraP;
+	Camera* camera;
 
 	GLfloat ambient;
 
