@@ -595,8 +595,6 @@ void addShootField(Entity* entity, GameState* gameState) {
 
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "bullet_speed", bulletSpeedFieldValues, 
 													    arrayCount(bulletSpeedFieldValues), 2, 1));
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "sight_radius", sightRadii, 
-													    arrayCount(sightRadii), 2, 2));
 
 	addField(entity, result);
 }
@@ -684,6 +682,7 @@ Entity* addVirus(GameState* gameState, V2 p) {
 
 	addPatrolField(result, gameState);
 	addShootField(result, gameState);
+	addSpotlightField(result, gameState);
 
 	setEntityP(result, result->p + result->renderSize * 0.5, gameState);
 
@@ -1171,7 +1170,7 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool sol
 				assert(!gameState->swapField);
 				assert(entity->numFields >= 1);
 				gameState->swapField = entity->fields[0];
-				gameState->swapField->p -= gameState->cameraP;
+				gameState->swapField->p -= gameState->camera.p;
 				rebaseField(gameState->swapField, gameState->swapFieldP);
 
 				removeField(entity->fields, entity->numFields, 0);
@@ -2080,10 +2079,7 @@ void centerCameraAround(Entity* entity, GameState* gameState) {
 	double maxCameraX = gameState->mapSize.x - gameState->windowSize.x;
 	double x = clamp((double)(entity->p.x - gameState->windowSize.x / 2.0), 0, maxCameraX);
 
-	 // int xTexel = (int)((int)(x * gameState->pixelsPerMeter) / gameState->texel.x);
-	 // x = (xTexel + 0.5) * gameState->texel.x / gameState->pixelsPerMeter;
-
-	gameState->newCameraP.x = x;
+	gameState->camera.newP = v2(x, 0);
 }
 
 bool isTarget(Entity* entity, GameState* gameState) {
@@ -2272,7 +2268,7 @@ bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt) 
 	return shootingState;
 }
 
-void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double dt, double groundFriction, bool shootingState) {
+void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double dt, double groundFriction, bool shootingState, bool paused) {
 	//NOTE: This is a hack to make the gravity feel better. There is more gravity when an object
 	//		like the player is falling to make the gravity seem less 'floaty'.
 	V2 gravity = gameState->gravity;
@@ -2380,7 +2376,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 
 
 			case ConsoleField_movesBackAndForth: {
-				if (!shootingState) {
+				if (!shootingState && dt > 0) {
 					V2 oldP = entity->p;
 
 					if (isSet(entity, EntityFlag_facesLeft)) {
@@ -2396,7 +2392,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 					bool shouldChangeDirection = false;
 
 					if (isSet(entity, EntityFlag_noMovementByDefault)) {
-						shouldChangeDirection = startX == endX && dt > 0;
+						shouldChangeDirection = startX == endX;
 					} else {
 						bool32 initiallyOnGround = isSet(entity, EntityFlag_grounded);
 
@@ -2551,12 +2547,12 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 		}
 	}
 
-	if(getField(entity, ConsoleField_cameraFollows)) {
+	if(getField(entity, ConsoleField_cameraFollows) && !paused && !getEntityByRef(gameState, gameState->consoleEntityRef)) {
 		centerCameraAround(entity, gameState);
 	}
 }
 
-void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
+void updateAndRenderEntities(GameState* gameState, double dtForFrame, bool paused) {
 	bool hacking = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
 
 	{
@@ -2627,7 +2623,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 		updateSpotlightBasedOnSpotlightField(entity, gameState);
 		bool shootingState = shootBasedOnShootingField(entity, gameState, dt);
-		moveEntityBasedOnMovementField(entity, gameState, dt, groundFriction, shootingState);
+		moveEntityBasedOnMovementField(entity, gameState, dt, groundFriction, shootingState, paused);
 
 		bool insideLevel = false;
 
@@ -2707,13 +2703,13 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 								
 				double bgWidth = mgWidth / bgScrollRate - 1;
 
-				double bgX = gameState->cameraP.x * (1 -  bgScrollRate);
+				double bgX = max(0, gameState->camera.p.x) * (1 -  bgScrollRate);
 
 				R2 bgBounds = r2(v2(bgX, 0), v2(bgWidth, bgHeight));
 				R2 mgBounds = r2(v2(0, 0), v2(mgWidth, bgHeight));
 
-				pushTexture(gameState->renderGroup, bg, translateRect(bgBounds, -gameState->cameraP), false, DrawOrder_background);
-				pushTexture(gameState->renderGroup, mg, translateRect(mgBounds, -gameState->cameraP), false, DrawOrder_middleground);
+				pushTexture(gameState->renderGroup, bg, translateRect(bgBounds, -gameState->camera.p), false, DrawOrder_background);
+				pushTexture(gameState->renderGroup, mg, translateRect(mgBounds, -gameState->camera.p), false, DrawOrder_middleground);
 			} break;
 
 

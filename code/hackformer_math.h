@@ -247,6 +247,16 @@ double getDegrees(V2 a) {
 	return result;
 }
 
+V2 maxComponents(V2 a, V2 b) {
+	V2 result = v2(max(a.x, b.x), max(a.y, b.y));
+	return result;
+}
+
+V2 minComponents(V2 a, V2 b) {
+	V2 result = v2(min(a.x, b.x), min(a.y, b.y));
+	return result;
+}
+
 //NOTE: V3 operations here
 
 V3 v3(double x, double y, double z) {
@@ -475,6 +485,15 @@ R2 scaleRect(R2 rect, V2 amt) {
 	return result;
 }
 
+V2 clampToRect(V2 a, R2 rect) {
+	V2 result = {};
+
+	result.x = clamp(a.x, rect.min.x, rect.max.x);
+	result.y = clamp(a.y, rect.min.y, rect.max.y);
+
+	return result;
+}
+
 void debugPrintRect(R2 rect) {
 	printf("x: %f, y: %f, width: %f, height: %f\n", 
 		    rect.min.x, rect.min.y, getRectWidth(rect), getRectHeight(rect));
@@ -509,3 +528,11 @@ bool rectanglesOverlap(R2 a, R2 b) {
  	return result;
 }
 
+R2 intersect(R2 a, R2 b) {
+	R2 result = {};
+
+	result.min = maxComponents(a.min, b.min);
+	result.max = minComponents(a.max, b.max);
+
+	return result;
+}

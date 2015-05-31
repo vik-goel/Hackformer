@@ -207,6 +207,7 @@ struct RenderGroup {
 	bool32 enabled;
 	bool32 rendering;
 
+	R2 defaultClipRect;
 	R2 clipRect;
 	bool32 hasClipRect;
 

@@ -170,14 +170,14 @@ void rebaseField(ConsoleField* field, V2 newBase) {
 }
 
 R2 getRenderBounds(Entity* entity, GameState* gameState) {
-	R2 result = translateRect(entity->clickBox, entity->p - gameState->cameraP);
+	R2 result = translateRect(entity->clickBox, entity->p - gameState->camera.p);
 	return result;
 }
 
 V2 getBottomFieldP(Entity* entity, GameState* gameState, FieldSpec* spec) {
 	R2 renderBounds = getRenderBounds(entity, gameState);
 
-	V2 entityScreenP = (entity->p - gameState->cameraP) * gameState->pixelsPerMeter;
+	V2 entityScreenP = (entity->p - gameState->camera.p) * gameState->pixelsPerMeter;
 	bool onScreenRight = entityScreenP.x >= gameState->windowWidth / 2;
 
 	bool isPickupField = entity->type == EntityType_pickupField;
@@ -207,6 +207,17 @@ void onAddConsoleFieldToEntity(Entity* entity, ConsoleField* field, bool exchang
 			}
 		} break;
 	}
+
+	if(field->type == ConsoleField_cameraFollows) {
+		setCameraTarget(&gameState->camera, entity->p);
+	}
+}
+
+bool canFieldBeCloned(ConsoleField* field) {
+	bool result = !(field->type == ConsoleField_cameraFollows ||
+					field->type == ConsoleField_givesEnergy);
+
+	return result;
 }
 
 bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* spec) {
@@ -220,7 +231,7 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 		if (pointInsideRect(bounds, gameState->input.mouseInMeters)) {
 			if(!isSet(field, ConsoleFlag_selected)) {
 				if(gameState->input.shift.pressed) {
-					if(!gameState->swapField && field->type != ConsoleField_cameraFollows) {
+					if(!gameState->swapField && canFieldBeCloned(field)) {
 						if(spec->blueEnergy >= field->tweakCost) {
 							spec->blueEnergy -= field->tweakCost;
 							gameState->swapField = createConsoleField(gameState, field);
@@ -885,7 +896,7 @@ void updateConsole(GameState* gameState, double dt, bool paused) {
 
 				V2 halfTriangleOffset = (clickBoxSize + spec->triangleSize) * 0.5 + spec->spacing;
 
-				V2 triangleP = entity->p + clickBoxCenter - gameState->cameraP - v2(halfTriangleOffset.x, 0);
+				V2 triangleP = entity->p + clickBoxCenter - gameState->camera.p - v2(halfTriangleOffset.x, 0);
 
 				if (drawLeft && drawConsoleTriangle(triangleP, gameState->renderGroup, spec, &gameState->input,  
 									true, false, false, yellow, xOffsetField, xOffsetField->tweakCost, paused)) {
@@ -899,7 +910,7 @@ void updateConsole(GameState* gameState, double dt, bool paused) {
 					clickHandled = true;
 				}
 
-				triangleP = entity->p + clickBoxCenter - gameState->cameraP - v2(0, halfTriangleOffset.y);
+				triangleP = entity->p + clickBoxCenter - gameState->camera.p - v2(0, halfTriangleOffset.y);
 
 				if (drawTop && drawConsoleTriangle(triangleP, gameState->renderGroup, spec, &gameState->input,  
 								false, true, false, yellow, yOffsetField, yOffsetField->tweakCost, paused)) {
@@ -1021,6 +1032,11 @@ void updateConsole(GameState* gameState, double dt, bool paused) {
 			if(newConsoleEntity) {
 				gameState->consoleEntityRef = newConsoleEntity->ref;
 			}
+		}
+
+		if(wasConsoleEntity && !getEntityByRef(gameState, gameState->consoleEntityRef)) {
+			gameState->camera.deferredMoveToTarget = true;
+			gameState->camera.moveToTarget = true;
 		}
 	}
 }

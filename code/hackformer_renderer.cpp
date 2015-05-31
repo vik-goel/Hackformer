@@ -442,7 +442,7 @@ SDL_Rect getPixelSpaceRect(double pixelsPerMeter, s32 windowHeight, R2 rect) {
 	return result;
 }
 
-void setClipRect(double pixelsPerMeter, s32 windowHeight, R2 rect) {
+void setClipRect(double pixelsPerMeter, R2 rect) {
 	GLint x = (GLint)(rect.min.x * pixelsPerMeter);
 	GLint y = (GLint)(rect.min.y * pixelsPerMeter);
 	GLsizei width = (GLsizei)(getRectWidth(rect) * pixelsPerMeter);
@@ -1160,7 +1160,7 @@ void pushDefaultClipRect(RenderGroup* group) {
 	group->hasClipRect = false;
 }
 
-size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, GLfloat ambient) {
+size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, GLfloat ambient, bool pastSortEnd) {
 	RenderHeader* header = (RenderHeader*)elemPtr;
 	size_t elemSize = sizeof(RenderHeader);
 
@@ -1170,10 +1170,11 @@ size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, G
 		R2* clipBounds = (R2*)elemPtr;
 		elemPtr = (char*)elemPtr + sizeof(R2);
 		elemSize += sizeof(R2);
-		setClipRect(group->pixelsPerMeter, group->windowHeight, *clipBounds);
-	} else {
-		//setClipRect(group->renderer, group->pixelsPerMeter, group->windowHeight, group->windowBounds);
+		setClipRect(group->pixelsPerMeter, *clipBounds);
+	} else if(pastSortEnd) {
 		glDisable(GL_SCISSOR_TEST);
+	} else {
+		setClipRect(group->pixelsPerMeter, group->defaultClipRect);
 	}
 
 	#define START_CASE(type) case DrawType_##type: { type* render = (type*)elemPtr
@@ -1422,7 +1423,7 @@ void drawRenderGroup(RenderGroup* group, FieldSpec* fieldSpec) {
 
 	for(s32 elemIndex = 0; elemIndex < group->numSortPtrs; elemIndex++) {
 		void* elemPtr = group->sortPtrs[elemIndex];
-		drawRenderElem(group, fieldSpec, elemPtr, group->ambient);
+		drawRenderElem(group, fieldSpec, elemPtr, group->ambient, false);
 	}
 
 	u32 groupByteIndex = group->sortAddressCutoff;
@@ -1431,7 +1432,7 @@ void drawRenderGroup(RenderGroup* group, FieldSpec* fieldSpec) {
 
 	while(groupByteIndex < group->allocated) {
 		void* elemPtr = (char*)group->base + groupByteIndex;
-		groupByteIndex += drawRenderElem(group, fieldSpec, elemPtr, group->ambient);
+		groupByteIndex += drawRenderElem(group, fieldSpec, elemPtr, group->ambient, true);
 	}
 
 	group->numSortPtrs = 0;

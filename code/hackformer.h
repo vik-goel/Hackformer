@@ -16,7 +16,6 @@ Bug Fixes
 - Fix entity position on bigger screen sizes (when loading in from .tmx)
 - when patrolling change all of the hitboxes, not just the first one
 - test remove when outside level to see that it works
-- if the entity which you are keyboard controlling is removed, the level should restart
 
 - Heavy tiles should be able to smash entities into the ceiling
 
@@ -143,6 +142,13 @@ struct MemoryArena {
 	size_t size;
 };
 
+struct Camera {
+	V2 p;
+	V2 newP;
+	bool32 moveToTarget;
+	bool32 deferredMoveToTarget;
+};
+
 struct PathNode {
 	bool32 solid;
 	bool32 open;
@@ -196,8 +202,7 @@ struct GameState {
 	TTF_Font* textFont;
 
 	Input input;
-	V2 cameraP;
-	V2 newCameraP;
+	Camera camera;
 
 	RefNode* targetRefs;
 	s32 consoleEntityRef;
@@ -291,4 +296,9 @@ void zeroSize(void* base, size_t size) {
 	for (size_t byteIndex = 0; byteIndex < size; byteIndex++) {
 		*((char*)base + byteIndex) = 0;
 	}
+}
+
+void setCameraTarget(Camera* camera, V2 target) {
+	camera->newP = target;
+	camera->moveToTarget = true;
 }

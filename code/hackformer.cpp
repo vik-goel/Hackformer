@@ -101,8 +101,6 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 					gameState->chunks = pushArray(&gameState->levelStorage, EntityChunk, numChunks);
 					zeroSize(gameState->chunks, numChunks * sizeof(EntityChunk));
 				}
-
-
 			}
 		}
 		// else if(!foundTilesetInfo) {
@@ -338,7 +336,7 @@ void pollInput(GameState* gameState, bool* running) {
 				input->dMouseMeters = mouseInMeters - input->mouseInMeters;
 
 				input->mouseInMeters = mouseInMeters;
-				input->mouseInWorld = input->mouseInMeters + gameState->cameraP;
+				input->mouseInWorld = input->mouseInMeters + gameState->camera.p;
 
 			} break;
 			case SDL_MOUSEBUTTONDOWN:
@@ -417,7 +415,7 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 	double timeStep = 1.0 / 60.0;
 
 	for (s32 frame = 0; frame < 30; frame++) {
-		updateAndRenderEntities(gameState, timeStep);
+		updateAndRenderEntities(gameState, timeStep, false);
 	}
 
 	gameState->renderGroup->enabled = true;
@@ -429,7 +427,8 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 
 	if(!initPlayerDeath) {
 		centerCameraAround(player, gameState);
-		gameState->cameraP = gameState->newCameraP;
+		gameState->camera.p = gameState->camera.newP;
+		gameState->camera.moveToTarget = false;
 	} else {
 		if (!epsilonEquals(player->p, gameState->playerDeathStartP, 0.1)) {
 			setFlags(player, EntityFlag_remove);
@@ -599,25 +598,27 @@ int main(int argc, char* argv[]) {
 	gameState->renderGroup = createRenderGroup(gameState, 32 * 1024);
 	gameState->texel = hadamard(gameState->windowSize, v2(1.0 / windowWidth, 1.0 / windowHeight));
 
-	gameState->input.up.keyCode1 = SDLK_w;
-	gameState->input.up.keyCode2 = SDLK_UP;
+	Input* input = &gameState->input;
 
-	gameState->input.down.keyCode1 = SDLK_s;
-	gameState->input.down.keyCode2 = SDLK_DOWN;
+	input->up.keyCode1 = SDLK_w;
+	input->up.keyCode2 = SDLK_UP;
 
-	gameState->input.left.keyCode1 = SDLK_a;
-	gameState->input.left.keyCode2 = SDLK_LEFT;
+	input->down.keyCode1 = SDLK_s;
+	input->down.keyCode2 = SDLK_DOWN;
 
-	gameState->input.right.keyCode1 = SDLK_d;
-	gameState->input.right.keyCode2 = SDLK_RIGHT;
+	input->left.keyCode1 = SDLK_a;
+	input->left.keyCode2 = SDLK_LEFT;
 
-	gameState->input.r.keyCode1 = SDLK_r;
-	gameState->input.x.keyCode1 = SDLK_x;
-	gameState->input.shift.keyCode1 = SDLK_RSHIFT;
-	gameState->input.shift.keyCode2 = SDLK_LSHIFT;
+	input->right.keyCode1 = SDLK_d;
+	input->right.keyCode2 = SDLK_RIGHT;
 
-	gameState->input.pause.keyCode1 = SDLK_p;
-	gameState->input.pause.keyCode2 = SDLK_ESCAPE;
+	input->r.keyCode1 = SDLK_r;
+	input->x.keyCode1 = SDLK_x;
+	input->shift.keyCode1 = SDLK_RSHIFT;
+	input->shift.keyCode2 = SDLK_LSHIFT;
+
+	input->pause.keyCode1 = SDLK_p;
+	input->pause.keyCode2 = SDLK_ESCAPE;
 	
 	gameState->gravity = v2(0, -9.81f);
 	gameState->solidGridSquareSize = 0.1;
@@ -775,7 +776,7 @@ int main(int argc, char* argv[]) {
 
 		pollInput(gameState, &running);
 
-		if(gameState->input.pause.justPressed) {
+		if(input->pause.justPressed) {
 			paused = !paused;
 			gameState->pauseMenu.animCounter = 0;
 			pauseMenu->quit.scale = 1;
@@ -792,7 +793,7 @@ int main(int argc, char* argv[]) {
 			oldInput = gameState->input;
 		}
 
-		updateAndRenderEntities(gameState, dtForFrame);
+		updateAndRenderEntities(gameState, dtForFrame, paused);
 		pushSortEnd(gameState->renderGroup);
 
 		{ //Draw the dock
@@ -873,20 +874,20 @@ int main(int argc, char* argv[]) {
 			pushTexture(gameState->renderGroup, frame1, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame1Color);
 			pushTexture(gameState->renderGroup, frame2, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame2Color);
 		
-			if (updateAndDrawButton(&pauseMenu->quit, gameState->renderGroup, &gameState->input, unpausedDtForFrame)) {
+			if (updateAndDrawButton(&pauseMenu->quit, gameState->renderGroup, input, unpausedDtForFrame)) {
 				running = false;
 			}
 
-			if (updateAndDrawButton(&pauseMenu->restart, gameState->renderGroup, &gameState->input, unpausedDtForFrame)) {
+			if (updateAndDrawButton(&pauseMenu->restart, gameState->renderGroup, input, unpausedDtForFrame)) {
 				levelResetRequested = true;
 				paused = false;
 			}
 
-			if (updateAndDrawButton(&pauseMenu->resume, gameState->renderGroup, &gameState->input, unpausedDtForFrame)) {
+			if (updateAndDrawButton(&pauseMenu->resume, gameState->renderGroup, input, unpausedDtForFrame)) {
 				paused = false;
 			}
 
-			if (updateAndDrawButton(&pauseMenu->settings, gameState->renderGroup, &gameState->input, unpausedDtForFrame)) {
+			if (updateAndDrawButton(&pauseMenu->settings, gameState->renderGroup, input, unpausedDtForFrame)) {
 				//TODO: Implement settings
 			}
 		}
@@ -895,26 +896,68 @@ int main(int argc, char* argv[]) {
 		removeEntities(gameState);
 
 		{ //NOTE: This updates the camera position
-			V2 cameraPDiff = gameState->newCameraP - gameState->cameraP;
-			double maxCameraMovement = 30 * dtForFrame;
+			Camera* camera = &gameState->camera;
 
-			if (lengthSq(cameraPDiff) > square(maxCameraMovement)) {
-				cameraPDiff = normalize(cameraPDiff) * maxCameraMovement;
+			if(!paused && gameState->consoleEntityRef) {
+				V2 movement = {};
+
+				if(input->up.pressed) movement.y++;
+				if(input->down.pressed) movement.y--;
+				if(input->right.pressed) movement.x++;
+				if(input->left.pressed) movement.x--;
+				
+				if(movement.x || movement.y) {
+					double movementSpeed = 25 * dtForFrame;
+
+					V2 minCameraP = -gameState->windowSize;
+					V2 maxCameraP = maxComponents(gameState->mapSize, gameState->windowSize);
+ 
+					V2 delta = normalize(movement) * movementSpeed;
+					camera->newP = clampToRect(camera->p + delta, r2(minCameraP, maxCameraP));
+					camera->moveToTarget = false;
+				}
 			}
 
-			gameState->cameraP += cameraPDiff;
-			gameState->renderGroup->negativeCameraP = -gameState->cameraP;
+			if(camera->moveToTarget) {
+				V2 cameraPDiff = gameState->camera.newP - gameState->camera.p;
+				double lenCameraPDiff = length(cameraPDiff);
+
+				double maxCameraMovement = (7.5 +1.5 * lenCameraPDiff) * dtForFrame;
+
+				if (lenCameraPDiff < maxCameraMovement) {
+					gameState->camera.p = gameState->camera.newP;
+					camera->moveToTarget = false;
+				} else {
+					gameState->camera.p += cameraPDiff * (maxCameraMovement / lenCameraPDiff);
+				}
+			} else {
+				gameState->camera.p = gameState->camera.newP;
+			}
+
+			if(camera->deferredMoveToTarget) {
+				camera->deferredMoveToTarget = false;
+				camera->moveToTarget = true;
+			}
+			
+			gameState->renderGroup->negativeCameraP = -camera->p;
+
+			R2 windowBounds = r2(v2(0, 0), maxComponents(gameState->mapSize, gameState->windowSize));
+			R2 screenBounds = r2(camera->p, camera->p + gameState->windowSize);
+			R2 clipRect = intersect(windowBounds, screenBounds);
+			R2 screenSpaceClipRect = translateRect(clipRect, -camera->p);
+
+			gameState->renderGroup->defaultClipRect = screenSpaceClipRect;
 		}
 
 		dtForFrame = 0;
 
-		if (gameState->input.x.justPressed) {
+		if (input->x.justPressed) {
 			gameState->fieldSpec.blueEnergy += 10;
 		}
 
 		{ //NOTE: This reloads the game
 			bool resetLevel = !getEntityByRef(gameState, gameState->playerDeathRef) &&
-							  (!getEntityByRef(gameState, gameState->playerRef) || gameState->input.r.justPressed || levelResetRequested);
+							  (!getEntityByRef(gameState, gameState->playerRef) || input->r.justPressed || levelResetRequested);
 
 			
 			if (gameState->loadNextLevel || 
