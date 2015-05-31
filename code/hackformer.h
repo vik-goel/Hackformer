@@ -169,14 +169,14 @@ struct EntityChunk {
 };
 
 struct Button {
-	Texture texture;
+	TextureData texture;
 	R2 bounds;
 	bool32 selected;
 	double scale;
 };
 
 struct PauseMenu {
-	Texture background;
+	TextureData background;
 	Animation backgroundAnim;
 	double animCounter;
 
@@ -187,13 +187,12 @@ struct PauseMenu {
 };
 
 struct GameState {
-	Entity entities[1000];
 	s32 numEntities;
+	Entity entities[1000];
 
 	//NOTE: 0 is the null reference
 	EntityReference entityRefs_[500];
 	
-
 	//NOTE: These must be sequential for laser collisions to work
 	s32 refCount;
 
@@ -258,9 +257,9 @@ struct GameState {
 	CharacterAnim virus1Anim;
 	CharacterAnim flyingVirusAnim;
 
-	Texture bgTex, mgTex;
-	Texture sunsetCityBg, sunsetCityMg;
-	Texture marineCityBg, marineCityMg;
+	TextureData bgTex, mgTex;
+	TextureData sunsetCityBg, sunsetCityMg;
+	TextureData marineCityBg, marineCityMg;
 
 	Texture blueEnergyTex;
 	Texture laserBolt;
@@ -273,8 +272,17 @@ struct GameState {
 	Texture heavyTileTex;
 	Texture* tileAtlas;
 
-	Texture dock;
-	Texture dockBlueEnergyTile;
+	TextureData dock;
+	TextureData dockBlueEnergyTile;
+
+	s32 textureDataCount;
+	TextureData textureData[200];
+
+	s32 animDataCount;
+	AnimNodeData animData[20];
+
+	s32 characterAnimDataCount;
+	CharacterAnimData characterAnimData[10];
 
 	PauseMenu pauseMenu;
 };
@@ -300,3 +308,6 @@ void setCameraTarget(Camera* camera, V2 target) {
 	camera->newP = target;
 	camera->moveToTarget = true;
 }
+
+void saveGame(GameState* gameState, char* fileName);
+void loadGame(GameState* gameState, char* fileName);

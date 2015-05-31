@@ -448,7 +448,7 @@ bool drawConsoleTriangle(V2 triangleP, RenderGroup* group, FieldSpec* spec, Inpu
 
 	R2 triangleBounds = rectCenterDiameter(triangleP, triangleSize);
 
-	Texture* triangleTex = &spec->consoleTriangleGrey;
+	TextureData* triangleTex = &spec->consoleTriangleGrey;
 
 	bool enoughEnergyToHack = !yellow && spec->blueEnergy >= tweakCost;
 	if (enoughEnergyToHack) {
@@ -519,7 +519,7 @@ bool drawValueArrow(V2 p, ConsoleField* field, RenderGroup* group, Input* input,
 	bool clickHandled = false;
 
 	R2 triangleBounds = rectCenterDiameter(p, spec->triangleSize);
-	Texture* tex = NULL;
+	TextureData* tex = NULL;
 
 	bool canAfford = spec->blueEnergy >= field->tweakCost;
 
@@ -649,7 +649,7 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 			}
 		}
 
-		Texture* fieldTex = hasValues(field) ? &spec->attribute : &spec->behaviour;
+		TextureData* fieldTex = hasValues(field) ? &spec->attribute : &spec->behaviour;
 		pushTexture(group, fieldTex, fieldBounds, false, DrawOrder_gui);
 		
 		V2 nameP = fieldP + v2(0.14, -0.04);
@@ -783,8 +783,8 @@ void drawWaypointInformation(ConsoleField* field, RenderGroup* group, FieldSpec*
 			double arrowSize = 0.15;
 			V2 arrowDimens = v2(1, 1) * arrowSize;
 
-			Texture* waypointTex = &spec->waypoint;
-			Texture* waypointArrowTex = &spec->waypointArrow;
+			TextureData* waypointTex = &spec->waypoint;
+			TextureData* waypointArrowTex = &spec->waypointArrow;
 
 			while(w) {
 				Waypoint* next = w->next;

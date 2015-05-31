@@ -63,9 +63,10 @@ struct Hitbox {
 };
 
 struct Messages {
-	char text[10][100];
-	Texture textures[10];
 	s32 count;
+	s32 selectedIndex;
+	char text[10][100];
+	TextureData textures[10];
 
 	//NOTE: This is currently used for the free list
 	//TODO: This could be used to support having more than 10 messages
@@ -86,8 +87,8 @@ struct Entity {
 	Hitbox* hitboxes;
 	R2 clickBox;
 
-	ConsoleField* fields[8];
 	s32 numFields;
+	ConsoleField* fields[8];
 
 	RefNode* groundReferenceList;
 	RefNode* ignorePenetrationList;
@@ -118,11 +119,11 @@ struct Entity {
 	Messages* messages;
 
 	double animTime;
-	AnimNode* currentAnim;
-	AnimNode* nextAnim;
+	AnimNode currentAnim;
+	AnimNode nextAnim;
 
-	Texture* defaultTex;
-	CharacterAnim* characterAnim;
+	Texture defaultTex;
+	CharacterAnim characterAnim;
 };
 
 struct EntityReference {

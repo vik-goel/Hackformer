@@ -3,6 +3,7 @@
 #include "hackformer_renderer.cpp"
 #include "hackformer_consoleField.cpp"
 #include "hackformer_entity.cpp"
+#include "hackformer_save.cpp"
 
 bool stringsMatch(char* a, char * b) {
 	s32 len = strlen(b);
@@ -138,7 +139,7 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 
 					if (tileIndex >= 0) {
 						V2 tileP = v2(tileX + 0.5, tileY + 0.5) * gameState->tileSize;
-						addTile(gameState, tileP, gameState->tileAtlas + tileIndex);
+						addTile(gameState, tileP, gameState->tileAtlas[tileIndex]);
 					}
 
 					tileX++;
@@ -598,6 +599,10 @@ int main(int argc, char* argv[]) {
 	gameState->windowHeight = windowHeight;
 	gameState->windowSize = v2((double)windowWidth, (double)windowHeight) * (1.0 / gameState->pixelsPerMeter);
 
+	gameState->textureDataCount = 1; //NOTE: 0 is a null texture data
+	gameState->animDataCount = 1; //NOTE: 0 is a null anim data
+	gameState->characterAnimDataCount = 1; //NOTE: 0 is a null character data
+
 	gameState->renderGroup = createRenderGroup(gameState, 32 * 1024);
 	gameState->texel = hadamard(gameState->windowSize, v2(1.0 / windowWidth, 1.0 / windowHeight));
 
@@ -630,51 +635,62 @@ int main(int argc, char* argv[]) {
 
 	gameState->textFont = loadFont("fonts/Roboto-Regular.ttf", 64);
 
-	Texture playerStand = loadPNGTexture(gameState, "res/player/stand2");
-	Texture playerJump = loadPNGTexture(gameState, "res/player/jump3");
+	TextureData playerStand = loadPNGTexture(gameState, "res/player/stand2");
+	TextureData playerJump = loadPNGTexture(gameState, "res/player/jump3");
 	Animation playerStandJumpTransition = loadAnimation(gameState, "res/player/jump_transition", 256, 256, 0.025f, false);
 	Animation playerWalk = loadAnimation(gameState, "res/player/running 2", 256, 256, 0.0325f, true);
 	Animation playerStandWalkTransition = loadAnimation(gameState, "res/player/stand_run_transition", 256, 256, 0.01f, false);
 	Animation playerHackingAnimation = loadAnimation(gameState, "res/player/Hacking Flow Sprite", 512, 256, 0.07f, true);
 	Animation playerHackingAnimationTransition = loadAnimation(gameState, "res/player/Hacking Sprite Full 2", 256, 256, 0.025f, false);
 
-	AnimNode playerStandAnimNode = createAnimNode(&playerStand);
-	AnimNode playerJumpAnimNode = {}, playerWalkAnimNode = {};
+	AnimNodeData playerWalkAnimNodeData = {};
+	AnimNodeData playerJumpAnimNodeData = {};
 
-	playerJumpAnimNode.intro = playerStandJumpTransition;
-	playerJumpAnimNode.main = createAnimation(&playerJump);
-	playerJumpAnimNode.outro = createReversedAnimation(&playerStandJumpTransition);
+	playerJumpAnimNodeData.intro = playerStandJumpTransition;
+	playerJumpAnimNodeData.main = createAnimation(&playerJump, gameState);
+	playerJumpAnimNodeData.outro = createReversedAnimation(&playerStandJumpTransition);
 
-	playerWalkAnimNode.main = playerWalk;
-	playerWalkAnimNode.intro = playerStandWalkTransition;
-	playerWalkAnimNode.finishMainBeforeOutro = true;
+	playerWalkAnimNodeData.main = playerWalk;
+	playerWalkAnimNodeData.intro = playerStandWalkTransition;
+	playerWalkAnimNodeData.finishMainBeforeOutro = true;
 
-	gameState->playerAnim = createCharacterAnim(&playerStandAnimNode, &playerJumpAnimNode, NULL, &playerWalkAnimNode);
-	gameState->playerDeathAnim = createCharacterAnim(&playerStandAnimNode, NULL, NULL, NULL);
+	AnimNode playerStandAnimNode = createAnimNode(&playerStand, gameState);
+	AnimNode playerJumpAnimNode = createAnimNodeFromData(&playerJumpAnimNodeData, gameState);
+	AnimNode playerWalkAnimNode = createAnimNodeFromData(&playerWalkAnimNodeData, gameState);
 
-	gameState->playerHack.main = playerHackingAnimation;
-	gameState->playerHack.intro = playerHackingAnimationTransition;
-	gameState->playerHack.outro = createReversedAnimation(&playerHackingAnimationTransition);
+	gameState->playerAnim = createCharacterAnim(gameState, playerStandAnimNode, playerJumpAnimNode, {}, playerWalkAnimNode);
+	gameState->playerDeathAnim = createCharacterAnim(gameState, playerStandAnimNode, {}, {}, {});
 
-	Texture virus1Stand = loadPNGTexture(gameState, "res/virus1/stand");
+	AnimNodeData playerHackData = {};
+	playerHackData.main = playerHackingAnimation;
+	playerHackData.intro = playerHackingAnimationTransition;
+	playerHackData.outro = createReversedAnimation(&playerHackingAnimationTransition);
+
+	gameState->playerHack = createAnimNodeFromData(&playerHackData, gameState);
+
+	TextureData virus1Stand = loadPNGTexture(gameState, "res/virus1/stand");
 	Animation virus1Shoot = loadAnimation(gameState, "res/virus1/shoot", 256, 256, 0.04f, true);
 	gameState->shootDelay = getAnimationDuration(&virus1Shoot);
 
-	AnimNode virus1StandAnimNode = createAnimNode(&virus1Stand);
-	AnimNode virus1ShootAnimNode = {};
-	virus1ShootAnimNode.main = virus1Shoot;
+	AnimNode virus1StandAnimNode = createAnimNode(&virus1Stand, gameState);
+	AnimNodeData virus1ShootAnimNodeData = {};
+	virus1ShootAnimNodeData.main = virus1Shoot;
 
-	gameState->virus1Anim = createCharacterAnim(&virus1StandAnimNode, NULL, &virus1ShootAnimNode, NULL);
+	AnimNode virus1ShootAnimNode = createAnimNodeFromData(&virus1ShootAnimNodeData, gameState);
+
+	gameState->virus1Anim = createCharacterAnim(gameState, virus1StandAnimNode, {}, virus1ShootAnimNode, {});
 
 	//TODO: Make shoot animation time per frame be set by the shootDelay
-	Texture flyingVirusStand = loadPNGTexture(gameState, "res/virus2/full");
+	TextureData flyingVirusStand = loadPNGTexture(gameState, "res/virus2/full");
 	Animation flyingVirusShoot = loadAnimation(gameState, "res/virus2/shoot", 256, 256, 0.04f, true);
 
-	AnimNode flyingVirusStandAnimNode = createAnimNode(&flyingVirusStand);
-	AnimNode flyingVirusShootAnimNode = {};
-	flyingVirusShootAnimNode.main = flyingVirusShoot;
+	AnimNode flyingVirusStandAnimNode = createAnimNode(&flyingVirusStand, gameState);
+	AnimNodeData flyingVirusShootAnimNodeData = {};
+	flyingVirusShootAnimNodeData.main = flyingVirusShoot;
 
-	gameState->flyingVirusAnim = createCharacterAnim(&flyingVirusStandAnimNode, NULL, &flyingVirusShootAnimNode, NULL);
+	AnimNode flyingVirusShootAnimNode = createAnimNodeFromData(&flyingVirusShootAnimNodeData, gameState);
+
+	gameState->flyingVirusAnim = createCharacterAnim(gameState, flyingVirusStandAnimNode, {}, flyingVirusShootAnimNode, {});
 
 
 	gameState->sunsetCityBg = loadPNGTexture(gameState, "res/backgrounds/sunset city bg", false);
@@ -682,17 +698,17 @@ int main(int argc, char* argv[]) {
 	gameState->marineCityBg = loadPNGTexture(gameState, "res/backgrounds/marine city bg", false);
 	gameState->marineCityMg = loadPNGTexture(gameState, "res/backgrounds/marine city mg", false);
 
-	gameState->blueEnergyTex = loadPNGTexture(gameState, "res/blue energy");
-	gameState->laserBolt = loadPNGTexture(gameState, "res/virus1/laser bolt", false);
-	gameState->endPortal = loadPNGTexture(gameState, "res/end portal");
+	gameState->blueEnergyTex = loadTexture(gameState, "res/blue energy");
+	gameState->laserBolt = loadTexture(gameState, "res/virus1/laser bolt", false);
+	gameState->endPortal = loadTexture(gameState, "res/end portal");
 
-	gameState->laserBaseOff = loadPNGTexture(gameState, "res/virus3/base off");
-	gameState->laserBaseOn = loadPNGTexture(gameState, "res/virus3/base on");
-	gameState->laserTopOff = loadPNGTexture(gameState, "res/virus3/top off");
-	gameState->laserTopOn = loadPNGTexture(gameState, "res/virus3/top on");
-	gameState->laserBeam = loadPNGTexture(gameState, "res/virus3/laser beam");
+	gameState->laserBaseOff = loadTexture(gameState, "res/virus3/base off");
+	gameState->laserBaseOn = loadTexture(gameState, "res/virus3/base on");
+	gameState->laserTopOff = loadTexture(gameState, "res/virus3/top off");
+	gameState->laserTopOn = loadTexture(gameState, "res/virus3/top on");
+	gameState->laserBeam = loadTexture(gameState, "res/virus3/laser beam");
 
-	gameState->heavyTileTex = loadPNGTexture(gameState, "res/Heavy1");
+	gameState->heavyTileTex = loadTexture(gameState, "res/Heavy1");
 
 	FieldSpec* spec = &gameState->fieldSpec;
 
@@ -732,7 +748,7 @@ int main(int argc, char* argv[]) {
 	pauseMenu->resume = createPauseMenuButton(gameState, "res/Resume Button", v2(3.21, 8.2), 1.18);
 	pauseMenu->settings = createPauseMenuButton(gameState, "res/Settings Button", v2(12.4, 6.8), 1.08);
 
-	u32 numTilesInAtlas;
+	s32 numTilesInAtlas;
 	gameState->tileAtlas = extractTextures(gameState, "res/tiles_floored", 120, 240, 12, &numTilesInAtlas);
 
 	char* mapFileNames[] = {
@@ -756,6 +772,8 @@ int main(int argc, char* argv[]) {
 	u32 currentTime;
 
 	bool paused = false;
+
+	saveGame(gameState, "test_save.txt");
 
 	while (running) {
 		currentTime = SDL_GetTicks();

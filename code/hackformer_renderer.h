@@ -7,21 +7,32 @@
 #define BLACK (createColor(0, 0, 0, 255))
 
 struct Texture {
+	s32 dataIndex;
+};
+
+struct TextureData {
 	GLuint texId;
 	GLuint normalId;
 	R2 uv;
 	V2 size;
+
+	char fileName[128];
+	bool32 hasFileName;
 };
 
 struct Animation {
+	s32 numFrames;
 	Texture* frames;
-	u32 numFrames;
 	double secondsPerFrame;
 	bool32 pingPong;
 	bool32 reverse;
 };
 
 struct AnimNode {
+	s32 dataIndex;
+};
+
+struct AnimNodeData {
 	Animation intro;
 	Animation main;
 	Animation outro;
@@ -29,10 +40,14 @@ struct AnimNode {
 };
 
 struct CharacterAnim {
-	AnimNode* standAnim;
-	AnimNode* jumpAnim;
-	AnimNode* shootAnim;
-	AnimNode* walkAnim;
+	s32 dataIndex;
+};
+
+struct CharacterAnimData {
+	AnimNode standAnim;
+	AnimNode jumpAnim;
+	AnimNode shootAnim;
+	AnimNode walkAnim;
 };
 
 enum TextAlignment {
@@ -41,7 +56,7 @@ enum TextAlignment {
 };
 
 struct Glyph {
-	Texture tex;
+	TextureData tex;
 
 	//min for bottom and left
 	//max for top and right
@@ -138,7 +153,7 @@ enum DrawOrder;
 
 struct RenderTexture {
 	DrawOrder drawOrder;
-	Texture* texture;
+	TextureData* texture;
 	bool8 flipX;
 	Orientation orientation;
 	float emissivity;
@@ -157,7 +172,7 @@ struct RenderBoundedTexture {
 };
 
 struct RenderRotatedTexture {
-	Texture* texture;
+	TextureData* texture;
 	R2 bounds;
 	double rad;
 	Color color;
@@ -200,7 +215,7 @@ struct RenderGroup {
 	Shader basicShader;
 	Shader* currentShader;
 
-	Texture whiteTex;
+	TextureData whiteTex;
 	GLuint nullNormalId;
 
 	double pixelsPerMeter;
@@ -225,4 +240,6 @@ struct RenderGroup {
 	void* base;
 	size_t allocated;
 	size_t maxSize;
+
+	TextureData* textureData;
 };

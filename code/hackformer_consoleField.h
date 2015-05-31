@@ -72,8 +72,8 @@ struct ConsoleField {
 	ConsoleField* next;
 
 	//NOTE: This is used for hierarchal console fields
-	ConsoleField* children[4];
 	s32 numChildren;
+	ConsoleField* children[4];
 	double childYOffs;
 };
 
@@ -90,22 +90,22 @@ struct FieldSpec {
 
 	int blueEnergy;
 
-	Texture consoleTriangle;
-	Texture consoleTriangleYellow;
-	Texture consoleTriangleGrey;
-	Texture consoleTriangleSelected;
+	TextureData consoleTriangle;
+	TextureData consoleTriangleYellow;
+	TextureData consoleTriangleGrey;
+	TextureData consoleTriangleSelected;
 
-	Texture attribute;
-	Texture behaviour;
-	Texture valueBackground;
-	Texture leftButtonClicked;
-	Texture leftButtonUnavailable;
-	Texture leftButtonDefault;
+	TextureData attribute;
+	TextureData behaviour;
+	TextureData valueBackground;
+	TextureData leftButtonClicked;
+	TextureData leftButtonUnavailable;
+	TextureData leftButtonDefault;
 
-	Texture waypoint;
-	Texture waypointArrow;
+	TextureData waypoint;
+	TextureData waypointArrow;
 
-	Texture tileHackShield;
+	TextureData tileHackShield;
 
 	CachedFont consoleFont;
 };

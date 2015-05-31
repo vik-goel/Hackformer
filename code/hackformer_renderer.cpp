@@ -141,7 +141,7 @@ ForwardShader createForwardShader(char* vertexShaderSourceFileName, char* fragme
 	return result;
 }
 
-void freeTexture(Texture texture) {
+void freeTexture(TextureData texture) {
 	if(texture.texId) {
 		glDeleteTextures(1, &texture.texId);
 		texture.texId = 0;
@@ -172,33 +172,6 @@ GLuint generateTexture(SDL_Surface* image, bool srgb = false) {
 		format = GL_RGB;
 	} else if (image->format->BytesPerPixel == 4) {
 		format = GL_RGBA;
-
-		// char* pixelPtr = (char*)image->pixels;
-
-		// for(s32 y = 0; y < image->h; y++) {
-		// 	for(s32 x = 0; x < image->w; x++) {
-		// 		u32* pixel = (u32*)(pixelPtr + x * 4);
-
-		// 		s32 r = (*pixel >> 24) & 0xFF;
-		// 		s32 g = (*pixel >> 16) & 0xFF;
-		// 		s32 b = (*pixel >> 8) & 0xFF;
-		// 		s32 a = (*pixel) & 0xFF;
-
-		// 		float aFloat = (a + 0.5f) / 255.0f;
-		// 		float rFloat = ((r + 0.5f) / 255.0f) * aFloat;
-		// 		float gFloat = ((g + 0.5f) / 255.0f) * aFloat;
-		// 		float bFloat = ((b + 0.5f) / 255.0f) * aFloat;
-
-		// 		s32 newR = (s32)(rFloat * 255.5f);
-		// 		s32 newG = (s32)(gFloat * 255.5f);
-		// 		s32 newB = (s32)(bFloat * 255.5f);
-
-		// 		*pixel = (newR << 24) | (newG << 16) | (newB << 8) | a;
-		// 	}
-
-		// 	pixelPtr += image->pitch;
-		//}
-
 	} else {
 		InvalidCodePath;
 	}
@@ -210,8 +183,21 @@ GLuint generateTexture(SDL_Surface* image, bool srgb = false) {
 	return result;
 }
 
-Texture createTexFromSurface(SDL_Surface* image, SDL_Surface* normal, RenderGroup* group) {
-	Texture result = {};
+Texture createTextureFromData(TextureData* data, GameState* gameState) {
+	assert(gameState->textureDataCount < arrayCount(gameState->textureData) - 1);
+
+	assert(data->hasFileName);
+	gameState->textureData[gameState->textureDataCount] = *data;
+
+	Texture texture = {};
+	texture.dataIndex = gameState->textureDataCount;
+	gameState->textureDataCount++;
+
+	return texture;
+}
+
+TextureData createTexFromSurface(SDL_Surface* image, SDL_Surface* normal, RenderGroup* group) {
+	TextureData result = {};
 
 	result.texId = generateTexture(image, true);
 
@@ -238,7 +224,13 @@ void addFileExtension(char* result, size_t resultSize, char* fileName, char* ext
 	strcat(result, extension);
 }
 
-Texture loadPNGTexture(GameState* gameState, char* fileName, bool loadNormalMap = true) {
+void addFileName(TextureData* data, char* fileName) {
+	data->hasFileName = true;
+	assert(strlen(fileName) < arrayCount(data->fileName));
+	strcpy(data->fileName, fileName);
+}
+
+TextureData loadPNGTexture(GameState* gameState, char* fileName, bool loadNormalMap = true) {
 	char* extension = ".png";
 	
 	char filePath[1024];
@@ -253,17 +245,55 @@ Texture loadPNGTexture(GameState* gameState, char* fileName, bool loadNormalMap 
 	SDL_Surface* normal = NULL;
 	if (loadNormalMap) normal = IMG_Load(filePath);
 
-	Texture result = createTexFromSurface(diffuse, normal, gameState->renderGroup);
+	TextureData result = createTexFromSurface(diffuse, normal, gameState->renderGroup);
+	addFileName(&result, filePath);
 
 	return result;
 }
 
-double getAspectRatio(Texture* texture) {
+Texture loadTexture(GameState* gameState, char* fileName, bool loadNormalMap = true) {
+	TextureData data = loadPNGTexture(gameState, fileName, loadNormalMap);
+	Texture result = createTextureFromData(&data, gameState);
+	return result;
+}
+
+TextureData* getTextureData(Texture* texture, TextureData* dataArray) {
+	TextureData* result = dataArray + texture->dataIndex;
+	return result;
+}
+
+TextureData* getTextureData(Texture* texture, RenderGroup* group) {
+	TextureData* result = getTextureData(texture, group->textureData);
+	return result;
+}
+
+TextureData* getTextureData(Texture* texture, GameState* gameState) {
+	TextureData* result = getTextureData(texture, gameState->textureData);
+	return result;
+}
+
+double getAspectRatio(TextureData* texture) {
 	double result = texture->size.x / texture->size.y;
 	return result;
 }
 
-V2 getDrawSize(Texture* texture, double height) {
+double getAspectRatio(Texture* texture, GameState* gameState) {
+	TextureData* texData = getTextureData(texture, gameState);
+	double result = getAspectRatio(texData);
+	return result;
+}
+
+V2 getDrawSize(Texture* texture, double height, GameState* gameState) {
+	V2 result = {};
+
+	double aspectRatio = getAspectRatio(texture, gameState);
+	result.x = height * aspectRatio;
+	result.y = height;
+
+	return result;
+}
+
+V2 getDrawSize(TextureData* texture, double height) {
 	V2 result = {};
 
 	double aspectRatio = getAspectRatio(texture);
@@ -295,9 +325,9 @@ CachedFont loadCachedFont(GameState* gameState, char* fileName, s32 fontSize, do
 }
 
 Texture* extractTextures(GameState* gameState, char* fileName, 
-	s32 frameWidth, s32 frameHeight, s32 frameSpacing, u32* numFrames) {
+	s32 frameWidth, s32 frameHeight, s32 frameSpacing, s32* numFrames) {
 
-	Texture tex = loadPNGTexture(gameState, fileName);
+	TextureData tex = loadPNGTexture(gameState, fileName);
 
 	s32 texWidth = (s32)(tex.size.x * gameState->pixelsPerMeter + 0.5);
 	s32 texHeight = (s32)(tex.size.y * gameState->pixelsPerMeter + 0.5);
@@ -325,22 +355,16 @@ Texture* extractTextures(GameState* gameState, char* fileName,
 	for (s32 rowIndex = 0; rowIndex < numRows; rowIndex++) {
 		for (s32 colIndex = 0; colIndex < numCols; colIndex++) {
 			s32 textureIndex = colIndex + rowIndex * numCols;
-			Texture* frame = result + textureIndex;
 
-			frame->texId = tex.texId;
-			frame->normalId = tex.normalId;
-			//frame->tex = tex.tex;
-
-			// SDL_Rect* rect = &frame->srcRect;
-
-			// rect->x = colIndex * (frameWidth + frameSpacing) + frameSpacing / 2;
-			// rect->y = rowIndex * (frameHeight + frameSpacing) + frameSpacing / 2;
-			// rect->w = frameWidth;
-			// rect->h = frameHeight;
+			TextureData data = {};
+			data.texId = tex.texId;
+			data.normalId = tex.normalId;
 
 			V2 minCorner = hadamard(v2(colIndex, rowIndex), frameSize) + frameOffset;
+			data.uv = r2(minCorner, minCorner + texSize);
 
-			frame->uv = r2(minCorner, minCorner + texSize);
+			addFileName(&data, fileName);
+			result[textureIndex] = createTextureFromData(&data, gameState);
 		}
 	}
 
@@ -367,26 +391,72 @@ Animation createAnimation(Texture* tex) {
 	return result;
 }
 
+Animation createAnimation(TextureData* texData, GameState* gameState) {
+	Texture* tex = pushStruct(&gameState->permanentStorage, Texture);
+	*tex = createTextureFromData(texData, gameState);
+	Animation result = createAnimation(tex);
+	return result;
+}
+
 Animation createReversedAnimation(Animation* anim) {
 	Animation result = *anim;
 	result.reverse = !result.reverse;
 	return result;
 }
 
-AnimNode createAnimNode(Texture* stand) {
-	AnimNode node = {};
-	node.main = createAnimation(stand);
-	return node;
+AnimNode createAnimNodeFromData(AnimNodeData* data, GameState* gameState) {
+	assert(gameState->animDataCount < arrayCount(gameState->animData) - 1);
+	assert(gameState->animDataCount >= 1);
+
+	AnimNode result = {};
+	result.dataIndex = gameState->animDataCount;
+
+	gameState->animData[gameState->animDataCount] = *data;
+
+	gameState->animDataCount++;
+
+	return result;
 }
 
-CharacterAnim createCharacterAnim(AnimNode* standAnim, AnimNode* jumpAnim, AnimNode* shootAnim, AnimNode* walkAnim) {
+AnimNode createAnimNode(Texture* stand, GameState* gameState) {
+	AnimNodeData node = {};
+	node.main = createAnimation(stand);
+
+	AnimNode result = createAnimNodeFromData(&node, gameState);
+
+	return result;
+}
+
+AnimNode createAnimNode(TextureData* stand, GameState* gameState) {
+	Texture* tex = pushStruct(&gameState->permanentStorage, Texture);
+	*tex = createTextureFromData(stand, gameState);
+	AnimNode result = createAnimNode(tex, gameState);
+	return result;
+}
+
+AnimNodeData* getAnimNodeData(AnimNode node, GameState* gameState) {
+	AnimNodeData* result = gameState->animData + node.dataIndex;
+	return result;
+}
+
+CharacterAnim createCharacterAnim(GameState* gameState, AnimNode standAnim, AnimNode jumpAnim, AnimNode shootAnim, AnimNode walkAnim) {
+	CharacterAnimData* data = gameState->characterAnimData + gameState->characterAnimDataCount;
+
+	data->standAnim = standAnim;
+	data->jumpAnim = jumpAnim;
+	data->shootAnim = shootAnim;
+	data->walkAnim = walkAnim;
+
 	CharacterAnim result = {};
+	result.dataIndex = gameState->characterAnimDataCount;
 
-	result.standAnim = standAnim;
-	result.jumpAnim = jumpAnim;
-	result.shootAnim = shootAnim;
-	result.walkAnim = walkAnim;
+	gameState->characterAnimDataCount++;
 
+	return result;
+}
+
+CharacterAnimData* getCharacterAnimData(CharacterAnim anim, GameState* gameState) {
+	CharacterAnimData* result = gameState->characterAnimData + anim.dataIndex;
 	return result;
 }
 
@@ -463,11 +533,11 @@ void setClipRect(double pixelsPerMeter, R2 rect) {
 	glScissor(x, y, width, height);
 }
 
-Texture createText(GameState* gameState, TTF_Font* font, char* msg) {
+TextureData createText(GameState* gameState, TTF_Font* font, char* msg) {
 	SDL_Color fontColor = {0, 0, 0, 255};
 	SDL_Surface* fontSurface = TTF_RenderText_Blended(font, msg, fontColor);
 
-	Texture result = createTexFromSurface(fontSurface, NULL, gameState->renderGroup);
+	TextureData result = createTexFromSurface(fontSurface, NULL, gameState->renderGroup);
 
 	return result;
 }
@@ -583,6 +653,7 @@ RenderGroup* createRenderGroup(GameState* gameState, size_t size) {
 	result->windowHeight = gameState->windowHeight;
 	result->windowBounds = r2(v2(0, 0), gameState->windowSize);
 	result->camera = &gameState->camera;
+	result->textureData = gameState->textureData;
 	result->forwardShader = createForwardShader("shaders/forward.vert", "shaders/forward.frag", gameState->windowSize);
 	result->basicShader = createShader("shaders/basic.vert", "shaders/basic.frag", gameState->windowSize);
 
@@ -624,7 +695,9 @@ void sendTexCoord(V2 uvMin, V2 uvMax, s32 orientation) {
 	}
 }
 
-void bindTexture(Texture* texture, RenderGroup* group, bool flipX) {
+void bindTexture(TextureData* texture, RenderGroup* group, bool flipX) {
+	assert(texture);
+
 	assert(texture->texId);
 
 	glEnable(GL_TEXTURE_2D);
@@ -650,7 +723,7 @@ void setAmbient(RenderGroup* group, GLfloat ambient) {
 	glUniform3f(group->forwardShader.ambientUniform, ambient, ambient, ambient);
 }
 
-void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Orientation orientation, float emissivity, 
+void drawTexture(RenderGroup* group, TextureData* texture, R2 bounds, bool flipX, Orientation orientation, float emissivity, 
 				GLfloat ambient, Color color) {
 	if(emissivity) {
 		setAmbient(group, ambient + (1 - ambient) * emissivity);
@@ -688,7 +761,7 @@ void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Or
 	}
 }
 
-void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, double rot, Color color) {
+void drawTexture(RenderGroup* group, TextureData* texture, R2 bounds, double rot, Color color) {
 	bindTexture(texture, group, false);
 	setColor(group, color);
 
@@ -723,7 +796,7 @@ void drawText(RenderGroup* group, CachedFont* cachedFont, char* msg, V2 p, Color
 	double invScaleFactor = 1.0 / cachedFont->scaleFactor;
 
 	while(*msg) {
-		Texture* texture = &getGlyph(cachedFont, group, *msg, metersPerPixel)->tex;
+		TextureData* texture = &getGlyph(cachedFont, group, *msg, metersPerPixel)->tex;
 		V2 size = texture->size * invScaleFactor;
 		R2 bounds = r2(p, p + size);
 
@@ -908,9 +981,11 @@ void pushSortEnd(RenderGroup* group) {
 	group->sortAddressCutoff = group->allocated;
 }
 
-RenderTexture createRenderTexture(DrawOrder drawOrder, Texture* texture, bool flipX, 
+RenderTexture createRenderTexture(DrawOrder drawOrder, TextureData* texture, bool flipX, 
 								Orientation orientation, float emissivity, Color color) {
 	RenderTexture result = {};
+
+	assert(texture->texId);
 
 	result.drawOrder = drawOrder;
 	result.texture = texture;
@@ -939,10 +1014,11 @@ void pushConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* fi
 } 
 
 
-void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, DrawOrder drawOrder, bool moveIntoCameraSpace = false,
+void pushTexture(RenderGroup* group, TextureData* texture, R2 bounds, bool flipX, DrawOrder drawOrder, bool moveIntoCameraSpace = false,
 	 		Orientation orientation = Orientation_0, Color color = createColor(255, 255, 255, 255), float emissivity = 0) {
 
 	assert(texture);
+	assert(texture->texId);
 
 	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, -group->camera->p) : bounds;
 
@@ -960,7 +1036,13 @@ void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Dr
 	}
 }
 
-void pushRotatedTexture(RenderGroup* group, Texture* texture, R2 bounds, double rad, Color color, bool moveIntoCameraSpace = false) {
+void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, DrawOrder drawOrder, bool moveIntoCameraSpace = false,
+	 		Orientation orientation = Orientation_0, Color color = createColor(255, 255, 255, 255), float emissivity = 0) {
+	TextureData* texData = getTextureData(texture, group);
+	pushTexture(group, texData, bounds, flipX, drawOrder, moveIntoCameraSpace, orientation, color, emissivity);
+}
+
+void pushRotatedTexture(RenderGroup* group, TextureData* texture, R2 bounds, double rad, Color color, bool moveIntoCameraSpace = false) {
 	assert(texture);
 
 	if(moveIntoCameraSpace) {
@@ -979,6 +1061,11 @@ void pushRotatedTexture(RenderGroup* group, Texture* texture, R2 bounds, double 
 			render->color = color;
 		}
 	}
+}
+
+void pushRotatedTexture(RenderGroup* group, Texture* texture, R2 bounds, double rad, Color color, bool moveIntoCameraSpace = false) {
+	TextureData* texData = getTextureData(texture, group);
+	pushRotatedTexture(group, texData, bounds, rad, color, moveIntoCameraSpace);
 }
 
 void pushDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd, double thickness,
@@ -1010,7 +1097,7 @@ void pushDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd, d
 
 }
 
-void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, bool flipX, DrawOrder drawOrder,
+void pushEntityTexture(RenderGroup* group, TextureData* texture, Entity* entity, bool flipX, DrawOrder drawOrder,
 					Orientation orientation = Orientation_0, Color color = createColor(255, 255, 255, 255)) {
 	assert(texture);
 
@@ -1030,6 +1117,12 @@ void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, boo
 		}
 	}
 }
+
+void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, bool flipX, DrawOrder drawOrder,
+					Orientation orientation = Orientation_0, Color color = createColor(255, 255, 255, 255)) {
+	TextureData* texData = getTextureData(texture, group);
+	pushEntityTexture(group, texData, entity, flipX, drawOrder, orientation, color);
+}					
 
 void pushText(RenderGroup* group, CachedFont* font, char* msg, V2 p, Color color = createColor(0, 0, 0, 255),
 			  TextAlignment alignment = TextAlignment_bottomLeft) {
