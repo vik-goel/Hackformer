@@ -855,7 +855,11 @@ void readConsoleFieldFromArena(void** readPtr, ConsoleField** fieldPtr, GameStat
 		}
 	} else {
 		*readPtr = (s32*)read + 1;
-		*fieldPtr = NULL;
+
+		if(*fieldPtr) {
+			freeConsoleField(*fieldPtr, gameState);
+			*fieldPtr = NULL;
+		}
 	}
 }
 

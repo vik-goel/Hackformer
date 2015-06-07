@@ -1018,11 +1018,6 @@ ConsoleField* getMovementField(Entity* entity) {
 	return result;
 }
 
-bool isTileType(Entity* entity) {
-	bool result = entity->type == EntityType_tile || entity->type == EntityType_heavyTile;
-	return result;
-}
-
 bool isLaserEntityType(Entity* entity) {
 	bool result = entity->type == EntityType_laserBase ||
 				  entity->type == EntityType_laserBeam;

@@ -179,6 +179,11 @@ bool32 isSet(Entity* entity, u32 flags) {
 	return result;
 }
 
+bool isTileType(Entity* entity) {
+	bool result = entity->type == EntityType_tile || entity->type == EntityType_heavyTile;
+	return result;
+}
+
 Entity* getEntityByRef(GameState*, s32 ref);
 ConsoleField* getMovementField(Entity* entity);
 ConsoleField* getField(Entity* entity, ConsoleFieldType type);

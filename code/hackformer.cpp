@@ -767,10 +767,6 @@ int main(int argc, char* argv[]) {
 
 	FieldSpec* spec = &gameState->fieldSpec;
 
-	spec->consoleTriangle = loadPNGTexture(gameState, "triangle_blue", false);
-	spec->consoleTriangleSelected = loadPNGTexture(gameState, "triangle_light_blue", false);
-	spec->consoleTriangleGrey = loadPNGTexture(gameState, "triangle_grey", false);
-	spec->consoleTriangleYellow = loadPNGTexture(gameState, "triangle_yellow", false);
 	spec->consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
 	spec->attribute = loadPNGTexture(gameState, "attributes/Attribute", false);
 	spec->behaviour = loadPNGTexture(gameState, "attributes/Behaviour", false);
@@ -780,7 +776,9 @@ int main(int argc, char* argv[]) {
 	spec->leftButtonUnavailable = loadPNGTexture(gameState, "attributes/left_button_unavailable", false);
 	spec->waypoint = loadPNGTexture(gameState, "waypoint", false);
 	spec->waypointArrow = loadPNGTexture(gameState, "waypoint_arrow", false);
-	spec->tileHackShield = loadPNGTexture(gameState, "tile_hack_shield", false);
+	spec->tileHackShield = loadPNGTexture(gameState, "tile_hacking/tile_hack_shield", false);
+	spec->tileHackArrow = loadPNGTexture(gameState, "tile_hacking/right_button", false);
+	spec->tileArrowSize = getDrawSize(&spec->tileHackArrow, 0.5);
 
 	spec->fieldSize = getDrawSize(&spec->behaviour, 0.5);
 	spec->valueSize = getDrawSize(&spec->valueBackground, 0.8);
@@ -885,7 +883,8 @@ int main(int argc, char* argv[]) {
 		updateAndRenderEntities(gameState, dtForFrame, paused);
 		pushSortEnd(renderGroup);
 
-		bool clickHandled = false;
+		bool cancelButtonClicked = false;
+		bool acceptButtonClicked = false;
 
 		{ //Draw the dock before the console
 			CachedFont* font = &gameState->fieldSpec.consoleFont;
@@ -922,16 +921,13 @@ int main(int argc, char* argv[]) {
 				translateButton(&dock->acceptButton, buttonTranslation);
 
 				if (updateAndDrawButton(&dock->cancelButton, renderGroup, input, unpausedDtForFrame)) {
-					clickHandled = true;
-					gameState->consoleEntityRef = 0;
-					loadGameFromArena(gameState);
+					cancelButtonClicked = true;
 				}
 
 				pushTexture(renderGroup, &dock->subDockTex, subDockBounds, false, DrawOrder_gui, false);
 
 				if (updateAndDrawButton(&dock->acceptButton, renderGroup, input, unpausedDtForFrame)) {
-					clickHandled = true;
-					gameState->consoleEntityRef = 0;
+					acceptButtonClicked = true;
 				}
 
 				translateButton(&dock->cancelButton, -buttonTranslation);
@@ -970,7 +966,17 @@ int main(int argc, char* argv[]) {
 			pushFilledStencil(renderGroup, &dock->energyBarStencil, energyBarBounds, energyBarPercentage, energyColor);
 		}
 
-		updateConsole(gameState, dtForFrame, paused, clickHandled);
+		bool clickHandled = updateConsole(gameState, dtForFrame, paused);
+
+		if(!clickHandled) {
+			if(cancelButtonClicked) {
+				gameState->consoleEntityRef = 0;
+				loadGameFromArena(gameState);
+			}
+			if(acceptButtonClicked) {
+				gameState->consoleEntityRef = 0;
+			}
+		}
 
 		{ //Draw the dock after the console
 			V2 topFieldSize = getDrawSize(&dock->gravityTex, 0.7);

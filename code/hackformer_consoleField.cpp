@@ -41,6 +41,7 @@ ConsoleField* createConsoleField(GameState* gameState, char* name, ConsoleFieldT
 
 	*result = {};
 	result->type = type;
+	assert(strlen(name) < arrayCount(result->name));
 	strcpy(result->name, name);
 	result->tweakCost = tweakCost;
 
@@ -185,11 +186,13 @@ V2 getBottomFieldP(Entity* entity, GameState* gameState, FieldSpec* spec) {
 
 	//TODO: Get better values for these
 	V2 fieldOffset;
-	if (onScreenRight) {
+	if (isPickupField) {
 		fieldOffset = v2(spec->fieldSize.x * -0.75, 0);
 	} else {
 		fieldOffset = v2(spec->fieldSize.x * 0.75, 0);
 	}
+
+
 
 	if(entity->type == EntityType_player && !onScreenRight && !isSet(entity, EntityFlag_facesLeft)) {
 		fieldOffset.x += getRectWidth(renderBounds) * 1.5;
@@ -440,89 +443,115 @@ void setConsoleFieldSelectedIndex(ConsoleField* field, s32 newIndex, FieldSpec* 
 	spec->blueEnergy -= field->tweakCost;
 }
 
-bool drawConsoleTriangle(V2 triangleP, RenderGroup* group, FieldSpec* spec, Input* input,
-						 bool facesRight, bool facesDown, bool facesUp, bool yellow, ConsoleField* field, s32 tweakCost, bool paused) {
-	bool result = false;
+bool clickConsoleButton(R2 bounds, ConsoleField* field, Input* input, FieldSpec* spec, bool increase, ButtonState* state) {
+	bool clickHandled = false;
 
-	V2 triangleSize = v2(1, 1) * 0.4;
+	bool canAfford = field->numChildren || spec->blueEnergy >= field->tweakCost;
 
-	R2 triangleBounds = rectCenterDiameter(triangleP, triangleSize);
+	if(canAfford) {
+		ConsoleFlag flag = increase ? ConsoleFlag_wasRightArrowSelected : ConsoleFlag_wasLeftArrowSelected;
+		bool32 wasClicked = isSet(field, flag);
+		clearFlags(field, flag);
 
-	TextureData* triangleTex = &spec->consoleTriangleGrey;
+		if(wasClicked || pointInsideRect(bounds, input->mouseInMeters)) {
+			if(input->leftMouse.pressed) {
+				clickHandled = true;
+				setFlags(field, flag);
+				*state = ButtonState_clicked;
+			} else {
+				if(wasClicked) {
+					clickHandled = true;
 
-	bool enoughEnergyToHack = !yellow && spec->blueEnergy >= tweakCost;
-	if (enoughEnergyToHack) {
-		triangleTex = &spec->consoleTriangle;
-	}
-
-	Orientation orientation = Orientation_0;
-
-	if (facesDown) orientation = Orientation_90;
-	if (facesUp) orientation = Orientation_270;
-
-	if(input && !paused) {
-		bool mouseOverTriangle = dstSq(input->mouseInMeters, triangleP) < 
-							 square(min(triangleSize.x, triangleSize.y) / 2.0f);
-
-		if (mouseOverTriangle) {
-			if (enoughEnergyToHack) {
-				triangleTex = &spec->consoleTriangleSelected;
-			}
-
-			if (input->leftMouse.justPressed) {
-				result = true;
-
-				if (field && enoughEnergyToHack) {
-					if (facesDown && tweakCost == 0) {
+					if(field->numChildren) {
 						toggleFlags(field, ConsoleFlag_childrenVisible);
 					} else {
-						s32 dSelectedIndex = (facesRight || facesDown) ? -1 : 1;
-						setConsoleFieldSelectedIndex(field, field->selectedIndex + dSelectedIndex, spec);
+						setConsoleFieldSelectedIndex(field, field->selectedIndex - 1 + 2 * increase, spec);
 					}
 				}
+
+				*state = ButtonState_hover;
 			}
-		} 
+		} else {
+			*state = ButtonState_default;
+		}
+	} else { 
+		*state = ButtonState_cantAfford;
+	}	
+
+	return clickHandled;
+}
+
+bool drawTileArrow(V2 p, V2 offset, ConsoleField* field, RenderGroup* group, Input* input, FieldSpec* spec, Orientation orientation, bool moving) {
+	V2 arrowSize;
+
+	if(orientation == Orientation_0 || orientation == Orientation_180){
+		arrowSize = spec->tileArrowSize;
+	} else {
+		arrowSize = v2(spec->tileArrowSize.y, spec->tileArrowSize.x);
+	} 
+
+	offset += arrowSize * 0.5;
+	bool increase;
+
+	switch(orientation) {
+		case Orientation_0:
+			p.x += offset.x;
+			increase = true;
+			break;
+		case Orientation_90:
+			p.y -= offset.y;
+			increase = false;
+			break;
+		case Orientation_180:
+			p.x -= offset.x;
+			increase = false;
+			break;
+		case Orientation_270:
+			p.y += offset.y;
+			increase = true;
+			break;
+
+		InvalidDefaultCase;
 	}
-	
 
-	if (yellow) triangleTex = &spec->consoleTriangleYellow;
+	R2 arrowBounds = rectCenterDiameter(p, arrowSize);
+	Color color;
+	bool clickHandled = false;
 
-	pushTexture(group, triangleTex, triangleBounds, facesRight, DrawOrder_gui, false, orientation);
+	if(moving) {
+		color = createColor(255, 255, 100, 255);
+	} 
+	else {
+		ButtonState state;
+		clickHandled = clickConsoleButton(arrowBounds, field, input, spec, increase, &state);
 
-	//NOTE: This draws the cost of tweaking if it is not default (0 or 1)
-	if (tweakCost > 1) {
-		char tweakCostStr[25];
-		sprintf(tweakCostStr, "%d", tweakCost);
-		double costStrWidth = getTextWidth(&spec->consoleFont, group, tweakCostStr);
-		V2 costP = triangleBounds.min;
+		switch(state) {
+			case ButtonState_cantAfford:
+				color = createColor(255, 255, 255, 100);
+				break;
+			case ButtonState_default:
+				color = WHITE;
+				break;
+			case ButtonState_hover:
+				color = createColor(100, 100, 100, 255);
+				break;
+			case ButtonState_clicked:
+				color = createColor(200, 200, 200, 255);
+				break;
 
-		if (facesDown) {
-			costP += v2(spec->triangleSize.x / 2 - costStrWidth / 2, spec->consoleFont.lineHeight * 1.5);
+			InvalidDefaultCase;
 		}
-		else if (facesUp) {
-			costP += v2(spec->triangleSize.x / 2 - costStrWidth / 2, spec->consoleFont.lineHeight / 2);
-		}
-		else if (facesRight) {
-			costP += v2(spec->triangleSize.x / 2 + costStrWidth / 4, spec->consoleFont.lineHeight);
-		}
-		else {
-			costP += v2(costStrWidth, spec->consoleFont.lineHeight);
-		}
-
-		pushText(group, &spec->consoleFont, tweakCostStr, costP);
 	}
 
-	return result;
+	pushTexture(group, &spec->tileHackArrow, arrowBounds, false, DrawOrder_gui, false, orientation, color);	
+
+	return clickHandled;
 }
 
 bool drawValueArrow(V2 p, ConsoleField* field, RenderGroup* group, Input* input, FieldSpec* spec, bool facesRight) {
 	bool clickHandled = false;
 
 	R2 triangleBounds = rectCenterDiameter(p, spec->triangleSize);
-	TextureData* tex = NULL;
-
-	bool canAfford = spec->blueEnergy >= field->tweakCost;
-
 	bool drawArrow = (field->type == ConsoleField_unlimitedInt);
 
 	if(facesRight) {
@@ -531,36 +560,38 @@ bool drawValueArrow(V2 p, ConsoleField* field, RenderGroup* group, Input* input,
 		if(field->selectedIndex > 0) drawArrow = true;
 	}
 
-	if(canAfford && drawArrow) {
+	ButtonState state = ButtonState_cantAfford;
+
+	if(drawArrow) {
 		R2 clickBounds = triangleBounds;
 		clickBounds.max.y -= spec->fieldSize.y;
 
-		ConsoleFlag flag = facesRight ? ConsoleFlag_wasRightArrowSelected : ConsoleFlag_wasLeftArrowSelected;
-		bool32 wasClicked = isSet(field, flag);
-		clearFlags(field, flag);
-
-		if(wasClicked || pointInsideRect(clickBounds, input->mouseInMeters)) {
-			if(input->leftMouse.pressed) {
-				tex = &spec->leftButtonClicked;
-				clickHandled = true;
-				setFlags(field, flag);
-			} else {
-				if(wasClicked) {
-					setConsoleFieldSelectedIndex(field, field->selectedIndex - 1 + 2 * facesRight, spec);
-				}
-
-				//TODO: Different image for hovering over here
-				tex = &spec->leftButtonDefault;
-			}
-		} else {
-			tex = &spec->leftButtonDefault;
-		}
-	} else { 
-		tex = &spec->leftButtonUnavailable;
+		clickConsoleButton(clickBounds, field, input, spec, facesRight, &state);
 	}	
 
+	TextureData* tex = NULL;
+	Color color = WHITE;
+
+	switch(state) {
+		case ButtonState_cantAfford:
+			tex = &spec->leftButtonUnavailable;
+			break;
+		case ButtonState_default:
+			tex = &spec->leftButtonDefault;
+			break;
+		case ButtonState_hover:
+			tex = &spec->leftButtonDefault;
+			color = createColor(150, 150, 150, 255);
+			break;
+		case ButtonState_clicked:
+			tex = &spec->leftButtonClicked;
+			break;
+
+		InvalidDefaultCase;
+	}
+
 	assert(tex);
-	pushTexture(group, tex, triangleBounds, facesRight, DrawOrder_gui);
+	pushTexture(group, tex, triangleBounds, facesRight, DrawOrder_gui, false, Orientation_0, color);
 
 	return clickHandled;
 }
@@ -641,11 +672,10 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 				if (drawValueArrow(leftTriangleP, field, group, input, spec, false)) result = true;
 				if (drawValueArrow(rightTriangleP, field, group, input, spec, true)) result = true;
 			} else {
-				V2 triangleP = field->p + v2((spec->triangleSize.x + spec->fieldSize.x) / 2.0f + spec->spacing.x, 0);
+				V2 triangleP = field->p + v2((spec->triangleSize.x + spec->fieldSize.x) / 2.0f + spec->spacing.x, 0.12);
 
 				if (field->numChildren &&
-					drawConsoleTriangle(triangleP, group, spec, input, 
-						false, true, false, false, field, 0, paused)) {
+					drawTileArrow(triangleP, v2(0, 0), field, group, input, spec, Orientation_90, false)) {
 					result = true;
 				}
 			}
@@ -826,7 +856,9 @@ void drawWaypointInformation(ConsoleField* field, RenderGroup* group, FieldSpec*
 	}
 }
 
-void updateConsole(GameState* gameState, double dt, bool paused, bool clickHandled) {
+bool updateConsole(GameState* gameState, double dt, bool paused) {
+	bool clickHandled = false;
+
 	FieldSpec* spec = &gameState->fieldSpec;
 
 #if 1
@@ -866,8 +898,8 @@ void updateConsole(GameState* gameState, double dt, bool paused, bool clickHandl
 	if (entity) {
 		R2 renderBounds = getRenderBounds(entity, gameState);
 		
-		if(entity->type != EntityType_player) {
-			pushOutlinedRect(gameState->renderGroup, renderBounds, 0.02, createColor(255, 0, 0, 255));
+		if(entity->type != EntityType_player && !isTileType(entity)) {
+			pushOutlinedRect(gameState->renderGroup, renderBounds, 0.02, RED);
 		}
 		
 		V2 fieldP = getBottomFieldP(entity, gameState, spec);
@@ -878,7 +910,7 @@ void updateConsole(GameState* gameState, double dt, bool paused, bool clickHandl
 
 
 
-		if (entity->type == EntityType_tile || entity->type == EntityType_heavyTile) {
+		if (isTileType(entity)) {
 			//NOTE: This draws the first two fields of the tile, xOffset and yOffset,
 			//		differently
 			ConsoleField* xOffsetField = entity->fields[0];
@@ -886,45 +918,36 @@ void updateConsole(GameState* gameState, double dt, bool paused, bool clickHandl
 
 			bool showArrows = (getMovementField(entity) == NULL);
 
-			bool yellow = xOffsetField->selectedIndex != entity->tileXOffset ||
+			bool moving = xOffsetField->selectedIndex != entity->tileXOffset ||
 						  yOffsetField->selectedIndex != entity->tileYOffset;
 
-			bool drawLeft = !yellow || xOffsetField->selectedIndex < entity->tileXOffset;
-			bool drawRight = !yellow || xOffsetField->selectedIndex > entity->tileXOffset;
-			bool drawTop = !yellow || yOffsetField->selectedIndex < entity->tileYOffset;
-			bool drawBottom = !yellow || yOffsetField->selectedIndex > entity->tileYOffset;
+			bool drawLeft = !moving || xOffsetField->selectedIndex < entity->tileXOffset;
+			bool drawRight = !moving || xOffsetField->selectedIndex > entity->tileXOffset;
+			bool drawTop = !moving || yOffsetField->selectedIndex < entity->tileYOffset;
+			bool drawBottom = !moving || yOffsetField->selectedIndex > entity->tileYOffset;
 
 			if (showArrows) {
 				V2 clickBoxSize = getRectSize(entity->clickBox);
-				V2 clickBoxCenter = getRectCenter(entity->clickBox);
+				V2 clickBoxCenter = getRectCenter(entity->clickBox) + entity->p - gameState->camera.p;
 
-				V2 halfTriangleOffset = (clickBoxSize + spec->triangleSize) * 0.5 + spec->spacing;
+				R2 shieldBounds = scaleRect(renderBounds, v2(1, 1) * 1.15);
+				pushTexture(gameState->renderGroup, &spec->tileHackShield, shieldBounds, false, DrawOrder_gui, true);
 
-				V2 triangleP = entity->p + clickBoxCenter - gameState->camera.p - v2(halfTriangleOffset.x, 0);
+				V2 offset = clickBoxSize * 0.5 + spec->spacing;
 
-				if (drawLeft && drawConsoleTriangle(triangleP, gameState->renderGroup, spec, &gameState->input,  
-									true, false, false, yellow, xOffsetField, xOffsetField->tweakCost, paused)) {
+				if(drawLeft && drawTileArrow(clickBoxCenter, offset, xOffsetField, gameState->renderGroup, &gameState->input, spec, Orientation_180, moving)) {
 					clickHandled = true;
 				}
 
-				triangleP += v2(halfTriangleOffset.x * 2, 0);
-
-				if (drawRight && drawConsoleTriangle(triangleP, gameState->renderGroup, spec, &gameState->input, 
-									false, false, false, yellow, xOffsetField, xOffsetField->tweakCost, paused)) {
+				if(drawRight && drawTileArrow(clickBoxCenter, offset,xOffsetField, gameState->renderGroup, &gameState->input, spec, Orientation_0, moving)) {
 					clickHandled = true;
 				}
 
-				triangleP = entity->p + clickBoxCenter - gameState->camera.p - v2(0, halfTriangleOffset.y);
-
-				if (drawTop && drawConsoleTriangle(triangleP, gameState->renderGroup, spec, &gameState->input,  
-								false, true, false, yellow, yOffsetField, yOffsetField->tweakCost, paused)) {
+				if(drawTop && drawTileArrow(clickBoxCenter, offset, yOffsetField, gameState->renderGroup, &gameState->input, spec, Orientation_90, moving)) {
 					clickHandled = true;
 				}
 
-				triangleP += v2(0, halfTriangleOffset.y * 2);
-
-				if (drawBottom && drawConsoleTriangle(triangleP, gameState->renderGroup, spec, &gameState->input,  
-								false, false, true, yellow, yOffsetField, yOffsetField->tweakCost, paused)) {
+				if(drawBottom && drawTileArrow(clickBoxCenter, offset, yOffsetField, gameState->renderGroup, &gameState->input, spec, Orientation_270, moving)) {
 					clickHandled = true;
 				}
 			}								   
@@ -934,27 +957,21 @@ void updateConsole(GameState* gameState, double dt, bool paused, bool clickHandl
 		} 
 
 
-
 		else if (entity->type == EntityType_text) {
 			ConsoleField* selectedField = entity->fields[0];
 
-			double widthOffs = spec->triangleSize.x * 0.6;
-			double heightOffs = getRectHeight(renderBounds) / 2;
-			V2 rightTriangleP = renderBounds.max + v2(widthOffs, -heightOffs);
+			V2 offset = v2(getRectWidth(renderBounds) * 0.5, 0);
+			V2 center = getRectCenter(renderBounds);
 
 			bool drawRight = selectedField->selectedIndex > 0;
 			bool drawLeft = selectedField->selectedIndex < selectedField->numValues - 1;
 
-			if (drawLeft && drawConsoleTriangle(rightTriangleP, gameState->renderGroup, spec, &gameState->input, 
-									false, false, false, false, selectedField, selectedField->tweakCost, paused)) {
-					clickHandled = true;
+			if(drawLeft && drawTileArrow(center, offset, selectedField, gameState->renderGroup, &gameState->input, spec, Orientation_0, false)) {
+				clickHandled = true;
 			}
 
-			V2 leftTriangleP = renderBounds.min + v2(-widthOffs, heightOffs);
-
-			if (drawRight && drawConsoleTriangle(leftTriangleP, gameState->renderGroup, spec, &gameState->input, 
-									true, false, false, false, selectedField, selectedField->tweakCost, paused)) {
-					clickHandled = true;
+			if(drawRight && drawTileArrow(center, offset, selectedField, gameState->renderGroup, &gameState->input, spec, Orientation_180, false)) {
+				clickHandled = true;
 			}
 
 			clickHandled |= drawFields(gameState, entity, 1, dt, &fieldP, spec, paused);
@@ -1039,4 +1056,6 @@ void updateConsole(GameState* gameState, double dt, bool paused, bool clickHandl
 			gameState->camera.moveToTarget = true;
 		}
 	}
+
+	return clickHandled;
 }

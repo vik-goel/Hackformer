@@ -43,7 +43,7 @@ struct ConsoleField {
 	ConsoleFieldType type;
 	u32 flags;
 
-	char name[100];
+	char name[20];
 	
 	s32 numValues;
 
@@ -77,8 +77,16 @@ struct ConsoleField {
 	double childYOffs;
 };
 
+enum ButtonState {
+	ButtonState_cantAfford,
+	ButtonState_default,
+	ButtonState_hover,
+	ButtonState_clicked
+};
+
 struct FieldSpec {
 	V2 fieldSize;
+	V2 tileArrowSize;
 	V2 triangleSize;
 	V2 valueSize;
 	
@@ -89,11 +97,6 @@ struct FieldSpec {
 	V2 mouseOffset;
 
 	int blueEnergy;
-
-	TextureData consoleTriangle;
-	TextureData consoleTriangleYellow;
-	TextureData consoleTriangleGrey;
-	TextureData consoleTriangleSelected;
 
 	TextureData attribute;
 	TextureData behaviour;
@@ -106,6 +109,7 @@ struct FieldSpec {
 	TextureData waypointArrow;
 
 	TextureData tileHackShield;
+	TextureData tileHackArrow;
 
 	CachedFont consoleFont;
 };
