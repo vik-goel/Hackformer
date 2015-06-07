@@ -423,7 +423,7 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 	double timeStep = 1.0 / 60.0;
 
 	for (s32 frame = 0; frame < 30; frame++) {
-		updateAndRenderEntities(gameState, timeStep, false);
+		updateAndRenderEntities(gameState, timeStep);
 	}
 
 	gameState->renderGroup->enabled = true;
@@ -548,9 +548,67 @@ void translateButton(Button* button, V2 translation) {
 	button->renderBounds = translateRect(button->renderBounds, translation);
 }
 
-int main(int argc, char* argv[]) {
-	s32 windowWidth = 1280, windowHeight = 720;
+void drawAnimatedBackground(GameState* gameState, TextureData* background, Animation* backgroundAnim, double animTime) {
+	R2 windowBounds = r2(v2(0, 0), gameState->windowSize);
 
+	Texture* frame1 = getAnimationFrame(backgroundAnim, animTime);
+	Texture* frame2 = getAnimationFrame(backgroundAnim, animTime + backgroundAnim->secondsPerFrame);
+
+	double frameIndex = animTime / backgroundAnim->secondsPerFrame;
+	double frameIndexPercent = frameIndex - (int)frameIndex;
+
+	assert(frameIndexPercent >= 0 && frameIndexPercent <= 1);
+
+	int frame1Alpha = (int)(255 * (1 - frameIndexPercent) + 0.5);
+	int frame2Alpha = 255 - frame1Alpha;
+
+	Color frame1Color = createColor(255, 255, 255, frame1Alpha);
+	Color frame2Color = createColor(255, 255, 255, frame2Alpha);
+
+	pushTexture(gameState->renderGroup, background, windowBounds, false, DrawOrder_gui, false);
+	pushTexture(gameState->renderGroup, frame1, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame1Color);
+	pushTexture(gameState->renderGroup, frame2, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame2Color);
+}
+
+void clearInput(Input* input) {
+	input->mouseInPixels = {};
+	input->mouseInMeters = {};
+	input->mouseInWorld = {};
+	input->dMouseMeters = {};
+
+	for(s32 keyIndex = 0; keyIndex < arrayCount(input->keys); keyIndex++) {
+		Key* key = input->keys + keyIndex;
+		key->pressed = false;
+		key->justPressed = false;
+	}
+}
+
+void initMusic() {
+#if 1
+	s32 mixerFlags = MIX_INIT_MP3;
+	s32 mixerInitStatus = Mix_Init(mixerFlags);
+
+	if(mixerFlags != mixerInitStatus) {
+		fprintf(stderr, "Error initializing SDL_mixer: %s\n", Mix_GetError());
+		InvalidCodePath;
+	}
+
+	if (Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 1024) < 0) {
+	    fprintf(stderr, "Error initializing SDL_mixer: %s\n", Mix_GetError());
+	  	InvalidCodePath;
+	}
+
+	Mix_Music* music = Mix_LoadMUS("res/hackformer_theme.mp3");
+	if(!music) {
+	    fprintf(stderr, "Error loading music: %s\n", Mix_GetError());
+	  	InvalidCodePath;
+	}
+
+	Mix_PlayMusic(music, -1); //loop forever
+#endif
+}
+
+SDL_Window* createWindow(s32 windowWidth, s32 windowHeight) {
 	//TODO: Proper error handling if any of these libraries does not load
 	//TODO: Only initialize what is needed
 	if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
@@ -565,31 +623,6 @@ int main(int argc, char* argv[]) {
 		fprintf(stderr, "Failed to initialize SDL_image.");
 		InvalidCodePath;
 	}
-
-#if 1
-	{ //Load and play the music
-		s32 mixerFlags = MIX_INIT_MP3;
-		s32 mixerInitStatus = Mix_Init(mixerFlags);
-
-		if(mixerFlags != mixerInitStatus) {
-			fprintf(stderr, "Error initializing SDL_mixer: %s\n", Mix_GetError());
-			InvalidCodePath;
-		}
-
-		if (Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 1024) < 0) {
-		    fprintf(stderr, "Error initializing SDL_mixer: %s\n", Mix_GetError());
-		  	InvalidCodePath;
-		}
-
-		Mix_Music* music = Mix_LoadMUS("res/hackformer_theme.mp3");
-		if(!music) {
-		    fprintf(stderr, "Error loading music: %s\n", Mix_GetError());
-		  	InvalidCodePath;
-		}
-
-		Mix_PlayMusic(music, -1); //loop forever
-	}
-#endif
 
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
@@ -636,6 +669,10 @@ int main(int argc, char* argv[]) {
 		InvalidCodePath;
 	}
 
+	return window;
+}
+
+GameState* createGameState(s32 windowWidth, s32 windowHeight) {
 	MemoryArena arena_ = createArena(1024 * 1024);
 
 	GameState* gameState = pushStruct(&arena_, GameState);
@@ -649,14 +686,16 @@ int main(int argc, char* argv[]) {
 	gameState->windowHeight = windowHeight;
 	gameState->windowSize = v2((double)windowWidth, (double)windowHeight) * (1.0 / gameState->pixelsPerMeter);
 
+	gameState->gravity = v2(0, -9.81f);
+	gameState->solidGridSquareSize = 0.1;
+	gameState->tileSize = 0.9f; 
+	gameState->chunkSize = v2(7, 7);
+
 	gameState->textureDataCount = 1; //NOTE: 0 is a null texture data
 	gameState->animDataCount = 1; //NOTE: 0 is a null anim data
 	gameState->characterAnimDataCount = 1; //NOTE: 0 is a null character data
 
 	gameState->renderGroup = createRenderGroup(gameState, 32 * 1024);
-	RenderGroup* renderGroup = gameState->renderGroup;
-
-	gameState->texel = hadamard(gameState->windowSize, v2(1.0 / windowWidth, 1.0 / windowHeight));
 
 	Input* input = &gameState->input;
 
@@ -682,11 +721,84 @@ int main(int argc, char* argv[]) {
 
 	input->n.keyCode1 = SDLK_n;
 	input->m.keyCode1 = SDLK_m;
+
+	return gameState;
+}
+
+void initFieldSpec(GameState* gameState) {
+	FieldSpec* spec = &gameState->fieldSpec;
+
+	spec->consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
+	spec->attribute = loadPNGTexture(gameState, "attributes/Attribute", false);
+	spec->behaviour = loadPNGTexture(gameState, "attributes/Behaviour", false);
+	spec->valueBackground = loadPNGTexture(gameState, "attributes/changer_readout", false);
+	spec->leftButtonDefault = loadPNGTexture(gameState, "attributes/left_button", false);
+	spec->leftButtonClicked = loadPNGTexture(gameState, "attributes/left_button_clicked", false);
+	spec->leftButtonUnavailable = loadPNGTexture(gameState, "attributes/left_button_unavailable", false);
+	spec->waypoint = loadPNGTexture(gameState, "waypoint", false);
+	spec->waypointArrow = loadPNGTexture(gameState, "waypoint_arrow", false);
+	spec->tileHackShield = loadPNGTexture(gameState, "tile_hacking/tile_hack_shield", false);
+	spec->tileHackArrow = loadPNGTexture(gameState, "tile_hacking/right_button", false);
+	spec->tileArrowSize = getDrawSize(&spec->tileHackArrow, 0.5);
+
+	spec->fieldSize = getDrawSize(&spec->behaviour, 0.5);
+	spec->valueSize = getDrawSize(&spec->valueBackground, 0.8);
+	spec->valueBackgroundPenetration = 0.4;
 	
-	gameState->gravity = v2(0, -9.81f);
-	gameState->solidGridSquareSize = 0.1;
-	gameState->tileSize = 0.9f; 
-	gameState->chunkSize = v2(7, 7);
+	spec->triangleSize = getDrawSize(&spec->leftButtonDefault, spec->valueSize.y - spec->valueBackgroundPenetration + spec->fieldSize.y);
+	spec->spacing = v2(0.05, 0);
+	spec->childInset = spec->fieldSize.x * 0.125;
+}
+
+void initDock(GameState* gameState) {
+	Dock* dock = &gameState->dock;
+	dock->dockTex = loadPNGTexture(gameState, "dock/dock", false);
+	dock->subDockTex = loadPNGTexture(gameState, "dock/sub_dock", false);
+	dock->energyBarStencil = loadPNGTexture(gameState, "dock/energy_bar_stencil", false);
+	dock->barCircleTex = loadPNGTexture(gameState, "dock/bar_energy", false);
+	dock->gravityTex = loadPNGTexture(gameState, "dock/gravity_field", false);
+	dock->timeTex = loadPNGTexture(gameState, "dock/time_field", false);
+	dock->acceptButton = createDockButton(gameState, "dock/accept_button", v2(gameState->windowSize.x * 0.5 + 0.45, gameState->windowSize.y - 1.6), 0.51);
+	dock->cancelButton = createDockButton(gameState, "dock/cancel_button", v2(gameState->windowSize.x * 0.5 - 2.55, gameState->windowSize.y - 1.6), 0.5);
+	dock->cancelButton.clickBounds.max.x -= 0.2;
+}
+
+void initPauseMenu(GameState* gameState) {
+	PauseMenu* pauseMenu = &gameState->pauseMenu;
+
+	pauseMenu->background = loadPNGTexture(gameState, "pause_menu/pause_menu", false);
+	pauseMenu->backgroundAnim = loadAnimation(gameState, "pause_menu/pause_menu_sprite", 1280, 720, 1.f, true);
+
+	pauseMenu->quit = createPauseMenuButton(gameState, "pause_menu/quit_button", v2(15.51, 2.62), 1.5);
+	pauseMenu->restart = createPauseMenuButton(gameState, "pause_menu/restart_button", v2(6.54, 4.49), 1.1);
+	pauseMenu->resume = createPauseMenuButton(gameState, "pause_menu/resume_button", v2(3.21, 8.2), 1.18);
+	pauseMenu->settings = createPauseMenuButton(gameState, "pause_menu/settings_button", v2(12.4, 6.8), 1.08);
+}
+
+void initMainMenu(GameState* gameState) {
+	MainMenu* mainMenu = &gameState->mainMenu;
+
+	mainMenu->background = loadPNGTexture(gameState, "main_menu/background", false);
+	mainMenu->backgroundAnim = loadAnimation(gameState, "main_menu/background_animation", 1280, 720, 1.f, true);
+
+	double mainMenuButtonHeight = 0.6;
+	mainMenu->play = createPauseMenuButton(gameState, "main_menu/play_button", v2(10, 6), mainMenuButtonHeight);
+	mainMenu->settings = createPauseMenuButton(gameState, "main_menu/options_button", v2(10.6, 5.2), mainMenuButtonHeight);
+	mainMenu->quit = createPauseMenuButton(gameState, "main_menu/quit_button", v2(12, 3.2), mainMenuButtonHeight);
+}
+
+int main(int argc, char* argv[]) {
+	s32 windowWidth = 1280, windowHeight = 720;
+	SDL_Window* window = createWindow(windowWidth, windowHeight);
+	GameState* gameState = createGameState(windowWidth, windowHeight);
+	initMusic();
+	
+	RenderGroup* renderGroup = gameState->renderGroup;
+	Input* input = &gameState->input;
+	FieldSpec* spec = &gameState->fieldSpec;
+	Dock* dock = &gameState->dock;
+	PauseMenu* pauseMenu = &gameState->pauseMenu;
+	MainMenu* mainMenu = &gameState->mainMenu;
 
 	gameState->textFont = loadFont("fonts/Roboto-Regular.ttf", 64);
 
@@ -747,7 +859,6 @@ int main(int argc, char* argv[]) {
 
 	gameState->flyingVirusAnim = createCharacterAnim(gameState, flyingVirusStandAnimNode, {}, flyingVirusShootAnimNode, {});
 
-
 	gameState->sunsetCityBg = loadPNGTexture(gameState, "backgrounds/sunset_city_bg", false);
 	gameState->sunsetCityMg = loadPNGTexture(gameState, "backgrounds/sunset_city_mg", false);
 	gameState->marineCityBg = loadPNGTexture(gameState, "backgrounds/marine_city_bg", false);
@@ -764,52 +875,12 @@ int main(int argc, char* argv[]) {
 	gameState->laserBeam = loadTexture(gameState, "virus3/laser_beam", false);
 
 	gameState->heavyTileTex = loadTexture(gameState, "Heavy1");
-
-	FieldSpec* spec = &gameState->fieldSpec;
-
-	spec->consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
-	spec->attribute = loadPNGTexture(gameState, "attributes/Attribute", false);
-	spec->behaviour = loadPNGTexture(gameState, "attributes/Behaviour", false);
-	spec->valueBackground = loadPNGTexture(gameState, "attributes/changer_readout", false);
-	spec->leftButtonDefault = loadPNGTexture(gameState, "attributes/left_button", false);
-	spec->leftButtonClicked = loadPNGTexture(gameState, "attributes/left_button_clicked", false);
-	spec->leftButtonUnavailable = loadPNGTexture(gameState, "attributes/left_button_unavailable", false);
-	spec->waypoint = loadPNGTexture(gameState, "waypoint", false);
-	spec->waypointArrow = loadPNGTexture(gameState, "waypoint_arrow", false);
-	spec->tileHackShield = loadPNGTexture(gameState, "tile_hacking/tile_hack_shield", false);
-	spec->tileHackArrow = loadPNGTexture(gameState, "tile_hacking/right_button", false);
-	spec->tileArrowSize = getDrawSize(&spec->tileHackArrow, 0.5);
-
-	spec->fieldSize = getDrawSize(&spec->behaviour, 0.5);
-	spec->valueSize = getDrawSize(&spec->valueBackground, 0.8);
-	spec->valueBackgroundPenetration = 0.4;
-	
-	spec->triangleSize = getDrawSize(&spec->leftButtonDefault, spec->valueSize.y - spec->valueBackgroundPenetration + spec->fieldSize.y);
-	spec->spacing = v2(0.05, 0);
-	spec->childInset = spec->fieldSize.x * 0.125;
-
-	Dock* dock = &gameState->dock;
-	dock->dockTex = loadPNGTexture(gameState, "dock/dock", false);
-	dock->subDockTex = loadPNGTexture(gameState, "dock/sub_dock", false);
-	dock->energyBarStencil = loadPNGTexture(gameState, "dock/energy_bar_stencil", false);
-	dock->barCircleTex = loadPNGTexture(gameState, "dock/bar_energy", false);
-	dock->gravityTex = loadPNGTexture(gameState, "dock/gravity_field", false);
-	dock->timeTex = loadPNGTexture(gameState, "dock/time_field", false);
-	dock->acceptButton = createDockButton(gameState, "dock/accept_button", v2(gameState->windowSize.x * 0.5 + 0.45, gameState->windowSize.y - 1.6), 0.51);
-	dock->cancelButton = createDockButton(gameState, "dock/cancel_button", v2(gameState->windowSize.x * 0.5 - 2.55, gameState->windowSize.y - 1.6), 0.5);
-	dock->cancelButton.clickBounds.max.x -= 0.2;
-
-	PauseMenu* pauseMenu = &gameState->pauseMenu;
-
-	pauseMenu->background = loadPNGTexture(gameState, "pause_menu", false);
-	pauseMenu->backgroundAnim = loadAnimation(gameState, "pause_menu_sprite", 1280, 720, 1.f, true);
-
-	pauseMenu->quit = createPauseMenuButton(gameState, "quit_button", v2(15.51, 2.62), 1.5);
-	pauseMenu->restart = createPauseMenuButton(gameState, "restart_button", v2(6.54, 4.49), 1.1);
-	pauseMenu->resume = createPauseMenuButton(gameState, "resume_button", v2(3.21, 8.2), 1.18);
-	pauseMenu->settings = createPauseMenuButton(gameState, "settings_button", v2(12.4, 6.8), 1.08);
-
 	gameState->tileAtlas = extractTextures(gameState, "tiles_floored", 120, 240, 12, &gameState->tileAtlasCount, true);
+
+	initFieldSpec(gameState);
+	initDock(gameState);
+	initPauseMenu(gameState);
+	initMainMenu(gameState);
 
 	char* mapFileNames[] = {
 		"map3.tmx",
@@ -820,10 +891,11 @@ int main(int argc, char* argv[]) {
 	s32 mapFileIndex = 0;
 	loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, false);
 
-#ifdef PRINT_FPS
-	u32 fpsCounterTimer = SDL_GetTicks();
-	u32 fps = 0;
-#endif
+	#if 0
+	gameState->screenType = ScreenType_game;
+	#else
+	gameState->screenType = ScreenType_mainMenu;
+	#endif
 
 	bool running = true;
 	double dtForFrame = 0;
@@ -831,26 +903,12 @@ int main(int argc, char* argv[]) {
 	u32 lastTime = SDL_GetTicks();
 	u32 currentTime;
 
-	bool paused = false;
-
 	char* saveFileName = "test_save.txt";
 
 	while (running) {
 		currentTime = SDL_GetTicks();
 		dtForFrame += (double)((currentTime - lastTime) / 1000.0); 
 		lastTime = currentTime;
-
-	#if PRINT_FPS
-		u32 frameStart = SDL_GetTicks();
-
-		if (currentTime - fpsCounterTimer > 1000) {
-			fpsCounterTimer += 1000;
-			printf("Fps: %d\n", fps);
-			fps = 0;
-		}
-
-		fps++;
-	#endif
 
 		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -863,8 +921,8 @@ int main(int argc, char* argv[]) {
 
 		pollInput(gameState, &running);
 
-		if(input->pause.justPressed) {
-			paused = !paused;
+		if(input->pause.justPressed && inGame(gameState)) {
+			togglePause(gameState);
 			gameState->pauseMenu.animCounter = 0;
 			pauseMenu->quit.scale = 1;
 			pauseMenu->restart.scale = 1;
@@ -874,19 +932,23 @@ int main(int argc, char* argv[]) {
 
 		Input oldInput;
 
-		if(paused) {
+		if(gameState->screenType == ScreenType_pause) {
 			gameState->pauseMenu.animCounter += dtForFrame;
 			dtForFrame = 0;
 			oldInput = gameState->input;
+			clearInput(input);
 		}
 
-		updateAndRenderEntities(gameState, dtForFrame, paused);
-		pushSortEnd(renderGroup);
+		bool levelResetRequested = false;
 
-		bool cancelButtonClicked = false;
-		bool acceptButtonClicked = false;
+		if(inGame(gameState)) { 
+			updateAndRenderEntities(gameState, dtForFrame);
+			pushSortEnd(renderGroup);
 
-		{ //Draw the dock before the console
+			//NOTE: Draw the dock before the console
+			bool cancelButtonClicked = false;
+			bool acceptButtonClicked = false;
+
 			CachedFont* font = &gameState->fieldSpec.consoleFont;
 
 			V2 dockSize = gameState->windowSize.x * v2(1, dock->dockTex.size.y / dock->dockTex.size.x);
@@ -964,21 +1026,21 @@ int main(int argc, char* argv[]) {
 
 			double energyBarPercentage = (double)energy / (double)maxEnergy;
 			pushFilledStencil(renderGroup, &dock->energyBarStencil, energyBarBounds, energyBarPercentage, energyColor);
-		}
+		
 
-		bool clickHandled = updateConsole(gameState, dtForFrame, paused);
+			bool clickHandled = updateConsole(gameState, dtForFrame);
 
-		if(!clickHandled) {
-			if(cancelButtonClicked) {
-				gameState->consoleEntityRef = 0;
-				loadGameFromArena(gameState);
+			if(!clickHandled) {
+				if(cancelButtonClicked) {
+					gameState->consoleEntityRef = 0;
+					loadGameFromArena(gameState);
+				}
+				if(acceptButtonClicked) {
+					gameState->consoleEntityRef = 0;
+				}
 			}
-			if(acceptButtonClicked) {
-				gameState->consoleEntityRef = 0;
-			}
-		}
 
-		{ //Draw the dock after the console
+		//NOTE: Draw the dock after the console
 			V2 topFieldSize = getDrawSize(&dock->gravityTex, 0.7);
 
 			V2 gravityP = gameState->gravityField->p + v2(0, 0.48);
@@ -1024,56 +1086,55 @@ int main(int argc, char* argv[]) {
 				circleSize *= 0.9;
 				pushTexture(renderGroup, &dock->barCircleTex, rectCenterDiameter(timeCircleP, circleSize), false, DrawOrder_gui, false);
 			}
+
+			if(gameState->screenType == ScreenType_pause) {
+				drawAnimatedBackground(gameState, &pauseMenu->background, &pauseMenu->backgroundAnim, pauseMenu->animCounter);				
+			
+				if (updateAndDrawButton(&pauseMenu->quit, renderGroup, &oldInput, unpausedDtForFrame)) {
+					running = false;
+				}
+
+				if (updateAndDrawButton(&pauseMenu->restart, renderGroup, &oldInput, unpausedDtForFrame)) {
+					levelResetRequested = true;
+					gameState->screenType = ScreenType_game;
+				}
+
+				if (updateAndDrawButton(&pauseMenu->resume, renderGroup, &oldInput, unpausedDtForFrame)) {
+					gameState->screenType = ScreenType_game;
+				}
+
+				if (updateAndDrawButton(&pauseMenu->settings, renderGroup, &oldInput, unpausedDtForFrame)) {
+					//TODO: Implement settings
+				}
+			}
 		}
 
-		bool levelResetRequested = false;
+		if(gameState->screenType == ScreenType_mainMenu) {
+			pushSortEnd(renderGroup);
 
-		if(paused) {
-			R2 windowBounds = r2(v2(0, 0), gameState->windowSize);
+			mainMenu->animCounter += dtForFrame;
+			drawAnimatedBackground(gameState, &mainMenu->background, &mainMenu->backgroundAnim, mainMenu->animCounter);
 
-			Texture* frame1 = getAnimationFrame(&pauseMenu->backgroundAnim, pauseMenu->animCounter);
-			Texture* frame2 = getAnimationFrame(&pauseMenu->backgroundAnim, pauseMenu->animCounter + pauseMenu->backgroundAnim.secondsPerFrame);
-
-			double frameIndex = pauseMenu->animCounter / pauseMenu->backgroundAnim.secondsPerFrame;
-			double frameIndexPercent = frameIndex - (int)frameIndex;
-
-			assert(frameIndexPercent >= 0 && frameIndexPercent <= 1);
-
-			int frame1Alpha = (int)(255 * (1 - frameIndexPercent) + 0.5);
-			int frame2Alpha = 255 - frame1Alpha;
-
-			Color frame1Color = createColor(255, 255, 255, frame1Alpha);
-			Color frame2Color = createColor(255, 255, 255, frame2Alpha);
-
-			pushTexture(renderGroup, &pauseMenu->background, windowBounds, false, DrawOrder_gui, false);
-			pushTexture(renderGroup, frame1, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame1Color);
-			pushTexture(renderGroup, frame2, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame2Color);
-		
-			if (updateAndDrawButton(&pauseMenu->quit, renderGroup, input, unpausedDtForFrame)) {
+			if (updateAndDrawButton(&mainMenu->quit, renderGroup, input, dtForFrame)) {
 				running = false;
 			}
 
-			if (updateAndDrawButton(&pauseMenu->restart, renderGroup, input, unpausedDtForFrame)) {
-				levelResetRequested = true;
-				paused = false;
+			if (updateAndDrawButton(&mainMenu->play, renderGroup, input, dtForFrame)) {
+				gameState->screenType = ScreenType_game;
 			}
 
-			if (updateAndDrawButton(&pauseMenu->resume, renderGroup, input, unpausedDtForFrame)) {
-				paused = false;
-			}
-
-			if (updateAndDrawButton(&pauseMenu->settings, renderGroup, input, unpausedDtForFrame)) {
+			if (updateAndDrawButton(&mainMenu->settings, renderGroup, input, dtForFrame)) {
 				//TODO: Implement settings
 			}
 		}
-
+		
 		drawRenderGroup(renderGroup, &gameState->fieldSpec);
 		removeEntities(gameState);
 
 		{ //NOTE: This updates the camera position
 			Camera* camera = &gameState->camera;
 
-			if(!paused && gameState->consoleEntityRef) {
+			if(gameState->screenType != ScreenType_pause && gameState->consoleEntityRef) {
 				V2 movement = {};
 
 				if(input->up.pressed) movement.y++;
@@ -1124,16 +1185,18 @@ int main(int argc, char* argv[]) {
 
 		dtForFrame = 0;
 
-		if (input->n.justPressed) {
-			saveGame(gameState, saveFileName);
-		}
-		if (input->m.justPressed) {
-			freeLevel(gameState);
-			loadGame(gameState, saveFileName);
-		}
+		if(gameState->screenType == ScreenType_game) {
+			if (input->n.justPressed) {
+				saveGame(gameState, saveFileName);
+			}
+			if (input->m.justPressed) {
+				freeLevel(gameState);
+				loadGame(gameState, saveFileName);
+			}
 
-		if (input->x.justPressed) {
-			gameState->fieldSpec.blueEnergy += 10;
+			if (input->x.justPressed) {
+				gameState->fieldSpec.blueEnergy += 10;
+			}
 		}
 
 		{ //NOTE: This reloads the game
@@ -1147,7 +1210,7 @@ int main(int argc, char* argv[]) {
 			}
 		}
 
-		if(paused) {
+		if(gameState->screenType == ScreenType_pause) {
 			gameState->input = oldInput;
 		}
 

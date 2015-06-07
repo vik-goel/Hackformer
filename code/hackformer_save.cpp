@@ -226,10 +226,18 @@ void writeDock(FILE* file, Dock* dock) {
 	writeDouble(file, dock->subDockYOffs);
 }
 
+void writeMemoryArena(FILE* file, MemoryArena* arena) {
+	writeS32(file, (s32)arena->allocated);
+
+	size_t numElementsWritten = fwrite(arena->base, sizeof(char), arena->allocated, file);
+	assert(numElementsWritten == arena->allocated);
+}
+
 void saveGame(GameState* gameState, char* fileName) {
 	FILE* file = fopen(fileName, "w");
 	assert(file);
 
+	writeS32(file, gameState->screenType);
 	writeS32(file, gameState->refCount);
 	writeCamera(file, &gameState->camera);
 	writeRefNode(file, gameState->targetRefs);
@@ -317,6 +325,10 @@ void saveGame(GameState* gameState, char* fileName) {
 	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 		Entity* entity = gameState->entities + entityIndex;
 		writeEntity(file, entity);
+	}
+
+	if(getEntityByRef(gameState, gameState->consoleEntityRef)) {
+		writeMemoryArena(file, &gameState->hackSaveStorage);
 	}
 
 	fclose(file);
@@ -627,10 +639,21 @@ void readDock(FILE* file, Dock* dock) {
 	dock->subDockYOffs = readDouble(file);
 }
 
+void readMemoryArena(FILE* file, MemoryArena* arena) {
+	arena->allocated = readS32(file);
+
+	size_t numElementsRead = fread(arena->base, sizeof(char), arena->allocated, file);
+
+	s32 res = feof(file);
+
+	assert(numElementsRead == arena->allocated);
+}
+
 void loadGame(GameState* gameState, char* fileName) {
 	FILE* file = fopen(fileName, "r");
 	assert(file);
 
+	gameState->screenType = (ScreenType)readS32(file);
 	gameState->refCount = readS32(file);
 	gameState->camera = readCamera(file);
 	
@@ -756,6 +779,10 @@ void loadGame(GameState* gameState, char* fileName) {
 
 	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 		readEntity(file, gameState, entityIndex);
+	}
+
+	if(getEntityByRef(gameState, gameState->consoleEntityRef)) {
+		readMemoryArena(file, &gameState->hackSaveStorage);
 	}
 
 	fclose(file);

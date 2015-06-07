@@ -958,7 +958,7 @@ void drawDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd,
 
 void renderDrawConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field) {
 	field->p -= group->camera->p;
-	drawConsoleField(field, group, NULL, fieldSpec, false, false, true);
+	drawConsoleField(field, group, NULL, fieldSpec, false, true);
 	field->p += group->camera->p;
 }
 

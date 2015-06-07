@@ -2327,7 +2327,7 @@ bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt) 
 	return shootingState;
 }
 
-void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double dt, double groundFriction, bool shootingState, bool paused) {
+void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double dt, double groundFriction, bool shootingState) {
 	//NOTE: This is a hack to make the gravity feel better. There is more gravity when an object
 	//		like the player is falling to make the gravity seem less 'floaty'.
 	V2 gravity = gameState->gravity;
@@ -2573,25 +2573,26 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 			} break;
 		} //end of movement field switch 
 
+		if(gameState->screenType != ScreenType_pause) {
+			if(movementField->type != ConsoleField_followsWaypoints &&
+			   movementField->type != ConsoleField_keyboardControlled) {
+				wantedSpotLightAngle = getDegrees(entity->dP);
+			}
 
-		if(movementField->type != ConsoleField_followsWaypoints &&
-		   movementField->type != ConsoleField_keyboardControlled) {
-			wantedSpotLightAngle = getDegrees(entity->dP);
-		}
+			wantedSpotLightAngle = angleIn0360(wantedSpotLightAngle);
+			
+			double spotlightAngleMoveSpeed = 180 * dt;
 
-		wantedSpotLightAngle = angleIn0360(wantedSpotLightAngle);
-		
-		double spotlightAngleMoveSpeed = 180 * dt;
+			double clockwise = angleIn0360(wantedSpotLightAngle - entity->spotLightAngle);
+			double counterClockwise = angleIn0360(entity->spotLightAngle - wantedSpotLightAngle);
 
-		double clockwise = angleIn0360(wantedSpotLightAngle - entity->spotLightAngle);
-		double counterClockwise = angleIn0360(entity->spotLightAngle - wantedSpotLightAngle);
-
-		if(clockwise < counterClockwise) {
-			double movement = min(clockwise, spotlightAngleMoveSpeed);
-			entity->spotLightAngle = angleIn0360(entity->spotLightAngle + movement);
-		} else {
-			double movement = min(counterClockwise, spotlightAngleMoveSpeed);
-			entity->spotLightAngle = angleIn0360(entity->spotLightAngle - movement);
+			if(clockwise < counterClockwise) {
+				double movement = min(clockwise, spotlightAngleMoveSpeed);
+				entity->spotLightAngle = angleIn0360(entity->spotLightAngle + movement);
+			} else {
+				double movement = min(counterClockwise, spotlightAngleMoveSpeed);
+				entity->spotLightAngle = angleIn0360(entity->spotLightAngle - movement);
+			}
 		}
 	} 
 
@@ -2606,12 +2607,12 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 		}
 	}
 
-	if(getField(entity, ConsoleField_cameraFollows) && !paused && !getEntityByRef(gameState, gameState->consoleEntityRef)) {
+	if(getField(entity, ConsoleField_cameraFollows) && gameState->screenType != ScreenType_pause && !getEntityByRef(gameState, gameState->consoleEntityRef)) {
 		centerCameraAround(entity, gameState);
 	}
 }
 
-void updateAndRenderEntities(GameState* gameState, double dtForFrame, bool paused) {
+void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 	bool hacking = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
 
 	{
@@ -2682,7 +2683,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame, bool pause
 
 		updateSpotlightBasedOnSpotlightField(entity, gameState);
 		bool shootingState = shootBasedOnShootingField(entity, gameState, dt);
-		moveEntityBasedOnMovementField(entity, gameState, dt, groundFriction, shootingState, paused);
+		moveEntityBasedOnMovementField(entity, gameState, dt, groundFriction, shootingState);
 
 		bool insideLevel = false;
 

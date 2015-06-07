@@ -1,2 +1,5 @@
 /build
 /release
+*.txt
+*.sublime-project
+*.sublime-workspace

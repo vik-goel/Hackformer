@@ -575,6 +575,7 @@ bool drawValueArrow(V2 p, ConsoleField* field, RenderGroup* group, Input* input,
 	switch(state) {
 		case ButtonState_cantAfford:
 			tex = &spec->leftButtonUnavailable;
+			color = createColor(255, 255, 255, 100);
 			break;
 		case ButtonState_default:
 			tex = &spec->leftButtonDefault;
@@ -596,9 +597,9 @@ bool drawValueArrow(V2 p, ConsoleField* field, RenderGroup* group, Input* input,
 	return clickHandled;
 }
 
-bool drawFields(GameState* gameState, Entity* entity, double dt, V2* fieldP, FieldSpec* spec, bool paused);
+bool drawFields(GameState* gameState, Entity* entity, double dt, V2* fieldP, FieldSpec* spec);
 
-bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, FieldSpec* spec, bool paused, bool drawValue, bool drawField) {
+bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, FieldSpec* spec, bool drawValue, bool drawField) {
 	bool result = false;
 
 	char valueStr[200];
@@ -720,7 +721,7 @@ void moveFieldChildren(ConsoleField** fields, s32 fieldsCount, FieldSpec* spec, 
 	}
 }
 
-bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsCount, double dt, V2* fieldP, FieldSpec* spec, bool isPickupField, bool paused) {
+bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsCount, double dt, V2* fieldP, FieldSpec* spec, bool isPickupField) {
 	bool result = false;
 
 	for (s32 fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
@@ -730,7 +731,7 @@ bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsC
 		field->p = *fieldP + field->offs;
 
 		//NOTE: Currently, fields with values like speed cannot be moved.
-		if (!paused && !hasValues(field) && !(isPickupField && fieldIndex == fieldsCount - 1)) {
+		if (!hasValues(field) && !(isPickupField && fieldIndex == fieldsCount - 1)) {
 			if(moveField(field, gameState, dt, spec)) result = true;
 		} else {
 			moveToEquilibrium(field, dt);
@@ -745,7 +746,7 @@ bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsC
 				fieldP->x += spec->childInset;
 				*fieldP += field->offs;
 
-				calcFieldPositions(gameState, field->children, field->numChildren, dt, fieldP, spec, isPickupField, paused);
+				calcFieldPositions(gameState, field->children, field->numChildren, dt, fieldP, spec, isPickupField);
 
 				*fieldP = startFieldP - v2(0, field->childYOffs);
 			}
@@ -757,12 +758,12 @@ bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsC
 	return result;
 }
 
-bool drawFieldsRaw(RenderGroup* group, Input* input, ConsoleField** fields, s32 fieldsCount, FieldSpec* spec, bool paused, bool drawFieldSprite = true) {
+bool drawFieldsRaw(RenderGroup* group, Input* input, ConsoleField** fields, s32 fieldsCount, FieldSpec* spec, bool drawFieldSprite = true) {
 	bool result = false;
 
 	for (s32 fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
 		ConsoleField* field = fields[fieldIndex];
-		if (drawConsoleField(field, group, input, spec, paused, true, drawFieldSprite)) result = true;
+		if (drawConsoleField(field, group, input, spec, true, drawFieldSprite)) result = true;
 
 		if (field->numChildren && field->childYOffs) {
 			V2 rectSize = v2(spec->fieldSize.x, field->childYOffs);//getTotalYOffset(field->children, field->numChildren, spec, false));
@@ -772,7 +773,7 @@ bool drawFieldsRaw(RenderGroup* group, Input* input, ConsoleField** fields, s32 
 			pushClipRect(group, clipRect);
 
 			//pushFilledRect(group, clipRect, MAGENTA, false);
-			if (drawFieldsRaw(group, input, field->children, field->numChildren, spec, paused)) result = true;
+			if (drawFieldsRaw(group, input, field->children, field->numChildren, spec)) result = true;
 
 			pushDefaultClipRect(group);
 		}
@@ -781,7 +782,7 @@ bool drawFieldsRaw(RenderGroup* group, Input* input, ConsoleField** fields, s32 
 	return result;
 }
 
-bool drawFields(GameState* gameState, Entity* entity, s32 fieldSkip, double dt, V2* fieldP, FieldSpec* spec, bool paused) {
+bool drawFields(GameState* gameState, Entity* entity, s32 fieldSkip, double dt, V2* fieldP, FieldSpec* spec) {
 	bool result = false;
 
 	for(s32 fieldIndex = 0; fieldIndex < fieldSkip; fieldIndex++) {
@@ -789,11 +790,11 @@ bool drawFields(GameState* gameState, Entity* entity, s32 fieldSkip, double dt, 
 		fieldP->y -= getTotalFieldHeight(spec, field);
 	}
 
-	if(calcFieldPositions(gameState, entity->fields + fieldSkip, entity->numFields - fieldSkip, dt, fieldP, spec, entity->type == EntityType_pickupField, paused)) {
+	if(calcFieldPositions(gameState, entity->fields + fieldSkip, entity->numFields - fieldSkip, dt, fieldP, spec, entity->type == EntityType_pickupField)) {
 		result = true;
 	}
 
-	if(drawFieldsRaw(gameState->renderGroup, &gameState->input, entity->fields + fieldSkip, entity->numFields - fieldSkip, spec, paused)) {
+	if(drawFieldsRaw(gameState->renderGroup, &gameState->input, entity->fields + fieldSkip, entity->numFields - fieldSkip, spec)) {
 		result = true;
 	}
 
@@ -856,7 +857,7 @@ void drawWaypointInformation(ConsoleField* field, RenderGroup* group, FieldSpec*
 	}
 }
 
-bool updateConsole(GameState* gameState, double dt, bool paused) {
+bool updateConsole(GameState* gameState, double dt) {
 	bool clickHandled = false;
 
 	FieldSpec* spec = &gameState->fieldSpec;
@@ -865,7 +866,7 @@ bool updateConsole(GameState* gameState, double dt, bool paused) {
 	{ //NOTE: This draws the gravity field
 		ConsoleField* gravityField = gameState->gravityField;
 		assert(gravityField);
-		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gravityField, 1, spec, paused, false)) clickHandled = true;
+		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gravityField, 1, spec, false)) clickHandled = true;
 
 		gameState->gravity = v2(0, gravityField->doubleValues[gravityField->selectedIndex]);
 	}
@@ -873,7 +874,7 @@ bool updateConsole(GameState* gameState, double dt, bool paused) {
 	{ //NOTE: This draws the time field
 		ConsoleField* timeField = gameState->timeField;
 		assert(timeField);
-		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &timeField, 1, spec, paused, false)) clickHandled = true;
+		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &timeField, 1, spec, false)) clickHandled = true;
 	}
 #endif
 
@@ -883,11 +884,11 @@ bool updateConsole(GameState* gameState, double dt, bool paused) {
 
 		V2 swapFieldP = gameState->swapFieldP + v2(0, spec->fieldSize.y);
 
-		if (calcFieldPositions(gameState, &gameState->swapField, 1, dt, &swapFieldP, spec, false, paused))
+		if (calcFieldPositions(gameState, &gameState->swapField, 1, dt, &swapFieldP, spec, false))
 			clickHandled = true;
 
 		if (gameState->swapField) {
-			if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gameState->swapField, 1, spec, paused))
+			if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gameState->swapField, 1, spec))
 				clickHandled = true;
 		}
 	}  
@@ -953,7 +954,7 @@ bool updateConsole(GameState* gameState, double dt, bool paused) {
 			}								   
 
 			fieldP.y += getTotalFieldHeight(spec, xOffsetField);
-			clickHandled |= drawFields(gameState, entity, 2, dt, &fieldP, spec, paused);
+			clickHandled |= drawFields(gameState, entity, 2, dt, &fieldP, spec);
 		} 
 
 
@@ -974,7 +975,7 @@ bool updateConsole(GameState* gameState, double dt, bool paused) {
 				clickHandled = true;
 			}
 
-			clickHandled |= drawFields(gameState, entity, 1, dt, &fieldP, spec, paused);
+			clickHandled |= drawFields(gameState, entity, 1, dt, &fieldP, spec);
 		}
 
 
@@ -991,7 +992,7 @@ bool updateConsole(GameState* gameState, double dt, bool paused) {
 			entity->fields[entity->numFields - 1] = data;
 
 			fieldP.x += spec->fieldSize.x * 0.5 + spec->triangleSize.x + spec->spacing.x * 3;
-			clickHandled |= drawFields(gameState, entity, 0, dt, &fieldP, spec, paused);
+			clickHandled |= drawFields(gameState, entity, 0, dt, &fieldP, spec);
 
 			for(s32 fieldIndex = entity->numFields - 1; fieldIndex >= 1; fieldIndex--)
 				entity->fields[fieldIndex] = entity->fields[fieldIndex - 1];
@@ -1000,7 +1001,7 @@ bool updateConsole(GameState* gameState, double dt, bool paused) {
 		}
 
 		else {
-			clickHandled |= drawFields(gameState, entity, 0, dt, &fieldP, spec, paused);
+			clickHandled |= drawFields(gameState, entity, 0, dt, &fieldP, spec);
 		}
 
 
@@ -1013,48 +1014,46 @@ bool updateConsole(GameState* gameState, double dt, bool paused) {
 
 	if(gameState->swapField) drawWaypointInformation(gameState->swapField, gameState->renderGroup, spec);
 
-	if(!paused) {
-		bool wasConsoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
+	bool wasConsoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
 
-		//NOTE: This selects a new console entity if there isn't one and a click occurred
-		Entity* player = getEntityByRef(gameState, gameState->playerRef);
-		ConsoleField* playerMovementField = player ? getMovementField(player) : NULL;
+	//NOTE: This selects a new console entity if there isn't one and a click occurred
+	Entity* player = getEntityByRef(gameState, gameState->playerRef);
+	ConsoleField* playerMovementField = player ? getMovementField(player) : NULL;
 
-		 //Don't allow hacking while the player is mid-air (doesn't apply when the player is not being keyboard controlled)
-		bool playerCanHack = wasConsoleEntity || 
-							 (player && isSet(player, EntityFlag_grounded)) || 
-							 (!playerMovementField || playerMovementField->type != ConsoleField_keyboardControlled);
-		bool newConsoleEntityRequested = !clickHandled && gameState->input.leftMouse.justPressed;
+	 //Don't allow hacking while the player is mid-air (doesn't apply when the player is not being keyboard controlled)
+	bool playerCanHack = wasConsoleEntity || 
+						 (player && isSet(player, EntityFlag_grounded)) || 
+						 (!playerMovementField || playerMovementField->type != ConsoleField_keyboardControlled);
+	bool newConsoleEntityRequested = !clickHandled && gameState->input.leftMouse.justPressed;
 
-		//TODO: The spatial partition could be used to make this faster (no need to loop through every entity in the game)
-		if(playerCanHack && newConsoleEntityRequested) {
-			Entity* newConsoleEntity = NULL;
+	//TODO: The spatial partition could be used to make this faster (no need to loop through every entity in the game)
+	if(playerCanHack && newConsoleEntityRequested) {
+		Entity* newConsoleEntity = NULL;
 
-			for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-				Entity* testEntity = gameState->entities + entityIndex;
+		for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+			Entity* testEntity = gameState->entities + entityIndex;
 
-				bool clicked = isSet(testEntity, EntityFlag_hackable) && isMouseInside(testEntity, &gameState->input);
-				bool onTop = newConsoleEntity == NULL || testEntity->drawOrder > newConsoleEntity->drawOrder;
-					
-				if(clicked && onTop) {
-					newConsoleEntity = testEntity;
-					clickHandled = true;
+			bool clicked = isSet(testEntity, EntityFlag_hackable) && isMouseInside(testEntity, &gameState->input);
+			bool onTop = newConsoleEntity == NULL || testEntity->drawOrder > newConsoleEntity->drawOrder;
+				
+			if(clicked && onTop) {
+				newConsoleEntity = testEntity;
+				clickHandled = true;
 
-					if(!wasConsoleEntity) {
-						saveGameToArena(gameState);
-					}
+				if(!wasConsoleEntity) {
+					saveGameToArena(gameState);
 				}
 			}
-
-			if(newConsoleEntity) {
-				gameState->consoleEntityRef = newConsoleEntity->ref;
-			}
 		}
 
-		if(wasConsoleEntity && !getEntityByRef(gameState, gameState->consoleEntityRef)) {
-			gameState->camera.deferredMoveToTarget = true;
-			gameState->camera.moveToTarget = true;
+		if(newConsoleEntity) {
+			gameState->consoleEntityRef = newConsoleEntity->ref;
 		}
+	}
+
+	if(wasConsoleEntity && !getEntityByRef(gameState, gameState->consoleEntityRef)) {
+		gameState->camera.deferredMoveToTarget = true;
+		gameState->camera.moveToTarget = true;
 	}
 
 	return clickHandled;

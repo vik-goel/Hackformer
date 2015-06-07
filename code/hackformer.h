@@ -64,7 +64,6 @@ Waypoint following
 
 #define SHOW_COLLISION_BOUNDS 0
 #define SHOW_CLICK_BOUNDS 0
-#define PRINT_FPS 0
 
 #include <stdint.h>
 
@@ -193,6 +192,16 @@ struct PauseMenu {
 	Button settings;
 };
 
+struct MainMenu {
+	TextureData background;
+	Animation backgroundAnim;
+	double animCounter;
+
+	Button quit;
+	Button play;
+	Button settings;
+};
+
 struct Dock {
 	TextureData dockTex;
 	TextureData subDockTex;
@@ -207,12 +216,21 @@ struct Dock {
 	double subDockYOffs;
 };
 
+enum ScreenType {
+	ScreenType_mainMenu,
+	ScreenType_settings,
+	ScreenType_game,
+	ScreenType_pause
+};
+
 struct GameState {
 	s32 numEntities;
 	Entity entities[1000];
 
 	//NOTE: 0 is the null reference
 	EntityReference entityRefs_[500];
+
+	ScreenType screenType;
 	
 	//NOTE: These must be sequential for laser collisions to work
 	s32 refCount;
@@ -267,7 +285,6 @@ struct GameState {
 	V2 windowSize;
 
 	V2 gravity;
-	V2 texel;
 
 	V2 playerStartP;
 	V2 playerDeathStartP;
@@ -305,6 +322,7 @@ struct GameState {
 	CharacterAnimData characterAnimData[10];
 
 	PauseMenu pauseMenu;
+	MainMenu mainMenu;
 	Dock dock;
 };
 
@@ -339,3 +357,21 @@ void loadGame(GameState* gameState, char* fileName);
 void saveGameToArena(GameState* gameState);
 void loadGameFromArena(GameState* gameState);
 s32 getEnergyLoss(GameState* gameState);
+
+bool inGame(GameState* gameState) {
+	bool result = gameState->screenType == ScreenType_game || 
+				  gameState->screenType == ScreenType_pause;
+	return result;
+}
+
+void togglePause(GameState* gameState) {
+	if(gameState->screenType == ScreenType_game) {
+		gameState->screenType = ScreenType_pause;
+	} 
+	else if(gameState->screenType == ScreenType_pause) {
+		gameState->screenType = ScreenType_game;
+	}
+	else {
+		InvalidCodePath;
+	}
+}

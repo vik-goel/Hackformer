@@ -150,4 +150,4 @@ bool32 isSet(ConsoleField* field, u32 flags) {
 	return result;
 }
 
-bool drawConsoleField(ConsoleField*, RenderGroup*, Input*, FieldSpec*, bool, bool, bool);
+bool drawConsoleField(ConsoleField*, RenderGroup*, Input*, FieldSpec*, bool, bool);
