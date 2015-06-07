@@ -543,6 +543,11 @@ bool updateAndDrawButton(Button* button, RenderGroup* group, Input* input, doubl
 	return clicked;
 }
 
+void translateButton(Button* button, V2 translation) {
+	button->clickBounds = translateRect(button->clickBounds, translation);
+	button->renderBounds = translateRect(button->renderBounds, translation);
+}
+
 int main(int argc, char* argv[]) {
 	s32 windowWidth = 1280, windowHeight = 720;
 
@@ -637,6 +642,7 @@ int main(int argc, char* argv[]) {
 	gameState->permanentStorage = arena_;
 
 	gameState->levelStorage = createArena(8 * 1024 * 1024);
+	gameState->hackSaveStorage = createArena(256 * 1024);
 
 	gameState->pixelsPerMeter = 70.0f;
 	gameState->windowWidth = windowWidth;
@@ -879,24 +885,65 @@ int main(int argc, char* argv[]) {
 		updateAndRenderEntities(gameState, dtForFrame, paused);
 		pushSortEnd(renderGroup);
 
+		bool clickHandled = false;
+
 		{ //Draw the dock before the console
+			CachedFont* font = &gameState->fieldSpec.consoleFont;
+
 			V2 dockSize = gameState->windowSize.x * v2(1, dock->dockTex.size.y / dock->dockTex.size.x);
 			V2 dockP = v2(0, gameState->windowSize.y - dockSize.y);
 			R2 dockBounds = r2(dockP, dockP + dockSize);
 			V2 dockCenter = getRectCenter(dockBounds);
 
-			V2 subDockSize = (gameState->windowSize.x * 0.58) * v2(1, dock->subDockTex.size.y / dock->subDockTex.size.x);
-			V2 subDockP = v2(gameState->windowSize.x * 0.5 + 0.42, gameState->windowSize.y - 1.76);
-			R2 subDockBounds = rectCenterDiameter(subDockP, subDockSize);
+			double minSubDockYOffs = 0.76;
+			double maxSubDockYOffs = 1.76;
+			double subDockMoveSpeed = dtForFrame * 3;
 
-			if (updateAndDrawButton(&dock->cancelButton, renderGroup, input, unpausedDtForFrame)) {
-				
+			if(getEntityByRef(gameState, gameState->consoleEntityRef)) {
+				dock->subDockYOffs += subDockMoveSpeed;
+			} else {
+				dock->subDockYOffs -= subDockMoveSpeed;
 			}
 
-			pushTexture(renderGroup, &dock->subDockTex, subDockBounds, false, DrawOrder_gui, false);
+			dock->subDockYOffs = clamp(dock->subDockYOffs, minSubDockYOffs, maxSubDockYOffs);
 
-			if (updateAndDrawButton(&dock->acceptButton, renderGroup, input, unpausedDtForFrame)) {
-				
+			if(dock->subDockYOffs > minSubDockYOffs) {
+				V2 subDockSize = (gameState->windowSize.x * 0.58) * v2(1, dock->subDockTex.size.y / dock->subDockTex.size.x);
+				V2 subDockP = v2(gameState->windowSize.x * 0.5 + 0.42, gameState->windowSize.y - maxSubDockYOffs);
+				R2 subDockBounds = rectCenterDiameter(subDockP, subDockSize);
+
+				pushClipRect(renderGroup, subDockBounds);
+
+				double subDockTranslation = maxSubDockYOffs - dock->subDockYOffs;
+				subDockBounds = translateRect(subDockBounds, v2(0, subDockTranslation));
+
+				V2 buttonTranslation = v2(0, subDockTranslation);
+				translateButton(&dock->cancelButton, buttonTranslation);
+				translateButton(&dock->acceptButton, buttonTranslation);
+
+				if (updateAndDrawButton(&dock->cancelButton, renderGroup, input, unpausedDtForFrame)) {
+					clickHandled = true;
+					gameState->consoleEntityRef = 0;
+					loadGameFromArena(gameState);
+				}
+
+				pushTexture(renderGroup, &dock->subDockTex, subDockBounds, false, DrawOrder_gui, false);
+
+				if (updateAndDrawButton(&dock->acceptButton, renderGroup, input, unpausedDtForFrame)) {
+					clickHandled = true;
+					gameState->consoleEntityRef = 0;
+				}
+
+				translateButton(&dock->cancelButton, -buttonTranslation);
+				translateButton(&dock->acceptButton, -buttonTranslation);
+
+				s32 energyLoss = getEnergyLoss(gameState);
+				char energyLossStr[25];
+				sprintf(energyLossStr, "%d", energyLoss);
+				V2 energyLossTextP = dockCenter + v2(4.19, (minSubDockYOffs - dock->subDockYOffs)-0.11);
+				pushText(renderGroup, font, energyLossStr, energyLossTextP, WHITE, TextAlignment_center);
+
+				pushDefaultClipRect(renderGroup);
 			}
 
 			pushTexture(renderGroup, &dock->dockTex, dockBounds, false, DrawOrder_gui, false);
@@ -910,7 +957,6 @@ int main(int argc, char* argv[]) {
 			char energyStr[25];
 			sprintf(energyStr, "%d", energy);
 
-			CachedFont* font = &gameState->fieldSpec.consoleFont;
 			V2 textP = dockCenter + v2(4.19, -0.74);
 			pushText(renderGroup, font, energyStr, textP, WHITE, TextAlignment_center);
 
@@ -924,7 +970,7 @@ int main(int argc, char* argv[]) {
 			pushFilledStencil(renderGroup, &dock->energyBarStencil, energyBarBounds, energyBarPercentage, energyColor);
 		}
 
-		updateConsole(gameState, dtForFrame, paused);
+		updateConsole(gameState, dtForFrame, paused, clickHandled);
 
 		{ //Draw the dock after the console
 			V2 topFieldSize = getDrawSize(&dock->gravityTex, 0.7);

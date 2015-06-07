@@ -247,7 +247,7 @@ TextureData loadPNGTexture(GameState* gameState, char* fileName, bool32 loadNorm
 	}
 
 	TextureData result = createTexFromSurface(diffuse, normal, gameState->renderGroup);
-	addFileName(&result, diffuseFilePath);
+	addFileName(&result, fileName);
 
 	return result;
 }

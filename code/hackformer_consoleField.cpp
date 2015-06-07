@@ -570,27 +570,29 @@ bool drawFields(GameState* gameState, Entity* entity, double dt, V2* fieldP, Fie
 bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, FieldSpec* spec, bool paused, bool drawValue, bool drawField) {
 	bool result = false;
 
+	char valueStr[200];
+
 	if (!isSet(field, ConsoleFlag_remove)) {
 		bool hasValue = true;
 
 		switch(field->type) {
 			case ConsoleField_s32: {
-				sprintf(field->valueStr, "%d", field->s32Values[field->selectedIndex]);
+				sprintf(valueStr, "%d", field->s32Values[field->selectedIndex]);
 			} break;
 
 			case ConsoleField_double: {
-				sprintf(field->valueStr, "%.1f", field->doubleValues[field->selectedIndex]);
+				sprintf(valueStr, "%.1f", field->doubleValues[field->selectedIndex]);
 			} break;
 
 			case ConsoleField_unlimitedInt: {
-				sprintf(field->valueStr, "%d", field->selectedIndex);
+				sprintf(valueStr, "%d", field->selectedIndex);
 			} break;
 
 			case ConsoleField_bool: {
 				if (field->selectedIndex == 0) {
-					sprintf(field->valueStr, "false");
+					sprintf(valueStr, "false");
 				} else if (field->selectedIndex == 1) {
-					sprintf(field->valueStr, "true");
+					sprintf(valueStr, "true");
 				}
 			} break;
 
@@ -600,16 +602,16 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 
 				switch(value) {
 					case Alertness_asleep: {
-						sprintf(field->valueStr, "asleep");
+						sprintf(valueStr, "asleep");
 					} break;
 					case Alertness_patrolling: {
-						sprintf(field->valueStr, "patrolling");
+						sprintf(valueStr, "patrolling");
 					} break;
 					case Alertness_searching: {
-						sprintf(field->valueStr, "searching");
+						sprintf(valueStr, "searching");
 					} break;
 					case Alertness_detected: {
-						sprintf(field->valueStr, "detected");
+						sprintf(valueStr, "detected");
 					} break;
 
 					InvalidDefaultCase;
@@ -631,7 +633,7 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 				pushTexture(group, &spec->valueBackground, valueBounds, false, DrawOrder_gui);
 
 				V2 textP = valueP - v2(0, 0.225);
-				pushText(group, &spec->consoleFont, field->valueStr, textP, WHITE, TextAlignment_center);
+				pushText(group, &spec->consoleFont, valueStr, textP, WHITE, TextAlignment_center);
 
 				V2 leftTriangleP = v2(valueP.x - spec->valueSize.x*0.5, fieldP.y - spec->valueBackgroundPenetration * 0.5);
 				V2 rightTriangleP = leftTriangleP + v2(spec->valueSize.x, 0);
@@ -662,10 +664,6 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 			V2 costP = fieldP + v2(-1.13, -0.05);
 			pushText(group, &spec->consoleFont, tweakCostStr, costP, WHITE, TextAlignment_center);
 		}
-
-		
-
-		
 	}
 
 	return result;
@@ -828,9 +826,7 @@ void drawWaypointInformation(ConsoleField* field, RenderGroup* group, FieldSpec*
 	}
 }
 
-void updateConsole(GameState* gameState, double dt, bool paused) {
-	bool clickHandled = false;
-
+void updateConsole(GameState* gameState, double dt, bool paused, bool clickHandled) {
 	FieldSpec* spec = &gameState->fieldSpec;
 
 #if 1
@@ -1003,13 +999,6 @@ void updateConsole(GameState* gameState, double dt, bool paused) {
 	if(!paused) {
 		bool wasConsoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
 
-		//NOTE: This deselects the console entity if somewhere else is clicked
-		if (!clickHandled && gameState->input.leftMouse.justPressed) {
-			gameState->consoleEntityRef = 0;
-		}
-
-
-
 		//NOTE: This selects a new console entity if there isn't one and a click occurred
 		Entity* player = getEntityByRef(gameState, gameState->playerRef);
 		ConsoleField* playerMovementField = player ? getMovementField(player) : NULL;
@@ -1018,11 +1007,10 @@ void updateConsole(GameState* gameState, double dt, bool paused) {
 		bool playerCanHack = wasConsoleEntity || 
 							 (player && isSet(player, EntityFlag_grounded)) || 
 							 (!playerMovementField || playerMovementField->type != ConsoleField_keyboardControlled);
-		bool noConsoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef) == NULL;
 		bool newConsoleEntityRequested = !clickHandled && gameState->input.leftMouse.justPressed;
 
 		//TODO: The spatial partition could be used to make this faster (no need to loop through every entity in the game)
-		if(playerCanHack && noConsoleEntity && newConsoleEntityRequested) {
+		if(playerCanHack && newConsoleEntityRequested) {
 			Entity* newConsoleEntity = NULL;
 
 			for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
@@ -1034,6 +1022,10 @@ void updateConsole(GameState* gameState, double dt, bool paused) {
 				if(clicked && onTop) {
 					newConsoleEntity = testEntity;
 					clickHandled = true;
+
+					if(!wasConsoleEntity) {
+						saveGameToArena(gameState);
+					}
 				}
 			}
 

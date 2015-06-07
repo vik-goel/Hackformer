@@ -63,8 +63,6 @@ struct ConsoleField {
 
 	s32 tweakCost;
 	
-	char valueStr[100];
-
 	V2 p;
 
 	//NOTE: These attributes are used for drag and droppable fields

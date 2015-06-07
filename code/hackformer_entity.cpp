@@ -399,6 +399,11 @@ void freeEntity(Entity* entity, GameState* gameState, bool endOfLevel) {
 }
 
 void removeEntities(GameState* gameState) {
+
+	//NOTE: No removes are allowed while in console mode because this would break updating
+	//		entities with their old saved values. 
+	if(getEntityByRef(gameState, gameState->consoleEntityRef)) return;
+
 	//NOTE: Entities are removed here if their remove flag is set
 	//NOTE: There is a memory leak here if the entity allocated anything
 	//		Ensure this is cleaned up, the console is a big place where leaks can happen

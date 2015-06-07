@@ -126,6 +126,15 @@ struct Entity {
 	CharacterAnim characterAnim;
 };
 
+struct EntityHackSave {
+	V2 p;
+	s32 tileXOffset;
+	s32 tileYOffset;
+	s32 messagesSelectedIndex;
+	double timeSinceLastOnGround;
+	s32 numFields;
+};
+
 struct EntityReference {
 	Entity* entity;
 	EntityReference* next;

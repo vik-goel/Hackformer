@@ -204,7 +204,7 @@ struct Dock {
 	Button acceptButton;
 	Button cancelButton;
 
-	double subDockXOffs;
+	double subDockYOffs;
 };
 
 struct GameState {
@@ -219,6 +219,7 @@ struct GameState {
 
 	MemoryArena permanentStorage;
 	MemoryArena levelStorage;
+	MemoryArena hackSaveStorage;
 
 	RenderGroup* renderGroup;
 	TTF_Font* textFont;
@@ -310,6 +311,8 @@ struct GameState {
 #define pushArray(arena, type, count) (type*)pushIntoArena_(arena, count * sizeof(type))
 #define pushStruct(arena, type) (type*)pushIntoArena_(arena, sizeof(type))
 #define pushSize(arena, size) pushIntoArena_(arena, size);
+#define pushElem(arena, type, value) {void* valuePtr = pushIntoArena_(arena, sizeof(type)); *(type*)valuePtr = value;}
+
 void* pushIntoArena_(MemoryArena* arena, size_t amt) {
 	arena->allocated += amt;
 	assert(arena->allocated < arena->size);
@@ -330,5 +333,9 @@ void setCameraTarget(Camera* camera, V2 target) {
 }
 
 void initSpatialPartition(GameState* gameState);
+
 void saveGame(GameState* gameState, char* fileName);
 void loadGame(GameState* gameState, char* fileName);
+void saveGameToArena(GameState* gameState);
+void loadGameFromArena(GameState* gameState);
+s32 getEnergyLoss(GameState* gameState);

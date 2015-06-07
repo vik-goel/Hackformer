@@ -104,7 +104,6 @@ void writeConsoleField(FILE* file, ConsoleField* field) {
 		writeS32(file, field->selectedIndex);
 		writeS32(file, field->initialIndex);
 		writeS32(file, field->tweakCost);
-		writeString(file, field->valueStr);
 		writeV2(file, field->p);
 		writeV2(file, field->offs);
 		writeS32(file, field->numChildren);
@@ -223,6 +222,10 @@ void writePauseMenu(FILE* file, PauseMenu* menu) {
 	writeButton(file, &menu->settings);
 }
 
+void writeDock(FILE* file, Dock* dock) {
+	writeDouble(file, dock->subDockYOffs);
+}
+
 void saveGame(GameState* gameState, char* fileName) {
 	FILE* file = fopen(fileName, "w");
 	assert(file);
@@ -307,6 +310,7 @@ void saveGame(GameState* gameState, char* fileName) {
 	}
 
 	writePauseMenu(file, &gameState->pauseMenu);
+	writeDock(file, &gameState->dock);
 
 	writeS32(file, gameState->numEntities);
 
@@ -445,8 +449,6 @@ ConsoleField* readConsoleField(FILE* file, GameState* gameState) {
 		field->selectedIndex = readS32(file);
 		field->initialIndex = readS32(file);
 		field->tweakCost = readS32(file);
-
-		readString(file, field->valueStr);
 
 		field->p = readV2(file);
 		field->offs = readV2(file);
@@ -621,6 +623,10 @@ void readPauseMenu(FILE* file, PauseMenu* menu) {
 	readButton(file, &menu->settings);
 }
 
+void readDock(FILE* file, Dock* dock) {
+	dock->subDockYOffs = readDouble(file);
+}
+
 void loadGame(GameState* gameState, char* fileName) {
 	FILE* file = fopen(fileName, "r");
 	assert(file);
@@ -742,6 +748,7 @@ void loadGame(GameState* gameState, char* fileName) {
 	}
 
 	readPauseMenu(file, &gameState->pauseMenu);
+	readDock(file, &gameState->dock);
 
 	initSpatialPartition(gameState);
 
@@ -752,4 +759,163 @@ void loadGame(GameState* gameState, char* fileName) {
 	}
 
 	fclose(file);
+}
+
+void saveConsoleFieldToArena(MemoryArena* arena, ConsoleField* field) {
+	if(field) {
+		ConsoleField* save = pushStruct(arena, ConsoleField);
+		*save = *field;
+
+		for(s32 fieldIndex = 0; fieldIndex < field->numChildren; fieldIndex++) {
+			saveConsoleFieldToArena(arena, field->children[fieldIndex]);
+		}
+	} else {
+		pushElem(arena, s32, -1);
+	}
+}
+
+void saveEntityToArena(MemoryArena* arena, Entity* entity) {
+	EntityHackSave* save = pushStruct(arena, EntityHackSave);
+
+	save->p = entity->p;
+	save->tileXOffset = entity->tileXOffset;
+	save->tileYOffset = entity->tileYOffset;
+
+	if(entity->messages) {
+		save->messagesSelectedIndex =  entity->messages->selectedIndex;
+	} else {
+		save->messagesSelectedIndex = -1;
+	}
+
+	save->timeSinceLastOnGround = entity->timeSinceLastOnGround;
+
+	save->numFields = entity->numFields;
+
+	for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+		saveConsoleFieldToArena(arena, entity->fields[fieldIndex]);
+	}
+}
+
+void saveGameToArena(GameState* gameState) {
+	MemoryArena* arena = &gameState->hackSaveStorage;
+	arena->allocated = 0;
+
+	pushElem(arena, s32, gameState->fieldSpec.blueEnergy);
+	pushElem(arena, V2, gameState->gravity);
+
+	saveConsoleFieldToArena(arena, gameState->timeField);
+	saveConsoleFieldToArena(arena, gameState->gravityField);
+	saveConsoleFieldToArena(arena, gameState->swapField);
+
+	RefNode* targetNode = gameState->targetRefs;
+	s32 targetNodeCount = 0;
+
+	while(targetNode) {
+		targetNodeCount++;
+		targetNode = targetNode->next;
+	}
+	pushElem(arena, s32, targetNodeCount);
+
+	targetNode = gameState->targetRefs;
+
+	while(targetNode) {
+		pushElem(arena, s32, targetNode->ref);
+		targetNode = targetNode->next;
+	}
+
+	pushElem(arena, s32, gameState->numEntities);
+
+	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+		saveEntityToArena(arena, gameState->entities + entityIndex);
+	}
+}
+
+#define readElemPtr(readPtr, type) (type*)(readPtr); (readPtr) = (type*)(readPtr) + 1
+#define readElem(readPtr, type) *readElemPtr((readPtr), type)
+
+;
+void readConsoleFieldFromArena(void** readPtr, ConsoleField** fieldPtr, GameState* gameState) {
+	void* read = *readPtr;
+
+	if(*(s32*)read >= 0) {
+		ConsoleField* field = *fieldPtr;
+
+		if(!field) {
+			field = createConsoleField_(gameState);
+			*fieldPtr = field;
+		}
+
+		assert(field);
+
+		*field = *(ConsoleField*)read;
+		*readPtr = (ConsoleField*)read + 1;
+
+		for(s32 fieldIndex = 0; fieldIndex < field->numChildren; fieldIndex++) {
+			readConsoleFieldFromArena(readPtr, &field->children[fieldIndex], gameState);
+		}
+	} else {
+		*readPtr = (s32*)read + 1;
+		*fieldPtr = NULL;
+	}
+}
+
+void readEntityFromArena(void** readPtr, Entity* entity, GameState* gameState) {
+	EntityHackSave* save = readElemPtr(*readPtr, EntityHackSave);
+
+	setEntityP(entity, save->p, gameState);
+	entity->tileXOffset = save->tileXOffset;
+	entity->tileYOffset = save->tileYOffset;
+	if(entity->messages)entity->messages->selectedIndex = save->messagesSelectedIndex;
+	entity->timeSinceLastOnGround = save->timeSinceLastOnGround;
+	entity->numFields = save->numFields;
+
+	for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+		readConsoleFieldFromArena(readPtr, &entity->fields[fieldIndex], gameState);
+	}
+}
+
+void loadGameFromArena(GameState* gameState) {
+	MemoryArena* arena = &gameState->hackSaveStorage;
+	void* readPtr = arena->base;
+
+	gameState->fieldSpec.blueEnergy = readElem(readPtr, s32);
+	gameState->gravity = readElem(readPtr, V2);
+
+	readConsoleFieldFromArena(&readPtr, &gameState->timeField, gameState);
+	readConsoleFieldFromArena(&readPtr, &gameState->gravityField, gameState);
+	readConsoleFieldFromArena(&readPtr, &gameState->swapField, gameState);
+
+	if(gameState->targetRefs) {
+		freeRefNode(gameState->targetRefs, gameState);
+		gameState->targetRefs = NULL;
+	}
+
+	s32 targetRefsCount = readElem(readPtr, s32);
+	for(s32 targetRefIndex = 0; targetRefIndex < targetRefsCount; targetRefIndex++) {
+		s32 ref = readElem(readPtr, s32);
+		gameState->targetRefs = refNode(gameState, ref, gameState->targetRefs);
+	}
+
+	gameState->numEntities = readElem(readPtr, s32);
+
+	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+		readEntityFromArena(&readPtr, gameState->entities + entityIndex, gameState);
+	}
+
+	assert(readPtr == (char*)arena->base + arena->allocated);
+}
+
+s32 getEnergyLoss(GameState* gameState) {
+	s32 result = 0;
+
+	if(getEntityByRef(gameState, gameState->consoleEntityRef)) {
+		MemoryArena* arena = &gameState->hackSaveStorage;
+		assert(arena->allocated);
+
+		s32 oldEnergy = *(s32*)arena->base;
+		s32 newEnergy = gameState->fieldSpec.blueEnergy;
+		result = oldEnergy - newEnergy;
+	}
+
+	return result;
 }
