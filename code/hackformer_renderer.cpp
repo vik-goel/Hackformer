@@ -217,37 +217,37 @@ TextureData createTexFromSurface(SDL_Surface* image, SDL_Surface* normal, Render
 	return result;
 }
 
-void addFileExtension(char* result, size_t resultSize, char* fileName, char* extension) {
-	assert(strlen(fileName) + strlen(extension) < resultSize);
-	result[0] = 0;
-	strcat(result, fileName);
-	strcat(result, extension);
-}
-
 void addFileName(TextureData* data, char* fileName) {
 	data->hasFileName = true;
 	assert(strlen(fileName) < arrayCount(data->fileName));
 	strcpy(data->fileName, fileName);
 }
 
-TextureData loadPNGTexture(GameState* gameState, char* fileName, bool32 loadNormalMap = true) {
-	char* extension = ".png";
-	
-	char filePath[1024];
+TextureData loadPNGTexture(GameState* gameState, char* fileName, bool32 loadNormalMap = false) {
+	assert(strlen(fileName) < 400);
 
-	addFileExtension(filePath, sizeof(filePath), fileName, "_NRM.png");
+	char diffuseFilePath[500];
+	sprintf(diffuseFilePath, "res/%s.png", fileName);
+
+	SDL_Surface* diffuse = IMG_Load(diffuseFilePath);
+	if (!diffuse) {
+		fprintf(stderr, "Failed to load diffuse texture from: %s\n", diffuseFilePath);
+		InvalidCodePath;
+	}
 
 	SDL_Surface* normal = NULL;
-	if (loadNormalMap) normal = IMG_Load(filePath);
-
-	addFileExtension(filePath, sizeof(filePath), fileName, ".png");
-
-	SDL_Surface* diffuse = IMG_Load(filePath);
-	if (!diffuse) fprintf(stderr, "Failed to load image from: %s\n", filePath);
-	assert(diffuse);
+	if (loadNormalMap) {
+		char normalFilePath[500];
+		sprintf(normalFilePath, "res/%s_NRM.png", fileName);
+		normal = IMG_Load(normalFilePath);
+		if (!normal) {
+			fprintf(stderr, "Failed to load normal texture from: %s\n", normalFilePath);
+			InvalidCodePath;
+		}
+	}
 
 	TextureData result = createTexFromSurface(diffuse, normal, gameState->renderGroup);
-	addFileName(&result, fileName);
+	addFileName(&result, diffuseFilePath);
 
 	return result;
 }
@@ -326,9 +326,9 @@ CachedFont loadCachedFont(GameState* gameState, char* fileName, s32 fontSize, do
 }
 
 Texture* extractTextures(GameState* gameState, char* fileName, 
-	s32 frameWidth, s32 frameHeight, s32 frameSpacing, s32* numFrames) {
+	s32 frameWidth, s32 frameHeight, s32 frameSpacing, s32* numFrames, bool loadNormalMap = false) {
 
-	TextureData tex = loadPNGTexture(gameState, fileName);
+	TextureData tex = loadPNGTexture(gameState, fileName, loadNormalMap);
 
 	s32 texWidth = (s32)(tex.size.x * gameState->pixelsPerMeter + 0.5);
 	s32 texHeight = (s32)(tex.size.y * gameState->pixelsPerMeter + 0.5);
@@ -372,6 +372,7 @@ Texture* extractTextures(GameState* gameState, char* fileName,
 	return result;
 }
 
+//TODO: Add a way to load animations with normal maps
 Animation loadAnimation(GameState* gameState, char* fileName, 
 	s32 frameWidth, s32 frameHeight, double secondsPerFrame, bool pingPong) {
 	Animation result = {};
@@ -524,6 +525,13 @@ SDL_Rect getPixelSpaceRect(double pixelsPerMeter, s32 windowHeight, R2 rect) {
 	return result;
 }
 
+void bindShader(RenderGroup* group, Shader* shader) {
+	if(group->currentShader != shader) {
+		group->currentShader = shader;
+		glUseProgram(shader->program);
+	}
+}
+
 void setClipRect(double pixelsPerMeter, R2 rect) {
 	GLint x = (GLint)(rect.min.x * pixelsPerMeter);
 	GLint y = (GLint)(rect.min.y * pixelsPerMeter);
@@ -641,6 +649,11 @@ R2 getTextPadding(CachedFont* cachedFont, RenderGroup* group, char* msg) {
 	return result;
 }
 
+bool validTexture(TextureData* texture) {
+	bool result = texture && texture->texId;
+	return result;
+}
+
 RenderGroup* createRenderGroup(GameState* gameState, size_t size) {
 	RenderGroup* result = pushStruct(&gameState->permanentStorage, RenderGroup);
 
@@ -656,7 +669,10 @@ RenderGroup* createRenderGroup(GameState* gameState, size_t size) {
 	result->camera = &gameState->camera;
 	result->textureData = gameState->textureData;
 	result->forwardShader = createForwardShader("shaders/forward.vert", "shaders/forward.frag", gameState->windowSize);
+
+	//TODO: This compiles basic.vert twice (maybe it can be re-used for both programs)
 	result->basicShader = createShader("shaders/basic.vert", "shaders/basic.frag", gameState->windowSize);
+	result->stencilShader = createShader("shaders/basic.vert", "shaders/stencil.frag", gameState->windowSize);
 
 	#if 0
 	SDL_Surface* nullNormalSurface = IMG_Load("res/no normal map.png");
@@ -669,7 +685,7 @@ RenderGroup* createRenderGroup(GameState* gameState, size_t size) {
 
 	gameState->renderGroup = result;
 
-	result->whiteTex = loadPNGTexture(gameState, "res/white");
+	result->whiteTex = loadPNGTexture(gameState, "white", false);
 
 	return result;
 }
@@ -792,6 +808,38 @@ void drawTexture(RenderGroup* group, TextureData* texture, R2 bounds, double rot
 	glEnd();
 }
 
+void drawFilledStencil(RenderGroup* group, TextureData* stencil, R2 bounds, double widthPercentage, Color color) {
+	double uvWidth = getRectWidth(stencil->uv);
+	uvWidth *= widthPercentage;
+
+	double uMax = stencil->uv.min.x + uvWidth;
+
+	V2 uvMax = v2(uMax, stencil->uv.max.y);
+	V2 uvMin = stencil->uv.min;
+
+	Shader* oldShader = group->currentShader;
+	bindShader(group, &group->stencilShader);
+
+	bindTexture(stencil, group, false);
+	setColor(group, color);
+
+	glBegin(GL_QUADS);
+		glTexCoord2f((GLfloat)uvMin.x, (GLfloat)uvMax.y);
+		glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);
+
+		glTexCoord2f((GLfloat)uvMax.x, (GLfloat)uvMax.y);
+		glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.min.y);
+
+		glTexCoord2f((GLfloat)uvMax.x, (GLfloat)uvMin.y);
+		glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.max.y);
+
+		glTexCoord2f((GLfloat)uvMin.x, (GLfloat)uvMin.y);
+		glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.max.y);
+	glEnd();
+
+	bindShader(group, oldShader);
+}
+
 void drawText(RenderGroup* group, CachedFont* cachedFont, char* msg, V2 p, Color color) {
 	double metersPerPixel = 1.0 / (group->pixelsPerMeter * cachedFont->scaleFactor);
 	double invScaleFactor = 1.0 / cachedFont->scaleFactor;
@@ -910,7 +958,7 @@ void drawDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd,
 
 void renderDrawConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field) {
 	field->p -= group->camera->p;
-	drawConsoleField(field, group, NULL, fieldSpec, false);
+	drawConsoleField(field, group, NULL, fieldSpec, false, false, true);
 	field->p += group->camera->p;
 }
 
@@ -1014,12 +1062,32 @@ void pushConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* fi
 	}
 } 
 
+void pushFilledStencil(RenderGroup* group, TextureData* stencil, R2 bounds, double widthPercentage, Color color) {
+	assert(validTexture(stencil));
+	assert(widthPercentage >= 0 && widthPercentage <= 1);
+
+	bounds.max.x = bounds.min.x + getRectWidth(bounds) * widthPercentage;
+
+	if(rectanglesOverlap(group->windowBounds, bounds)) {
+		if(group->rendering) {
+			drawFilledStencil(group, stencil, bounds, widthPercentage, color);
+		} else {
+			RenderFilledStencil* render = pushRenderElement(group, RenderFilledStencil);
+
+			if (render) {
+				render->stencil = stencil;
+				render->bounds = bounds;
+				render->widthPercentage = widthPercentage;
+				render->color = color;
+			}
+		}
+	}
+}
 
 void pushTexture(RenderGroup* group, TextureData* texture, R2 bounds, bool flipX, DrawOrder drawOrder, bool moveIntoCameraSpace = false,
 	 		Orientation orientation = Orientation_0, Color color = createColor(255, 255, 255, 255), float emissivity = 0) {
 
-	assert(texture);
-	assert(texture->texId);
+	assert(validTexture(texture));
 
 	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, -group->camera->p) : bounds;
 
@@ -1283,45 +1351,49 @@ size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, G
 		setClipRect(group->pixelsPerMeter, group->defaultClipRect);
 	}
 
-	#define START_CASE(type) case DrawType_##type: { type* render = (type*)elemPtr
-	#define END_CASE(type) elemSize += sizeof(type); } break
+	#define START_CASE(type) case DrawType_##type: { type* render = (type*)elemPtr; elemSize += sizeof(type);
+	#define END_CASE } break
 
 	switch(getRenderHeaderType(header)) {
 
 		START_CASE(RenderBoundedTexture);
 			drawTexture(group, render->tex.texture, render->bounds, render->tex.flipX != 0, render->tex.orientation, 
 						render->tex.emissivity, ambient, render->tex.color);
-		END_CASE(RenderBoundedTexture);
+		END_CASE;
 
 		START_CASE(RenderEntityTexture);
 			R2 bounds = rectCenterDiameter(*render->p - group->camera->p, *render->renderSize);
 			drawTexture(group, render->tex.texture, bounds, render->tex.flipX != 0, render->tex.orientation,
 						 render->tex.emissivity, ambient, render->tex.color);
-		END_CASE(RenderEntityTexture);
+		END_CASE;
 
 		START_CASE(RenderText);
 			drawText(group, render->font, render->msg, render->p, render->color);
-		END_CASE(RenderText);
+		END_CASE;
 
 		START_CASE(RenderFillRect);
 			drawFillRect(group, render->bounds, render->color);
-		END_CASE(RenderFillRect);
+		END_CASE;
 
 		START_CASE(RenderOutlinedRect);
 			drawOutlinedRect(group, render->bounds, render->color, render->thickness);
-		END_CASE(RenderOutlinedRect);
+		END_CASE;
 
 		START_CASE(RenderConsoleField);
 			renderDrawConsoleField(group, fieldSpec, render->field);
-		END_CASE(RenderConsoleField);
+		END_CASE;
 
 		START_CASE(RenderDashedLine);
 			drawDashedLine(group, render->color, render->lineStart, render->lineEnd, render->thickness, render->dashSize, render->spaceSize);
-		END_CASE(RenderDashedLine);
+		END_CASE;
 
 		START_CASE(RenderRotatedTexture);
 			drawTexture(group, render->texture, render->bounds, render->rad, render->color);
-		END_CASE(RenderRotatedTexture);
+		END_CASE;
+
+		START_CASE(RenderFilledStencil);
+			drawFilledStencil(group, render->stencil, render->bounds, render->widthPercentage, render->color);
+		END_CASE;
 
 		InvalidDefaultCase;
 	}
@@ -1452,11 +1524,6 @@ void setPointLightUniforms(PointLightUniforms* lightUniforms, PointLight* light)
 	glUniform3f(lightUniforms->p, (GLfloat)light->p.x, (GLfloat)light->p.y, (GLfloat)light->p.z);
 	glUniform3f(lightUniforms->color, (GLfloat)light->color.x, (GLfloat)light->color.y, (GLfloat)light->color.z);
 	glUniform1f(lightUniforms->range, (GLfloat)light->range);
-}
-
-void bindShader(RenderGroup* group, Shader* shader) {
-	group->currentShader = shader;
-	glUseProgram(shader->program);
 }
 
 void drawRenderGroup(RenderGroup* group, FieldSpec* fieldSpec) {

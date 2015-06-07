@@ -24,6 +24,7 @@ enum ConsoleFlag {
 	ConsoleFlag_wasRightArrowSelected = 1 << 4,
 };
 
+
 enum Alertness {
 	Alertness_asleep,
 	Alertness_patrolling,
@@ -147,4 +148,4 @@ bool32 isSet(ConsoleField* field, u32 flags) {
 	return result;
 }
 
-bool drawConsoleField(ConsoleField*, RenderGroup*, Input*, FieldSpec*, bool, bool = true);
+bool drawConsoleField(ConsoleField*, RenderGroup*, Input*, FieldSpec*, bool, bool, bool);

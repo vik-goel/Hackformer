@@ -79,6 +79,7 @@ enum DrawType {
 	DrawType_RenderConsoleField,
 	DrawType_RenderDashedLine,
 	DrawType_RenderRotatedTexture,
+	DrawType_RenderFilledStencil,
 };
 
 struct Color {
@@ -141,8 +142,8 @@ enum Orientation {
 };
 
 
-#define RENDER_HEADER_TYPE_MASK ((1 << 15) - 1)
 #define RENDER_HEADER_CLIP_RECT_FLAG (1 << 15)
+#define RENDER_HEADER_TYPE_MASK (RENDER_HEADER_CLIP_RECT_FLAG - 1)
 struct RenderHeader {
 //NOTE: The lower 15 bits of this type field is used to store the DrawType
 //		The 16th bit is used to store whether or not the elem has a clip rect or not
@@ -196,6 +197,13 @@ struct RenderOutlinedRect {
 	double thickness;
 };
 
+struct RenderFilledStencil {
+	TextureData* stencil;
+	R2 bounds;
+	double widthPercentage;
+	Color color;
+};
+
 struct ConsoleField;
 
 struct RenderConsoleField {
@@ -213,6 +221,7 @@ struct RenderDashedLine {
 struct RenderGroup {
 	ForwardShader forwardShader;
 	Shader basicShader;
+	Shader stencilShader;
 	Shader* currentShader;
 
 	TextureData whiteTex;

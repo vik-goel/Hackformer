@@ -1,19 +1,30 @@
 void writeS32(FILE* file, s32 value) {
 	fprintf(file, "%d ", value);
+	// size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
+	// assert(numElementsWritten == 1);
 }
 
 void writeU32(FILE* file, u32 value) {
 	fprintf(file, "%u ", value);
+	// size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
+	// assert(numElementsWritten == 1);
 }
 
 void writeDouble(FILE* file, double value) {
 	fprintf(file, "%f ", value);
+	// size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
+	// assert(numElementsWritten == 1);
 }
 
 void writeString(FILE* file, char* value) {
-	fprintf(file, "\"");
+	fprintf(file, " \"");
 	fprintf(file, value);
 	fprintf(file, "\" ");
+
+	// s32 len = strlen(value);
+	// writeS32(file, len);
+	// size_t numElementsWritten = fwrite(value, sizeof(char), len, file);
+	// assert(numElementsWritten == len);
 }
 
 void writeV2(FILE* file, V2 value) {
@@ -180,13 +191,15 @@ void writeFieldSpec(FILE* file, FieldSpec* spec) {
 void writeAnimation(FILE* file, Animation* anim) {
 	writeS32(file, anim->numFrames);
 
-	for(s32 frameIndex = 0; frameIndex < anim->numFrames; frameIndex++) {
-		writeTexture(file, anim->frames[frameIndex]);
-	}
+	if(anim->numFrames) {
+		for(s32 frameIndex = 0; frameIndex < anim->numFrames; frameIndex++) {
+			writeTexture(file, anim->frames[frameIndex]);
+		}
 
-	writeDouble(file, anim->secondsPerFrame);
-	writeS32(file, anim->pingPong);
-	writeS32(file, anim->reverse);
+		writeDouble(file, anim->secondsPerFrame);
+		writeS32(file, anim->pingPong);
+		writeS32(file, anim->reverse);
+	}
 }
 
 void writeCamera(FILE* file, Camera* camera) {
@@ -308,18 +321,38 @@ void saveGame(GameState* gameState, char* fileName) {
 s32 readS32(FILE* file) {
 	s32 result = 0;
 	fscanf (file, "%d", &result);
+
+	// size_t numElementsRead = fread(&result, sizeof(result), 1, file);
+	// assert(numElementsRead == 1);
+
 	return result;  
 }
 
 u32 readU32(FILE* file) {
 	u32 result = 0;
 	fscanf (file, "%u", &result);
+
+	// size_t numElementsRead = fread(&result, sizeof(result), 1, file);
+	// assert(numElementsRead == 1);
+
 	return result;  
 }
 
 double readDouble(FILE* file) {
 	double result = 0;
+
 	fscanf(file, "%lf", &result);
+
+	// size_t numElementsRead = fread(&result, sizeof(result), 1, file);
+
+	// if(numElementsRead != 1) {
+
+	// int r = feof(file);
+	// int q = ferror(file);
+	// } 
+
+	// assert(numElementsRead == 1);
+
 	return result;  
 }
 
@@ -347,6 +380,10 @@ void readString(FILE* file, char* buffer) {
 	}
 
 	buffer[offset] = 0;
+
+	// s32 len = readS32(file);
+	// size_t numElementsRead = fread(buffer, sizeof(char), len, file);
+	// assert(numElementsRead == len);
 }
 
 V2 readV2(FILE* file) {
@@ -555,15 +592,18 @@ Animation readAnimation(FILE* file, GameState* gameState) {
 	Animation result = {};
 
 	result.numFrames = readS32(file);
-	result.frames = pushArray(&gameState->permanentStorage, Texture, result.numFrames);
 
-	for(s32 frameIndex = 0; frameIndex < result.numFrames; frameIndex++) {
-		result.frames[frameIndex] = readTexture(file);
+	if(result.numFrames) {
+		result.frames = pushArray(&gameState->permanentStorage, Texture, result.numFrames);
+
+		for(s32 frameIndex = 0; frameIndex < result.numFrames; frameIndex++) {
+			result.frames[frameIndex] = readTexture(file);
+		}
+
+		result.secondsPerFrame = readDouble(file);
+		result.pingPong = readS32(file);
+		result.reverse = readS32(file);
 	}
-
-	result.secondsPerFrame = readDouble(file);
-	result.pingPong = readS32(file);
-	result.reverse = readS32(file);
 
 	return result;
 }
@@ -629,11 +669,14 @@ void loadGame(GameState* gameState, char* fileName) {
 	gameState->heavyTileTex = readTexture(file);
 
 	gameState->tileAtlasCount = readS32(file);
-	//TODO: If there is already a tile atlas this will leak
-	gameState->tileAtlas = pushArray(&gameState->levelStorage, Texture, gameState->tileAtlasCount);
 
-	for(s32 texIndex = 0; texIndex < gameState->tileAtlasCount; texIndex++) {
-		gameState->tileAtlas[texIndex] = readTexture(file);
+	if(gameState->tileAtlasCount) {
+		//TODO: If there is already a tile atlas this will leak
+		gameState->tileAtlas = pushArray(&gameState->permanentStorage, Texture, gameState->tileAtlasCount);
+
+		for(s32 texIndex = 0; texIndex < gameState->tileAtlasCount; texIndex++) {
+			gameState->tileAtlas[texIndex] = readTexture(file);
+		}
 	}
 
 	gameState->textureDataCount = readS32(file);
@@ -672,6 +715,9 @@ void loadGame(GameState* gameState, char* fileName) {
 		data->size = dataToCopy->size;
 
 		data->uv = readR2(file);
+
+		assert(data->texId);
+		if(loadNormalMap) assert(data->normalId);
 	}
 
 	gameState->animDataCount = readS32(file);

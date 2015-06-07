@@ -567,7 +567,7 @@ bool drawValueArrow(V2 p, ConsoleField* field, RenderGroup* group, Input* input,
 
 bool drawFields(GameState* gameState, Entity* entity, double dt, V2* fieldP, FieldSpec* spec, bool paused);
 
-bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, FieldSpec* spec, bool paused, bool drawTriangles) {
+bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, FieldSpec* spec, bool paused, bool drawValue, bool drawField) {
 	bool result = false;
 
 	if (!isSet(field, ConsoleFlag_remove)) {
@@ -624,7 +624,7 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 		if(hasValues(field)) fieldP += v2(0, spec->valueSize.y - spec->valueBackgroundPenetration);
 		R2 fieldBounds = rectCenterDiameter(fieldP, spec->fieldSize);
 
-		if (drawTriangles) {
+		if (drawValue) {
 			if(hasValue) {
 				V2 valueP = fieldP + v2(0.1, (spec->valueSize.y + spec->fieldSize.y) * -0.5 + spec->valueBackgroundPenetration);
 				R2 valueBounds = rectCenterDiameter(valueP, spec->valueSize);
@@ -649,17 +649,23 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 			}
 		}
 
-		TextureData* fieldTex = hasValues(field) ? &spec->attribute : &spec->behaviour;
-		pushTexture(group, fieldTex, fieldBounds, false, DrawOrder_gui);
+		if(drawField) {
+			TextureData* fieldTex = hasValues(field) ? &spec->attribute : &spec->behaviour;
+			pushTexture(group, fieldTex, fieldBounds, false, DrawOrder_gui);
+
+			V2 nameP = fieldP + v2(0.14, -0.04);
+			pushText(group, &spec->consoleFont, field->name, nameP, WHITE, TextAlignment_center);
+
+			char tweakCostStr[25];
+			sprintf(tweakCostStr, "%d", field->tweakCost);
+
+			V2 costP = fieldP + v2(-1.13, -0.05);
+			pushText(group, &spec->consoleFont, tweakCostStr, costP, WHITE, TextAlignment_center);
+		}
+
 		
-		V2 nameP = fieldP + v2(0.14, -0.04);
-		pushText(group, &spec->consoleFont, field->name, nameP, WHITE, TextAlignment_center);
 
-		char tweakCostStr[25];
-		sprintf(tweakCostStr, "%d", field->tweakCost);
-
-		V2 costP = fieldP + v2(-1.13, -0.05);
-		pushText(group, &spec->consoleFont, tweakCostStr, costP, WHITE, TextAlignment_center);
+		
 	}
 
 	return result;
@@ -723,12 +729,12 @@ bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsC
 	return result;
 }
 
-bool drawFieldsRaw(RenderGroup* group, Input* input, ConsoleField** fields, s32 fieldsCount, FieldSpec* spec, bool paused) {
+bool drawFieldsRaw(RenderGroup* group, Input* input, ConsoleField** fields, s32 fieldsCount, FieldSpec* spec, bool paused, bool drawFieldSprite = true) {
 	bool result = false;
 
 	for (s32 fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
 		ConsoleField* field = fields[fieldIndex];
-		if (drawConsoleField(field, group, input, spec, paused)) result = true;
+		if (drawConsoleField(field, group, input, spec, paused, true, drawFieldSprite)) result = true;
 
 		if (field->numChildren && field->childYOffs) {
 			V2 rectSize = v2(spec->fieldSize.x, field->childYOffs);//getTotalYOffset(field->children, field->numChildren, spec, false));
@@ -827,10 +833,11 @@ void updateConsole(GameState* gameState, double dt, bool paused) {
 
 	FieldSpec* spec = &gameState->fieldSpec;
 
+#if 1
 	{ //NOTE: This draws the gravity field
 		ConsoleField* gravityField = gameState->gravityField;
 		assert(gravityField);
-		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gravityField, 1, spec, paused)) clickHandled = true;
+		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gravityField, 1, spec, paused, false)) clickHandled = true;
 
 		gameState->gravity = v2(0, gravityField->doubleValues[gravityField->selectedIndex]);
 	}
@@ -838,8 +845,9 @@ void updateConsole(GameState* gameState, double dt, bool paused) {
 	{ //NOTE: This draws the time field
 		ConsoleField* timeField = gameState->timeField;
 		assert(timeField);
-		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &timeField, 1, spec, paused)) clickHandled = true;
+		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &timeField, 1, spec, paused, false)) clickHandled = true;
 	}
+#endif
 
 		//NOTE: This draws the swap field
 	if (gameState->swapField) {

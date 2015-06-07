@@ -306,8 +306,6 @@ void pollInput(GameState* gameState, bool* running) {
 
 	SDL_Event event;
 	while(SDL_PollEvent(&event) > 0) {
-		Input* input = &gameState->input;
-
 		switch(event.type) {
 			case SDL_QUIT:
 			*running = false;
@@ -399,18 +397,19 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 		initPlayerDeath = false;
 	}
 
+	double topFieldYOffset = 1.05;
 	{
 		double gravityValues[] = {-9.8, -4.9, 0, 4.9, 9.8};
 		s32 gravityFieldModifyCost = 10;
 		gameState->gravityField = createPrimitiveField(double, gameState, "gravity", gravityValues, arrayCount(gravityValues), 0, gravityFieldModifyCost);
-		gameState->gravityField->p = v2(2.25, gameState->windowSize.y - 0.8);
+		gameState->gravityField->p = v2(2.25, gameState->windowSize.y - topFieldYOffset);
 	}
 
 	{
 		double timeValues[] = {0, 0.2, 0.5, 1, 2};
 		s32 timeFieldModifyCost = 10;
 		gameState->timeField = createPrimitiveField(double, gameState, "time", timeValues, arrayCount(timeValues), 3, timeFieldModifyCost);
-		gameState->timeField->p = v2(gameState->windowSize.x - 2.5, gameState->windowSize.y - 0.8);
+		gameState->timeField->p = v2(gameState->windowSize.x - 2.4, gameState->windowSize.y - topFieldYOffset);
 	}
 
 	loadTmxMap(gameState, maps[*mapFileIndex]);
@@ -456,17 +455,40 @@ MemoryArena createArena(size_t size) {
 	return result;
 }
 
-Button createPauseMenuButton(GameState* gameState, char* textureFilePath, V2 p, double buttonHeight) {
+Button createButton(GameState* gameState, char* defaultTextureFilePath, V2 p, double buttonHeight) {
 	Button result = {};
 
-	result.texture = loadPNGTexture(gameState, textureFilePath, false);
+	result.defaultTex = loadPNGTexture(gameState, defaultTextureFilePath, false);
 
-	double buttonWidth = getAspectRatio(&result.texture) * buttonHeight;
+	double buttonWidth = getAspectRatio(&result.defaultTex) * buttonHeight;
 
 	V2 size = v2(buttonWidth, buttonHeight);
-	result.bounds = rectCenterDiameter(p, size);
+	result.renderBounds = rectCenterDiameter(p, size);
+	result.clickBounds = rectCenterDiameter(p, size);
+	
 	result.scale = 1;
-	result.selected = false;
+
+	return result;
+}
+
+Button createDockButton(GameState* gameState, char* textureFileName, V2 p, double buttonHeight) {
+	char pathBuffer[1024];
+
+	sprintf(pathBuffer, "%s_default", textureFileName);
+	Button result = createButton(gameState, pathBuffer, p, buttonHeight);
+
+	sprintf(pathBuffer, "%s_clicked", textureFileName);
+	result.clickedTex = loadPNGTexture(gameState, pathBuffer, false);
+
+	sprintf(pathBuffer, "%s_hover", textureFileName);
+	result.hoverTex = loadPNGTexture(gameState, pathBuffer, false);
+
+	return result;
+}
+
+Button createPauseMenuButton(GameState* gameState, char* textureFilePath, V2 p, double buttonHeight) {
+	Button result = createButton(gameState, textureFilePath, p, buttonHeight);
+	result.shouldScale = true;
 
 	return result;
 }
@@ -474,8 +496,12 @@ Button createPauseMenuButton(GameState* gameState, char* textureFilePath, V2 p, 
 bool updateAndDrawButton(Button* button, RenderGroup* group, Input* input, double dt) {
 	bool clicked = false;
 
+	TextureData* tex = NULL;
+
+	bool mouseInsideButton = pointInsideRect(button->clickBounds, input->mouseInMeters);
+
 	if(input->leftMouse.justPressed) {
-		button->selected = pointInsideRect(button->bounds, input->mouseInMeters);
+		button->selected = mouseInsideButton;
 	}
 
 	double scaleSpeed = 2.25 * dt;
@@ -483,6 +509,7 @@ bool updateAndDrawButton(Button* button, RenderGroup* group, Input* input, doubl
 
 	if(button->selected) {
 		if(input->leftMouse.pressed) {
+			tex = &button->clickedTex;
 			button->scale -= scaleSpeed;
 		} else {
 			button->selected = false;
@@ -492,14 +519,26 @@ bool updateAndDrawButton(Button* button, RenderGroup* group, Input* input, doubl
 
 	if(!button->selected) {
 		button->scale += scaleSpeed;
+
+		if(mouseInsideButton) {
+			tex = &button->hoverTex;
+		} else {
+			tex = &button->defaultTex;
+		}
 	}
 
 	if(button->scale < minScale) button->scale = minScale;
 	else if(button->scale > 1) button->scale = 1;
 
-	R2 scaledBounds = scaleRect(button->bounds, v2(1, 1) * button->scale);
+	double scale = button->scale;
+	if(!button->shouldScale) scale = 1;
 
-	pushTexture(group, &button->texture, scaledBounds, false, DrawOrder_gui);
+	R2 scaledRenderBounds = scaleRect(button->renderBounds, v2(1, 1) * scale);
+
+	if(!validTexture(tex)) tex = &button->defaultTex;
+
+	assert(validTexture(tex));
+	pushTexture(group, tex, scaledRenderBounds, false, DrawOrder_gui);
 
 	return clicked;
 }
@@ -609,6 +648,8 @@ int main(int argc, char* argv[]) {
 	gameState->characterAnimDataCount = 1; //NOTE: 0 is a null character data
 
 	gameState->renderGroup = createRenderGroup(gameState, 32 * 1024);
+	RenderGroup* renderGroup = gameState->renderGroup;
+
 	gameState->texel = hadamard(gameState->windowSize, v2(1.0 / windowWidth, 1.0 / windowHeight));
 
 	Input* input = &gameState->input;
@@ -643,13 +684,13 @@ int main(int argc, char* argv[]) {
 
 	gameState->textFont = loadFont("fonts/Roboto-Regular.ttf", 64);
 
-	TextureData playerStand = loadPNGTexture(gameState, "res/player/stand2");
-	TextureData playerJump = loadPNGTexture(gameState, "res/player/jump3");
-	Animation playerStandJumpTransition = loadAnimation(gameState, "res/player/jump_transition", 256, 256, 0.025f, false);
-	Animation playerWalk = loadAnimation(gameState, "res/player/running_2", 256, 256, 0.0325f, true);
-	Animation playerStandWalkTransition = loadAnimation(gameState, "res/player/stand_run_transition", 256, 256, 0.01f, false);
-	Animation playerHackingAnimation = loadAnimation(gameState, "res/player/hacking_flow_sprite", 512, 256, 0.07f, true);
-	Animation playerHackingAnimationTransition = loadAnimation(gameState, "res/player/hacking_sprite_full_2", 256, 256, 0.025f, false);
+	TextureData playerStand = loadPNGTexture(gameState, "player/stand2", false);
+	TextureData playerJump = loadPNGTexture(gameState, "player/jump3", false);
+	Animation playerStandJumpTransition = loadAnimation(gameState, "player/jump_transition", 256, 256, 0.025f, false);
+	Animation playerWalk = loadAnimation(gameState, "player/running_2", 256, 256, 0.0325f, true);
+	Animation playerStandWalkTransition = loadAnimation(gameState, "player/stand_run_transition", 256, 256, 0.01f, false);
+	Animation playerHackingAnimation = loadAnimation(gameState, "player/hacking_flow_sprite", 512, 256, 0.07f, true);
+	Animation playerHackingAnimationTransition = loadAnimation(gameState, "player/hacking_sprite_full_2", 256, 256, 0.025f, false);
 
 	AnimNodeData playerWalkAnimNodeData = {};
 	AnimNodeData playerJumpAnimNodeData = {};
@@ -676,8 +717,8 @@ int main(int argc, char* argv[]) {
 
 	gameState->playerHack = createAnimNodeFromData(&playerHackData, gameState);
 
-	TextureData virus1Stand = loadPNGTexture(gameState, "res/virus1/stand");
-	Animation virus1Shoot = loadAnimation(gameState, "res/virus1/shoot", 256, 256, 0.04f, true);
+	TextureData virus1Stand = loadPNGTexture(gameState, "virus1/stand");
+	Animation virus1Shoot = loadAnimation(gameState, "virus1/shoot", 256, 256, 0.04f, true);
 	gameState->shootDelay = getAnimationDuration(&virus1Shoot);
 
 	AnimNode virus1StandAnimNode = createAnimNode(&virus1Stand, gameState);
@@ -689,8 +730,8 @@ int main(int argc, char* argv[]) {
 	gameState->virus1Anim = createCharacterAnim(gameState, virus1StandAnimNode, {}, virus1ShootAnimNode, {});
 
 	//TODO: Make shoot animation time per frame be set by the shootDelay
-	TextureData flyingVirusStand = loadPNGTexture(gameState, "res/virus2/full");
-	Animation flyingVirusShoot = loadAnimation(gameState, "res/virus2/shoot", 256, 256, 0.04f, true);
+	TextureData flyingVirusStand = loadPNGTexture(gameState, "virus2/full");
+	Animation flyingVirusShoot = loadAnimation(gameState, "virus2/shoot", 256, 256, 0.04f, true);
 
 	AnimNode flyingVirusStandAnimNode = createAnimNode(&flyingVirusStand, gameState);
 	AnimNodeData flyingVirusShootAnimNodeData = {};
@@ -701,39 +742,39 @@ int main(int argc, char* argv[]) {
 	gameState->flyingVirusAnim = createCharacterAnim(gameState, flyingVirusStandAnimNode, {}, flyingVirusShootAnimNode, {});
 
 
-	gameState->sunsetCityBg = loadPNGTexture(gameState, "res/backgrounds/sunset_city_bg", false);
-	gameState->sunsetCityMg = loadPNGTexture(gameState, "res/backgrounds/sunset_city_mg", false);
-	gameState->marineCityBg = loadPNGTexture(gameState, "res/backgrounds/marine_city_bg", false);
-	gameState->marineCityMg = loadPNGTexture(gameState, "res/backgrounds/marine_city_mg", false);
+	gameState->sunsetCityBg = loadPNGTexture(gameState, "backgrounds/sunset_city_bg", false);
+	gameState->sunsetCityMg = loadPNGTexture(gameState, "backgrounds/sunset_city_mg", false);
+	gameState->marineCityBg = loadPNGTexture(gameState, "backgrounds/marine_city_bg", false);
+	gameState->marineCityMg = loadPNGTexture(gameState, "backgrounds/marine_city_mg", false);
 
-	gameState->blueEnergyTex = loadTexture(gameState, "res/blue_energy");
-	gameState->laserBolt = loadTexture(gameState, "res/virus1/laser_bolt", false);
-	gameState->endPortal = loadTexture(gameState, "res/end_portal");
+	gameState->blueEnergyTex = loadTexture(gameState, "blue_energy");
+	gameState->laserBolt = loadTexture(gameState, "virus1/laser_bolt", false);
+	gameState->endPortal = loadTexture(gameState, "end_portal");
 
-	gameState->laserBaseOff = loadTexture(gameState, "res/virus3/base_off");
-	gameState->laserBaseOn = loadTexture(gameState, "res/virus3/base_on");
-	gameState->laserTopOff = loadTexture(gameState, "res/virus3/top_off");
-	gameState->laserTopOn = loadTexture(gameState, "res/virus3/top_on");
-	gameState->laserBeam = loadTexture(gameState, "res/virus3/laser_beam");
+	gameState->laserBaseOff = loadTexture(gameState, "virus3/base_off", false);
+	gameState->laserBaseOn = loadTexture(gameState, "virus3/base_on", false);
+	gameState->laserTopOff = loadTexture(gameState, "virus3/top_off", false);
+	gameState->laserTopOn = loadTexture(gameState, "virus3/top_on", false);
+	gameState->laserBeam = loadTexture(gameState, "virus3/laser_beam", false);
 
-	gameState->heavyTileTex = loadTexture(gameState, "res/Heavy1");
+	gameState->heavyTileTex = loadTexture(gameState, "Heavy1");
 
 	FieldSpec* spec = &gameState->fieldSpec;
 
-	spec->consoleTriangle = loadPNGTexture(gameState, "res/triangle_blue");
-	spec->consoleTriangleSelected = loadPNGTexture(gameState, "res/triangle_light_blue");
-	spec->consoleTriangleGrey = loadPNGTexture(gameState, "res/triangle_grey");
-	spec->consoleTriangleYellow = loadPNGTexture(gameState, "res/triangle_yellow");
+	spec->consoleTriangle = loadPNGTexture(gameState, "triangle_blue", false);
+	spec->consoleTriangleSelected = loadPNGTexture(gameState, "triangle_light_blue", false);
+	spec->consoleTriangleGrey = loadPNGTexture(gameState, "triangle_grey", false);
+	spec->consoleTriangleYellow = loadPNGTexture(gameState, "triangle_yellow", false);
 	spec->consoleFont = loadCachedFont(gameState, "fonts/PTS55f.ttf", 16, 2);
-	spec->attribute = loadPNGTexture(gameState, "res/attributes/Attribute", false);
-	spec->behaviour = loadPNGTexture(gameState, "res/attributes/Behaviour", false);
-	spec->valueBackground = loadPNGTexture(gameState, "res/attributes/changer_readout", false);
-	spec->leftButtonDefault = loadPNGTexture(gameState, "res/attributes/left_button", false);
-	spec->leftButtonClicked = loadPNGTexture(gameState, "res/attributes/left_button_clicked", false);
-	spec->leftButtonUnavailable = loadPNGTexture(gameState, "res/attributes/left_button_unavailable", false);
-	spec->waypoint = loadPNGTexture(gameState, "res/waypoint", false);
-	spec->waypointArrow = loadPNGTexture(gameState, "res/waypoint_arrow", false);
-	spec->tileHackShield = loadPNGTexture(gameState, "res/tile_hack_shield", false);
+	spec->attribute = loadPNGTexture(gameState, "attributes/Attribute", false);
+	spec->behaviour = loadPNGTexture(gameState, "attributes/Behaviour", false);
+	spec->valueBackground = loadPNGTexture(gameState, "attributes/changer_readout", false);
+	spec->leftButtonDefault = loadPNGTexture(gameState, "attributes/left_button", false);
+	spec->leftButtonClicked = loadPNGTexture(gameState, "attributes/left_button_clicked", false);
+	spec->leftButtonUnavailable = loadPNGTexture(gameState, "attributes/left_button_unavailable", false);
+	spec->waypoint = loadPNGTexture(gameState, "waypoint", false);
+	spec->waypointArrow = loadPNGTexture(gameState, "waypoint_arrow", false);
+	spec->tileHackShield = loadPNGTexture(gameState, "tile_hack_shield", false);
 
 	spec->fieldSize = getDrawSize(&spec->behaviour, 0.5);
 	spec->valueSize = getDrawSize(&spec->valueBackground, 0.8);
@@ -743,20 +784,28 @@ int main(int argc, char* argv[]) {
 	spec->spacing = v2(0.05, 0);
 	spec->childInset = spec->fieldSize.x * 0.125;
 
-	gameState->dock = loadPNGTexture(gameState, "res/dock_2", false);
-	gameState->dockBlueEnergyTile = loadPNGTexture(gameState, "res/blue_energy_tile", false);
+	Dock* dock = &gameState->dock;
+	dock->dockTex = loadPNGTexture(gameState, "dock/dock", false);
+	dock->subDockTex = loadPNGTexture(gameState, "dock/sub_dock", false);
+	dock->energyBarStencil = loadPNGTexture(gameState, "dock/energy_bar_stencil", false);
+	dock->barCircleTex = loadPNGTexture(gameState, "dock/bar_energy", false);
+	dock->gravityTex = loadPNGTexture(gameState, "dock/gravity_field", false);
+	dock->timeTex = loadPNGTexture(gameState, "dock/time_field", false);
+	dock->acceptButton = createDockButton(gameState, "dock/accept_button", v2(gameState->windowSize.x * 0.5 + 0.45, gameState->windowSize.y - 1.6), 0.51);
+	dock->cancelButton = createDockButton(gameState, "dock/cancel_button", v2(gameState->windowSize.x * 0.5 - 2.55, gameState->windowSize.y - 1.6), 0.5);
+	dock->cancelButton.clickBounds.max.x -= 0.2;
 
 	PauseMenu* pauseMenu = &gameState->pauseMenu;
 
-	pauseMenu->background = loadPNGTexture(gameState, "res/pause_menu", false);
-	pauseMenu->backgroundAnim = loadAnimation(gameState, "res/pause_menu_sprite", 1280, 720, 1.f, true);
+	pauseMenu->background = loadPNGTexture(gameState, "pause_menu", false);
+	pauseMenu->backgroundAnim = loadAnimation(gameState, "pause_menu_sprite", 1280, 720, 1.f, true);
 
-	pauseMenu->quit = createPauseMenuButton(gameState, "res/quit_button", v2(15.51, 2.62), 1.5);
-	pauseMenu->restart = createPauseMenuButton(gameState, "res/restart_button", v2(6.54, 4.49), 1.1);
-	pauseMenu->resume = createPauseMenuButton(gameState, "res/resume_button", v2(3.21, 8.2), 1.18);
-	pauseMenu->settings = createPauseMenuButton(gameState, "res/settings_button", v2(12.4, 6.8), 1.08);
+	pauseMenu->quit = createPauseMenuButton(gameState, "quit_button", v2(15.51, 2.62), 1.5);
+	pauseMenu->restart = createPauseMenuButton(gameState, "restart_button", v2(6.54, 4.49), 1.1);
+	pauseMenu->resume = createPauseMenuButton(gameState, "resume_button", v2(3.21, 8.2), 1.18);
+	pauseMenu->settings = createPauseMenuButton(gameState, "settings_button", v2(12.4, 6.8), 1.08);
 
-	gameState->tileAtlas = extractTextures(gameState, "res/tiles_floored", 120, 240, 12, &gameState->tileAtlasCount);
+	gameState->tileAtlas = extractTextures(gameState, "tiles_floored", 120, 240, 12, &gameState->tileAtlasCount, true);
 
 	char* mapFileNames[] = {
 		"map3.tmx",
@@ -806,7 +855,7 @@ int main(int argc, char* argv[]) {
 		if (dtForFrame > maxDtForFrame) dtForFrame = maxDtForFrame;
 		double unpausedDtForFrame = dtForFrame;
 
-		gameState->swapFieldP = gameState->windowSize * 0.5 + v2(0.08, 4.43);
+		gameState->swapFieldP = gameState->windowSize * 0.5 + v2(0.06, 4.43);
 
 		pollInput(gameState, &running);
 
@@ -828,62 +877,102 @@ int main(int argc, char* argv[]) {
 		}
 
 		updateAndRenderEntities(gameState, dtForFrame, paused);
-		pushSortEnd(gameState->renderGroup);
+		pushSortEnd(renderGroup);
 
-		{ //Draw the dock
-			V2 size = gameState->windowSize.x * v2(1, gameState->dock.size.y / gameState->dock.size.x);
-			V2 dockP = v2(0, gameState->windowSize.y - size.y);
-			R2 bounds = r2(dockP, dockP + size);
-			pushTexture(gameState->renderGroup, &gameState->dock, bounds, false, DrawOrder_gui, false);
+		{ //Draw the dock before the console
+			V2 dockSize = gameState->windowSize.x * v2(1, dock->dockTex.size.y / dock->dockTex.size.x);
+			V2 dockP = v2(0, gameState->windowSize.y - dockSize.y);
+			R2 dockBounds = r2(dockP, dockP + dockSize);
+			V2 dockCenter = getRectCenter(dockBounds);
 
-			s32 maxBlueEnergy = 60;
-			if(gameState->fieldSpec.blueEnergy > maxBlueEnergy) gameState->fieldSpec.blueEnergy = maxBlueEnergy;
+			V2 subDockSize = (gameState->windowSize.x * 0.58) * v2(1, dock->subDockTex.size.y / dock->subDockTex.size.x);
+			V2 subDockP = v2(gameState->windowSize.x * 0.5 + 0.42, gameState->windowSize.y - 1.76);
+			R2 subDockBounds = rectCenterDiameter(subDockP, subDockSize);
+
+			if (updateAndDrawButton(&dock->cancelButton, renderGroup, input, unpausedDtForFrame)) {
+				
+			}
+
+			pushTexture(renderGroup, &dock->subDockTex, subDockBounds, false, DrawOrder_gui, false);
+
+			if (updateAndDrawButton(&dock->acceptButton, renderGroup, input, unpausedDtForFrame)) {
+				
+			}
+
+			pushTexture(renderGroup, &dock->dockTex, dockBounds, false, DrawOrder_gui, false);
+
+			s32 maxEnergy = 100;
+			if(gameState->fieldSpec.blueEnergy > maxEnergy) gameState->fieldSpec.blueEnergy = maxEnergy;
 			else if(gameState->fieldSpec.blueEnergy < 0) gameState->fieldSpec.blueEnergy = 0;
 
-			int blueEnergy = gameState->fieldSpec.blueEnergy;
+			int energy = gameState->fieldSpec.blueEnergy;
 
-			if(blueEnergy > 0) {
-				char blueEnergyStr[25];
-				sprintf(blueEnergyStr, "%d", blueEnergy);
+			char energyStr[25];
+			sprintf(energyStr, "%d", energy);
 
-				CachedFont* font = &gameState->fieldSpec.consoleFont;
-				double textWidth = getTextWidth(font, gameState->renderGroup, blueEnergyStr);
-				R2 textPadding = getTextPadding(font, gameState->renderGroup, blueEnergyStr);
+			CachedFont* font = &gameState->fieldSpec.consoleFont;
+			V2 textP = dockCenter + v2(4.19, -0.74);
+			pushText(renderGroup, font, energyStr, textP, WHITE, TextAlignment_center);
 
-				V2 blueEnergyP = dockP + v2(1.84, 0.6);
-				Color blue = createColor(66, 217, 255, 255);
-				V2 blueEnergySize = v2(1, 1) * 0.49;
+			Color energyColor = createColor(66, 217, 255, 50);
 
-				R2 blueEnergyBounds = rectCenterDiameter(blueEnergyP, blueEnergySize);
-				pushTexture(gameState->renderGroup, &gameState->dockBlueEnergyTile, blueEnergyBounds, false, DrawOrder_gui, false);
-				
-				V2 textP = blueEnergyP - blueEnergySize * 0.5 - textPadding.min;
-				textP += (blueEnergySize - v2(textWidth, font->lineHeight)) * 0.5;
-				pushText(gameState->renderGroup, font, blueEnergyStr, textP);
+			V2 energyBarP = dockCenter + v2(0, -0.13);
+			V2 energyBarSize = v2(10.1, 0.5);
+			R2 energyBarBounds = rectCenterDiameter(energyBarP, energyBarSize);
 
-				if(blueEnergy > 1) {
-					double rectHeight = 0.15;
-					V2 rectOffs = v2(0.22, -0.03);
-					double maxRectLength = 6.32;
-					double rectLength = maxRectLength * (double)blueEnergy/(double)(maxBlueEnergy - 2);
-					if(rectLength > maxRectLength) rectLength = maxRectLength;
-
-					V2 rectStartP = blueEnergyP + rectOffs + v2(0, -rectHeight / 2);
-					V2 rectEndP = rectStartP + v2(rectLength, rectHeight);
-
-					R2 rectBounds = r2(rectStartP, rectEndP);
-					pushFilledRect(gameState->renderGroup, rectBounds, blue);
-
-					if(blueEnergy >= maxBlueEnergy) {
-						blueEnergyP += v2(maxRectLength + 0.02, 0) + rectOffs;
-						blueEnergyBounds = rectCenterDiameter(blueEnergyP, 0.16 * v2(1, 1));
-						pushTexture(gameState->renderGroup, &gameState->dockBlueEnergyTile, blueEnergyBounds, false, DrawOrder_gui, false);
-					}
-				}
-			}
+			double energyBarPercentage = (double)energy / (double)maxEnergy;
+			pushFilledStencil(renderGroup, &dock->energyBarStencil, energyBarBounds, energyBarPercentage, energyColor);
 		}
 
 		updateConsole(gameState, dtForFrame, paused);
+
+		{ //Draw the dock after the console
+			V2 topFieldSize = getDrawSize(&dock->gravityTex, 0.7);
+
+			V2 gravityP = gameState->gravityField->p + v2(0, 0.48);
+			R2 gravityBounds = rectCenterDiameter(gravityP, topFieldSize);
+
+			V2 timeP = gameState->timeField->p + v2(0.3, 0.36);
+			R2 timeBounds = rectCenterDiameter(timeP, topFieldSize);
+
+			pushTexture(renderGroup, &dock->gravityTex, gravityBounds, false, DrawOrder_gui, false);
+			pushTexture(renderGroup, &dock->timeTex, timeBounds, false, DrawOrder_gui, false);
+
+			Color barColor = createColor(191, 16, 16, 255);
+
+			double maxGravityBarLength = 2.2;
+			double gravityBarLength = maxGravityBarLength * ((double)gameState->gravityField->selectedIndex / (double)(gameState->gravityField->numValues - 1));
+			V2 gravityBarSize = v2(gravityBarLength, 0.07);
+			V2 circleSize = v2(1, 1) * 0.085;
+
+			if(gravityBarLength) {
+				V2 gravityBarP = gravityP + v2(-0.9, -0.3);
+				V2 gravityLeftCircleP = gravityBarP + v2(-0.02, 0.035);
+
+				pushTexture(renderGroup, &dock->barCircleTex, rectCenterDiameter(gravityLeftCircleP, circleSize), false, DrawOrder_gui, false);
+				
+				if(gravityBarLength == maxGravityBarLength) {
+					V2 gravityRightCircleP = gravityLeftCircleP + v2(gravityBarLength + 0.03, 0);
+					pushTexture(renderGroup, &dock->barCircleTex, rectCenterDiameter(gravityRightCircleP, circleSize), false, DrawOrder_gui, false);
+				}
+
+				pushFilledRect(renderGroup, r2(gravityBarP, gravityBarP + gravityBarSize), barColor);
+			}
+
+			double maxTimeBarLength = 2.25;
+			double timeBarLength = maxTimeBarLength * ((double)gameState->timeField->selectedIndex / (double)(gameState->timeField->numValues - 1));
+
+			if(timeBarLength) {
+				V2 timeBarP = timeP + v2(-1.32, 0.23);
+				V2 timeBarSize = v2(timeBarLength, gravityBarSize.y);
+
+				pushFilledRect(renderGroup, r2(timeBarP, timeBarP + timeBarSize), barColor);
+
+				V2 timeCircleP = timeBarP - v2(0.015, -0.035);
+				circleSize *= 0.9;
+				pushTexture(renderGroup, &dock->barCircleTex, rectCenterDiameter(timeCircleP, circleSize), false, DrawOrder_gui, false);
+			}
+		}
 
 		bool levelResetRequested = false;
 
@@ -904,29 +993,29 @@ int main(int argc, char* argv[]) {
 			Color frame1Color = createColor(255, 255, 255, frame1Alpha);
 			Color frame2Color = createColor(255, 255, 255, frame2Alpha);
 
-			pushTexture(gameState->renderGroup, &pauseMenu->background, windowBounds, false, DrawOrder_gui, false);
-			pushTexture(gameState->renderGroup, frame1, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame1Color);
-			pushTexture(gameState->renderGroup, frame2, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame2Color);
+			pushTexture(renderGroup, &pauseMenu->background, windowBounds, false, DrawOrder_gui, false);
+			pushTexture(renderGroup, frame1, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame1Color);
+			pushTexture(renderGroup, frame2, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame2Color);
 		
-			if (updateAndDrawButton(&pauseMenu->quit, gameState->renderGroup, input, unpausedDtForFrame)) {
+			if (updateAndDrawButton(&pauseMenu->quit, renderGroup, input, unpausedDtForFrame)) {
 				running = false;
 			}
 
-			if (updateAndDrawButton(&pauseMenu->restart, gameState->renderGroup, input, unpausedDtForFrame)) {
+			if (updateAndDrawButton(&pauseMenu->restart, renderGroup, input, unpausedDtForFrame)) {
 				levelResetRequested = true;
 				paused = false;
 			}
 
-			if (updateAndDrawButton(&pauseMenu->resume, gameState->renderGroup, input, unpausedDtForFrame)) {
+			if (updateAndDrawButton(&pauseMenu->resume, renderGroup, input, unpausedDtForFrame)) {
 				paused = false;
 			}
 
-			if (updateAndDrawButton(&pauseMenu->settings, gameState->renderGroup, input, unpausedDtForFrame)) {
+			if (updateAndDrawButton(&pauseMenu->settings, renderGroup, input, unpausedDtForFrame)) {
 				//TODO: Implement settings
 			}
 		}
 
-		drawRenderGroup(gameState->renderGroup, &gameState->fieldSpec);
+		drawRenderGroup(renderGroup, &gameState->fieldSpec);
 		removeEntities(gameState);
 
 		{ //NOTE: This updates the camera position
@@ -978,7 +1067,7 @@ int main(int argc, char* argv[]) {
 			R2 clipRect = intersect(windowBounds, screenBounds);
 			R2 screenSpaceClipRect = translateRect(clipRect, -camera->p);
 
-			gameState->renderGroup->defaultClipRect = screenSpaceClipRect;
+			renderGroup->defaultClipRect = screenSpaceClipRect;
 		}
 
 		dtForFrame = 0;

@@ -171,10 +171,15 @@ struct EntityChunk {
 };
 
 struct Button {
-	TextureData texture;
-	R2 bounds;
-	bool32 selected;
+	TextureData defaultTex;
+	TextureData hoverTex;
+	TextureData clickedTex;
+
+	R2 renderBounds;
+	R2 clickBounds;
 	double scale;
+	bool32 selected;
+	bool32 shouldScale;
 };
 
 struct PauseMenu {
@@ -186,6 +191,20 @@ struct PauseMenu {
 	Button restart;
 	Button resume;
 	Button settings;
+};
+
+struct Dock {
+	TextureData dockTex;
+	TextureData subDockTex;
+	TextureData energyBarStencil;
+	TextureData barCircleTex;
+	TextureData gravityTex;
+	TextureData timeTex;
+
+	Button acceptButton;
+	Button cancelButton;
+
+	double subDockXOffs;
 };
 
 struct GameState {
@@ -275,9 +294,6 @@ struct GameState {
 	s32 tileAtlasCount;
 	Texture* tileAtlas;
 
-	TextureData dock;
-	TextureData dockBlueEnergyTile;
-
 	s32 textureDataCount;
 	TextureData textureData[200];
 
@@ -288,6 +304,7 @@ struct GameState {
 	CharacterAnimData characterAnimData[10];
 
 	PauseMenu pauseMenu;
+	Dock dock;
 };
 
 #define pushArray(arena, type, count) (type*)pushIntoArena_(arena, count * sizeof(type))

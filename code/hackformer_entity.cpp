@@ -3016,7 +3016,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame, bool pause
 							AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
 							assert(currentAnim);
 
-							if(currentAnim->outro.frames) {
+							if(currentAnim->outro.numFrames) {
 								setFlags(entity, EntityFlag_animOutro);
 							} else {
 								transitionToNext = true;
@@ -3081,6 +3081,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame, bool pause
 
 			assert(anim);
 			tempTexture = getAnimationFrame(anim, entity->animTime);
+
+			assert(tempTexture);
+			assert(tempTexture->dataIndex);
 		}
 		else if(entity->defaultTex.dataIndex) {
 			tempTexture = &entity->defaultTex;
@@ -3091,9 +3094,12 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame, bool pause
 
 		if(tempTexture) {
 			texture = getTextureData(tempTexture, gameState);
+			assert(texture);
 		}
 
 		if (texture != NULL) {
+			assert(texture->texId);
+
 			bool drawLeft = isSet(entity, EntityFlag_facesLeft) != 0;
 			if (entity->type == EntityType_laserBase) drawLeft = false;
 
