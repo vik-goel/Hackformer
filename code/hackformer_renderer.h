@@ -251,4 +251,5 @@ struct RenderGroup {
 	size_t maxSize;
 
 	TextureData* textureData;
+	s32* textureDataCount;
 };

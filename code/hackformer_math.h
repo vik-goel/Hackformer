@@ -536,3 +536,9 @@ R2 intersect(R2 a, R2 b) {
 
 	return result;
 }
+
+R2 reCenterRect(R2 a, V2 center) {
+	V2 size = getRectSize(a);
+	R2 result = rectCenterDiameter(center, size);
+	return result;
+}

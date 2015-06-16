@@ -733,7 +733,7 @@ void loadGame(GameState* gameState, char* fileName) {
 		TextureData loadedData;
 
 		if(!dataToCopy) {
-			loadedData = loadPNGTexture(gameState, data->fileName, loadNormalMap);
+			loadedData = loadPNGTexture(gameState->renderGroup, data->fileName, loadNormalMap);
 			dataToCopy = &loadedData;
 		}
 
@@ -898,6 +898,11 @@ void readEntityFromArena(void** readPtr, Entity* entity, GameState* gameState) {
 	entity->tileYOffset = save->tileYOffset;
 	if(entity->messages)entity->messages->selectedIndex = save->messagesSelectedIndex;
 	entity->timeSinceLastOnGround = save->timeSinceLastOnGround;
+
+	for(s32 fieldIndex = save->numFields; fieldIndex < entity->numFields; fieldIndex++) {
+		freeConsoleField(entity->fields[fieldIndex], gameState);
+	}
+
 	entity->numFields = save->numFields;
 
 	for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
@@ -927,7 +932,8 @@ void loadGameFromArena(GameState* gameState) {
 		gameState->targetRefs = refNode(gameState, ref, gameState->targetRefs);
 	}
 
-	gameState->numEntities = readElem(readPtr, s32);
+	s32 numEntities = readElem(readPtr, s32);
+	assert(numEntities == gameState->numEntities);
 
 	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 		readEntityFromArena(&readPtr, gameState->entities + entityIndex, gameState);

@@ -56,101 +56,19 @@ Waypoint following
 
 */
 
-#define _CRT_SECURE_NO_WARNINGS
+#include "hackformer_types.h"
 
-#define arrayCount(array) sizeof(array) / sizeof(array[0])
-#define InvalidCodePath assert(!"Invalid Code Path")
-#define InvalidDefaultCase default: { assert(!"Invalid Default Case"); } break
-
-#define SHOW_COLLISION_BOUNDS 0
-#define SHOW_CLICK_BOUNDS 0
-
-#include <stdint.h>
-
-typedef uint32_t u32;
-typedef uint16_t u16;
-typedef uint8_t u8;
-
-typedef int32_t s32;
-typedef int16_t s16;
-typedef int8_t s8;
-
-typedef int32_t bool32; 
-typedef int16_t bool16; 
-typedef int8_t bool8; 
-
-#include <cstdlib>
-#include <cstring>
-#include <cmath>
-#include <cstdio>
-#include <cassert>
-
-#include "glew.h"
-
-#include "SDL.h"
-#include "SDL_image.h"
-#include "SDL_ttf.h"
-#include "SDL_opengl.h"
-#include "SDL_mixer.h"
+#define HACKFORMER_GAME
 
 struct GameState;
 struct Input;
-struct Camera;
 
-#include "hackformer_math.h"
 #include "hackformer_renderer.h"
 #include "hackformer_consoleField.h"
 #include "hackformer_entity.h"
 
-struct Key {
-	bool32 pressed;
-	bool32 justPressed;
-	s32 keyCode1, keyCode2;
-};
-
-struct Input {
-	V2 mouseInPixels;
-	V2 mouseInMeters;
-	V2 mouseInWorld;
-
-	//TODO: There might be a bug when this, it was noticeable when shift was held down 
-	//	 	while dragging something with the mouse
-	V2 dMouseMeters;
-
-	union {
-		//NOTE: The number of keys in the array must always be equal to the number of keys in the struct below
-		Key keys[11];
-
-		//TODO: The members of this struct may not be packed such that they align perfectly with the array of keys
-		struct {
-			Key up;
-			Key down;
-			Key left;
-			Key right;
-			Key r;
-			Key x;
-			Key n;
-			Key m;
-			Key shift;
-			Key pause;
-			Key leftMouse;
-		};
-	};
-};
-
-struct MemoryArena {
-	void* base;
-	size_t allocated;
-	size_t size;
-};
-
-struct Camera {
-	V2 p;
-	V2 newP;
-	bool32 moveToTarget;
-	bool32 deferredMoveToTarget;
-	double scale;
-};
+#define SHOW_COLLISION_BOUNDS 0
+#define SHOW_CLICK_BOUNDS 0
 
 struct PathNode {
 	bool32 solid;
@@ -313,37 +231,18 @@ struct GameState {
 	Texture* tileAtlas;
 
 	s32 textureDataCount;
-	TextureData textureData[200];
+	TextureData textureData[TEXTURE_DATA_COUNT];
 
 	s32 animDataCount;
-	AnimNodeData animData[20];
+	AnimNodeData animData[ANIM_NODE_DATA_COUNT];
 
 	s32 characterAnimDataCount;
-	CharacterAnimData characterAnimData[10];
+	CharacterAnimData characterAnimData[CHARACTER_ANIM_DATA_COUNT];
 
 	PauseMenu pauseMenu;
 	MainMenu mainMenu;
 	Dock dock;
 };
-
-#define pushArray(arena, type, count) (type*)pushIntoArena_(arena, count * sizeof(type))
-#define pushStruct(arena, type) (type*)pushIntoArena_(arena, sizeof(type))
-#define pushSize(arena, size) pushIntoArena_(arena, size);
-#define pushElem(arena, type, value) {void* valuePtr = pushIntoArena_(arena, sizeof(type)); *(type*)valuePtr = value;}
-
-void* pushIntoArena_(MemoryArena* arena, size_t amt) {
-	arena->allocated += amt;
-	assert(arena->allocated < arena->size);
-
-	void* result = (char*)arena->base + arena->allocated - amt;
-	return result;
-}
-
-void zeroSize(void* base, size_t size) {
-	for (size_t byteIndex = 0; byteIndex < size; byteIndex++) {
-		*((char*)base + byteIndex) = 0;
-	}
-}
 
 void setCameraTarget(Camera* camera, V2 target) {
 	camera->newP = target;
@@ -356,7 +255,7 @@ void saveGame(GameState* gameState, char* fileName);
 void loadGame(GameState* gameState, char* fileName);
 void saveGameToArena(GameState* gameState);
 void loadGameFromArena(GameState* gameState);
-s32 getEnergyLoss(GameState* gameState);
+s32  getEnergyLoss(GameState* gameState);
 
 bool inGame(GameState* gameState) {
 	bool result = gameState->screenType == ScreenType_game || 

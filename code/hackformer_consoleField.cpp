@@ -899,7 +899,7 @@ bool updateConsole(GameState* gameState, double dt) {
 	if (entity) {
 		R2 renderBounds = getRenderBounds(entity, gameState);
 		
-		if(entity->type != EntityType_player && !isTileType(entity)) {
+		if(entity->type != EntityType_player && !(isTileType(entity) && getMovementField(entity) == NULL)) {
 			pushOutlinedRect(gameState->renderGroup, renderBounds, 0.02, RED);
 		}
 		
@@ -932,7 +932,7 @@ bool updateConsole(GameState* gameState, double dt) {
 				V2 clickBoxCenter = getRectCenter(entity->clickBox) + entity->p - gameState->camera.p;
 
 				R2 shieldBounds = scaleRect(renderBounds, v2(1, 1) * 1.15);
-				pushTexture(gameState->renderGroup, &spec->tileHackShield, shieldBounds, false, DrawOrder_gui, true);
+				pushTexture(gameState->renderGroup, &spec->tileHackShield, shieldBounds, false, DrawOrder_gui, false);
 
 				V2 offset = clickBoxSize * 0.5 + spec->spacing;
 
@@ -1014,7 +1014,7 @@ bool updateConsole(GameState* gameState, double dt) {
 
 	if(gameState->swapField) drawWaypointInformation(gameState->swapField, gameState->renderGroup, spec);
 
-	bool wasConsoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
+	bool32 wasConsoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
 
 	//NOTE: This selects a new console entity if there isn't one and a click occurred
 	Entity* player = getEntityByRef(gameState, gameState->playerRef);
@@ -1049,11 +1049,6 @@ bool updateConsole(GameState* gameState, double dt) {
 		if(newConsoleEntity) {
 			gameState->consoleEntityRef = newConsoleEntity->ref;
 		}
-	}
-
-	if(wasConsoleEntity && !getEntityByRef(gameState, gameState->consoleEntityRef)) {
-		gameState->camera.deferredMoveToTarget = true;
-		gameState->camera.moveToTarget = true;
 	}
 
 	return clickHandled;

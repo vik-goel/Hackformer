@@ -183,23 +183,23 @@ GLuint generateTexture(SDL_Surface* image, bool srgb = false) {
 	return result;
 }
 
-Texture createTextureFromData(TextureData* data, GameState* gameState) {
-	assert(gameState->textureDataCount < arrayCount(gameState->textureData) - 1);
+Texture createTextureFromData(TextureData* data, RenderGroup* group) {
+	assert(*group->textureDataCount < TEXTURE_DATA_COUNT - 1);
 
 	assert(data->hasFileName);
-	gameState->textureData[gameState->textureDataCount] = *data;
+	group->textureData[*group->textureDataCount] = *data;
 
 	Texture texture = {};
-	texture.dataIndex = gameState->textureDataCount;
-	gameState->textureDataCount++;
+	texture.dataIndex = *group->textureDataCount;
+	*group->textureDataCount = *group->textureDataCount + 1;
 
 	return texture;
 }
 
-TextureData createTexFromSurface(SDL_Surface* image, SDL_Surface* normal, RenderGroup* group) {
+TextureData createTexFromSurface(SDL_Surface* image, SDL_Surface* normal, RenderGroup* group, bool stencil) {
 	TextureData result = {};
 
-	result.texId = generateTexture(image, true);
+	result.texId = generateTexture(image, !stencil);
 
 	if(normal) {
 		result.normalId = generateTexture(normal);
@@ -223,7 +223,7 @@ void addFileName(TextureData* data, char* fileName) {
 	strcpy(data->fileName, fileName);
 }
 
-TextureData loadPNGTexture(GameState* gameState, char* fileName, bool32 loadNormalMap = false) {
+TextureData loadPNGTexture(RenderGroup* group, char* fileName, bool32 loadNormalMap = false, bool stencil = false) {
 	assert(strlen(fileName) < 400);
 
 	char diffuseFilePath[500];
@@ -246,15 +246,15 @@ TextureData loadPNGTexture(GameState* gameState, char* fileName, bool32 loadNorm
 		}
 	}
 
-	TextureData result = createTexFromSurface(diffuse, normal, gameState->renderGroup);
+	TextureData result = createTexFromSurface(diffuse, normal, group, stencil);
 	addFileName(&result, fileName);
 
 	return result;
 }
 
-Texture loadTexture(GameState* gameState, char* fileName, bool loadNormalMap = true) {
-	TextureData data = loadPNGTexture(gameState, fileName, loadNormalMap);
-	Texture result = createTextureFromData(&data, gameState);
+Texture loadTexture(RenderGroup* group, char* fileName, bool loadNormalMap = true) {
+	TextureData data = loadPNGTexture(group, fileName, loadNormalMap);
+	Texture result = createTextureFromData(&data, group);
 	return result;
 }
 
@@ -268,26 +268,21 @@ TextureData* getTextureData(Texture* texture, RenderGroup* group) {
 	return result;
 }
 
-TextureData* getTextureData(Texture* texture, GameState* gameState) {
-	TextureData* result = getTextureData(texture, gameState->textureData);
-	return result;
-}
-
 double getAspectRatio(TextureData* texture) {
 	double result = texture->size.x / texture->size.y;
 	return result;
 }
 
-double getAspectRatio(Texture* texture, GameState* gameState) {
-	TextureData* texData = getTextureData(texture, gameState);
+double getAspectRatio(Texture* texture, RenderGroup* group) {
+	TextureData* texData = getTextureData(texture, group);
 	double result = getAspectRatio(texData);
 	return result;
 }
 
-V2 getDrawSize(Texture* texture, double height, GameState* gameState) {
+V2 getDrawSize(Texture* texture, double height, RenderGroup* group) {
 	V2 result = {};
 
-	double aspectRatio = getAspectRatio(texture, gameState);
+	double aspectRatio = getAspectRatio(texture, group);
 	result.x = height * aspectRatio;
 	result.y = height;
 
@@ -317,21 +312,21 @@ TTF_Font* loadFont(char* fileName, s32 fontSize) {
 	return font;
 }
 
-CachedFont loadCachedFont(GameState* gameState, char* fileName, s32 fontSize, double scaleFactor) {
+CachedFont loadCachedFont(RenderGroup* group, char* fileName, s32 fontSize, double scaleFactor) {
 	CachedFont result = {};
 	result.font = loadFont(fileName, (s32)round(fontSize * scaleFactor));
 	result.scaleFactor = scaleFactor;
-	result.lineHeight = fontSize / (gameState->pixelsPerMeter * scaleFactor);
+	result.lineHeight = fontSize / (group->pixelsPerMeter * scaleFactor);
 	return result;
 }
 
-Texture* extractTextures(GameState* gameState, char* fileName, 
+Texture* extractTextures(RenderGroup* group, MemoryArena* arena, char* fileName, 
 	s32 frameWidth, s32 frameHeight, s32 frameSpacing, s32* numFrames, bool loadNormalMap = false) {
 
-	TextureData tex = loadPNGTexture(gameState, fileName, loadNormalMap);
+	TextureData tex = loadPNGTexture(group, fileName, loadNormalMap);
 
-	s32 texWidth = (s32)(tex.size.x * gameState->pixelsPerMeter + 0.5);
-	s32 texHeight = (s32)(tex.size.y * gameState->pixelsPerMeter + 0.5);
+	s32 texWidth = (s32)(tex.size.x * group->pixelsPerMeter + 0.5);
+	s32 texHeight = (s32)(tex.size.y * group->pixelsPerMeter + 0.5);
 
 	s32 numCols = texWidth / (frameWidth + frameSpacing);
 	s32 numRows = texHeight / (frameHeight + frameSpacing);
@@ -344,7 +339,7 @@ Texture* extractTextures(GameState* gameState, char* fileName,
 	//assert(height % numRows == 0);
 
 	*numFrames = numRows * numCols;
-	Texture* result = (Texture*)pushArray(&gameState->permanentStorage, Texture, *numFrames);
+	Texture* result = (Texture*)pushArray(arena, Texture, *numFrames);
 
 	V2 frameSize = v2((double)(frameWidth + frameSpacing) / (double)texWidth, 
 		(double)(frameHeight + frameSpacing) / (double)texHeight);
@@ -365,12 +360,14 @@ Texture* extractTextures(GameState* gameState, char* fileName,
 			data.uv = r2(minCorner, minCorner + texSize);
 
 			addFileName(&data, fileName);
-			result[textureIndex] = createTextureFromData(&data, gameState);
+			result[textureIndex] = createTextureFromData(&data, group);
 		}
 	}
 
 	return result;
 }
+
+#ifdef HACKFORMER_GAME
 
 //TODO: Add a way to load animations with normal maps
 Animation loadAnimation(GameState* gameState, char* fileName, 
@@ -379,7 +376,7 @@ Animation loadAnimation(GameState* gameState, char* fileName,
 
 	assert(secondsPerFrame > 0);
 	result.secondsPerFrame = secondsPerFrame;
-	result.frames = extractTextures(gameState, fileName, frameWidth, frameHeight, 0, &result.numFrames);
+	result.frames = extractTextures(gameState->renderGroup, &gameState->permanentStorage, fileName, frameWidth, frameHeight, 0, &result.numFrames);
 	result.pingPong = pingPong;
 
 	return result;
@@ -395,7 +392,7 @@ Animation createAnimation(Texture* tex) {
 
 Animation createAnimation(TextureData* texData, GameState* gameState) {
 	Texture* tex = pushStruct(&gameState->permanentStorage, Texture);
-	*tex = createTextureFromData(texData, gameState);
+	*tex = createTextureFromData(texData, gameState->renderGroup);
 	Animation result = createAnimation(tex);
 	return result;
 }
@@ -431,7 +428,7 @@ AnimNode createAnimNode(Texture* stand, GameState* gameState) {
 
 AnimNode createAnimNode(TextureData* stand, GameState* gameState) {
 	Texture* tex = pushStruct(&gameState->permanentStorage, Texture);
-	*tex = createTextureFromData(stand, gameState);
+	*tex = createTextureFromData(stand, gameState->renderGroup);
 	AnimNode result = createAnimNode(tex, gameState);
 	return result;
 }
@@ -490,6 +487,8 @@ Texture* getAnimationFrame(Animation* animation, double animTime) {
 	return result;
 }
 
+#endif
+
 Color createColor(u8 r, u8 g, u8 b, u8 a) {
 	Color result = {};
 
@@ -542,11 +541,11 @@ void setClipRect(double pixelsPerMeter, R2 rect) {
 	glScissor(x, y, width, height);
 }
 
-TextureData createText(GameState* gameState, TTF_Font* font, char* msg) {
+TextureData createText(RenderGroup* group, TTF_Font* font, char* msg) {
 	SDL_Color fontColor = {0, 0, 0, 255};
 	SDL_Surface* fontSurface = TTF_RenderText_Blended(font, msg, fontColor);
 
-	TextureData result = createTexFromSurface(fontSurface, NULL, gameState->renderGroup);
+	TextureData result = createTexFromSurface(fontSurface, NULL, group, false);
 
 	return result;
 }
@@ -583,7 +582,7 @@ Glyph* getGlyph(CachedFont* cachedFont, RenderGroup* group, char c, double meter
 		cachedFont->cache[c].padding.max.x = minX * metersPerPixel;
 		cachedFont->cache[c].padding.min.x = ((glyphSurface->w - 1) * metersPerPixel) - (maxX * metersPerPixel);
 
-		cachedFont->cache[c].tex = createTexFromSurface(glyphSurface, NULL, group);
+		cachedFont->cache[c].tex = createTexFromSurface(glyphSurface, NULL, group, false);
 		assert(cachedFont->cache[c].tex.texId);
 	}
 
@@ -654,25 +653,30 @@ bool validTexture(TextureData* texture) {
 	return result;
 }
 
-RenderGroup* createRenderGroup(GameState* gameState, size_t size) {
-	RenderGroup* result = pushStruct(&gameState->permanentStorage, RenderGroup);
+RenderGroup* createRenderGroup(size_t size, MemoryArena* arena, double pixelsPerMeter, s32 windowWidth, s32 windowHeight, 
+								Camera* camera, TextureData* textureDatas, s32* textureDataCount) {
+	RenderGroup* result = pushStruct(arena, RenderGroup);
 
 	result->allocated = 0;
 	result->numSortPtrs = 0;
 	result->sortAddressCutoff = 0;
 	result->maxSize = size;
-	result->base = pushSize(&gameState->permanentStorage, size);
-	result->pixelsPerMeter = gameState->pixelsPerMeter;
-	result->windowWidth = gameState->windowWidth;
-	result->windowHeight = gameState->windowHeight;
-	result->windowBounds = r2(v2(0, 0), gameState->windowSize);
-	result->camera = &gameState->camera;
-	result->textureData = gameState->textureData;
-	result->forwardShader = createForwardShader("shaders/forward.vert", "shaders/forward.frag", gameState->windowSize);
+	result->base = pushSize(arena, size);
+	result->pixelsPerMeter = pixelsPerMeter;
+	result->windowWidth = windowWidth;
+	result->windowHeight = windowHeight;
+
+	V2 windowSize = v2(windowWidth, windowHeight) * (1.0 / pixelsPerMeter);
+
+	result->windowBounds = r2(v2(0, 0), windowSize);
+	result->camera = camera;
+	result->textureData = textureDatas;
+	result->textureDataCount = textureDataCount;
+	result->forwardShader = createForwardShader("shaders/forward.vert", "shaders/forward.frag", windowSize);
 
 	//TODO: This compiles basic.vert twice (maybe it can be re-used for both programs)
-	result->basicShader = createShader("shaders/basic.vert", "shaders/basic.frag", gameState->windowSize);
-	result->stencilShader = createShader("shaders/basic.vert", "shaders/stencil.frag", gameState->windowSize);
+	result->basicShader = createShader("shaders/basic.vert", "shaders/basic.frag", windowSize);
+	result->stencilShader = createShader("shaders/basic.vert", "shaders/stencil.frag", windowSize);
 
 	#if 0
 	SDL_Surface* nullNormalSurface = IMG_Load("res/no normal map.png");
@@ -683,9 +687,9 @@ RenderGroup* createRenderGroup(GameState* gameState, size_t size) {
 	result->nullNormalId = 0;
 	#endif
 
-	gameState->renderGroup = result;
+	result->defaultClipRect = result->windowBounds;
 
-	result->whiteTex = loadPNGTexture(gameState, "white", false);
+	result->whiteTex = loadPNGTexture(result, "white", false);
 
 	return result;
 }
@@ -956,19 +960,17 @@ void drawDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd,
 	}
 }
 
+#ifdef HACKFORMER_GAME
 void renderDrawConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field) {
 	field->p -= group->camera->p;
 	drawConsoleField(field, group, NULL, fieldSpec, false, true);
 	field->p += group->camera->p;
 }
+#endif
 
 DrawType getRenderHeaderType(RenderHeader* header) {
 	DrawType result = (DrawType)(header->type_ & RENDER_HEADER_TYPE_MASK);
 	return result;
-}
-
-void setRenderHeaderType(RenderHeader* header, DrawType type) {
-	header->type_ = (header->type_ & RENDER_HEADER_CLIP_RECT_FLAG) | type;
 }
 
 bool32 renderElemClipRect(RenderHeader* header) {
@@ -978,10 +980,6 @@ bool32 renderElemClipRect(RenderHeader* header) {
 
 void setRenderElemClipRect(RenderHeader* header) {
 	header->type_ |= RENDER_HEADER_CLIP_RECT_FLAG;
-}
-
-void clearRenderElemClipRect(RenderHeader* header) {
-	header->type_ &= ~RENDER_HEADER_CLIP_RECT_FLAG;
 }
 
 #define pushRenderElement(group, type) (type*)pushRenderElement_(group, DrawType_##type, sizeof(type))
@@ -996,31 +994,29 @@ void* pushRenderElement_(RenderGroup* group, DrawType type, size_t size) {
 
 	void* result = NULL;
 
-	if (group->allocated + size < group->maxSize) {
-		if (group->enabled) {
-			result = (char*)group->base + group->allocated;
-			group->allocated += size;
+	if(group->enabled) {
+		if (group->allocated + size < group->maxSize) {
+				result = (char*)group->base + group->allocated;
+				group->allocated += size;
 
-			RenderHeader* header = (RenderHeader*)result;
-			setRenderHeaderType(header, type);
+				RenderHeader* header = (RenderHeader*)result;
+				header->type_ = type;
 
-			if(group->hasClipRect) {
-				setRenderElemClipRect(header);
-				R2* clipRectPtr = (R2*)((char*)result + sizeof(RenderHeader));
-				*clipRectPtr = group->clipRect;
-			} else {
-				clearRenderElemClipRect(header);
-			}
+				if(group->hasClipRect) {
+					setRenderElemClipRect(header);
+					R2* clipRectPtr = (R2*)((char*)result + sizeof(RenderHeader));
+					*clipRectPtr = group->clipRect;
+				} 
 
-			if(!group->sortAddressCutoff) {
-				assert(group->numSortPtrs + 1 < arrayCount(group->sortPtrs));
-				group->sortPtrs[group->numSortPtrs++] = (RenderHeader*)result;
-			}
+				if(!group->sortAddressCutoff) {
+					assert(group->numSortPtrs + 1 < arrayCount(group->sortPtrs));
+					group->sortPtrs[group->numSortPtrs++] = (RenderHeader*)result;
+				}
 
-			result = (char*)result + headerBytes;
+				result = (char*)result + headerBytes;
+		} else {
+			InvalidCodePath;
 		}
-	} else {
-		assert(false);
 	}
 
 	return result;
@@ -1047,6 +1043,7 @@ RenderTexture createRenderTexture(DrawOrder drawOrder, TextureData* texture, boo
 }
 
 
+#ifdef HACKFORMER_GAME
 //TODO: Cull console fields which are not currently visible
 void pushConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field) {
 	assert(field);
@@ -1061,6 +1058,7 @@ void pushConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* fi
 		}
 	}
 } 
+#endif
 
 void pushFilledStencil(RenderGroup* group, TextureData* stencil, R2 bounds, double widthPercentage, Color color) {
 	assert(validTexture(stencil));
@@ -1166,6 +1164,7 @@ void pushDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd, d
 
 }
 
+#ifdef HACKFORMER_GAME
 void pushEntityTexture(RenderGroup* group, TextureData* texture, Entity* entity, bool flipX, DrawOrder drawOrder,
 					Orientation orientation = Orientation_0, Color color = createColor(255, 255, 255, 255)) {
 	assert(texture);
@@ -1186,12 +1185,15 @@ void pushEntityTexture(RenderGroup* group, TextureData* texture, Entity* entity,
 		}
 	}
 }
+#endif
 
+#ifdef HACKFORMER_GAME
 void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, bool flipX, DrawOrder drawOrder,
 					Orientation orientation = Orientation_0, Color color = createColor(255, 255, 255, 255)) {
 	TextureData* texData = getTextureData(texture, group);
 	pushEntityTexture(group, texData, entity, flipX, drawOrder, orientation, color);
 }					
+#endif
 
 void pushText(RenderGroup* group, CachedFont* font, char* msg, V2 p, Color color = createColor(0, 0, 0, 255),
 			  TextAlignment alignment = TextAlignment_bottomLeft) {
@@ -1379,9 +1381,11 @@ size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, G
 			drawOutlinedRect(group, render->bounds, render->color, render->thickness);
 		END_CASE;
 
+		#ifdef HACKFORMER_GAME
 		START_CASE(RenderConsoleField);
 			renderDrawConsoleField(group, fieldSpec, render->field);
 		END_CASE;
+		#endif
 
 		START_CASE(RenderDashedLine);
 			drawDashedLine(group, render->color, render->lineStart, render->lineEnd, render->thickness, render->dashSize, render->spaceSize);
@@ -1445,6 +1449,10 @@ s32 renderElemCompare(const void* a, const void* b) {
 	bool e1IsRenderTexture = isRenderTextureType(e1Type);
 	bool e2IsRenderTexture = isRenderTextureType(e2Type);
 
+	bool e1IsRenderTextureOrConsoleField = e1IsRenderTexture;
+	bool e2IsRenderTextureOrConsoleField = e2IsRenderTexture;
+
+	#ifdef HACKFORMER_GAME
 	bool e1IsConsoleField = e1Type == DrawType_RenderConsoleField;
 	bool e2IsConsoleField = e2Type == DrawType_RenderConsoleField;
 
@@ -1461,16 +1469,25 @@ s32 renderElemCompare(const void* a, const void* b) {
 		return *f1->name > *f2->name;
 	}
 
-	if(e1IsRenderTexture || e1IsConsoleField) {
-		if(!e2IsRenderTexture && !e2IsConsoleField) return -1;
+	e1IsRenderTextureOrConsoleField |= e1IsConsoleField;
+	e2IsRenderTextureOrConsoleField |= e2IsConsoleField;
+	#endif
+
+	if(e1IsRenderTextureOrConsoleField) {
+		if(!e2IsRenderTextureOrConsoleField) return -1;
 
 		RenderTexture* r1 = NULL;
 		if(e1IsRenderTexture) r1 = getRenderTexture(e1);
 		RenderTexture* r2 = NULL;
 		if(e2IsRenderTexture) r2 = getRenderTexture(e2);
 
+		#ifdef HACKFORMER_GAME
 		DrawOrder r1DrawOrder = (r1 == NULL ? DrawOrder_pickupField : r1->drawOrder);
 		DrawOrder r2DrawOrder = (r2 == NULL ? DrawOrder_pickupField : r2->drawOrder);
+		#else 
+		DrawOrder r1DrawOrder = r1->drawOrder;
+		DrawOrder r2DrawOrder = r2->drawOrder;
+		#endif
 
 		if(r1DrawOrder > r2DrawOrder) return 1;
 		if(r1DrawOrder < r2DrawOrder) return -1;
@@ -1505,7 +1522,7 @@ s32 renderElemCompare(const void* a, const void* b) {
 		return r1->texture > r2->texture;
 	}
 
-	if (e2IsRenderTexture || e2IsConsoleField) return 1;
+	if (e2IsRenderTextureOrConsoleField) return 1;
 
 	return 0;
 }

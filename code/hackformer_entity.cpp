@@ -869,7 +869,7 @@ void setSelectedText(Entity* text, s32 selectedIndex, GameState* gameState) {
 	TextureData* texture = messages->textures + selectedIndex;
 
 	if(!texture->texId) {
-		*texture = createText(gameState, gameState->textFont, messages->text[selectedIndex]);
+		*texture = createText(gameState->renderGroup, gameState->textFont, messages->text[selectedIndex]);
 	}
 
 	text->renderSize = texture->size;
@@ -2607,7 +2607,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 		}
 	}
 
-	if(getField(entity, ConsoleField_cameraFollows) && gameState->screenType != ScreenType_pause && !getEntityByRef(gameState, gameState->consoleEntityRef)) {
+	if(getField(entity, ConsoleField_cameraFollows) && gameState->screenType == ScreenType_game && !getEntityByRef(gameState, gameState->consoleEntityRef)) {
 		centerCameraAround(entity, gameState);
 	}
 }
@@ -2752,8 +2752,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				Texture* bgTex = &gameState->bgTex;
 				Texture* mgTex = &gameState->mgTex;
 
-				TextureData* bg = getTextureData(bgTex, gameState);
-				TextureData* mg = getTextureData(mgTex, gameState);
+				TextureData* bg = getTextureData(bgTex, gameState->renderGroup);
+				TextureData* mg = getTextureData(mgTex, gameState->renderGroup);
 
 				double bgTexWidth = (double)bg->size.x;
 				double mgTexWidth = (double)mg->size.x;
@@ -3094,7 +3094,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		}
 
 		if(tempTexture) {
-			texture = getTextureData(tempTexture, gameState);
+			texture = getTextureData(tempTexture, gameState->renderGroup);
 			assert(texture);
 		}
 
