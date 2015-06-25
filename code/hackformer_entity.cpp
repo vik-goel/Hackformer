@@ -731,13 +731,31 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 	return result;
 }
 
+TextureData* getStandTex(CharacterAnim characterAnim, GameState* gameState) {
+	assert(gameState);
+	assert(characterAnim.dataIndex);
+	CharacterAnimData* characterAnimData = getCharacterAnimData(characterAnim, gameState);
+	assert(characterAnimData);
+	AnimNodeData* standData = getAnimNodeData(characterAnimData->standAnim, gameState);
+	assert(standData);
+	Animation* standAnim = &standData->main;
+	assert(standAnim->frames > 0);
+	Texture* standTex = standAnim->frames + 0;
+	assert(standTex && standTex->dataIndex > 0);
+	TextureData* standTexData = getTextureData(standTex, gameState->renderGroup);
+	assert(standTexData);
+	return standTexData;
+}
+
 Entity* addVirus(GameState* gameState, V2 p) {
-	Entity* result = addEntity(gameState, EntityType_virus, DrawOrder_virus, p, v2(2.5, 2.5));
+	V2 size = getDrawSize(getStandTex(gameState->virus1Anim, gameState), 1.6);
+	Entity* result = addEntity(gameState, EntityType_virus, DrawOrder_virus, p, size);
 
-	giveEntityRectangularCollisionBounds(result, gameState, -0.025, -0.1,
-										 result->renderSize.x * 0.55, result->renderSize.y * 0.75);
+	double heightOffs = 0.4;
+	giveEntityRectangularCollisionBounds(result, gameState, 0, 0,
+										 result->renderSize.x, result->renderSize.y + heightOffs);
 
-	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize * 0.75);
+	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
 
 	setFlags(result, EntityFlag_facesLeft|
 					 EntityFlag_hackable);
@@ -787,17 +805,18 @@ Entity* addPickupField(GameState* gameState, Entity* parent, ConsoleField* field
 }
 
 Entity* addBlueEnergy(GameState* gameState, V2 p) {
-	Entity* result = addEntity(gameState, EntityType_blueEnergy, DrawOrder_blueEnergy, p, v2(0.8f, 0.8f));
+	V2 size = getDrawSize(&gameState->blueEnergyTex, 0.7, gameState->renderGroup);
+	Entity* result = addEntity(gameState, EntityType_blueEnergy, DrawOrder_blueEnergy, p, size);
 
 	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
-										 result->renderSize.x * 0.5f, result->renderSize.y * 0.65f);
+										 result->renderSize.x, result->renderSize.y - 0.18);
 
 	addGivesBlueEnergyField(result, gameState);
 
 	setFlags(result, EntityFlag_hackable);
 
 	setEntityP(result, result->p + result->renderSize * 0.5, gameState);
-	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize * 0.65);
+	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
 
 	result->defaultTex = gameState->blueEnergyTex;
 
@@ -895,12 +914,12 @@ Entity* addText(GameState* gameState, V2 p, char values[10][100], s32 numValues,
 }
 
 Entity* addLaserBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, double speed) {
-	Entity* result = addEntity(gameState, EntityType_laserBolt, DrawOrder_laserBolt, p, v2(0.8f, 0.8f));
+	Entity* result = addEntity(gameState, EntityType_laserBolt, DrawOrder_laserBolt, p, v2(0.24f, 0.24f));
 
 	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
-										 result->renderSize.x * 0.3f, result->renderSize.y * 0.3f);
+										 result->renderSize.x, result->renderSize.y);
 
-	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize * 0.6);
+	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
 
 	result->dP = normalize(target - p) * speed;
 	result->shooterRef = shooterRef;
@@ -978,17 +997,18 @@ Entity* addLaserController(GameState* gameState, V2 baseP, double height) {
 }
 
 Entity* addFlyingVirus(GameState* gameState, V2 p) {
-	Entity* result = addEntity(gameState, EntityType_flyingVirus, DrawOrder_flyingVirus, p, v2(1.5, 1.5));
+	V2 size = getDrawSize(getStandTex(gameState->flyingVirusAnim, gameState), 0.75);
+	Entity* result = addEntity(gameState, EntityType_flyingVirus, DrawOrder_flyingVirus, p, size);
 
 	result->characterAnim = gameState->flyingVirusAnim;
 
 	setFlags(result, EntityFlag_hackable|
 					 EntityFlag_noMovementByDefault);
 
-	giveEntityRectangularCollisionBounds(result, gameState, 0, result->renderSize.y * -0.04, 
-										 result->renderSize.x * 0.47, result->renderSize.y * 0.49);
+	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
+										 result->renderSize.x, result->renderSize.y);
 
-	result->clickBox = rectCenterDiameter(v2(0, -result->renderSize.y * 0.05), result->renderSize * 0.5);
+	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
 
 	addFollowsWaypointsField(result, gameState);
 	addShootField(result, gameState);

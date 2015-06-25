@@ -4,6 +4,10 @@
 		"selected_items":
 		[
 			[
+				"get",
+				"getSaveStartPtr"
+			],
+			[
 				"barC",
 				"barCircleTex"
 			],
@@ -190,10 +194,6 @@
 			[
 				"ME",
 				"PIXELS_PER_METER"
-			],
-			[
-				"get",
-				"getAnimationFrame"
 			],
 			[
 				"drwa",
@@ -423,23 +423,7 @@
 			"file": "/C/Users/Vik/workspace/c++former/code/hackformer.cpp",
 			"settings":
 			{
-				"buffer_size": 42305,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "/C/Users/Vik/workspace/c++former/code/hackformer_consoleField.cpp",
-			"settings":
-			{
-				"buffer_size": 33145,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "code/hackformer_entity.cpp",
-			"settings":
-			{
-				"buffer_size": 95506,
+				"buffer_size": 38983,
 				"line_ending": "Windows"
 			}
 		},
@@ -447,23 +431,15 @@
 			"file": "code/hackformer_renderer.cpp",
 			"settings":
 			{
-				"buffer_size": 49046,
+				"buffer_size": 49539,
 				"line_ending": "Windows"
 			}
 		},
 		{
-			"file": "code/hackformer_save.cpp",
+			"file": "code/hackformer_entity.cpp",
 			"settings":
 			{
-				"buffer_size": 26279,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "code/hackformer_entity.h",
-			"settings":
-			{
-				"buffer_size": 3806,
+				"buffer_size": 96317,
 				"line_ending": "Windows"
 			}
 		},
@@ -471,15 +447,7 @@
 			"file": "code/hackformer_renderer.h",
 			"settings":
 			{
-				"buffer_size": 4033,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "code/hackformer_consoleField.h",
-			"settings":
-			{
-				"buffer_size": 3127,
+				"buffer_size": 4057,
 				"line_ending": "Windows"
 			}
 		},
@@ -487,7 +455,67 @@
 			"file": "code/hackformer.h",
 			"settings":
 			{
-				"buffer_size": 7784,
+				"buffer_size": 5741,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_entity.h",
+			"settings":
+			{
+				"buffer_size": 3087,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_editor.h",
+			"settings":
+			{
+				"buffer_size": 361,
+				"line_ending": "Windows",
+				"name": "#include \"hackformer_types.h\""
+			}
+		},
+		{
+			"file": "code/hackformer_consoleField.h",
+			"settings":
+			{
+				"buffer_size": 3169,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"contents": "#include \"hackformer_editor.h\"\n\n#include \"hackformer_renderer.cpp\"\n\nvoid moveCamera(Input* input, Camera* camera) {\n	V2 movement = {};\n\n	if(input->up.pressed) movement.y++;\n	if(input->down.pressed) movement.y--;\n	if(input->right.pressed) movement.x++;\n	if(input->left.pressed) movement.x--;\n	\n	if(movement.x || movement.y) {\n		double movementSpeed = 0.5;\n		V2 delta = normalize(movement) * movementSpeed;\n\n		camera->p += delta; \n	}\n}\n\ns32 loadTileAtlas(RenderGroup* group, TextureData* textureData, s32* textureDataCount) {\n	char* tileFileNames[] = {\n		\"basic_1\",\n		\"basic_2\",\n		\"basic_3\",\n		\"delay\",\n		\"disappear\",\n		\"heavy\",\n	};\n\n	TextureData* tileAtlas = textureData + *textureDataCount;\n\n	for(s32 tileIndex = 0; tileIndex < arrayCount(tileFileNames); tileIndex++) {\n		char* fileName = tileFileNames[tileIndex];\n		TextureData* data = tileAtlas + tileIndex;\n\n		char fileNameWithPrefix[150];\n		sprintf(fileNameWithPrefix, \"tiles/%s\", fileName);\n\n		*data = loadPNGTexture(group, fileNameWithPrefix, false, false);\n	}\n\n	*textureDataCount += arrayCount(tileFileNames);\n\n	return arrayCount(tileFileNames);\n}\n\nbool clickedInside(Input* input, R2 rect) {\n	bool result = false;\n\n	if(input->leftMouse.justPressed) {\n		if(pointInsideRect(rect, input->mouseInMeters)) {\n			result = true;\n		}\n	}\n\n	return result;\n}\n\nint main(int argc, char* argv[]) {\n	s32 panelWidth = 250;\n	s32 windowWidth = 1280 + panelWidth, windowHeight = 720;\n	SDL_Window* window = createWindow(windowWidth, windowHeight);\n\n	Input input = {};\n	initInputKeyCodes(&input);\n\n	MemoryArena arena = createArena(1024 * 1024 * 128, true);\n\n	Camera camera = {};\n\n	TextureData* textureData = pushArray(&arena, TextureData, TEXTURE_DATA_COUNT);\n	s32 textureDataCount = 1;\n\n	RenderGroup* renderGroup  = createRenderGroup(32 * 1024, &arena, TEMP_PIXELS_PER_METER, windowWidth, windowHeight, \n													&camera, textureData, &textureDataCount);\n	renderGroup->enabled = true;\n\n	bool running = true;\n\n	const s32 mapWidthInTiles = 60;\n	const s32 mapHeightInTiles = 12;\n\n	TextureData* tileAtlas = textureData + textureDataCount;\n	s32 tileAtlasCount = loadTileAtlas(renderGroup, textureData, &textureDataCount);\n\n	Entity* entities = pushArray(&arena, Entity, 5000);\n	s32 entityCount = 0;\n\n	Color lineColor = createColor(100, 100, 100, 255);\n	double lineThickness = 0.01;\n	double dashSize = 0.1;\n	double spaceSize = 0.05;\n\n	V2 tileSize = v2(1, 1.1) * TILE_SIZE_IN_METERS;\n	V2 gridSize = v2(1, 1) * TILE_SIZE_IN_METERS;\n\n	double metersPerPixel = 1.0 / renderGroup->pixelsPerMeter;\n	V2 gameWindowSize = metersPerPixel * v2(windowWidth - panelWidth, windowHeight);\n	V2 panelWindowMax = metersPerPixel * v2(windowWidth, windowHeight);\n	R2 gameBounds = r2(v2(0, 0), gameWindowSize);\n	R2 panelBounds = r2(v2(gameBounds.max.x, 0), panelWindowMax);\n\n	s32 selectedTileIndex = -1;\n\n	s32 tiles[mapHeightInTiles][mapWidthInTiles];\n\n	for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {\n		for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {\n			tiles[tileY][tileX] = -1;\n		}\n	}\n\n	CursorMode cursorMode = CursorMode_stampTile;\n\n	#define ENTITY(type, width, height, fileName) {EntityType_##type, DrawOrder_##type, v2(width, height), fileName},\n	EntitySpec entitySpecs[] {\n		ENTITY(player, 1.75, 1.75, \"player/stand2\")\n		ENTITY(virus, 1.6, 1.6, \"virus1/stand\")\n		ENTITY(flyingVirus, 0.75, 0.75, \"virus2/full\")\n		ENTITY(laserBase, 0.9, 0.65, \"virus3/base_off\")\n		ENTITY(blueEnergy, 0.7, 0.7, \"blue_energy\")\n		ENTITY(endPortal, 1, 2, \"end_portal\")\n	};\n	#undef ENTITY\n\n	TextureData* entityTextureAtlas = textureData + textureDataCount;\n	for(s32 specIndex = 0; specIndex < arrayCount(entitySpecs); specIndex++) {\n		EntitySpec* spec = entitySpecs + specIndex;\n		char* fileName = spec->fileName;\n		textureData[textureDataCount++] = loadPNGTexture(renderGroup, fileName, false, false);\n	}\n\n	s32 selectedEntitySpecIndex = 0;\n	Entity* movingEntity = NULL;\n\n\n	while(running) {\n		pollInput(&input, &running, windowHeight, TEMP_PIXELS_PER_METER, camera.p);\n\n		if(input.esc.justPressed) {\n			cursorMode = CursorMode_moveEntity;\n		}\n\n		//NOTE: Draw the game\n		pushClipRect(renderGroup, gameBounds);\n		pushFilledRect(renderGroup, renderGroup->windowBounds, createColor(150, 150, 150, 255));\n\n		for(s32 rowIndex = 0; rowIndex <= mapHeightInTiles; rowIndex++) {\n			V2 lineStart = v2(0, gridSize.y * rowIndex);\n			V2 lineEnd = v2(mapWidthInTiles * gridSize.x, lineStart.y);\n			pushDashedLine(renderGroup, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, true);\n		}\n\n		for(s32 colIndex = 0; colIndex <= mapWidthInTiles; colIndex++) {\n			V2 lineStart = v2(gridSize.x * colIndex, 0);\n			V2 lineEnd = v2(lineStart.x, mapHeightInTiles * gridSize.y);\n			pushDashedLine(renderGroup, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, true);\n		}\n\n		for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {\n			for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {\n				s32 tileIndex = tiles[tileY][tileX];\n\n				if(tileIndex >= 0) {\n					TextureData* tex = tileAtlas + tileIndex;\n					V2 tileMin = hadamard(v2(tileX, tileY), gridSize);\n					R2 tileBounds = r2(tileMin, tileMin + tileSize);\n					pushTexture(renderGroup, tex, tileBounds, false, DrawOrder_gui, true);\n				}\n			}\n		}\n\n		for(s32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {\n			Entity* entity = entities + entityIndex;\n\n			if(pointInsideRect(entity->bounds, input.mouseInMeters)) {\n\n			}\n\n			pushTexture(renderGroup, entity->tex, entity->bounds, false, entity->drawOrder, true);\n		}\n\n		//NOTE: Draw the panel\n		pushClipRect(renderGroup, panelBounds);\n		pushFilledRect(renderGroup, renderGroup->windowBounds, createColor(255, 255, 255, 255));\n\n		if(clickedInside(&input, panelBounds)) {\n			selectedTileIndex = -1;\n			cursorMode = CursorMode_moveEntity;\n		}\n\n		double maxTileY = 0;\n\n		for(s32 tileIndex = 0; tileIndex < tileAtlasCount; tileIndex++) {\n			V2 tileSpacing = v2(0.1, 0.1);\n\n			V2 tileMin = tileSpacing + panelBounds.min + hadamard(tileSpacing + tileSize, v2(tileIndex % 3, tileIndex / 3));\n			R2 tileBounds = r2(tileMin, tileMin + tileSize);\n			maxTileY = tileBounds.max.y;\n\n			if(clickedInside(&input, tileBounds)) {\n				selectedTileIndex = tileIndex;\n				cursorMode = CursorMode_stampTile;\n			}\n\n			TextureData* tex = tileAtlas + tileIndex;\n\n			pushTexture(renderGroup, tex, tileBounds, false, DrawOrder_gui);\n		}\n\n		s32 numEntitiesPerRow = 2;\n		for(s32 specIndexIter = 0; specIndexIter < arrayCount(entitySpecs); specIndexIter += numEntitiesPerRow) {\n			double minX = panelBounds.min.x;\n			double maxY = 0;\n\n			for(s32 specOffset = 0; specOffset < numEntitiesPerRow; specOffset++) {\n				s32 specIndex = specIndexIter + specOffset;\n\n				if(specIndex > arrayCount(entitySpecs)) break;\n\n				EntitySpec* spec = entitySpecs + specIndex;\n				V2 specSpacing = v2(0.1, 0.1);\n\n				V2 specMin = v2(minX, maxTileY);\n\n				R2 specBounds = r2(specMin, specMin + spec->size);\n				minX = specBounds.max.x;\n				maxY = max(maxY, specBounds.max.y);\n\n				if(clickedInside(&input, specBounds)) {\n					selectedEntitySpecIndex = specIndex;\n					cursorMode = CursorMode_stampEntity;\n				}\n\n				TextureData* tex = entityTextureAtlas + specIndex;\n\n				pushTexture(renderGroup, tex, specBounds, false, DrawOrder_gui);\n			}\n\n			maxTileY = maxY;\n		}\n\n\n		//NOTE: Draw things which can cross between the game and panel\n		pushDefaultClipRect(renderGroup);\n\n		bool mouseInGame = pointInsideRect(gameBounds, input.mouseInMeters);\n\n		if(cursorMode == CursorMode_stampTile) {\n			if(selectedTileIndex >= 0) {\n				R2 tileBounds = rectCenterDiameter(input.mouseInMeters, tileSize);\n\n				if(input.leftMouse.pressed && mouseInGame) {\n					s32 tileX = (s32)(input.mouseInWorld.x / gridSize.x);\n					s32 tileY = (s32)(input.mouseInWorld.y / gridSize.y);\n\n					if(tileX >= 0 && tileY >= 0 && tileX < mapWidthInTiles && tileY < mapHeightInTiles) {\n						tiles[tileY][tileX] = selectedTileIndex;\n					}\n				}\n\n\n				TextureData* tex = tileAtlas + selectedTileIndex;\n				pushTexture(renderGroup, tex, tileBounds, false, DrawOrder_gui);\n			}\n		}\n		else if(cursorMode == CursorMode_stampEntity) {\n			if(selectedEntitySpecIndex >= 0) {\n				EntitySpec* spec = entitySpecs + selectedEntitySpecIndex;\n				TextureData* tex = entityTextureAtlas + selectedEntitySpecIndex;\n\n				R2 entityBounds = rectCenterDiameter(input.mouseInMeters, spec->size);\n\n				if(input.leftMouse.justPressed && mouseInGame) {\n					Entity* entity = entities + entityCount++;\n					entity->type = spec->type;\n					entity->drawOrder = spec->drawOrder;\n					entity->bounds = rectCenterDiameter(input.mouseInWorld, spec->size);;\n					entity->tex = tex;\n				}\n				\n				pushTexture(renderGroup, tex, entityBounds, false, DrawOrder_gui);\n			}\n		}\n\n		Entity* clickedEntity = NULL;\n		s32 clickedEntityIndex = -1;\n\n		for(s32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {\n			Entity* entity = entities + entityIndex;\n\n			if(pointInsideRect(entity->bounds, input.mouseInWorld)) {\n				clickedEntity = entity;\n				clickedEntityIndex = entityIndex;\n				break;\n			}\n		}\n\n		if(input.rightMouse.pressed) {\n			if(clickedEntity) {\n				entities[clickedEntityIndex] = entities[entityCount-- - 1];\n				clickedEntity = NULL;\n				clickedEntityIndex = -1;\n			} else {\n				s32 tileX = (s32)(input.mouseInMeters.x / gridSize.x);\n				s32 tileY = (s32)(input.mouseInMeters.y / gridSize.y);\n\n				if(tileX >= 0 && tileY >= 0 && tileX < mapWidthInTiles && tileY < mapHeightInTiles) {\n					tiles[tileY][tileX] = -1;\n				}\n			}\n		}\n\n		bool maintainMovingEntity = false;\n		if(input.leftMouse.pressed) {\n			if(cursorMode == CursorMode_moveEntity) {\n				if(input.leftMouse.justPressed) {\n					movingEntity = clickedEntity;\n				}\n\n				if(movingEntity) {\n					movingEntity->bounds = reCenterRect(movingEntity->bounds, input.mouseInWorld);\n					maintainMovingEntity = true;\n				}\n			}\n		}\n		if(!maintainMovingEntity) {\n			movingEntity = NULL;\n		}\n\n		if(input.x.justPressed) {\n			char* saveFileName = \"edit_save.txt\";\n			FILE* file = fopen(saveFileName, \"r\");\n			assert(file);\n\n			writeS32(file, mapWidthInTiles);\n			writeS32(file, mapHeightInTiles);\n\n			for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {\n				for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {\n					writeS32(file, tiles[tileY][tileX]);\n				}\n			}\n\n			writeS32(file, entityCount);\n\n			for(s32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {\n				Entity* entity = entities + entityCount;\n				writeS32(file, entity->type);\n				writeV2(file, getRectCenter(entity->bounds));\n			}\n\n			fclose(file);\n		}\n\n		glClear(GL_COLOR_BUFFER_BIT);\n		drawRenderGroup(renderGroup, NULL);\n		\n		moveCamera(&input, &camera);\n\n		SDL_GL_SwapWindow(window);\n	}\n\n	return 0;\n}",
+			"file": "code/hackformer_editor.cpp",
+			"file_size": 10986,
+			"file_write_time": 130793947793294677,
+			"settings":
+			{
+				"buffer_size": 10656,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_save.cpp",
+			"settings":
+			{
+				"buffer_size": 29251,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_consoleField.cpp",
+			"settings":
+			{
+				"buffer_size": 33616,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_types.h",
+			"settings":
+			{
+				"buffer_size": 8909,
 				"line_ending": "Windows"
 			}
 		},
@@ -495,7 +523,7 @@
 			"file": "code/hackformer_math.h",
 			"settings":
 			{
-				"buffer_size": 8870,
+				"buffer_size": 8998,
 				"line_ending": "Windows"
 			}
 		}
@@ -554,6 +582,17 @@
 	],
 	"file_history":
 	[
+		"/W/c++former/code/hackformer_consoleField.h",
+		"/W/c++former/code/hackformer_types.h",
+		"/W/c++former/code/hackformer_entity.h",
+		"/C/Users/Vik/workspace/c++former/code/hackformer_consoleField.cpp",
+		"/W/c++former/code/hackformer_entity.cpp",
+		"/W/c++former/code/hackformer_save.cpp",
+		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/hackformer_build.sublime-build",
+		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/hackformer_editor_build.sublime-build",
+		"/W/c++former/code/hackformer_renderer.h",
+		"/W/c++former/code/hackformer_math.h",
+		"/W/c++former/code/hackformer.h",
 		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_132_source.zip/code/handmade.h",
 		"/C/Users/Vik/workspace/c++former/code/hackformer_save.cpp",
 		"/W/c++former/shaders/stencil.frag",
@@ -561,7 +600,6 @@
 		"/C/Users/Vik/workspace/c++former/code/hackformer.cpp",
 		"/C/Users/Vik/Desktop/hackformer alpha 4.02/shaders/forward.frag",
 		"/W/c++former/code/hackformer_consoleField.cpp",
-		"/C/Users/Vik/workspace/c++former/code/hackformer_consoleField.cpp",
 		"/W/c++former/code/hackformer.cpp",
 		"/W/c++former/shaders/forward.vert",
 		"/W/c++former/shaders/forward.frag",
@@ -569,7 +607,6 @@
 		"/C/Users/Vik/workspace/c++former/code/hackformer_save.h",
 		"/C/Users/Vik/workspace/c++former/code/hackformer_entity.cpp",
 		"/C/Users/Vik/workspace/c++former/code/hackformer_renderer.cpp",
-		"/W/c++former/code/hackformer_renderer.h",
 		"/W/c++former/code/hackformer_renderer.cpp",
 		"/C/Users/Vik/workspace/android-stotra-apps/android-stotra-apps/settings.gradle",
 		"/C/Users/Vik/workspace/android-stotra-apps/android-stotra-apps/build.gradle",
@@ -592,11 +629,9 @@
 		"/W/android-stotra-apps/android-stotra-apps/Hanuman-Chalisa-Hindi/build.gradle",
 		"/W/android-stotra-apps/android-stotra-apps/Vishnu-Sahasranamam/settings.gradle",
 		"/W/android-stotra-apps/local.properties",
-		"/W/c++former/code/hackformer_entity.cpp",
 		"/W/android-stotra-apps/android-stotra-apps/Bhagavad-Gita/project.properties",
 		"/W/android-stotra-apps/settings.gradle",
 		"/W/android-stotra-apps/android-stotra-apps/Bhagavad-Gita/local.properties",
-		"/W/c++former/code/hackformer_consoleField.h",
 		"/C/Users/Vik/Downloads/sources/Wav_File.jai",
 		"/C/Users/Vik/Downloads/sources/demo.jai",
 		"/C/Users/Vik/Downloads/sources/Build.jai",
@@ -611,9 +646,6 @@
 		"/C/Users/Vik/Downloads/sources/Mixer.jai",
 		"/C/Users/Vik/Downloads/sources/Math.jai",
 		"/C/Users/Vik/Downloads/sources/Pool.jai",
-		"/W/c++former/code/hackformer_math.h",
-		"/W/c++former/code/hackformer_entity.h",
-		"/W/c++former/code/hackformer.h",
 		"/C/Users/Vik/AppData/Local/Temp/Temp1_iaca-win64.zip/iaca-win64/iacaMarks.h",
 		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/Default (Windows).sublime-keymap",
 		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/Default/Default (Windows).sublime-keymap",
@@ -692,6 +724,14 @@
 		"case_sensitive": false,
 		"find_history":
 		[
+			"saveHeaderToArena",
+			"selectedTileIndex = -1",
+			"tileSize",
+			"running",
+			"while(",
+			"camera = ",
+			"gameState",
+			"loadPNGTexture(gameState",
 			"getSaveFilePath",
 			"(bool32",
 			"createArena",
@@ -811,15 +851,7 @@
 			"		\n",
 			"fieldSkip",
 			"refNode(",
-			"entity->numFields",
-			"EntityType_pickupField",
-			"_s",
-			"#if 0",
-			"moveTime",
-			"gravity",
-			"moveField",
-			"//",
-			"only "
+			"entity->numFields"
 		],
 		"highlight": true,
 		"in_selection": false,
@@ -827,6 +859,7 @@
 		"regex": false,
 		"replace_history":
 		[
+			"loadPNGTexture(gameState->renderGroup",
 			"renderGroup",
 			"",
 			"dataToCopy->",
@@ -861,7 +894,7 @@
 	"groups":
 	[
 		{
-			"selected": 0,
+			"selected": 6,
 			"sheets":
 			[
 				{
@@ -870,15 +903,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 42305,
+						"buffer_size": 38983,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								25776,
-								25776
+								25544,
+								25544
 							]
 						],
 						"settings":
@@ -888,40 +921,39 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 10812.0,
+						"translation.y": 9542.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 0,
+					"stack_index": 8,
 					"type": "text"
 				},
 				{
 					"buffer": 1,
-					"file": "/C/Users/Vik/workspace/c++former/code/hackformer_consoleField.cpp",
+					"file": "code/hackformer_renderer.cpp",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 33145,
+						"buffer_size": 49539,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								31677,
-								31677
+								13616,
+								13636
 							]
 						],
 						"settings":
 						{
-							"history_list_is_closing": true,
 							"syntax": "Packages/C++/C++.tmLanguage",
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 13812.0,
+						"translation.y": 6038.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 2,
+					"stack_index": 10,
 					"type": "text"
 				},
 				{
@@ -930,15 +962,15 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 95506,
+						"buffer_size": 96317,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								8615,
-								8615
+								24164,
+								24164
 							]
 						],
 						"settings":
@@ -947,133 +979,126 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 4200.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 6,
-					"type": "text"
-				},
-				{
-					"buffer": 3,
-					"file": "code/hackformer_renderer.cpp",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 49046,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								30016,
-								30016
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 14148.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 4,
-					"type": "text"
-				},
-				{
-					"buffer": 4,
-					"file": "code/hackformer_save.cpp",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 26279,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								24165,
-								24165
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 12282.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 5,
-					"type": "text"
-				}
-			]
-		},
-		{
-			"selected": 3,
-			"sheets":
-			[
-				{
-					"buffer": 5,
-					"file": "code/hackformer_entity.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 3806,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								2332,
-								2332
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 1485.0,
+						"translation.y": 11153.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 7,
 					"type": "text"
 				},
 				{
-					"buffer": 6,
+					"buffer": 3,
 					"file": "code/hackformer_renderer.h",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 4033,
+						"buffer_size": 4057,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								3642,
-								3642
+								3783,
+								3783
 							]
 						],
 						"settings":
 						{
-							"history_list_is_closing": true,
 							"syntax": "Packages/C++/C++.tmLanguage",
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 3024.0,
+						"translation.y": 34.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 3,
+					"stack_index": 9,
+					"type": "text"
+				},
+				{
+					"buffer": 4,
+					"file": "code/hackformer.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 5741,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								4588,
+								4588
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 1938.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 6,
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "code/hackformer_entity.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 3087,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1407,
+								1407
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 854.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 11,
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "code/hackformer_editor.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 361,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								358,
+								358
+							]
+						],
+						"settings":
+						{
+							"auto_name": "#include \"hackformer_types.h\"",
+							"syntax": "Packages/C++/C++.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 1,
 					"type": "text"
 				},
 				{
@@ -1082,75 +1107,78 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 3127,
+						"buffer_size": 3169,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								3125,
-								3125
+								3167,
+								3167
 							]
 						],
 						"settings":
 						{
-							"history_list_is_closing": true,
 							"syntax": "Packages/C++/C++.tmLanguage",
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 1470.0,
+						"translation.y": 1416.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 8,
+					"stack_index": 5,
 					"type": "text"
-				},
+				}
+			]
+		},
+		{
+			"selected": 0,
+			"sheets":
+			[
 				{
 					"buffer": 8,
-					"file": "code/hackformer.h",
+					"file": "code/hackformer_editor.cpp",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 7784,
+						"buffer_size": 10656,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								1496,
-								1496
+								10504,
+								10504
 							]
 						],
 						"settings":
 						{
-							"history_list_is_closing": true,
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
+							"syntax": "Packages/C++/C++.tmLanguage"
 						},
 						"translation.x": 0.0,
-						"translation.y": 433.0,
+						"translation.y": 4358.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 1,
+					"stack_index": 0,
 					"type": "text"
 				},
 				{
 					"buffer": 9,
-					"file": "code/hackformer_math.h",
+					"file": "code/hackformer_save.cpp",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 8870,
+						"buffer_size": 29251,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								8870,
-								8870
+								0,
+								0
 							]
 						],
 						"settings":
@@ -1159,10 +1187,97 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 6952.0,
+						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 9,
+					"stack_index": 4,
+					"type": "text"
+				},
+				{
+					"buffer": 10,
+					"file": "code/hackformer_consoleField.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 33616,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								20999,
+								20999
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 9870.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 12,
+					"type": "text"
+				},
+				{
+					"buffer": 11,
+					"file": "code/hackformer_types.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 8909,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								7126,
+								7126
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 3754.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 3,
+					"type": "text"
+				},
+				{
+					"buffer": 12,
+					"file": "code/hackformer_math.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 8998,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								8874,
+								8886
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 6904.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 2,
 					"type": "text"
 				}
 			]
@@ -1208,13 +1323,13 @@
 	"menu_visible": true,
 	"output.exec":
 	{
-		"height": 250.0
+		"height": 260.0
 	},
 	"output.find_results":
 	{
 		"height": 0.0
 	},
-	"pinned_build_system": "",
+	"pinned_build_system": "Packages/User/hackformer_editor_build.sublime-build",
 	"project": "hackformer_project.sublime-project",
 	"replace":
 	{
@@ -1288,7 +1403,7 @@
 		],
 		"width": 392.0
 	},
-	"selected_group": 0,
+	"selected_group": 1,
 	"settings":
 	{
 	},

@@ -963,7 +963,7 @@ void drawDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd,
 #ifdef HACKFORMER_GAME
 void renderDrawConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field) {
 	field->p -= group->camera->p;
-	drawConsoleField(field, group, NULL, fieldSpec, false, true);
+	drawConsoleField(field, group, NULL, fieldSpec, false, true, NULL);
 	field->p += group->camera->p;
 }
 #endif
@@ -1064,6 +1064,7 @@ void pushFilledStencil(RenderGroup* group, TextureData* stencil, R2 bounds, doub
 	assert(validTexture(stencil));
 	assert(widthPercentage >= 0 && widthPercentage <= 1);
 
+	bounds = scaleRect(bounds, v2(1, 1) * group->camera->scale);
 	bounds.max.x = bounds.min.x + getRectWidth(bounds) * widthPercentage;
 
 	if(rectanglesOverlap(group->windowBounds, bounds)) {
@@ -1088,6 +1089,7 @@ void pushTexture(RenderGroup* group, TextureData* texture, R2 bounds, bool flipX
 	assert(validTexture(texture));
 
 	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, -group->camera->p) : bounds;
+	drawBounds = scaleRect(drawBounds, v2(1, 1) * group->camera->scale);
 
 	if(rectanglesOverlap(group->windowBounds, drawBounds)) {
 		if(group->rendering) {
@@ -1111,6 +1113,8 @@ void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Dr
 
 void pushRotatedTexture(RenderGroup* group, TextureData* texture, R2 bounds, double rad, Color color, bool moveIntoCameraSpace = false) {
 	assert(texture);
+
+	bounds = scaleRect(bounds, v2(1, 1) * group->camera->scale);
 
 	if(moveIntoCameraSpace) {
 		bounds = translateRect(bounds, -group->camera->p);
@@ -1137,8 +1141,11 @@ void pushRotatedTexture(RenderGroup* group, Texture* texture, R2 bounds, double 
 
 void pushDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd, double thickness,
 					 double dashSize, double spaceSize, bool moveIntoCameraSpace = false) {
-
 	if(lineStart == lineEnd) return;
+
+	V2 lineCenter = (lineStart + lineEnd) * 0.5;
+	lineStart = lineCenter + (lineStart - lineCenter) * group->camera->scale;
+	lineEnd = lineCenter + (lineEnd - lineCenter) * group->camera->scale;
 
 	if(moveIntoCameraSpace) {
 		lineStart -= group->camera->p;
@@ -1169,9 +1176,12 @@ void pushEntityTexture(RenderGroup* group, TextureData* texture, Entity* entity,
 					Orientation orientation = Orientation_0, Color color = createColor(255, 255, 255, 255)) {
 	assert(texture);
 
-	R2 drawBounds = scaleRect(translateRect(rectCenterDiameter(entity->p, entity->renderSize), -group->camera->p), v2(1.05, 1.05));
+	R2 drawBounds = translateRect(rectCenterDiameter(entity->p, entity->renderSize), -group->camera->p);
+	drawBounds = scaleRect(drawBounds, v2(1, 1) * group->camera->scale);
 
-	if(rectanglesOverlap(group->windowBounds, drawBounds)) {
+	R2 clipBounds = scaleRect(drawBounds, v2(1, 1) * 1.05);
+
+	if(rectanglesOverlap(group->windowBounds, clipBounds)) {
 		if(group->rendering) {
 			drawTexture(group, texture, drawBounds, flipX, orientation, entity->emissivity, group->ambient, color);
 		} else {
@@ -1235,6 +1245,7 @@ void pushText(RenderGroup* group, CachedFont* font, char* msg, V2 p, Color color
 
 void pushFilledRect(RenderGroup* group, R2 bounds, Color color, bool moveIntoCameraSpace = false) {
 	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, -group->camera->p) : bounds;
+	drawBounds = scaleRect(drawBounds, v2(1, 1) * group->camera->scale);
 
 	if(rectanglesOverlap(group->windowBounds, drawBounds)) {
 		if(group->rendering) {
@@ -1252,6 +1263,7 @@ void pushFilledRect(RenderGroup* group, R2 bounds, Color color, bool moveIntoCam
 
 void pushOutlinedRect(RenderGroup* group, R2 bounds, double thickness, Color color, bool moveIntoCameraSpace = false) {
 	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, -group->camera->p) : bounds;
+	drawBounds = scaleRect(drawBounds, v2(1, 1) * group->camera->scale);
 
 	if(rectanglesOverlap(group->windowBounds, addDiameterTo(drawBounds, v2(1, 1) * thickness))) {
 		if(group->rendering) {

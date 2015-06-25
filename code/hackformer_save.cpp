@@ -1,42 +1,3 @@
-void writeS32(FILE* file, s32 value) {
-	fprintf(file, "%d ", value);
-	// size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
-	// assert(numElementsWritten == 1);
-}
-
-void writeU32(FILE* file, u32 value) {
-	fprintf(file, "%u ", value);
-	// size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
-	// assert(numElementsWritten == 1);
-}
-
-void writeDouble(FILE* file, double value) {
-	fprintf(file, "%f ", value);
-	// size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
-	// assert(numElementsWritten == 1);
-}
-
-void writeString(FILE* file, char* value) {
-	fprintf(file, " \"");
-	fprintf(file, value);
-	fprintf(file, "\" ");
-
-	// s32 len = strlen(value);
-	// writeS32(file, len);
-	// size_t numElementsWritten = fwrite(value, sizeof(char), len, file);
-	// assert(numElementsWritten == len);
-}
-
-void writeV2(FILE* file, V2 value) {
-	writeDouble(file, value.x);
-	writeDouble(file, value.y);
-}
-
-void writeR2(FILE* file, R2 value) {
-	writeV2(file, value.min);
-	writeV2(file, value.max);
-}
-
 #define writeLinkedListCount(file, list) {s32 listCount = 0; auto listNodePtr = (list); while(listNodePtr) { listCount++; listNodePtr = listNodePtr->next;} writeS32((file), listCount); }
 
 void writeHitboxes(FILE* file, Hitbox* hitboxes) {
@@ -332,88 +293,6 @@ void saveGame(GameState* gameState, char* fileName) {
 	}
 
 	fclose(file);
-}
-
-s32 readS32(FILE* file) {
-	s32 result = 0;
-	fscanf (file, "%d", &result);
-
-	// size_t numElementsRead = fread(&result, sizeof(result), 1, file);
-	// assert(numElementsRead == 1);
-
-	return result;  
-}
-
-u32 readU32(FILE* file) {
-	u32 result = 0;
-	fscanf (file, "%u", &result);
-
-	// size_t numElementsRead = fread(&result, sizeof(result), 1, file);
-	// assert(numElementsRead == 1);
-
-	return result;  
-}
-
-double readDouble(FILE* file) {
-	double result = 0;
-
-	fscanf(file, "%lf", &result);
-
-	// size_t numElementsRead = fread(&result, sizeof(result), 1, file);
-
-	// if(numElementsRead != 1) {
-
-	// int r = feof(file);
-	// int q = ferror(file);
-	// } 
-
-	// assert(numElementsRead == 1);
-
-	return result;  
-}
-
-void readString(FILE* file, char* buffer) {
-	char tempBuffer[1024];
-	s32 offset = 0;
-	bool32 firstWord = true;
-
-	while(true) {
-		fscanf (file, "%s", tempBuffer);
-
-		s32 strSize = strlen(tempBuffer) - 2; //-2 for the ""
-		memcpy(buffer + offset, tempBuffer + firstWord, strSize);
-
-		offset += strSize;
-		firstWord = false;
-
-		if(tempBuffer[strSize + 1] == '\"') {
-			break;
-		}
-		else {
-			buffer[offset++] = tempBuffer[strSize + 1];
-			buffer[offset++] = ' ';
-		}
-	}
-
-	buffer[offset] = 0;
-
-	// s32 len = readS32(file);
-	// size_t numElementsRead = fread(buffer, sizeof(char), len, file);
-	// assert(numElementsRead == len);
-}
-
-V2 readV2(FILE* file) {
-	V2 result = {};
-	result.x = readDouble(file);
-	result.y = readDouble(file);
-	return result;
-}
-
-R2 readR2(FILE* file) {
-	R2 result = {};
-	result.min = readV2(file);
-	result.max = readV2(file);
-	return result;
 }
 
 ConsoleField* readConsoleField(FILE* file, GameState* gameState) {
@@ -801,6 +680,61 @@ void saveConsoleFieldToArena(MemoryArena* arena, ConsoleField* field) {
 	}
 }
 
+// enum ConsoleFieldChangeState {
+// 	CFCS_bothNull,
+// 	CFCS_newNull,
+// 	CFCS_oldNull,
+// 	CFCS_bothExist,
+// };
+
+// size_t saveConsoleFieldChangeToArena(MemoryArena* arena, ConsoleField* newField, void* oldFieldData) {
+// 	size_t sizeOfOldField = 0;
+
+// 	bool oldFieldExists = *(s32*)oldFieldData >= 0;
+// 	ConsoleFieldChangeState changeState;
+
+// 	if(newField) {
+// 		if(oldFieldExists) {
+// 			changeState = CFCS_bothExist;
+// 		} else {
+// 			changeState = CFCS_oldNull;
+// 		}
+// 	} else {
+// 		if(oldFieldExists) {
+// 			changeState = CFCS_newNull;
+// 		} else {
+// 			changeState = CFCS_bothNull;
+// 		}
+// 	}
+// 	pushElem(arena, ConsoleFieldChangeState, changeState);
+
+// 	if(changeState == CFCS_bothExist) {
+// 		ConsoleField* oldField = (ConsoleField*)oldFieldData;
+// 		sizeOfOldField += sizeof(ConsoleField);
+
+// 		u8* newFieldIter = (u8*)newField;
+// 		u8* oldFieldIter = (u8*)oldField;
+
+// 		for(s32 byteIndex = 0; byteIndex < sizeof(ConsoleField); byteIndex++) {
+// 			u8 newFieldByte = newFieldIter[byteIndex];
+// 			u8 oldFieldByte = oldFieldIter[byteIndex];
+
+// 			pushElem(arena, u8, newFieldByte ^ oldFieldByte);
+// 		}
+
+// 		//TODO: This doesn't handle the case where the new field has a different number of children from the old field
+
+// 		for(s32 childIndex = 0; childIndex < oldField->numChildren; childIndex++) {
+
+// 		}
+// 	}
+// 	else if(changeState == CFCS_newNull) {
+
+// 	}
+
+// 	return sizeOfOldField;
+// }
+
 void saveEntityToArena(MemoryArena* arena, Entity* entity) {
 	EntityHackSave* save = pushStruct(arena, EntityHackSave);
 
@@ -823,15 +757,60 @@ void saveEntityToArena(MemoryArena* arena, Entity* entity) {
 	}
 }
 
-void saveGameToArena(GameState* gameState) {
+// void saveEntityChangeToArena(MemoryArena* arena, Entity* entity, EntityHackSave* oldSave) {
+// 	EntityHackSave* update = pushStruct(arena, EntityHackSave);
+
+// 	update->p = entity->p - oldSave->p;	
+// 	update->tileXOffset = entity->tileXOffset - oldSave->tileXOffset;	
+// 	update->tileYOffset = entity->tileYOffset - oldSave->tileYOffset;	
+
+// 	s32 entityMessagesSelectedIndex = entity->messages ? entity->messages->selectedIndex : -1;
+// 	update->messagesSelectedIndex = entityMessagesSelectedIndex - oldSave->messagesSelectedIndex;	
+
+// 	update->timeSinceLastOnGround = entity->timeSinceLastOnGround - oldSave->timeSinceLastOnGround;	
+// 	update->numFields = entity->numFields - oldSave->numFields;	
+
+// 	s32 numFieldsToSaveDeltas = min(entity->numFields, oldSave->numFields);
+
+// 	void* oldFieldData = oldSave + 1;
+// 	for(s32 fieldIndex = 0; fieldIndex < numFieldsToSaveDeltas; fieldIndex++) {
+// 		oldFieldData = (char*)oldFieldData + saveConsoleFieldChangeToArena(arena, entity->fields[fieldIndex], oldFieldData);
+// 	}
+
+// 	for(s32 fieldIndex = numFieldsToSaveDeltas; fieldIndex < entity->numFields; fieldIndex++) {
+// 		saveConsoleFieldToArena(arena, entity->fields[fieldIndex]);
+// 	}
+// } 
+
+#define MAX_HACK_UNDOS 3
+
+void* getSaveStartPtr(MemoryArena* arena, s32 saveIndex) {
+	void** resultLocation = (void**)((char*)arena->base + sizeof(s32) + saveIndex * sizeof(void*));
+	void* result = *resultLocation;
+	return result;
+}
+
+void updateSaveGameToArena(GameState* gameState) {
 	MemoryArena* arena = &gameState->hackSaveStorage;
-	arena->allocated = 0;
+
+	s32* numSaveGamesPtr = (s32*)arena->base;
+	*numSaveGamesPtr = *numSaveGamesPtr + 1;
+
+	s32 numSaveGames = *numSaveGamesPtr;
+	numSaveGames--; //Want to 0 index the save games
+
+	//TODO: Overwrite old saves if necessary?
+	assert(numSaveGames < MAX_HACK_UNDOS);
+
+	void** saveGamePtr = (void**)((char*)arena->base + sizeof(s32) + numSaveGames * sizeof(void*));
+	*saveGamePtr = (char*)arena->base + arena->allocated;
 
 	pushElem(arena, s32, gameState->fieldSpec.blueEnergy);
 	pushElem(arena, V2, gameState->gravity);
 
-	saveConsoleFieldToArena(arena, gameState->timeField);
-	saveConsoleFieldToArena(arena, gameState->gravityField);
+	pushElem(arena, s32, gameState->timeField->selectedIndex);
+	pushElem(arena, s32, gameState->gravityField->selectedIndex);
+
 	saveConsoleFieldToArena(arena, gameState->swapField);
 
 	RefNode* targetNode = gameState->targetRefs;
@@ -853,8 +832,19 @@ void saveGameToArena(GameState* gameState) {
 	pushElem(arena, s32, gameState->numEntities);
 
 	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-		saveEntityToArena(arena, gameState->entities + entityIndex);
+		Entity* entity = gameState->entities + entityIndex;
+		saveEntityToArena(arena, entity);
 	}
+}
+
+void saveGameToArena(GameState* gameState) {
+	MemoryArena* arena = &gameState->hackSaveStorage;
+	arena->allocated = 0;
+
+	pushElem(arena, s32, 0); //Reset the number of save games
+	arena->allocated += sizeof(void*) * MAX_HACK_UNDOS;
+
+	updateSaveGameToArena(gameState);
 }
 
 #define readElemPtr(readPtr, type) (type*)(readPtr); (readPtr) = (type*)(readPtr) + 1
@@ -910,15 +900,12 @@ void readEntityFromArena(void** readPtr, Entity* entity, GameState* gameState) {
 	}
 }
 
-void loadGameFromArena(GameState* gameState) {
-	MemoryArena* arena = &gameState->hackSaveStorage;
-	void* readPtr = arena->base;
-
+void readGameFromArena(GameState* gameState, void* readPtr) {
 	gameState->fieldSpec.blueEnergy = readElem(readPtr, s32);
 	gameState->gravity = readElem(readPtr, V2);
 
-	readConsoleFieldFromArena(&readPtr, &gameState->timeField, gameState);
-	readConsoleFieldFromArena(&readPtr, &gameState->gravityField, gameState);
+	gameState->timeField->selectedIndex = readElem(readPtr, s32); 
+	gameState->gravityField->selectedIndex = readElem(readPtr, s32); 
 	readConsoleFieldFromArena(&readPtr, &gameState->swapField, gameState);
 
 	if(gameState->targetRefs) {
@@ -931,6 +918,7 @@ void loadGameFromArena(GameState* gameState) {
 		s32 ref = readElem(readPtr, s32);
 		gameState->targetRefs = refNode(gameState, ref, gameState->targetRefs);
 	}
+	
 
 	s32 numEntities = readElem(readPtr, s32);
 	assert(numEntities == gameState->numEntities);
@@ -938,8 +926,25 @@ void loadGameFromArena(GameState* gameState) {
 	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 		readEntityFromArena(&readPtr, gameState->entities + entityIndex, gameState);
 	}
+}
 
-	assert(readPtr == (char*)arena->base + arena->allocated);
+void loadGameFromArena(GameState* gameState) {
+	MemoryArena* arena = &gameState->hackSaveStorage;
+	void* readPtr = getSaveStartPtr(arena, 0);
+	readGameFromArena(gameState, readPtr);	
+}
+
+
+void undoLastSaveGameFromArena(GameState* gameState) {
+	MemoryArena* arena = &gameState->hackSaveStorage;
+
+	s32* numSaveGamesPtr = (s32*)arena->base;
+
+	if(*numSaveGamesPtr > 1) {
+		void* lastSavePtr = getSaveStartPtr(arena, *numSaveGamesPtr - 2);
+		readGameFromArena(gameState, lastSavePtr);
+		*numSaveGamesPtr = *numSaveGamesPtr - 1;
+	}
 }
 
 s32 getEnergyLoss(GameState* gameState) {
@@ -949,7 +954,7 @@ s32 getEnergyLoss(GameState* gameState) {
 		MemoryArena* arena = &gameState->hackSaveStorage;
 		assert(arena->allocated);
 
-		s32 oldEnergy = *(s32*)arena->base;
+		s32 oldEnergy = *(s32*)getSaveStartPtr(arena, 0);
 		s32 newEnergy = gameState->fieldSpec.blueEnergy;
 		result = oldEnergy - newEnergy;
 	}

@@ -27,7 +27,7 @@
   <object name="end portal" gid="11" x="2642" y="786"/>
   <object name="laser base" gid="13" x="1054" y="1258">
    <properties>
-    <property name="height" value="0.8"/>
+    <property name="height" value="4"/>
    </properties>
   </object>
   <object name="blue energy" gid="7" x="532" y="812"/>

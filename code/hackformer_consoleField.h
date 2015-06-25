@@ -40,7 +40,7 @@ struct Waypoint {
 };
 
 struct ConsoleField {
-	ConsoleFieldType type;
+	ConsoleFieldType type; //NOTE: This must NEVER be -1
 	u32 flags;
 
 	char name[20];
@@ -150,4 +150,4 @@ bool32 isSet(ConsoleField* field, u32 flags) {
 	return result;
 }
 
-bool drawConsoleField(ConsoleField*, RenderGroup*, Input*, FieldSpec*, bool, bool);
+bool drawConsoleField(ConsoleField*, RenderGroup*, Input*, FieldSpec*, bool, bool, GameState*);

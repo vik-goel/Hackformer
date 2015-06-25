@@ -324,7 +324,7 @@ void freeLevel(GameState* gameState) {
 	gameState->levelStorage.allocated = 0;
 	gameState->swapField = NULL;
 
-	gameState->camera.scale = 1;
+	initCamera(&gameState->camera);
 }
 
 void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex, bool initPlayerDeath) {
@@ -446,7 +446,7 @@ bool updateAndDrawButton(Button* button, RenderGroup* group, Input* input, doubl
 			button->scale -= scaleSpeed;
 		} else {
 			button->selected = false;
-			clicked = true;
+			clicked = mouseInsideButton;
 		}
 	} 
 
@@ -657,6 +657,7 @@ int main(int argc, char* argv[]) {
 	PauseMenu* pauseMenu = &gameState->pauseMenu;
 	MainMenu* mainMenu = &gameState->mainMenu;
 	Camera* camera = &gameState->camera;
+	initCamera(camera);
 
 	gameState->textFont = loadFont("fonts/Roboto-Regular.ttf", 64);
 
@@ -694,7 +695,7 @@ int main(int argc, char* argv[]) {
 	gameState->playerHack = createAnimNodeFromData(&playerHackData, gameState);
 
 	TextureData virus1Stand = loadPNGTexture(gameState->renderGroup, "virus1/stand");
-	Animation virus1Shoot = loadAnimation(gameState, "virus1/shoot", 256, 256, 0.04f, true);
+	Animation virus1Shoot = loadAnimation(gameState, "virus1/shoot", 145, 170, 0.04f, true);
 	gameState->shootDelay = getAnimationDuration(&virus1Shoot);
 
 	AnimNode virus1StandAnimNode = createAnimNode(&virus1Stand, gameState);
@@ -707,7 +708,7 @@ int main(int argc, char* argv[]) {
 
 	//TODO: Make shoot animation time per frame be set by the shootDelay
 	TextureData flyingVirusStand = loadPNGTexture(gameState->renderGroup, "virus2/full");
-	Animation flyingVirusShoot = loadAnimation(gameState, "virus2/shoot", 256, 256, 0.04f, true);
+	Animation flyingVirusShoot = loadAnimation(gameState, "virus2/shoot", 133, 127, 0.04f, false);
 
 	AnimNode flyingVirusStandAnimNode = createAnimNode(&flyingVirusStand, gameState);
 	AnimNodeData flyingVirusShootAnimNodeData = {};
@@ -722,7 +723,7 @@ int main(int argc, char* argv[]) {
 	gameState->marineCityBg = loadPNGTexture(renderGroup, "backgrounds/marine_city_bg", false);
 	gameState->marineCityMg = loadPNGTexture(renderGroup, "backgrounds/marine_city_mg", false);
 
-	gameState->blueEnergyTex = loadTexture(renderGroup, "blue_energy");
+	gameState->blueEnergyTex = loadTexture(renderGroup, "blue_energy", false);
 	gameState->laserBolt = loadTexture(renderGroup, "virus1/laser_bolt", false);
 	gameState->endPortal = loadTexture(renderGroup, "end_portal");
 
@@ -778,7 +779,7 @@ int main(int argc, char* argv[]) {
 
 		gameState->swapFieldP = gameState->windowSize * 0.5 + v2(0.06, 4.43);
 
-		pollInput(input, &running, gameState->windowHeight, gameState->pixelsPerMeter, gameState->camera.p);
+		pollInput(input, &running, gameState->windowHeight, gameState->pixelsPerMeter, &gameState->camera);
 
 		if(input->pause.justPressed && inGame(gameState)) {
 			togglePause(gameState);
@@ -899,6 +900,10 @@ int main(int argc, char* argv[]) {
 						loadGameFromArena(gameState);
 					}
 				}
+			}
+
+			if(controlZJustPressed(input) && getEntityByRef(gameState, gameState->consoleEntityRef)) {
+				undoLastSaveGameFromArena(gameState);
 			}
 
 		//NOTE: Draw the dock after the console

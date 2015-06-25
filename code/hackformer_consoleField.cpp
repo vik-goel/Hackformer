@@ -424,7 +424,7 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 	return result;
 }
 
-void setConsoleFieldSelectedIndex(ConsoleField* field, s32 newIndex, FieldSpec* spec) {
+void setConsoleFieldSelectedIndex(GameState* gameState, ConsoleField* field, s32 newIndex, FieldSpec* spec) {
 	if (field->type == ConsoleField_unlimitedInt) {
 		field->selectedIndex = newIndex;
 	} 
@@ -441,9 +441,13 @@ void setConsoleFieldSelectedIndex(ConsoleField* field, s32 newIndex, FieldSpec* 
 	}
 	
 	spec->blueEnergy -= field->tweakCost;
+
+	assert(gameState);
+	updateSaveGameToArena(gameState);
 }
 
-bool clickConsoleButton(R2 bounds, ConsoleField* field, Input* input, FieldSpec* spec, bool increase, ButtonState* state) {
+bool clickConsoleButton(R2 bounds, ConsoleField* field, Input* input, FieldSpec* spec, bool increase, 
+						ButtonState* state, GameState* gameState) {
 	bool clickHandled = false;
 
 	bool canAfford = field->numChildren || spec->blueEnergy >= field->tweakCost;
@@ -465,7 +469,7 @@ bool clickConsoleButton(R2 bounds, ConsoleField* field, Input* input, FieldSpec*
 					if(field->numChildren) {
 						toggleFlags(field, ConsoleFlag_childrenVisible);
 					} else {
-						setConsoleFieldSelectedIndex(field, field->selectedIndex - 1 + 2 * increase, spec);
+						setConsoleFieldSelectedIndex(gameState, field, field->selectedIndex - 1 + 2 * increase, spec);
 					}
 				}
 
@@ -481,7 +485,8 @@ bool clickConsoleButton(R2 bounds, ConsoleField* field, Input* input, FieldSpec*
 	return clickHandled;
 }
 
-bool drawTileArrow(V2 p, V2 offset, ConsoleField* field, RenderGroup* group, Input* input, FieldSpec* spec, Orientation orientation, bool moving) {
+bool drawTileArrow(V2 p, V2 offset, ConsoleField* field, RenderGroup* group, Input* input, FieldSpec* spec, 
+				   Orientation orientation, bool moving, GameState* gameState) {
 	V2 arrowSize;
 
 	if(orientation == Orientation_0 || orientation == Orientation_180){
@@ -523,7 +528,7 @@ bool drawTileArrow(V2 p, V2 offset, ConsoleField* field, RenderGroup* group, Inp
 	} 
 	else {
 		ButtonState state;
-		clickHandled = clickConsoleButton(arrowBounds, field, input, spec, increase, &state);
+		clickHandled = clickConsoleButton(arrowBounds, field, input, spec, increase, &state, gameState);
 
 		switch(state) {
 			case ButtonState_cantAfford:
@@ -548,7 +553,8 @@ bool drawTileArrow(V2 p, V2 offset, ConsoleField* field, RenderGroup* group, Inp
 	return clickHandled;
 }
 
-bool drawValueArrow(V2 p, ConsoleField* field, RenderGroup* group, Input* input, FieldSpec* spec, bool facesRight) {
+bool drawValueArrow(V2 p, ConsoleField* field, RenderGroup* group, Input* input, FieldSpec* spec, bool facesRight,
+					GameState* gameState) {
 	bool clickHandled = false;
 
 	R2 triangleBounds = rectCenterDiameter(p, spec->triangleSize);
@@ -566,7 +572,7 @@ bool drawValueArrow(V2 p, ConsoleField* field, RenderGroup* group, Input* input,
 		R2 clickBounds = triangleBounds;
 		clickBounds.max.y -= spec->fieldSize.y;
 
-		clickConsoleButton(clickBounds, field, input, spec, facesRight, &state);
+		clickConsoleButton(clickBounds, field, input, spec, facesRight, &state, gameState);
 	}	
 
 	TextureData* tex = NULL;
@@ -599,7 +605,8 @@ bool drawValueArrow(V2 p, ConsoleField* field, RenderGroup* group, Input* input,
 
 bool drawFields(GameState* gameState, Entity* entity, double dt, V2* fieldP, FieldSpec* spec);
 
-bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, FieldSpec* spec, bool drawValue, bool drawField) {
+bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, FieldSpec* spec, bool drawValue, 
+						bool drawField, GameState* gameState) {
 	bool result = false;
 
 	char valueStr[200];
@@ -670,13 +677,13 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 				V2 leftTriangleP = v2(valueP.x - spec->valueSize.x*0.5, fieldP.y - spec->valueBackgroundPenetration * 0.5);
 				V2 rightTriangleP = leftTriangleP + v2(spec->valueSize.x, 0);
 
-				if (drawValueArrow(leftTriangleP, field, group, input, spec, false)) result = true;
-				if (drawValueArrow(rightTriangleP, field, group, input, spec, true)) result = true;
+				if (drawValueArrow(leftTriangleP, field, group, input, spec, false, gameState)) result = true;
+				if (drawValueArrow(rightTriangleP, field, group, input, spec, true, gameState)) result = true;
 			} else {
 				V2 triangleP = field->p + v2((spec->triangleSize.x + spec->fieldSize.x) / 2.0f + spec->spacing.x, 0.12);
 
 				if (field->numChildren &&
-					drawTileArrow(triangleP, v2(0, 0), field, group, input, spec, Orientation_90, false)) {
+					drawTileArrow(triangleP, v2(0, 0), field, group, input, spec, Orientation_90, false, gameState)) {
 					result = true;
 				}
 			}
@@ -721,7 +728,8 @@ void moveFieldChildren(ConsoleField** fields, s32 fieldsCount, FieldSpec* spec, 
 	}
 }
 
-bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsCount, double dt, V2* fieldP, FieldSpec* spec, bool isPickupField) {
+bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsCount, double dt, V2* fieldP, 
+						FieldSpec* spec, bool isPickupField) {
 	bool result = false;
 
 	for (s32 fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
@@ -758,12 +766,13 @@ bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsC
 	return result;
 }
 
-bool drawFieldsRaw(RenderGroup* group, Input* input, ConsoleField** fields, s32 fieldsCount, FieldSpec* spec, bool drawFieldSprite = true) {
+bool drawFieldsRaw(RenderGroup* group, Input* input, ConsoleField** fields, s32 fieldsCount, FieldSpec* spec, 
+					GameState* gameState, bool drawFieldSprite = true) {
 	bool result = false;
 
 	for (s32 fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
 		ConsoleField* field = fields[fieldIndex];
-		if (drawConsoleField(field, group, input, spec, true, drawFieldSprite)) result = true;
+		if (drawConsoleField(field, group, input, spec, true, drawFieldSprite, gameState)) result = true;
 
 		if (field->numChildren && field->childYOffs) {
 			V2 rectSize = v2(spec->fieldSize.x, field->childYOffs);//getTotalYOffset(field->children, field->numChildren, spec, false));
@@ -773,7 +782,7 @@ bool drawFieldsRaw(RenderGroup* group, Input* input, ConsoleField** fields, s32 
 			pushClipRect(group, clipRect);
 
 			//pushFilledRect(group, clipRect, MAGENTA, false);
-			if (drawFieldsRaw(group, input, field->children, field->numChildren, spec)) result = true;
+			if (drawFieldsRaw(group, input, field->children, field->numChildren, spec, gameState)) result = true;
 
 			pushDefaultClipRect(group);
 		}
@@ -790,11 +799,13 @@ bool drawFields(GameState* gameState, Entity* entity, s32 fieldSkip, double dt, 
 		fieldP->y -= getTotalFieldHeight(spec, field);
 	}
 
-	if(calcFieldPositions(gameState, entity->fields + fieldSkip, entity->numFields - fieldSkip, dt, fieldP, spec, entity->type == EntityType_pickupField)) {
+	if(calcFieldPositions(gameState, entity->fields + fieldSkip, entity->numFields - fieldSkip, dt, fieldP, 
+		spec, entity->type == EntityType_pickupField)) {
 		result = true;
 	}
 
-	if(drawFieldsRaw(gameState->renderGroup, &gameState->input, entity->fields + fieldSkip, entity->numFields - fieldSkip, spec)) {
+	if(drawFieldsRaw(gameState->renderGroup, &gameState->input, entity->fields + fieldSkip, 
+		entity->numFields - fieldSkip, spec, gameState)) {
 		result = true;
 	}
 
@@ -866,7 +877,8 @@ bool updateConsole(GameState* gameState, double dt) {
 	{ //NOTE: This draws the gravity field
 		ConsoleField* gravityField = gameState->gravityField;
 		assert(gravityField);
-		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gravityField, 1, spec, false)) clickHandled = true;
+		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gravityField, 1, spec, gameState, false)) 
+			clickHandled = true;
 
 		gameState->gravity = v2(0, gravityField->doubleValues[gravityField->selectedIndex]);
 	}
@@ -874,7 +886,8 @@ bool updateConsole(GameState* gameState, double dt) {
 	{ //NOTE: This draws the time field
 		ConsoleField* timeField = gameState->timeField;
 		assert(timeField);
-		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &timeField, 1, spec, false)) clickHandled = true;
+		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &timeField, 1, spec, gameState, false))
+		 clickHandled = true;
 	}
 #endif
 
@@ -888,7 +901,7 @@ bool updateConsole(GameState* gameState, double dt) {
 			clickHandled = true;
 
 		if (gameState->swapField) {
-			if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gameState->swapField, 1, spec))
+			if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gameState->swapField, 1, spec, gameState))
 				clickHandled = true;
 		}
 	}  
@@ -936,19 +949,23 @@ bool updateConsole(GameState* gameState, double dt) {
 
 				V2 offset = clickBoxSize * 0.5 + spec->spacing;
 
-				if(drawLeft && drawTileArrow(clickBoxCenter, offset, xOffsetField, gameState->renderGroup, &gameState->input, spec, Orientation_180, moving)) {
+				if(drawLeft && drawTileArrow(clickBoxCenter, offset, xOffsetField, gameState->renderGroup, 
+					&gameState->input, spec, Orientation_180, moving, gameState)) {
 					clickHandled = true;
 				}
 
-				if(drawRight && drawTileArrow(clickBoxCenter, offset,xOffsetField, gameState->renderGroup, &gameState->input, spec, Orientation_0, moving)) {
+				if(drawRight && drawTileArrow(clickBoxCenter, offset,xOffsetField, gameState->renderGroup,
+				 &gameState->input, spec, Orientation_0, moving, gameState)) {
 					clickHandled = true;
 				}
 
-				if(drawTop && drawTileArrow(clickBoxCenter, offset, yOffsetField, gameState->renderGroup, &gameState->input, spec, Orientation_90, moving)) {
+				if(drawTop && drawTileArrow(clickBoxCenter, offset, yOffsetField, gameState->renderGroup, 
+					&gameState->input, spec, Orientation_90, moving, gameState)) {
 					clickHandled = true;
 				}
 
-				if(drawBottom && drawTileArrow(clickBoxCenter, offset, yOffsetField, gameState->renderGroup, &gameState->input, spec, Orientation_270, moving)) {
+				if(drawBottom && drawTileArrow(clickBoxCenter, offset, yOffsetField, gameState->renderGroup,
+				 &gameState->input, spec, Orientation_270, moving, gameState)) {
 					clickHandled = true;
 				}
 			}								   
@@ -967,11 +984,13 @@ bool updateConsole(GameState* gameState, double dt) {
 			bool drawRight = selectedField->selectedIndex > 0;
 			bool drawLeft = selectedField->selectedIndex < selectedField->numValues - 1;
 
-			if(drawLeft && drawTileArrow(center, offset, selectedField, gameState->renderGroup, &gameState->input, spec, Orientation_0, false)) {
+			if(drawLeft && drawTileArrow(center, offset, selectedField, gameState->renderGroup, &gameState->input, 
+				spec, Orientation_0, false, gameState)) {
 				clickHandled = true;
 			}
 
-			if(drawRight && drawTileArrow(center, offset, selectedField, gameState->renderGroup, &gameState->input, spec, Orientation_180, false)) {
+			if(drawRight && drawTileArrow(center, offset, selectedField, gameState->renderGroup, &gameState->input, 
+				spec, Orientation_180, false, gameState)) {
 				clickHandled = true;
 			}
 
