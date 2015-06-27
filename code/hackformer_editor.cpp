@@ -2,7 +2,12 @@
 
 #include "hackformer_renderer.cpp"
 
-void moveCamera(Input* input, Camera* camera) {
+V2 unprojectP(Camera* camera, V2 p) {
+	V2 result = (camera->scaleCenter * (camera->scale - 1) + p) * (1.0 / camera->scale);
+	return result;
+}
+
+void moveCamera(Input* input, Camera* camera, V2 gameWindowSize) {
 	if(input->mouseScroll) {
 		double minScale = 0.25;
 		double maxScale = 4.0;
@@ -10,6 +15,7 @@ void moveCamera(Input* input, Camera* camera) {
 
 		double requestedScale = camera->scale + input->mouseScroll * scrollPerNotch;
 
+		camera->scaleCenter = camera->p + gameWindowSize * 0.5;
 		camera->scale = clamp(requestedScale, minScale, maxScale);
 	}
 
@@ -59,11 +65,11 @@ bool clickedInside(Input* input, R2 rect) {
 }
 
 void drawScaledLine(RenderGroup* group, Color lineColor, V2 lineStart, V2 lineEnd, double lineThickness, double dashSize,
-	                double spaceSize, Camera* camera, V2 scaleCenter) {
+	                double spaceSize, Camera* camera) {
 
 	V2 lineCenter = (lineStart + lineEnd) * 0.5;
-	V2 toScaleCenter = lineCenter - scaleCenter;
-	V2 newLineCenter = scaleCenter + toScaleCenter * camera->scale;
+	V2 toScaleCenter = lineCenter - camera->scaleCenter;
+	V2 newLineCenter = camera->scaleCenter + toScaleCenter * camera->scale;
 
 	lineStart = lineStart - lineCenter + newLineCenter; 
 	lineEnd = lineEnd - lineCenter + newLineCenter; 
@@ -71,20 +77,15 @@ void drawScaledLine(RenderGroup* group, Color lineColor, V2 lineStart, V2 lineEn
 	pushDashedLine(group, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, true);
 }
 
-void drawScaledTex(RenderGroup* group, TextureData* tex, Camera* camera, V2 center, V2 size, V2 scaleCenter) {
-	center = (center - scaleCenter) * camera->scale + scaleCenter;
+void drawScaledTex(RenderGroup* group, TextureData* tex, Camera* camera, V2 center, V2 size) {
+	center = (center - camera->scaleCenter) * camera->scale + camera->scaleCenter;
 
 	R2 bounds = rectCenterDiameter(center, size);
 	pushTexture(group, tex, bounds, false, DrawOrder_gui, true);
 }
 
-V2 unprojectP(Camera* camera, V2 scaleCenter, V2 p) {
-	V2 result = (scaleCenter * (camera->scale - 1) + p) * (1.0 / camera->scale);
-	return result;
-}
-
-void setTile(s32* tiles, s32 mapWidthInTiles, s32 mapHeightInTiles, Camera* camera, Input* input, V2 scaleCenter, V2 gridSize, s32 value) {
-	V2 mousePos = unprojectP(camera, scaleCenter, input->mouseInWorld);
+void setTile(s32* tiles, s32 mapWidthInTiles, s32 mapHeightInTiles, Camera* camera, Input* input, V2 gridSize, s32 value) {
+	V2 mousePos = unprojectP(camera, input->mouseInWorld);
 
 	s32 tileX = (s32)(mousePos.x / gridSize.x);
 	s32 tileY = (s32)(mousePos.y / gridSize.y);
@@ -111,7 +112,7 @@ int main(int argc, char* argv[]) {
 	TextureData* textureData = pushArray(&arena, TextureData, TEXTURE_DATA_COUNT);
 	s32 textureDataCount = 1;
 
-	RenderGroup* renderGroup  = createRenderGroup(1024 * 1024, &arena, TEMP_PIXELS_PER_METER, windowWidth, windowHeight, 
+	RenderGroup* renderGroup  = createRenderGroup(8 * 1024 * 1024, &arena, TEMP_PIXELS_PER_METER, windowWidth, windowHeight, 
 													&camera, textureData, &textureDataCount);
 	renderGroup->enabled = true;
 
@@ -147,7 +148,7 @@ int main(int argc, char* argv[]) {
 		ENTITY(virus, 1.6, 1.6, "virus1/stand")
 		ENTITY(flyingVirus, 0.75, 0.75, "virus2/full")
 		ENTITY(laserBase, 0.9, 0.65, "virus3/base_off")
-		ENTITY(blueEnergy, 0.7, 0.7, "blue_energy")
+		ENTITY(hackEnergy, 0.7, 0.7, "energy_full")
 		ENTITY(endPortal, 1, 2, "end_portal")
 	};
 	#undef ENTITY
@@ -235,22 +236,18 @@ int main(int argc, char* argv[]) {
 		pushFilledRect(renderGroup, renderGroup->windowBounds, createColor(150, 150, 150, 255));
 		camera.scale = oldScale;
 
-		V2 scaleCenter = gameWindowSize * 0.5;
-
 		for(s32 rowIndex = 0; rowIndex <= mapHeightInTiles; rowIndex++) {
 			V2 lineStart = v2(0, gridSize.y * rowIndex);
 			V2 lineEnd = v2(mapWidthInTiles * gridSize.x, lineStart.y);
 
-			drawScaledLine(renderGroup, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, &camera, 
-				scaleCenter);
+			drawScaledLine(renderGroup, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, &camera);
 		}
 
 		for(s32 colIndex = 0; colIndex <= mapWidthInTiles; colIndex++) {
 			V2 lineStart = v2(gridSize.x * colIndex, 0);
 			V2 lineEnd = v2(lineStart.x, mapHeightInTiles * gridSize.y);
 
-			drawScaledLine(renderGroup, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, &camera, 
-					scaleCenter);
+			drawScaledLine(renderGroup, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, &camera);
 		}
 
 		for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
@@ -260,7 +257,7 @@ int main(int argc, char* argv[]) {
 				if(tileIndex >= 0) {
 					TextureData* tex = tileAtlas + tileIndex;
 					V2 tileCenter = hadamard(v2(tileX, tileY), gridSize) + tileSize * 0.5;
-					drawScaledTex(renderGroup, tex, &camera, tileCenter, tileSize, scaleCenter);					
+					drawScaledTex(renderGroup, tex, &camera, tileCenter, tileSize);					
 				}
 			}
 		}
@@ -271,12 +268,12 @@ int main(int argc, char* argv[]) {
 			V2 entityCenter = getRectCenter(entity->bounds);
 			V2 unscaledSize = getRectSize(entity->bounds);
 
-			V2 mouseP = unprojectP(&camera, scaleCenter, input.mouseInWorld);
+			V2 mouseP = unprojectP(&camera, input.mouseInWorld);
 			if(pointInsideRect(entity->bounds, mouseP)) {
 
 			}
 
-			drawScaledTex(renderGroup, entity->tex, &camera, entityCenter, unscaledSize, scaleCenter);	
+			drawScaledTex(renderGroup, entity->tex, &camera, entityCenter, unscaledSize);	
 		}
 
 		//NOTE: Draw the panel
@@ -353,7 +350,7 @@ int main(int argc, char* argv[]) {
 				R2 tileBounds = rectCenterDiameter(input.mouseInMeters, tileSize);
 
 				if(input.leftMouse.pressed && mouseInGame) {
-					setTile((s32*)tiles, mapWidthInTiles, mapHeightInTiles, &camera, &input, scaleCenter, gridSize, selectedTileIndex);
+					setTile((s32*)tiles, mapWidthInTiles, mapHeightInTiles, &camera, &input, gridSize, selectedTileIndex);
 				}
 
 
@@ -373,7 +370,7 @@ int main(int argc, char* argv[]) {
 					entity->type = spec->type;
 					entity->drawOrder = spec->drawOrder;
 
-					V2 center = unprojectP(&camera, scaleCenter, input.mouseInWorld);
+					V2 center = unprojectP(&camera, input.mouseInWorld);
 
 					entity->bounds = rectCenterDiameter(center, spec->size);
 					entity->tex = tex;
@@ -389,7 +386,7 @@ int main(int argc, char* argv[]) {
 		for(s32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
 			Entity* entity = entities + entityIndex;
 
-			V2 mouseP = unprojectP(&camera, scaleCenter, input.mouseInWorld);
+			V2 mouseP = unprojectP(&camera, input.mouseInWorld);
 
 			if(pointInsideRect(entity->bounds, mouseP)) {
 				clickedEntity = entity;
@@ -404,7 +401,7 @@ int main(int argc, char* argv[]) {
 				clickedEntity = NULL;
 				clickedEntityIndex = -1;
 			} else {
-				setTile((s32*)tiles, mapWidthInTiles, mapHeightInTiles, &camera, &input, scaleCenter, gridSize, -1);
+				setTile((s32*)tiles, mapWidthInTiles, mapHeightInTiles, &camera, &input, gridSize, -1);
 			}
 		}
 
@@ -416,7 +413,7 @@ int main(int argc, char* argv[]) {
 				}
 
 				if(movingEntity) {
-					V2 center = unprojectP(&camera, scaleCenter, input.mouseInWorld);
+					V2 center = unprojectP(&camera, input.mouseInWorld);
 					movingEntity->bounds = reCenterRect(movingEntity->bounds, center);
 					maintainMovingEntity = true;
 				}
@@ -453,7 +450,7 @@ int main(int argc, char* argv[]) {
 		glClear(GL_COLOR_BUFFER_BIT);
 		drawRenderGroup(renderGroup, NULL);
 		
-		moveCamera(&input, &camera);
+		moveCamera(&input, &camera, gameWindowSize);
 		oldScale = camera.scale;
 
 		SDL_GL_SwapWindow(window);

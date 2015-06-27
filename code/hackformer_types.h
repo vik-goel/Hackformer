@@ -46,7 +46,7 @@ enum EntityType {
 	EntityType_playerDeath,
 	EntityType_tile,
 	EntityType_heavyTile,
-	EntityType_blueEnergy,
+	EntityType_hackEnergy,
 	EntityType_text,
 	EntityType_virus,
 	EntityType_laserBolt,
@@ -65,7 +65,7 @@ enum DrawOrder {
 	DrawOrder_pickupField,
 	DrawOrder_movingTile,
 	DrawOrder_endPortal,
-	DrawOrder_blueEnergy,
+	DrawOrder_hackEnergy,
 	DrawOrder_laserBeam,
 	DrawOrder_laserBase,
 	DrawOrder_virus,
@@ -167,11 +167,12 @@ struct Camera {
 	bool32 moveToTarget;
 	bool32 deferredMoveToTarget;
 	double scale;
+	V2 scaleCenter;
 };
 
 void initCamera(Camera* camera) {
 	camera->scale = 1;
-	camera->p = camera->newP = v2(0, 0);
+	camera->p = camera->newP = camera->scaleCenter =  v2(0, 0);
 	camera->moveToTarget = camera->deferredMoveToTarget = false;
 }
 

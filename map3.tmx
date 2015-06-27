@@ -29,7 +29,7 @@
  <objectgroup name="objects">
   <object name="player" gid="9" x="8" y="792"/>
   <object name="red energy" gid="8" x="1490" y="944"/>
-  <object name="blue energy" gid="7" x="824" y="1044"/>
+  <object name="blue energy" gid="7" x="842.182" y="877.333"/>
   <object name="virus" gid="10" x="3622" y="910"/>
   <object name="end portal" gid="11" x="9390" y="798"/>
   <object name="virus" gid="10" x="8644" y="930"/>
@@ -57,7 +57,7 @@
   <object name="blue energy" gid="7" x="1870" y="802"/>
   <object name="blue energy" gid="7" x="2066" y="802"/>
   <object name="red energy" gid="8" x="2534.16" y="658.289"/>
-  <object name="blue energy" gid="7" x="1006" y="1054"/>
+  <object name="blue energy" gid="7" x="1002.97" y="884.303"/>
   <object name="blue energy" gid="7" x="3090" y="914"/>
   <object name="background" x="56" y="120" width="152" height="160">
    <properties>

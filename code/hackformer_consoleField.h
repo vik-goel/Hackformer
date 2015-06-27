@@ -1,19 +1,24 @@
 enum ConsoleFieldType {
 	ConsoleField_cameraFollows,
+
 	ConsoleField_keyboardControlled,
 	ConsoleField_movesBackAndForth,
+	ConsoleField_bobsVertically,
 	ConsoleField_seeksTarget,
+
 	ConsoleField_isShootTarget,
 	ConsoleField_shootsAtTarget,
+
 	ConsoleField_givesEnergy,
 	ConsoleField_killsOnHit,
+	ConsoleField_Alertness,
+	ConsoleField_followsWaypoints,
+	ConsoleField_spotlight,
+
 	ConsoleField_double,
 	ConsoleField_unlimitedInt,
 	ConsoleField_s32,
 	ConsoleField_bool,
-	ConsoleField_Alertness,
-	ConsoleField_followsWaypoints,
-	ConsoleField_spotlight,
 };
 
 enum ConsoleFlag {
@@ -56,6 +61,12 @@ struct ConsoleField {
 			Waypoint* curWaypoint;
 			double waypointDelay;
 		};
+
+		struct {
+			double bobHeight;
+			bool32 bobbingUp;
+			bool32 initialBob;
+		};
 	};
 	
 	s32 selectedIndex;
@@ -96,7 +107,7 @@ struct FieldSpec {
 
 	V2 mouseOffset;
 
-	int blueEnergy;
+	int hackEnergy;
 
 	TextureData attribute;
 	TextureData behaviour;
@@ -118,7 +129,8 @@ bool isConsoleFieldMovementType(ConsoleField* field) {
 	bool result = field->type == ConsoleField_keyboardControlled ||
 				  field->type == ConsoleField_movesBackAndForth ||
 				  field->type == ConsoleField_seeksTarget ||
-				  field->type == ConsoleField_followsWaypoints;
+				  field->type == ConsoleField_followsWaypoints ||
+				  field->type == ConsoleField_bobsVertically;
 	return result;
 }
 

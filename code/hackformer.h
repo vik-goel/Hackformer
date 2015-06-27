@@ -218,7 +218,7 @@ struct GameState {
 	TextureData sunsetCityBg, sunsetCityMg;
 	TextureData marineCityBg, marineCityMg;
 
-	Texture blueEnergyTex;
+	Animation hackEnergyAnim;
 	Texture laserBolt;
 	Texture endPortal;
 

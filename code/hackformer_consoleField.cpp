@@ -235,8 +235,8 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 			if(!isSet(field, ConsoleFlag_selected)) {
 				if(gameState->input.shift.pressed) {
 					if(!gameState->swapField && canFieldBeCloned(field)) {
-						if(spec->blueEnergy >= field->tweakCost) {
-							spec->blueEnergy -= field->tweakCost;
+						if(spec->hackEnergy >= field->tweakCost) {
+							spec->hackEnergy -= field->tweakCost;
 							gameState->swapField = createConsoleField(gameState, field);
 							rebaseField(gameState->swapField, gameState->swapFieldP); 
 						}
@@ -330,10 +330,10 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 					}
 				}
 
-				if(spec->blueEnergy < totalCost) movementAllowed = false;
+				if(spec->hackEnergy < totalCost) movementAllowed = false;
 
 				if(movementAllowed) {
-					spec->blueEnergy -= totalCost;
+					spec->hackEnergy -= totalCost;
 
 					if (field->type == ConsoleField_isShootTarget) {
 						if (removeFromParent) removeTargetRef(gameState->consoleEntityRef, gameState);
@@ -440,7 +440,7 @@ void setConsoleFieldSelectedIndex(GameState* gameState, ConsoleField* field, s32
 		assert(field->selectedIndex >= 0 && field->selectedIndex < field->numValues);
 	}
 	
-	spec->blueEnergy -= field->tweakCost;
+	spec->hackEnergy -= field->tweakCost;
 
 	assert(gameState);
 	updateSaveGameToArena(gameState);
@@ -450,7 +450,7 @@ bool clickConsoleButton(R2 bounds, ConsoleField* field, Input* input, FieldSpec*
 						ButtonState* state, GameState* gameState) {
 	bool clickHandled = false;
 
-	bool canAfford = field->numChildren || spec->blueEnergy >= field->tweakCost;
+	bool canAfford = field->numChildren || spec->hackEnergy >= field->tweakCost;
 
 	if(canAfford) {
 		ConsoleFlag flag = increase ? ConsoleFlag_wasRightArrowSelected : ConsoleFlag_wasLeftArrowSelected;

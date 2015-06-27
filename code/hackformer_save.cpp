@@ -145,7 +145,7 @@ void writeEntity(FILE* file, Entity* entity) {
 
 void writeFieldSpec(FILE* file, FieldSpec* spec) {
 	writeV2(file, spec->mouseOffset);
-	writeS32(file, spec->blueEnergy);
+	writeS32(file, spec->hackEnergy);
 }
 
 void writeAnimation(FILE* file, Animation* anim) {
@@ -229,7 +229,7 @@ void saveGame(GameState* gameState, char* fileName) {
 
 	writeTexture(file, gameState->bgTex);
 	writeTexture(file, gameState->mgTex);
-	writeTexture(file, gameState->blueEnergyTex);
+	writeAnimation(file, &gameState->hackEnergyAnim);
 	writeTexture(file, gameState->laserBolt);
 	writeTexture(file, gameState->endPortal);
 	writeTexture(file, gameState->laserBaseOff);
@@ -549,7 +549,7 @@ void loadGame(GameState* gameState, char* fileName) {
 	gameState->swapField = readConsoleField(file, gameState);
 	gameState->swapFieldP = readV2(file);
 	gameState->fieldSpec.mouseOffset = readV2(file);
-	gameState->fieldSpec.blueEnergy = readS32(file);
+	gameState->fieldSpec.hackEnergy = readS32(file);
 
 	gameState->mapSize = readV2(file);
 	gameState->worldSize = readV2(file);
@@ -566,7 +566,7 @@ void loadGame(GameState* gameState, char* fileName) {
 
 	gameState->bgTex = readTexture(file);
 	gameState->mgTex = readTexture(file);
-	gameState->blueEnergyTex = readTexture(file);
+	gameState->hackEnergyAnim = readAnimation(file, gameState);
 	gameState->laserBolt = readTexture(file);
 	gameState->endPortal = readTexture(file);
 	gameState->laserBaseOff = readTexture(file);
@@ -805,7 +805,7 @@ void updateSaveGameToArena(GameState* gameState) {
 	void** saveGamePtr = (void**)((char*)arena->base + sizeof(s32) + numSaveGames * sizeof(void*));
 	*saveGamePtr = (char*)arena->base + arena->allocated;
 
-	pushElem(arena, s32, gameState->fieldSpec.blueEnergy);
+	pushElem(arena, s32, gameState->fieldSpec.hackEnergy);
 	pushElem(arena, V2, gameState->gravity);
 
 	pushElem(arena, s32, gameState->timeField->selectedIndex);
@@ -901,7 +901,7 @@ void readEntityFromArena(void** readPtr, Entity* entity, GameState* gameState) {
 }
 
 void readGameFromArena(GameState* gameState, void* readPtr) {
-	gameState->fieldSpec.blueEnergy = readElem(readPtr, s32);
+	gameState->fieldSpec.hackEnergy = readElem(readPtr, s32);
 	gameState->gravity = readElem(readPtr, V2);
 
 	gameState->timeField->selectedIndex = readElem(readPtr, s32); 
@@ -955,7 +955,7 @@ s32 getEnergyLoss(GameState* gameState) {
 		assert(arena->allocated);
 
 		s32 oldEnergy = *(s32*)getSaveStartPtr(arena, 0);
-		s32 newEnergy = gameState->fieldSpec.blueEnergy;
+		s32 newEnergy = gameState->fieldSpec.hackEnergy;
 		result = oldEnergy - newEnergy;
 	}
 

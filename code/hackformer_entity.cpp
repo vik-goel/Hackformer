@@ -256,6 +256,7 @@ bool affectedByGravity(Entity* entity, ConsoleField* movementField) {
 			case ConsoleField_movesBackAndForth: {
 				return !noMovementByDefault;
 			} break;
+			case ConsoleField_bobsVertically:
 			case ConsoleField_followsWaypoints:
 			case ConsoleField_seeksTarget: {
 				result = false;
@@ -342,7 +343,7 @@ void freeEntity(Entity* entity, GameState* gameState, bool endOfLevel) {
 			ConsoleField* field = entity->fields[fieldIndex];
 
 			if(field->type == ConsoleField_givesEnergy) {
-				gameState->fieldSpec.blueEnergy += field->children[0]->selectedIndex;
+				gameState->fieldSpec.hackEnergy += field->children[0]->selectedIndex;
 			}
 		}
 
@@ -559,7 +560,7 @@ void addChildToConsoleField(ConsoleField* parent, ConsoleField* child) {
 	assert(parent->numChildren <= arrayCount(parent->children));
 }
 
-//TODO: Clean up speed and jump height values
+//TODO: Tweak speed and jump height values
 void addKeyboardField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "keyboard_controlled", ConsoleField_keyboardControlled, 5);
 
@@ -571,6 +572,23 @@ void addKeyboardField(Entity* entity, GameState* gameState) {
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "jump_height", keyboardJumpHeightFieldValues, 
 													    arrayCount(keyboardJumpHeightFieldValues), 2, 1));
 	addChildToConsoleField(result, createBoolField(gameState, "double_jump", false, 3));
+
+	addField(entity, result);
+}
+
+void addBobsVerticallyField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "bobs_vertically", ConsoleField_bobsVertically, 4);
+
+	double speedFieldValues[] = {0, 1.5, 3, 4.5, 6}; 
+	double maxBobHeight[] = {0, 0.5, 1, 1.5, 2}; 
+
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", speedFieldValues, 
+												   arrayCount(speedFieldValues), 2, 1));
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "max_bob_height", maxBobHeight, 
+													    arrayCount(maxBobHeight), 2, 1));
+
+	result->bobbingUp = true;
+	result->initialBob = true;
 
 	addField(entity, result);
 }
@@ -804,21 +822,19 @@ Entity* addPickupField(GameState* gameState, Entity* parent, ConsoleField* field
 	return result;
 }
 
-Entity* addBlueEnergy(GameState* gameState, V2 p) {
-	V2 size = getDrawSize(&gameState->blueEnergyTex, 0.7, gameState->renderGroup);
-	Entity* result = addEntity(gameState, EntityType_blueEnergy, DrawOrder_blueEnergy, p, size);
+Entity* addHackEnergy(GameState* gameState, V2 p) {
+	Entity* result = addEntity(gameState, EntityType_hackEnergy, DrawOrder_hackEnergy, p, v2(1, 1) * 0.6);
 
 	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
 										 result->renderSize.x, result->renderSize.y - 0.18);
 
 	addGivesBlueEnergyField(result, gameState);
+	addBobsVerticallyField(result, gameState);
 
 	setFlags(result, EntityFlag_hackable);
 
 	setEntityP(result, result->p + result->renderSize * 0.5, gameState);
 	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
-
-	result->defaultTex = gameState->blueEnergyTex;
 
 	return result;
 }
@@ -1105,7 +1121,7 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 			}
 		} break;
 
-		case EntityType_blueEnergy: {
+		case EntityType_hackEnergy: {
 			if (b->type == EntityType_virus ||
 				b->type == EntityType_flyingVirus ||
 				b->type == EntityType_laserBolt || 
@@ -1200,7 +1216,7 @@ bool isSolidCollisionRaw(Entity* a, Entity* b, GameState* gameState) {
 		} break;
 
 		case EntityType_player: {
-			if (b->type == EntityType_blueEnergy || 
+			if (b->type == EntityType_hackEnergy || 
 				b->type == EntityType_endPortal) result = false;
 		} break;
 
@@ -1257,7 +1273,7 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool sol
 			}
 		} break;
 
-		case EntityType_blueEnergy: {
+		case EntityType_hackEnergy: {
 			if (hitEntity->type == EntityType_player) {
 				setFlags(entity, EntityFlag_remove);
 			}
@@ -1703,10 +1719,11 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP) {
 	return totalMovement;
 }
 
-void move(Entity* entity, double dt, GameState* gameState, V2 ddP) {
+V2 move(Entity* entity, double dt, GameState* gameState, V2 ddP) {
 	V2 delta = getVelocity(dt, entity->dP, ddP);
-	moveRaw(entity, gameState, delta, &ddP);
+	V2 movement = moveRaw(entity, gameState, delta, &ddP);
 	entity->dP += ddP * dt;
+	return movement;
 }
 
 bool moveTowardsTargetParabolic(Entity* entity, GameState* gameState, double dt, V2 target, double initialDstToTarget, double maxSpeed) {
@@ -2591,6 +2608,38 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 					wantedSpotLightAngle += sin(sinInput) * angleVariance;
 				}
 			} break;
+
+
+
+			case ConsoleField_bobsVertically: {
+				ConsoleField* speedField = movementField->children[0];
+				ConsoleField* maxBobHeightField = movementField->children[1];
+
+				double speed = speedField->doubleValues[speedField->selectedIndex];
+				double maxBobHeight = maxBobHeightField->doubleValues[maxBobHeightField->selectedIndex];
+
+				V2 oldP = entity->p;
+
+				double initialDstToTarget = movementField->initialBob ? maxBobHeight : maxBobHeight * 2;
+				double maxBobHeightSigned = maxBobHeight * (movementField->bobbingUp * 2 - 1);
+				V2 target = v2(entity->p.x, entity->p.y - movementField->bobHeight + maxBobHeightSigned);
+
+				bool reachedTarget = moveTowardsTargetParabolic(entity, gameState, dt, target, initialDstToTarget, speed);
+
+				double deltaHeight = entity->p.y - oldP.y;
+				movementField->bobHeight += deltaHeight;
+
+				if(reachedTarget) {
+					movementField->bobbingUp = !movementField->bobbingUp;
+					movementField->initialBob = false;
+				} 
+				else if (deltaHeight == 0 && dt) {
+					movementField->bobbingUp = !movementField->bobbingUp;
+					movementField->initialBob = false;
+					movementField->bobHeight = 0;
+				}
+			} break;
+
 		} //end of movement field switch 
 
 		if(gameState->screenType != ScreenType_pause) {
@@ -3111,6 +3160,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		}
 		else if(entity->messages) {
 			texture = &entity->messages->textures[entity->messages->selectedIndex];
+		} else if(entity->type == EntityType_hackEnergy) {
+			tempTexture = getAnimationFrame(&gameState->hackEnergyAnim, entity->animTime);
 		}
 
 		if(tempTexture) {

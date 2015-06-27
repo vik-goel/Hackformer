@@ -100,7 +100,7 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 
 				gameState->mapSize = v2((double)mapWidthTiles, (double)mapHeightTiles) * gameState->tileSize;
 				gameState->worldSize = v2(max(gameState->mapSize.x, gameState->windowWidth), 
-										  max(gameState->mapSize.y, gameState->windowHeight));
+					max(gameState->mapSize.y, gameState->windowHeight));
 
 
 				initSpatialPartition(gameState);
@@ -166,7 +166,7 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 					addPlayer(gameState, p);
 				}
 				else if (stringsMatch(buffer, "blue energy")) {
-					addBlueEnergy(gameState, p);
+					addHackEnergy(gameState, p);
 				}
 				else if (stringsMatch(buffer, "virus")) {
 					addVirus(gameState, p);
@@ -190,78 +190,78 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 
 					*/
 
-					fgets(line, sizeof(line), file);
+					   fgets(line, sizeof(line), file);
 
-					s32 selectedIndex = -1;
-					char values[10][100];
-					s32 numValues = 0;
+					   s32 selectedIndex = -1;
+					   char values[10][100];
+					   s32 numValues = 0;
 
-					while(true) {
+					   while(true) {
+					   	fgets(line, sizeof(line), file);
+					   	if (stringsMatch(line, "   </properties>")) break;
+
+					   	extractStringFromLine(line, lineLength, "name", buffer, arrayCount(buffer));
+
+					   	bool selectedIndexString = false;
+					   	s32 valueIndex = -1;
+
+					   	if (stringsMatch(buffer, "selected index")) selectedIndexString = true;
+					   	else valueIndex = atoi(buffer);
+
+					   	extractStringFromLine(line, lineLength, "value", buffer, arrayCount(buffer));
+
+					   	if (selectedIndexString) {
+					   		selectedIndex = atoi(buffer);
+					   	} else {
+					   		assert(valueIndex >= 0);
+
+					   		if (valueIndex > numValues) numValues = valueIndex;
+
+					   		char* valuePtr = (char*)values[valueIndex];
+					   		char* bufferPtr = (char*)buffer;
+					   		while(*bufferPtr) {
+					   			*valuePtr++ = *bufferPtr++;
+					   		}
+					   		*valuePtr = 0;
+					   	}
+					   }
+
+					   assert(selectedIndex >= 0);
+					   addText(gameState, p, values, numValues, selectedIndex);
+					}
+					else if (stringsMatch(buffer, "background")) {
 						fgets(line, sizeof(line), file);
-						if (stringsMatch(line, "   </properties>")) break;
-
-						extractStringFromLine(line, lineLength, "name", buffer, arrayCount(buffer));
-
-						bool selectedIndexString = false;
-						s32 valueIndex = -1;
-						
-						if (stringsMatch(buffer, "selected index")) selectedIndexString = true;
-						else valueIndex = atoi(buffer);
-
+						fgets(line, sizeof(line), file);
 						extractStringFromLine(line, lineLength, "value", buffer, arrayCount(buffer));
 
-						if (selectedIndexString) {
-							selectedIndex = atoi(buffer);
-						} else {
-							assert(valueIndex >= 0);
-
-							if (valueIndex > numValues) numValues = valueIndex;
-
-							char* valuePtr = (char*)values[valueIndex];
-							char* bufferPtr = (char*)buffer;
-							while(*bufferPtr) {
-								*valuePtr++ = *bufferPtr++;
-							}
-							*valuePtr = 0;
+						if (stringsMatch(buffer, "marine")) {
+							gameState->bgTex = createTextureFromData(&gameState->marineCityBg, gameState->renderGroup);
+							gameState->mgTex = createTextureFromData(&gameState->marineCityMg, gameState->renderGroup);
 						}
-					}
-
-					assert(selectedIndex >= 0);
-					addText(gameState, p, values, numValues, selectedIndex);
-				}
-				else if (stringsMatch(buffer, "background")) {
-					fgets(line, sizeof(line), file);
-					fgets(line, sizeof(line), file);
-					extractStringFromLine(line, lineLength, "value", buffer, arrayCount(buffer));
-
-					if (stringsMatch(buffer, "marine")) {
-						gameState->bgTex = createTextureFromData(&gameState->marineCityBg, gameState->renderGroup);
-						gameState->mgTex = createTextureFromData(&gameState->marineCityMg, gameState->renderGroup);
-					}
-					else if (stringsMatch(buffer, "sunset")) {
-						gameState->bgTex = createTextureFromData(&gameState->sunsetCityBg, gameState->renderGroup);
-						gameState->mgTex = createTextureFromData(&gameState->sunsetCityMg, gameState->renderGroup);
-					}
-					else {
+						else if (stringsMatch(buffer, "sunset")) {
+							gameState->bgTex = createTextureFromData(&gameState->sunsetCityBg, gameState->renderGroup);
+							gameState->mgTex = createTextureFromData(&gameState->sunsetCityMg, gameState->renderGroup);
+						}
+						else {
 						//NOTE: This means that there was an invalid background type
-						InvalidCodePath;
+							InvalidCodePath;
+						}
+
+						addBackground(gameState);
 					}
+					else if (stringsMatch(buffer, "laser base")) {
+						fgets(line, sizeof(line), file);
+						fgets(line, sizeof(line), file);
+						extractStringFromLine(line, lineLength, "value", buffer, arrayCount(buffer));
+						double height = atof(buffer);
 
-					addBackground(gameState);
-				}
-				else if (stringsMatch(buffer, "laser base")) {
-					fgets(line, sizeof(line), file);
-					fgets(line, sizeof(line), file);
-					extractStringFromLine(line, lineLength, "value", buffer, arrayCount(buffer));
-					double height = atof(buffer);
-
-					addLaserController(gameState, p, height);
+						addLaserController(gameState, p, height);
+					}
 				}
 			}
 		}
-	}
 
-	fclose(file);
+		fclose(file);
 
 	// if (gameState->solidGrid) {
 	// 	for (int rowIndex = 0; rowIndex < gameState->solidGridWidth; rowIndex++) {
@@ -273,47 +273,47 @@ void loadTmxMap(GameState* gameState, char* fileName) {
 	// }
 
 	//NOTE: This sets up the pathfinding array
-	{
+		{
 		//TODO: This can probably just persist for one frame, not the entire level
-		gameState->solidGridWidth = (s32)ceil(gameState->mapSize.x / gameState->solidGridSquareSize);
-		gameState->solidGridHeight = (s32)ceil(gameState->windowSize.y / gameState->solidGridSquareSize);
+			gameState->solidGridWidth = (s32)ceil(gameState->mapSize.x / gameState->solidGridSquareSize);
+			gameState->solidGridHeight = (s32)ceil(gameState->windowSize.y / gameState->solidGridSquareSize);
 
-		s32 numNodes = gameState->solidGridWidth * gameState->solidGridHeight;
-		gameState->solidGrid = pushArray(&gameState->levelStorage, PathNode, numNodes);
-				
-		for (s32 rowIndex = 0; rowIndex < gameState->solidGridWidth; rowIndex++) {
-		 	for (s32 colIndex = 0; colIndex < gameState->solidGridHeight; colIndex++) {
-		 		PathNode* node = gameState->solidGrid + rowIndex * gameState->solidGridHeight + colIndex;
+			s32 numNodes = gameState->solidGridWidth * gameState->solidGridHeight;
+			gameState->solidGrid = pushArray(&gameState->levelStorage, PathNode, numNodes);
 
-				node->p = v2(rowIndex + 0.5, colIndex + 0.5) * gameState->solidGridSquareSize;
-				node->tileX = rowIndex;
-				node->tileY = colIndex;
-		 	}
-		 }
-	}
-}
+			for (s32 rowIndex = 0; rowIndex < gameState->solidGridWidth; rowIndex++) {
+				for (s32 colIndex = 0; colIndex < gameState->solidGridHeight; colIndex++) {
+					PathNode* node = gameState->solidGrid + rowIndex * gameState->solidGridHeight + colIndex;
 
-void freeLevel(GameState* gameState) {
-	gameState->targetRefs = NULL;
-	gameState->consoleEntityRef = 0;
-	gameState->playerRef = 0;
-
-	for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-		freeEntity(gameState->entities + entityIndex, gameState, true);
+					node->p = v2(rowIndex + 0.5, colIndex + 0.5) * gameState->solidGridSquareSize;
+					node->tileX = rowIndex;
+					node->tileY = colIndex;
+				}
+			}
+		}
 	}
 
-	gameState->numEntities = 0;
-	gameState->fieldSpec.blueEnergy = 0;
+	void freeLevel(GameState* gameState) {
+		gameState->targetRefs = NULL;
+		gameState->consoleEntityRef = 0;
+		gameState->playerRef = 0;
 
-	for (s32 refIndex = 0; refIndex < arrayCount(gameState->entityRefs_); refIndex++) {
+		for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+			freeEntity(gameState->entities + entityIndex, gameState, true);
+		}
+
+		gameState->numEntities = 0;
+		gameState->fieldSpec.hackEnergy = 0;
+
+		for (s32 refIndex = 0; refIndex < arrayCount(gameState->entityRefs_); refIndex++) {
 		//freeEntityReference(gameState->entityRefs_ + refIndex, gameState);
-		EntityReference* reference = gameState->entityRefs_ + refIndex;
-		*reference = {};
-	}
+			EntityReference* reference = gameState->entityRefs_ + refIndex;
+			*reference = {};
+		}
 
-	if (gameState->swapField) freeConsoleField(gameState->swapField, gameState);
+		if (gameState->swapField) freeConsoleField(gameState->swapField, gameState);
 
-	gameState->entityRefFreeList = NULL;
+		gameState->entityRefFreeList = NULL;
 	gameState->refCount = 1; //NOTE: This is for the null reference
 
 	gameState->consoleFreeList = NULL;
@@ -526,14 +526,14 @@ void initMusic() {
 	}
 
 	if (Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 1024) < 0) {
-	    fprintf(stderr, "Error initializing SDL_mixer: %s\n", Mix_GetError());
-	  	InvalidCodePath;
+		fprintf(stderr, "Error initializing SDL_mixer: %s\n", Mix_GetError());
+		InvalidCodePath;
 	}
 
 	Mix_Music* music = Mix_LoadMUS("res/hackformer_theme.mp3");
 	if(!music) {
-	    fprintf(stderr, "Error loading music: %s\n", Mix_GetError());
-	  	InvalidCodePath;
+		fprintf(stderr, "Error loading music: %s\n", Mix_GetError());
+		InvalidCodePath;
 	}
 
 	Mix_PlayMusic(music, -1); //loop forever
@@ -564,8 +564,8 @@ GameState* createGameState(s32 windowWidth, s32 windowHeight) {
 	gameState->characterAnimDataCount = 1; //NOTE: 0 is a null character data
 
 	gameState->renderGroup = createRenderGroup(32 * 1024, &gameState->permanentStorage, gameState->pixelsPerMeter, 
-												gameState->windowWidth, gameState->windowHeight, &gameState->camera,
-												gameState->textureData, &gameState->textureDataCount);
+		gameState->windowWidth, gameState->windowHeight, &gameState->camera,
+		gameState->textureData, &gameState->textureDataCount);
 
 	initInputKeyCodes(&gameState->input);
 
@@ -723,7 +723,7 @@ int main(int argc, char* argv[]) {
 	gameState->marineCityBg = loadPNGTexture(renderGroup, "backgrounds/marine_city_bg", false);
 	gameState->marineCityMg = loadPNGTexture(renderGroup, "backgrounds/marine_city_mg", false);
 
-	gameState->blueEnergyTex = loadTexture(renderGroup, "blue_energy", false);
+	gameState->hackEnergyAnim = loadAnimation(gameState, "energy_animation", 173, 172, 0.08f, true);
 	gameState->laserBolt = loadTexture(renderGroup, "virus1/laser_bolt", false);
 	gameState->endPortal = loadTexture(renderGroup, "end_portal");
 
@@ -867,10 +867,10 @@ int main(int argc, char* argv[]) {
 			pushTexture(renderGroup, &dock->dockTex, dockBounds, false, DrawOrder_gui, false);
 
 			s32 maxEnergy = 100;
-			if(gameState->fieldSpec.blueEnergy > maxEnergy) gameState->fieldSpec.blueEnergy = maxEnergy;
-			else if(gameState->fieldSpec.blueEnergy < 0) gameState->fieldSpec.blueEnergy = 0;
+			if(gameState->fieldSpec.hackEnergy > maxEnergy) gameState->fieldSpec.hackEnergy = maxEnergy;
+			else if(gameState->fieldSpec.hackEnergy < 0) gameState->fieldSpec.hackEnergy = 0;
 
-			int energy = gameState->fieldSpec.blueEnergy;
+			int energy = gameState->fieldSpec.hackEnergy;
 
 			char energyStr[25];
 			sprintf(energyStr, "%d", energy);
@@ -886,7 +886,7 @@ int main(int argc, char* argv[]) {
 
 			double energyBarPercentage = (double)energy / (double)maxEnergy;
 			pushFilledStencil(renderGroup, &dock->energyBarStencil, energyBarBounds, energyBarPercentage, energyColor);
-		
+
 
 			bool clickHandled = updateConsole(gameState, dtForFrame);
 
@@ -955,7 +955,7 @@ int main(int argc, char* argv[]) {
 
 			if(gameState->screenType == ScreenType_pause) {
 				drawAnimatedBackground(gameState, &pauseMenu->background, &pauseMenu->backgroundAnim, pauseMenu->animCounter);				
-			
+
 				if (updateAndDrawButton(&pauseMenu->quit, renderGroup, &oldInput, unpausedDtForFrame)) {
 					running = false;
 				}
@@ -1011,7 +1011,7 @@ int main(int argc, char* argv[]) {
 
 					V2 minCameraP = -gameState->windowSize;
 					V2 maxCameraP = maxComponents(gameState->mapSize, gameState->windowSize);
- 
+
 					V2 delta = normalize(movement) * movementSpeed;
 					camera->newP = clampToRect(camera->p + delta, r2(minCameraP, maxCameraP));
 					camera->moveToTarget = false;
@@ -1061,27 +1061,27 @@ int main(int argc, char* argv[]) {
 			}
 
 			if (input->x.justPressed) {
-				gameState->fieldSpec.blueEnergy += 10;
+				gameState->fieldSpec.hackEnergy += 10;
 			}
 		}
 
 		{ //NOTE: This reloads the game
 			bool resetLevel = !getEntityByRef(gameState, gameState->playerDeathRef) &&
-							  (!getEntityByRef(gameState, gameState->playerRef) || input->r.justPressed || levelResetRequested);
+			(!getEntityByRef(gameState, gameState->playerRef) || input->r.justPressed || levelResetRequested);
 
 			
 			if (gameState->loadNextLevel || 
 				resetLevel) {
 				loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, true);
-			}
 		}
-
-		if(gameState->screenType == ScreenType_pause) {
-			gameState->input = oldInput;
-		}
-
-		SDL_GL_SwapWindow(window);
 	}
 
-	return 0;
+	if(gameState->screenType == ScreenType_pause) {
+		gameState->input = oldInput;
+	}
+
+	SDL_GL_SwapWindow(window);
+}
+
+return 0;
 }
