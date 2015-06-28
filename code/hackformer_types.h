@@ -109,13 +109,14 @@ MemoryArena createArena(size_t size, bool clearToZero) {
 #define pushArray(arena, type, count) (type*)pushIntoArena_(arena, count * sizeof(type))
 #define pushStruct(arena, type) (type*)pushIntoArena_(arena, sizeof(type))
 #define pushSize(arena, size) pushIntoArena_(arena, size);
-#define pushElem(arena, type, value) {void* valuePtr = pushIntoArena_(arena, sizeof(type)); *(type*)valuePtr = value;}
+#define pushElem(arena, type, value) {*(type*)pushIntoArena_(arena, sizeof(type)) = value;}
 
 void* pushIntoArena_(MemoryArena* arena, size_t amt) {
+	void* result = (char*)arena->base + arena->allocated;
+
 	arena->allocated += amt;
 	assert(arena->allocated < arena->size);
 
-	void* result = (char*)arena->base + arena->allocated - amt;
 	return result;
 }
 

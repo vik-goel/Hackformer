@@ -782,11 +782,25 @@ void saveEntityToArena(MemoryArena* arena, Entity* entity) {
 // 	}
 // } 
 
-#define MAX_HACK_UNDOS 3
+SaveReference* getSaveReference(MemoryArena* arena, s32 saveIndex) {
+	SaveMemoryHeader* header = (SaveMemoryHeader*)arena->base;
+	SaveReference* result = header->saves + saveIndex;
+	return result;
+}
 
-void* getSaveStartPtr(MemoryArena* arena, s32 saveIndex) {
-	void** resultLocation = (void**)((char*)arena->base + sizeof(s32) + saveIndex * sizeof(void*));
-	void* result = *resultLocation;
+s32 getSlotIndex(s32 saveIndex) {
+	assert(saveIndex >= 0);
+
+	s32 result = 0;
+
+	if(saveIndex == 1) {
+		//The first save should be the same as the 0th save
+		result = 0;
+	}
+	else if(saveIndex > 1) {
+		result = (saveIndex - 1) % (MAX_HACK_UNDOS - 1) + 1;
+	}
+
 	return result;
 }
 
@@ -796,14 +810,34 @@ void updateSaveGameToArena(GameState* gameState) {
 	s32* numSaveGamesPtr = (s32*)arena->base;
 	*numSaveGamesPtr = *numSaveGamesPtr + 1;
 
-	s32 numSaveGames = *numSaveGamesPtr;
-	numSaveGames--; //Want to 0 index the save games
+	s32 numSaveGames = *numSaveGamesPtr - 1; //Want to 0 index the save games
 
-	//TODO: Overwrite old saves if necessary?
-	assert(numSaveGames < MAX_HACK_UNDOS);
+	if(numSaveGames == 1) {
+		//Since we do the save before any changes are made, the first save would be identical to the 
+		//0th save. 
+		return;
+	}
 
-	void** saveGamePtr = (void**)((char*)arena->base + sizeof(s32) + numSaveGames * sizeof(void*));
-	*saveGamePtr = (char*)arena->base + arena->allocated;
+	SaveReference* saveGameReference = getSaveReference(arena, getSlotIndex(numSaveGames));
+
+	s32 slotIndex = numSaveGames;
+	size_t totalAllocated = 0;
+	size_t oldAllocated = arena->allocated;
+
+	if(numSaveGames >= MAX_HACK_UNDOS) {
+		//NOTE: Can't just directly go to the savePtr corresponding to slotIndex
+		//		because it may have been corrupted by the last write. Instead, we 
+		//		go to the last write and advance by its size to find out where we should be. 
+		SaveReference* oneMinusSlotIndexSave = getSaveReference(arena, slotIndex - 1);
+		void* saveStart = (char*)oneMinusSlotIndexSave->save + oneMinusSlotIndexSave->size;
+
+		totalAllocated = arena->allocated;
+		oldAllocated = arena->allocated = (size_t)saveStart - (size_t)arena->base;
+	}
+
+	//NOTE: Update the save game ptr table
+	saveGameReference->save = (char*)arena->base + arena->allocated;
+	saveGameReference->index = numSaveGames;
 
 	pushElem(arena, s32, gameState->fieldSpec.hackEnergy);
 	pushElem(arena, V2, gameState->gravity);
@@ -835,6 +869,24 @@ void updateSaveGameToArena(GameState* gameState) {
 		Entity* entity = gameState->entities + entityIndex;
 		saveEntityToArena(arena, entity);
 	}
+
+	saveGameReference->size = arena->allocated - oldAllocated;
+
+	if(totalAllocated > 0) {
+		size_t arenaLimit = (size_t)arena->base + arena->allocated;
+
+		for(s32 checkIndex = slotIndex; checkIndex < MAX_HACK_UNDOS; checkIndex++) {
+			SaveReference* checkReference = getSaveReference(arena, checkIndex);
+
+			if((size_t)checkReference->save < arenaLimit) {
+				*checkReference = {};
+			} else {
+				break;
+			}
+		}
+
+		arena->allocated = totalAllocated;
+	}
 }
 
 void saveGameToArena(GameState* gameState) {
@@ -865,6 +917,10 @@ void readConsoleFieldFromArena(void** readPtr, ConsoleField** fieldPtr, GameStat
 		assert(field);
 
 		*field = *(ConsoleField*)read;
+
+		clearFlags(field, ConsoleFlag_selected);
+		field->offs = v2(0, 0);
+
 		*readPtr = (ConsoleField*)read + 1;
 
 		for(s32 fieldIndex = 0; fieldIndex < field->numChildren; fieldIndex++) {
@@ -930,7 +986,7 @@ void readGameFromArena(GameState* gameState, void* readPtr) {
 
 void loadGameFromArena(GameState* gameState) {
 	MemoryArena* arena = &gameState->hackSaveStorage;
-	void* readPtr = getSaveStartPtr(arena, 0);
+	void* readPtr = getSaveReference(arena, 0)->save;
 	readGameFromArena(gameState, readPtr);	
 }
 
@@ -939,11 +995,21 @@ void undoLastSaveGameFromArena(GameState* gameState) {
 	MemoryArena* arena = &gameState->hackSaveStorage;
 
 	s32* numSaveGamesPtr = (s32*)arena->base;
+	s32 numSaveGames = *numSaveGamesPtr - 1;
 
-	if(*numSaveGamesPtr > 1) {
-		void* lastSavePtr = getSaveStartPtr(arena, *numSaveGamesPtr - 2);
-		readGameFromArena(gameState, lastSavePtr);
-		*numSaveGamesPtr = *numSaveGamesPtr - 1;
+	if(numSaveGames > 0) {
+		s32 slotIndex = getSlotIndex(numSaveGames);
+		SaveReference* lastSaveReference = getSaveReference(arena, slotIndex);
+
+		bool acceptableReference = numSaveGames == lastSaveReference->index && lastSaveReference->save;
+
+		//they should be the same
+		if(numSaveGames == 1) acceptableReference |= lastSaveReference->index == 0;
+
+		if(acceptableReference) {
+			readGameFromArena(gameState, lastSaveReference->save);
+			*numSaveGamesPtr = *numSaveGamesPtr - 1;
+		}
 	}
 }
 
@@ -954,7 +1020,7 @@ s32 getEnergyLoss(GameState* gameState) {
 		MemoryArena* arena = &gameState->hackSaveStorage;
 		assert(arena->allocated);
 
-		s32 oldEnergy = *(s32*)getSaveStartPtr(arena, 0);
+		s32 oldEnergy = *((s32*)getSaveReference(arena, 0)->save);
 		s32 newEnergy = gameState->fieldSpec.hackEnergy;
 		result = oldEnergy - newEnergy;
 	}

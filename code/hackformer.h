@@ -66,6 +66,7 @@ struct Input;
 #include "hackformer_renderer.h"
 #include "hackformer_consoleField.h"
 #include "hackformer_entity.h"
+#include "hackformer_save.h"
 
 #define SHOW_COLLISION_BOUNDS 0
 #define SHOW_CLICK_BOUNDS 0
@@ -251,13 +252,6 @@ void setCameraTarget(Camera* camera, V2 target) {
 
 void initSpatialPartition(GameState* gameState);
 
-void saveGame(GameState* gameState, char* fileName);
-void loadGame(GameState* gameState, char* fileName);
-void saveGameToArena(GameState* gameState);
-void loadGameFromArena(GameState* gameState);
-void updateSaveGameToArena(GameState* gameState);
-void undoLastSaveGameFromArena(GameState* gameState);
-s32  getEnergyLoss(GameState* gameState);
 
 bool inGame(GameState* gameState) {
 	bool result = gameState->screenType == ScreenType_game || 

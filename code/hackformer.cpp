@@ -547,7 +547,7 @@ GameState* createGameState(s32 windowWidth, s32 windowHeight) {
 	gameState->permanentStorage = arena_;
 
 	gameState->levelStorage = createArena(8 * 1024 * 1024, false);
-	gameState->hackSaveStorage = createArena(256 * 1024, false);
+	gameState->hackSaveStorage = createArena(12 * 1024 * 1024, false);
 
 	gameState->pixelsPerMeter = TEMP_PIXELS_PER_METER;
 	gameState->windowWidth = windowWidth;
