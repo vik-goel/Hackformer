@@ -10,7 +10,7 @@ V2 unprojectP(Camera* camera, V2 p) {
 void moveCamera(Input* input, Camera* camera, V2 gameWindowSize) {
 	if(input->mouseScroll) {
 		double minScale = 0.25;
-		double maxScale = 4.0;
+		double maxScale = 1.5;
 		double scrollPerNotch = 0.2 * camera->scale;
 
 		double requestedScale = camera->scale + input->mouseScroll * scrollPerNotch;
@@ -129,8 +129,8 @@ int main(int argc, char* argv[]) {
 	double dashSize = 0.1;
 	double spaceSize = 0.05;
 
-	V2 tileSize = v2(1, 1.1) * TILE_SIZE_IN_METERS;
-	V2 gridSize = v2(1, 1) * TILE_SIZE_IN_METERS;
+	V2 tileSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_IN_METERS);
+	V2 gridSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS);
 
 	double metersPerPixel = 1.0 / renderGroup->pixelsPerMeter;
 	V2 gameWindowSize = metersPerPixel * v2(windowWidth - panelWidth, windowHeight);
@@ -163,8 +163,10 @@ int main(int argc, char* argv[]) {
 	s32 selectedEntitySpecIndex = 0;
 	Entity* movingEntity = NULL;
 
+	BackgroundTextures backgroundTextures;
+	initBackgroundTextures(&backgroundTextures);
 
-	char* saveFileName = "edit_save.txt";
+	char* saveFileName = "maps/edit.hack";
 
 	FILE* file = fopen(saveFileName, "r");
 
@@ -175,6 +177,8 @@ int main(int argc, char* argv[]) {
 	if(file) {
 		mapWidthInTiles = readS32(file);
 		mapHeightInTiles = readS32(file);
+
+		setBackgroundTexture(&backgroundTextures, (BackgroundType)readS32(file), renderGroup);
 
 		tiles = pushArray(&arena, s32, mapHeightInTiles * mapWidthInTiles);
 
@@ -213,6 +217,8 @@ int main(int argc, char* argv[]) {
 		mapWidthInTiles = 60;
 		mapHeightInTiles = 12;
 
+		setBackgroundTexture(&backgroundTextures, Background_marine, renderGroup);
+
 		tiles = pushArray(&arena, s32, mapHeightInTiles * mapWidthInTiles);
 
 		for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
@@ -221,6 +227,8 @@ int main(int argc, char* argv[]) {
 			}
 		}
 	}
+
+	bool32 gridVisible = true;
 
 	while(running) {
 		pollInput(&input, &running, windowHeight, TEMP_PIXELS_PER_METER, &camera);
@@ -236,19 +244,43 @@ int main(int argc, char* argv[]) {
 		pushFilledRect(renderGroup, renderGroup->windowBounds, createColor(150, 150, 150, 255));
 		camera.scale = oldScale;
 
-		for(s32 rowIndex = 0; rowIndex <= mapHeightInTiles; rowIndex++) {
-			V2 lineStart = v2(0, gridSize.y * rowIndex);
-			V2 lineEnd = v2(mapWidthInTiles * gridSize.x, lineStart.y);
-
-			drawScaledLine(renderGroup, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, &camera);
+		if(camera.scale == 1) {
+			BackgroundTexture* backgroundTexture = getBackgroundTexture(&backgroundTextures);
+			drawBackgroundTexture(backgroundTexture, renderGroup, &camera, gameWindowSize, mapWidthInTiles * tileSize.x);
 		}
 
-		for(s32 colIndex = 0; colIndex <= mapWidthInTiles; colIndex++) {
-			V2 lineStart = v2(gridSize.x * colIndex, 0);
-			V2 lineEnd = v2(lineStart.x, mapHeightInTiles * gridSize.y);
+		if(gridVisible) {
+			for(s32 rowIndex = 0; rowIndex <= mapHeightInTiles; rowIndex++) {
+				V2 lineStart = v2(0, gridSize.y * rowIndex);
+				V2 lineEnd = v2(mapWidthInTiles * gridSize.x, lineStart.y);
 
-			drawScaledLine(renderGroup, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, &camera);
+				drawScaledLine(renderGroup, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, &camera);
+			}
+
+			for(s32 colIndex = 0; colIndex <= mapWidthInTiles; colIndex++) {
+				V2 lineStart = v2(gridSize.x * colIndex, 0);
+				V2 lineEnd = v2(lineStart.x, mapHeightInTiles * gridSize.y);
+
+				drawScaledLine(renderGroup, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, &camera);
+			}
 		}
+
+		if(input.z.justPressed) {
+			gridVisible = !gridVisible;
+		}
+
+		if(input.c.justPressed) {
+			camera.scale = 1;
+			oldScale = 1;
+		}
+
+		if(input.num[1].justPressed) {
+			setBackgroundTexture(&backgroundTextures, Background_marine, renderGroup);
+		}
+		if(input.num[2].justPressed) {
+			setBackgroundTexture(&backgroundTextures, Background_sunset, renderGroup);
+		}
+
 
 		for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
 			for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
@@ -429,6 +461,8 @@ int main(int argc, char* argv[]) {
 
 			writeS32(file, mapWidthInTiles);
 			writeS32(file, mapHeightInTiles);
+
+			writeS32(file, backgroundTextures.curBackgroundType);
 
 			for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
 				for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {

@@ -195,7 +195,7 @@ struct GameState {
 	V2 chunkSize;
 
 	double shootDelay;
-	double tileSize;
+	V2 tileSize;
 	V2 mapSize;
 	V2 worldSize;
 
@@ -215,9 +215,7 @@ struct GameState {
 	CharacterAnim virus1Anim;
 	CharacterAnim flyingVirusAnim;
 
-	Texture bgTex, mgTex;
-	TextureData sunsetCityBg, sunsetCityMg;
-	TextureData marineCityBg, marineCityMg;
+	BackgroundTextures backgroundTextures;
 
 	Animation hackEnergyAnim;
 	Texture laserBolt;

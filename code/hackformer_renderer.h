@@ -1,24 +1,4 @@
-#define WHITE (createColor(255, 255, 255, 255))
-#define RED (createColor(255, 0, 0, 255))
-#define GREEN (createColor(0, 255, 0, 255))
-#define BLUE (createColor(0, 0, 255, 255))
-#define YELLOW (createColor(255, 255, 0, 255))
-#define MAGENTA (createColor(255, 0, 255, 255))
-#define BLACK (createColor(0, 0, 0, 255))
 
-struct Texture {
-	s32 dataIndex;
-};
-
-struct TextureData {
-	GLuint texId;
-	GLuint normalId;
-	R2 uv;
-	V2 size;
-
-	char fileName[128];
-	bool32 hasFileName;
-};
 
 struct Animation {
 	s32 numFrames;
@@ -82,10 +62,6 @@ enum DrawType {
 	DrawType_RenderFilledStencil,
 };
 
-struct Color {
-	u8 r, g, b, a;
-};
-
 struct PointLight {
 	V3 p;
 	V3 color;
@@ -131,15 +107,6 @@ struct ForwardShader {
 	SpotLightUniforms spotLightUniforms[8];
 };
 
-
-enum Orientation {
-	Orientation_0,
-	Orientation_90,
-	Orientation_180,
-	Orientation_270,
-
-	Orientation_count
-};
 
 
 #define RENDER_HEADER_CLIP_RECT_FLAG (1 << 15)

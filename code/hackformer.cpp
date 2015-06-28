@@ -71,249 +71,112 @@ void initSpatialPartition(GameState* gameState) {
 	memset(gameState->chunks, 0, numChunks * sizeof(EntityChunk));
 }
 
-void loadTmxMap(GameState* gameState, char* fileName) {
-	FILE* file = fopen(fileName, "r");
+void loadHackMap(GameState* gameState, char* fileName) {
+	char filePath[2000];
+	assert(strlen(fileName) < arrayCount(filePath) - 100);
+	sprintf(filePath, "maps/%s", fileName);
+
+	FILE* file = fopen(filePath, "r");
 	assert(file);
 
-	s32 mapWidthTiles, mapHeightTiles;
-	bool foundMapSizeTiles = false;
+	s32 mapWidthInTiles = readS32(file);
+	s32 mapHeightInTiles = readS32(file);
 
-	//int tileWidth, tileHeight, tileSpacing;
-	//bool foundTilesetInfo = false;
-	//Texture* textures = NULL;
-	//uint numTextures;
+	BackgroundType bgType = (BackgroundType)readS32(file);
+	setBackgroundTexture(&gameState->backgroundTextures, bgType, gameState->renderGroup);
+	addBackground(gameState);
 
-	bool loadingTileData = false;
-	bool doneLoadingTiles = false;
-	s32 tileX, tileY;
+	V2 tileSize = v2(gameState->tileSize.x, TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS);
 
-	char line[1024];
-	char buffer[1024];
+	gameState->mapSize = hadamard(v2(mapWidthInTiles, mapHeightInTiles), tileSize);
+	gameState->worldSize = maxComponents(gameState->mapSize, gameState->windowSize);
 
-	while (fgets (line, sizeof(line), file)) {
-		s32 lineLength = strlen(line);
+	initSpatialPartition(gameState);
 
-		if (!foundMapSizeTiles) {
-			if (extractS32FromLine(line, lineLength, "width", &mapWidthTiles)) {
-				extractS32FromLine(line, lineLength, "height", &mapHeightTiles);
-				foundMapSizeTiles = true;
+	//TODO: Ensure this is only loaded once!
+	gameState->tileAtlasCount = arrayCount(globalTileFileNames);
+	gameState->tileAtlas = pushArray(&gameState->permanentStorage, Texture, gameState->tileAtlasCount);
 
-				gameState->mapSize = v2((double)mapWidthTiles, (double)mapHeightTiles) * gameState->tileSize;
-				gameState->worldSize = v2(max(gameState->mapSize.x, gameState->windowWidth), 
-					max(gameState->mapSize.y, gameState->windowHeight));
+	for(s32 tileIndex = 0; tileIndex < gameState->tileAtlasCount; tileIndex++) {
+		char fileName[2000];
+		sprintf(fileName, "tiles/%s", globalTileFileNames[tileIndex]);
 
+		gameState->tileAtlas[tileIndex] = loadTexture(gameState->renderGroup, fileName, false);
+	}
 
-				initSpatialPartition(gameState);
-			}
-		}
-		// else if(!foundTilesetInfo) {
-		// 	if (extractIntFromLine(line, lineLength, "tilewidth", &tileWidth)) {
-		// 		extractIntFromLine(line, lineLength, "tileheight", &tileHeight);
-		// 		extractIntFromLine(line, lineLength, "spacing", &tileSpacing);
-		// 		foundTilesetInfo = true;
-		// 	}
-		// }
-		// else if(textures == NULL) {
-		// 	if (extractStringFromLine(line, lineLength, "image source", buffer, arrayCount(buffer))) {
-		// 		int texWidth = 0, texHeight = 0;
-		// 		textures = extractTextures(gameState, buffer, tileWidth, tileHeight, tileSpacing, &numTextures );
-		// 	}
-		// }
-		else if(!loadingTileData && !doneLoadingTiles) {
-			char* beginLoadingStr = "<data encoding=\"csv\">";
-			if (findFirstStringOccurrence(line, lineLength, beginLoadingStr, strlen(beginLoadingStr))) {
-				loadingTileData = true;
-				tileX = 0;
-				tileY = mapHeightTiles - 1;
-			}
-		}
-		else if(loadingTileData) {
-			char* endLoadingStr = "</data>";
-			if (findFirstStringOccurrence(line, lineLength, endLoadingStr, strlen(endLoadingStr))) {
-				loadingTileData = false;
-				doneLoadingTiles = true;
-			} else {
-				char* linePtr = line;
-				tileX = 0;
+	for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
+		for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
+			s32 tileIndex = readS32(file);
 
-				while(*linePtr) {
-					s32 tileIndex = atoi(linePtr) - 1;
-
-					if (tileIndex >= 0) {
-						V2 tileP = v2(tileX + 0.5, tileY + 0.5) * gameState->tileSize;
-						addTile(gameState, tileP, gameState->tileAtlas[tileIndex]);
-					}
-
-					tileX++;
-
-					while(*linePtr && *linePtr != ',') linePtr++;
-					linePtr++;
-				}
-
-				tileY--;
-			}
-		}
-		else if (doneLoadingTiles) {
-			if (extractStringFromLine(line, lineLength, "name", buffer, arrayCount(buffer))) {
-				s32 entityX, entityY;
-				extractS32FromLine(line, lineLength, "\" x", &entityX);
-				extractS32FromLine(line, lineLength, "\" y", &entityY);
-
-				V2 p = v2((double)entityX, (double)entityY) * (gameState->tileSize / 120.0);
-				p.y = gameState->windowHeight / gameState->pixelsPerMeter - p.y;
-
-				if (stringsMatch(buffer, "player")) {
-					addPlayer(gameState, p);
-				}
-				else if (stringsMatch(buffer, "blue energy")) {
-					addHackEnergy(gameState, p);
-				}
-				else if (stringsMatch(buffer, "virus")) {
-					addVirus(gameState, p);
-				}
-				else if (stringsMatch(buffer, "end portal")) {
-					addEndPortal(gameState, p);
-				}
-				else if (stringsMatch(buffer, "flyer")) {
-					addFlyingVirus(gameState, p);
-				}
-				else if (stringsMatch(buffer, "text")) {
-					/*
-
-					  <object name="text" x="622" y="658" width="398" height="76">
-					   <properties>
-					    <property name="0" value="Good Luck!"/>
-					    <property name="1" value="Try not to die"/>
-					    <property name="2" value="Batman"/>
-					    <property name="selected index" value="0"/>
-					   </properties>
-
-					*/
-
-					   fgets(line, sizeof(line), file);
-
-					   s32 selectedIndex = -1;
-					   char values[10][100];
-					   s32 numValues = 0;
-
-					   while(true) {
-					   	fgets(line, sizeof(line), file);
-					   	if (stringsMatch(line, "   </properties>")) break;
-
-					   	extractStringFromLine(line, lineLength, "name", buffer, arrayCount(buffer));
-
-					   	bool selectedIndexString = false;
-					   	s32 valueIndex = -1;
-
-					   	if (stringsMatch(buffer, "selected index")) selectedIndexString = true;
-					   	else valueIndex = atoi(buffer);
-
-					   	extractStringFromLine(line, lineLength, "value", buffer, arrayCount(buffer));
-
-					   	if (selectedIndexString) {
-					   		selectedIndex = atoi(buffer);
-					   	} else {
-					   		assert(valueIndex >= 0);
-
-					   		if (valueIndex > numValues) numValues = valueIndex;
-
-					   		char* valuePtr = (char*)values[valueIndex];
-					   		char* bufferPtr = (char*)buffer;
-					   		while(*bufferPtr) {
-					   			*valuePtr++ = *bufferPtr++;
-					   		}
-					   		*valuePtr = 0;
-					   	}
-					   }
-
-					   assert(selectedIndex >= 0);
-					   addText(gameState, p, values, numValues, selectedIndex);
-					}
-					else if (stringsMatch(buffer, "background")) {
-						fgets(line, sizeof(line), file);
-						fgets(line, sizeof(line), file);
-						extractStringFromLine(line, lineLength, "value", buffer, arrayCount(buffer));
-
-						if (stringsMatch(buffer, "marine")) {
-							gameState->bgTex = createTextureFromData(&gameState->marineCityBg, gameState->renderGroup);
-							gameState->mgTex = createTextureFromData(&gameState->marineCityMg, gameState->renderGroup);
-						}
-						else if (stringsMatch(buffer, "sunset")) {
-							gameState->bgTex = createTextureFromData(&gameState->sunsetCityBg, gameState->renderGroup);
-							gameState->mgTex = createTextureFromData(&gameState->sunsetCityMg, gameState->renderGroup);
-						}
-						else {
-						//NOTE: This means that there was an invalid background type
-							InvalidCodePath;
-						}
-
-						addBackground(gameState);
-					}
-					else if (stringsMatch(buffer, "laser base")) {
-						fgets(line, sizeof(line), file);
-						fgets(line, sizeof(line), file);
-						extractStringFromLine(line, lineLength, "value", buffer, arrayCount(buffer));
-						double height = atof(buffer);
-
-						addLaserController(gameState, p, height);
-					}
-				}
-			}
-		}
-
-		fclose(file);
-
-	// if (gameState->solidGrid) {
-	// 	for (int rowIndex = 0; rowIndex < gameState->solidGridWidth; rowIndex++) {
-	// 		free(gameState->solidGrid[rowIndex]);
-	// 	}
-
-	// 	free(gameState->solidGrid);
-	// 	gameState->solidGrid = NULL;
-	// }
-
-	//NOTE: This sets up the pathfinding array
-		{
-		//TODO: This can probably just persist for one frame, not the entire level
-			gameState->solidGridWidth = (s32)ceil(gameState->mapSize.x / gameState->solidGridSquareSize);
-			gameState->solidGridHeight = (s32)ceil(gameState->windowSize.y / gameState->solidGridSquareSize);
-
-			s32 numNodes = gameState->solidGridWidth * gameState->solidGridHeight;
-			gameState->solidGrid = pushArray(&gameState->levelStorage, PathNode, numNodes);
-
-			for (s32 rowIndex = 0; rowIndex < gameState->solidGridWidth; rowIndex++) {
-				for (s32 colIndex = 0; colIndex < gameState->solidGridHeight; colIndex++) {
-					PathNode* node = gameState->solidGrid + rowIndex * gameState->solidGridHeight + colIndex;
-
-					node->p = v2(rowIndex + 0.5, colIndex + 0.5) * gameState->solidGridSquareSize;
-					node->tileX = rowIndex;
-					node->tileY = colIndex;
-				}
+			if(tileIndex >= 0) {
+				V2 tileP = hadamard(v2(tileX + 0.5, tileY + 0.5), tileSize);
+				addTile(gameState, tileP, gameState->tileAtlas[tileIndex]);
 			}
 		}
 	}
 
-	void freeLevel(GameState* gameState) {
-		gameState->targetRefs = NULL;
-		gameState->consoleEntityRef = 0;
-		gameState->playerRef = 0;
+	s32 numEntities = readS32(file);
 
-		for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-			freeEntity(gameState->entities + entityIndex, gameState, true);
+	for(s32 entityIndex = 0; entityIndex < numEntities; entityIndex++) {
+		EntityType entityType = (EntityType)readS32(file);
+		V2 p = readV2(file);
+
+		switch(entityType) {
+			case EntityType_player: {
+				addPlayer(gameState, p);
+			} break;
+
+			case EntityType_virus: {
+				addVirus(gameState, p);
+			} break;
+
+			case EntityType_flyingVirus: {
+				addFlyingVirus(gameState, p);
+			} break;
+
+
+			case EntityType_laserBase: {
+				//TODO: Load the height in from the file
+				double height = 4;
+				addLaserController(gameState, p, height);
+			} break;
+
+			case EntityType_hackEnergy: {
+				addHackEnergy(gameState, p);
+			} break;
+
+			case EntityType_endPortal: {
+				addEndPortal(gameState, p);
+			} break;
+
+			InvalidDefaultCase;
 		}
+	}
 
-		gameState->numEntities = 0;
-		gameState->fieldSpec.hackEnergy = 0;
+	fclose(file);
+}
 
-		for (s32 refIndex = 0; refIndex < arrayCount(gameState->entityRefs_); refIndex++) {
-		//freeEntityReference(gameState->entityRefs_ + refIndex, gameState);
-			EntityReference* reference = gameState->entityRefs_ + refIndex;
-			*reference = {};
-		}
+void freeLevel(GameState* gameState) {
+	gameState->targetRefs = NULL;
+	gameState->consoleEntityRef = 0;
+	gameState->playerRef = 0;
 
-		if (gameState->swapField) freeConsoleField(gameState->swapField, gameState);
+	for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+		freeEntity(gameState->entities + entityIndex, gameState, true);
+	}
 
-		gameState->entityRefFreeList = NULL;
+	gameState->numEntities = 0;
+	gameState->fieldSpec.hackEnergy = 0;
+
+	for (s32 refIndex = 0; refIndex < arrayCount(gameState->entityRefs_); refIndex++) {
+	//freeEntityReference(gameState->entityRefs_ + refIndex, gameState);
+		EntityReference* reference = gameState->entityRefs_ + refIndex;
+		*reference = {};
+	}
+
+	if (gameState->swapField) freeConsoleField(gameState->swapField, gameState);
+
+	gameState->entityRefFreeList = NULL;
 	gameState->refCount = 1; //NOTE: This is for the null reference
 
 	gameState->consoleFreeList = NULL;
@@ -352,7 +215,7 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 		gameState->timeField->p = v2(gameState->windowSize.x - 2.4, gameState->windowSize.y - topFieldYOffset);
 	}
 
-	loadTmxMap(gameState, maps[*mapFileIndex]);
+	loadHackMap(gameState, maps[*mapFileIndex]);
 	addFlyingVirus(gameState, v2(7, 6));
 	addHeavyTile(gameState, v2(3, 7));
 
@@ -556,7 +419,7 @@ GameState* createGameState(s32 windowWidth, s32 windowHeight) {
 
 	gameState->gravity = v2(0, -9.81f);
 	gameState->solidGridSquareSize = 0.1;
-	gameState->tileSize = TILE_SIZE_IN_METERS; 
+	gameState->tileSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_IN_METERS); 
 	gameState->chunkSize = v2(7, 7);
 
 	gameState->textureDataCount = 1; //NOTE: 0 is a null texture data
@@ -661,6 +524,8 @@ int main(int argc, char* argv[]) {
 
 	gameState->textFont = loadFont("fonts/Roboto-Regular.ttf", 64);
 
+	initBackgroundTextures(&gameState->backgroundTextures);
+
 	TextureData playerStand = loadPNGTexture(gameState->renderGroup, "player/stand2", false);
 	TextureData playerJump = loadPNGTexture(gameState->renderGroup, "player/jump3", false);
 	Animation playerStandJumpTransition = loadAnimation(gameState, "player/jump_transition", 256, 256, 0.025f, false);
@@ -718,11 +583,6 @@ int main(int argc, char* argv[]) {
 
 	gameState->flyingVirusAnim = createCharacterAnim(gameState, flyingVirusStandAnimNode, {}, flyingVirusShootAnimNode, {});
 
-	gameState->sunsetCityBg = loadPNGTexture(renderGroup, "backgrounds/sunset_city_bg", false);
-	gameState->sunsetCityMg = loadPNGTexture(renderGroup, "backgrounds/sunset_city_mg", false);
-	gameState->marineCityBg = loadPNGTexture(renderGroup, "backgrounds/marine_city_bg", false);
-	gameState->marineCityMg = loadPNGTexture(renderGroup, "backgrounds/marine_city_mg", false);
-
 	gameState->hackEnergyAnim = loadAnimation(gameState, "energy_animation", 173, 172, 0.08f, true);
 	gameState->laserBolt = loadTexture(renderGroup, "virus1/laser_bolt", false);
 	gameState->endPortal = loadTexture(renderGroup, "end_portal");
@@ -733,18 +593,19 @@ int main(int argc, char* argv[]) {
 	gameState->laserTopOn = loadTexture(renderGroup, "virus3/top_on", false);
 	gameState->laserBeam = loadTexture(renderGroup, "virus3/laser_beam", false);
 
-	gameState->heavyTileTex = loadTexture(renderGroup, "Heavy1");
-	gameState->tileAtlas = extractTextures(renderGroup, &gameState->permanentStorage, "tiles_floored", 120, 240, 12, &gameState->tileAtlasCount, true);
-
 	initFieldSpec(gameState);
 	initDock(gameState);
 	initPauseMenu(gameState);
 	initMainMenu(gameState);
 
+	// char* mapFileNames[] = {
+	// 	"map3.tmx",
+	// 	"map4.tmx",
+	// 	"map5.tmx",
+	// };
+
 	char* mapFileNames[] = {
-		"map3.tmx",
-		"map4.tmx",
-		"map5.tmx",
+		"edit.hack",
 	};
 
 	s32 mapFileIndex = 0;

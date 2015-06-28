@@ -60,6 +60,10 @@ void writeConsoleField(FILE* file, ConsoleField* field) {
 			}
 
 			writeDouble(file, field->waypointDelay);
+		} else if(field->type == ConsoleField_bobsVertically) {
+			writeDouble(file, field->bobHeight);
+			writeS32(file, field->bobbingUp);
+			writeS32(file, field->initialBob);
 		}
 
 		writeS32(file, field->selectedIndex);
@@ -227,8 +231,7 @@ void saveGame(GameState* gameState, char* fileName) {
 	writeCharacterAnim(file, gameState->virus1Anim);
 	writeCharacterAnim(file, gameState->flyingVirusAnim);
 
-	writeTexture(file, gameState->bgTex);
-	writeTexture(file, gameState->mgTex);
+	writeS32(file, gameState->backgroundTextures.curBackgroundType);
 	writeAnimation(file, &gameState->hackEnergyAnim);
 	writeTexture(file, gameState->laserBolt);
 	writeTexture(file, gameState->endPortal);
@@ -335,6 +338,10 @@ ConsoleField* readConsoleField(FILE* file, GameState* gameState) {
 			}
 
 			field->waypointDelay = readDouble(file);
+		} else if(field->type == ConsoleField_bobsVertically) {
+			field->bobHeight = readDouble(file);
+			field->bobbingUp = readS32(file);
+			field->initialBob = readS32(file);
 		}
 
 		field->selectedIndex = readS32(file);
@@ -564,8 +571,7 @@ void loadGame(GameState* gameState, char* fileName) {
 	gameState->virus1Anim = readCharacterAnim(file);
 	gameState->flyingVirusAnim = readCharacterAnim(file);
 
-	gameState->bgTex = readTexture(file);
-	gameState->mgTex = readTexture(file);
+	gameState->backgroundTextures.curBackgroundType = (BackgroundType)readS32(file);
 	gameState->hackEnergyAnim = readAnimation(file, gameState);
 	gameState->laserBolt = readTexture(file);
 	gameState->endPortal = readTexture(file);
@@ -680,61 +686,6 @@ void saveConsoleFieldToArena(MemoryArena* arena, ConsoleField* field) {
 	}
 }
 
-// enum ConsoleFieldChangeState {
-// 	CFCS_bothNull,
-// 	CFCS_newNull,
-// 	CFCS_oldNull,
-// 	CFCS_bothExist,
-// };
-
-// size_t saveConsoleFieldChangeToArena(MemoryArena* arena, ConsoleField* newField, void* oldFieldData) {
-// 	size_t sizeOfOldField = 0;
-
-// 	bool oldFieldExists = *(s32*)oldFieldData >= 0;
-// 	ConsoleFieldChangeState changeState;
-
-// 	if(newField) {
-// 		if(oldFieldExists) {
-// 			changeState = CFCS_bothExist;
-// 		} else {
-// 			changeState = CFCS_oldNull;
-// 		}
-// 	} else {
-// 		if(oldFieldExists) {
-// 			changeState = CFCS_newNull;
-// 		} else {
-// 			changeState = CFCS_bothNull;
-// 		}
-// 	}
-// 	pushElem(arena, ConsoleFieldChangeState, changeState);
-
-// 	if(changeState == CFCS_bothExist) {
-// 		ConsoleField* oldField = (ConsoleField*)oldFieldData;
-// 		sizeOfOldField += sizeof(ConsoleField);
-
-// 		u8* newFieldIter = (u8*)newField;
-// 		u8* oldFieldIter = (u8*)oldField;
-
-// 		for(s32 byteIndex = 0; byteIndex < sizeof(ConsoleField); byteIndex++) {
-// 			u8 newFieldByte = newFieldIter[byteIndex];
-// 			u8 oldFieldByte = oldFieldIter[byteIndex];
-
-// 			pushElem(arena, u8, newFieldByte ^ oldFieldByte);
-// 		}
-
-// 		//TODO: This doesn't handle the case where the new field has a different number of children from the old field
-
-// 		for(s32 childIndex = 0; childIndex < oldField->numChildren; childIndex++) {
-
-// 		}
-// 	}
-// 	else if(changeState == CFCS_newNull) {
-
-// 	}
-
-// 	return sizeOfOldField;
-// }
-
 void saveEntityToArena(MemoryArena* arena, Entity* entity) {
 	EntityHackSave* save = pushStruct(arena, EntityHackSave);
 
@@ -756,31 +707,6 @@ void saveEntityToArena(MemoryArena* arena, Entity* entity) {
 		saveConsoleFieldToArena(arena, entity->fields[fieldIndex]);
 	}
 }
-
-// void saveEntityChangeToArena(MemoryArena* arena, Entity* entity, EntityHackSave* oldSave) {
-// 	EntityHackSave* update = pushStruct(arena, EntityHackSave);
-
-// 	update->p = entity->p - oldSave->p;	
-// 	update->tileXOffset = entity->tileXOffset - oldSave->tileXOffset;	
-// 	update->tileYOffset = entity->tileYOffset - oldSave->tileYOffset;	
-
-// 	s32 entityMessagesSelectedIndex = entity->messages ? entity->messages->selectedIndex : -1;
-// 	update->messagesSelectedIndex = entityMessagesSelectedIndex - oldSave->messagesSelectedIndex;	
-
-// 	update->timeSinceLastOnGround = entity->timeSinceLastOnGround - oldSave->timeSinceLastOnGround;	
-// 	update->numFields = entity->numFields - oldSave->numFields;	
-
-// 	s32 numFieldsToSaveDeltas = min(entity->numFields, oldSave->numFields);
-
-// 	void* oldFieldData = oldSave + 1;
-// 	for(s32 fieldIndex = 0; fieldIndex < numFieldsToSaveDeltas; fieldIndex++) {
-// 		oldFieldData = (char*)oldFieldData + saveConsoleFieldChangeToArena(arena, entity->fields[fieldIndex], oldFieldData);
-// 	}
-
-// 	for(s32 fieldIndex = numFieldsToSaveDeltas; fieldIndex < entity->numFields; fieldIndex++) {
-// 		saveConsoleFieldToArena(arena, entity->fields[fieldIndex]);
-// 	}
-// } 
 
 SaveReference* getSaveReference(MemoryArena* arena, s32 saveIndex) {
 	SaveMemoryHeader* header = (SaveMemoryHeader*)arena->base;

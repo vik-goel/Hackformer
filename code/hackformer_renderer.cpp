@@ -223,7 +223,8 @@ void addFileName(TextureData* data, char* fileName) {
 	strcpy(data->fileName, fileName);
 }
 
-TextureData loadPNGTexture(RenderGroup* group, char* fileName, bool32 loadNormalMap = false, bool stencil = false) {
+//loadNormalMap, stencil are both false by default
+TextureData loadPNGTexture(RenderGroup* group, char* fileName, bool32 loadNormalMap, bool stencil) {
 	assert(strlen(fileName) < 400);
 
 	char diffuseFilePath[500];
@@ -488,17 +489,6 @@ Texture* getAnimationFrame(Animation* animation, double animTime) {
 }
 
 #endif
-
-Color createColor(u8 r, u8 g, u8 b, u8 a) {
-	Color result = {};
-
-	result.r = r;
-	result.g = g;
-	result.b = b;
-	result.a = a;
-
-	return result;
-}
 
 void setColor(RenderGroup* group, Color color) {
 	GLfloat r = (GLfloat)((color.r + 0.5) / 255.0);
@@ -1083,8 +1073,8 @@ void pushFilledStencil(RenderGroup* group, TextureData* stencil, R2 bounds, doub
 	}
 }
 
-void pushTexture(RenderGroup* group, TextureData* texture, R2 bounds, bool flipX, DrawOrder drawOrder, bool moveIntoCameraSpace = false,
-	 		Orientation orientation = Orientation_0, Color color = createColor(255, 255, 255, 255), float emissivity = 0) {
+void pushTexture(RenderGroup* group, TextureData* texture, R2 bounds, bool flipX, DrawOrder drawOrder, bool moveIntoCameraSpace,
+	 		Orientation orientation, Color color, float emissivity) {
 
 	assert(validTexture(texture));
 
@@ -1106,7 +1096,7 @@ void pushTexture(RenderGroup* group, TextureData* texture, R2 bounds, bool flipX
 }
 
 void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, DrawOrder drawOrder, bool moveIntoCameraSpace = false,
-	 		Orientation orientation = Orientation_0, Color color = createColor(255, 255, 255, 255), float emissivity = 0) {
+	 		Orientation orientation = Orientation_0, Color color = WHITE, float emissivity = 0) {
 	TextureData* texData = getTextureData(texture, group);
 	pushTexture(group, texData, bounds, flipX, drawOrder, moveIntoCameraSpace, orientation, color, emissivity);
 }

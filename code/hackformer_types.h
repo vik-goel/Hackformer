@@ -34,7 +34,9 @@ typedef int8_t bool8;
 #include "hackformer_math.h"
 
 #define TEMP_PIXELS_PER_METER 70.0f
-#define TILE_SIZE_IN_METERS 0.9f
+#define TILE_WIDTH_IN_METERS 0.9f
+#define TILE_HEIGHT_IN_METERS 1.035f
+#define TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS ((TILE_HEIGHT_IN_METERS) * (116.0 / 138.0))
 
 #define TEXTURE_DATA_COUNT 200
 #define ANIM_NODE_DATA_COUNT 20
@@ -75,6 +77,15 @@ enum DrawOrder {
 	DrawOrder_playerDeath,
 	DrawOrder_player,
 	DrawOrder_gui,
+};
+
+enum TileType {
+	Tile_basic1,
+	Tile_basic2,
+	Tile_basic3, 
+	Tile_delay,
+	Tile_disappear,
+	Tile_heavy,
 };
 
 static char* globalTileFileNames[] = {
@@ -137,7 +148,7 @@ struct Input {
 
 	union {
 		//NOTE: The number of keys in the array must always be equal to the number of keys in the struct below
-		Key keys[15];
+		Key keys[26];
 
 		//TODO: The members of this struct may not be packed such that they align perfectly with the array of keys
 		struct {
@@ -147,6 +158,7 @@ struct Input {
 			Key right;
 			Key r;
 			Key x;
+			Key c;
 			Key n;
 			Key m;
 			Key z;
@@ -156,6 +168,7 @@ struct Input {
 			Key pause;
 			Key leftMouse;
 			Key rightMouse;
+			Key num[10];
 		};
 	};
 
@@ -201,11 +214,27 @@ void initInputKeyCodes(Input* input) {
 
 	input->n.keyCode1 = SDLK_n;
 	input->m.keyCode1 = SDLK_m;
+	input->c.keyCode1 = SDLK_c;
 
 	input->esc.keyCode1 = SDLK_ESCAPE;
 
 	input->ctrl.keyCode1 = SDLK_RCTRL;
 	input->ctrl.keyCode2 = SDLK_LCTRL;
+
+	#define INIT_NUM_KEY(n){input->num[n].keyCode1 = SDLK_##n; input->num[n].keyCode2 = SDLK_KP_##n;}
+
+	INIT_NUM_KEY(0);
+	INIT_NUM_KEY(1);
+	INIT_NUM_KEY(2);
+	INIT_NUM_KEY(3);
+	INIT_NUM_KEY(4);
+	INIT_NUM_KEY(5);
+	INIT_NUM_KEY(6);
+	INIT_NUM_KEY(7);
+	INIT_NUM_KEY(8);
+	INIT_NUM_KEY(9);
+
+	#undef INIT_NUM_KEY
 }
 
 void pollInput(Input* input, bool* running, double windowHeight, double pixelsPerMeter, Camera* camera) {
@@ -477,4 +506,134 @@ SDL_Window* createWindow(s32 windowWidth, s32 windowHeight) {
 	}
 
 	return window;
+}
+
+struct Texture {
+	s32 dataIndex;
+};
+
+struct TextureData {
+	GLuint texId;
+	GLuint normalId;
+	R2 uv;
+	V2 size;
+
+	char fileName[128];
+	bool32 hasFileName;
+};
+
+enum BackgroundType {
+	Background_marine,
+	Background_sunset,
+
+	Background_count
+};
+
+struct BackgroundTexture {
+	char* bgTexPath;
+	char* mgTexPath;
+
+	TextureData bgData;
+	TextureData mgData;
+};
+
+struct BackgroundTextures {
+	BackgroundType curBackgroundType;
+	BackgroundTexture textures[Background_count];
+};
+
+void initBackgroundTexture(BackgroundTexture* texture, char* bgTexPath, char* mgTexPath) {
+	texture->bgTexPath = bgTexPath;
+	texture->mgTexPath = mgTexPath;
+
+	texture->bgData.texId = 0;
+	texture->mgData.texId = 0;
+}
+
+void initBackgroundTextures(BackgroundTextures* bgTextures) {
+	BackgroundTexture* bt = bgTextures->textures;
+
+	initBackgroundTexture(bt + Background_marine, "backgrounds/marine_city_bg", "backgrounds/marine_city_mg");
+	initBackgroundTexture(bt + Background_sunset, "backgrounds/sunset_city_bg", "backgrounds/sunset_city_mg");
+}
+
+struct RenderGroup;
+TextureData loadPNGTexture(RenderGroup*, char* , bool32 = false, bool = false);
+
+void setBackgroundTexture(BackgroundTextures* bgTextures, BackgroundType type, RenderGroup* group) {
+	BackgroundTexture* bt = bgTextures->textures + type;
+
+	if(!bt->bgData.texId) {
+		bt->bgData = loadPNGTexture(group, bt->bgTexPath);
+	}
+
+	if(!bt->mgData.texId) {
+		bt->mgData = loadPNGTexture(group, bt->mgTexPath);
+	}
+
+	bgTextures->curBackgroundType = type;
+}
+
+BackgroundTexture* getBackgroundTexture(BackgroundTextures* bt) {
+	BackgroundTexture* result = bt->textures + bt->curBackgroundType;
+	return result;
+}
+
+enum Orientation {
+	Orientation_0,
+	Orientation_90,
+	Orientation_180,
+	Orientation_270,
+
+	Orientation_count
+};
+
+struct Color {
+	u8 r, g, b, a;
+};
+
+#define WHITE (createColor(255, 255, 255, 255))
+#define RED (createColor(255, 0, 0, 255))
+#define GREEN (createColor(0, 255, 0, 255))
+#define BLUE (createColor(0, 0, 255, 255))
+#define YELLOW (createColor(255, 255, 0, 255))
+#define MAGENTA (createColor(255, 0, 255, 255))
+#define BLACK (createColor(0, 0, 0, 255))
+
+Color createColor(u8 r, u8 g, u8 b, u8 a) {
+	Color result = {};
+
+	result.r = r;
+	result.g = g;
+	result.b = b;
+	result.a = a;
+
+	return result;
+}
+
+void pushTexture(RenderGroup* group, TextureData* texture, R2 bounds, bool flipX, DrawOrder drawOrder, bool moveIntoCameraSpace = false,
+	 		Orientation orientation = Orientation_0, Color color = WHITE, float emissivity = 0);
+
+void drawBackgroundTexture(BackgroundTexture* backgroundTexture, RenderGroup* group, Camera* camera, V2 windowSize, double mapWidth) {
+	TextureData* bg = &backgroundTexture->bgData;
+	TextureData* mg = &backgroundTexture->mgData;
+
+	double bgTexWidth = (double)bg->size.x;
+	double mgTexWidth = (double)mg->size.x;
+	double mgTexHeight = (double)mg->size.y;
+
+	double bgScrollRate = bgTexWidth / mgTexWidth;
+
+	double bgHeight = windowSize.y;
+	double mgWidth = max(mapWidth, mgTexWidth);
+					
+	double bgWidth = mgWidth / bgScrollRate - 1;
+
+	double bgX = max(0, camera->p.x) * (1 -  bgScrollRate);
+
+	R2 bgBounds = r2(v2(bgX, 0), v2(bgWidth, bgHeight));
+	R2 mgBounds = r2(v2(0, 0), v2(mgWidth, bgHeight));
+
+	pushTexture(group, bg, translateRect(bgBounds, -camera->p), false, DrawOrder_background);
+	pushTexture(group, mg, translateRect(mgBounds, -camera->p), false, DrawOrder_middleground);
 }

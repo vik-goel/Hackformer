@@ -850,19 +850,15 @@ Entity* addBackground(GameState* gameState) {
 	return result;
 }
 
-void initTile(Entity* tile, GameState* gameState) {
-	setEntityP(tile, tile->p + v2(0, gameState->tileSize / 2), gameState);
+void initTile(Entity* tile, GameState* gameState, Texture texture) {
+	tile->renderSize = gameState->tileSize;
 
-	tile->renderSize = v2(gameState->tileSize, gameState->tileSize * 2);
-
-	double clickBoxHeight = tile->renderSize.x * 1.22;
-	double collisionHeight = tile->renderSize.x * 1.16;
+	double collisionHeight = tile->renderSize.y * 0.9;
 
 	giveEntityRectangularCollisionBounds(tile, gameState, 0, (collisionHeight - tile->renderSize.y) / 2, 
 										 tile->renderSize.x, collisionHeight);
 
-	tile->clickBox = rectCenterDiameter(v2(0, 0), v2(tile->renderSize.x, clickBoxHeight));
-	tile->clickBox = translateRect(tile->clickBox, v2(0, (clickBoxHeight - tile->renderSize.y) / 2));
+	tile->clickBox = rectCenterDiameter(v2(0, 0), tile->renderSize);
 
 	setFlags(tile, EntityFlag_hackable);
 
@@ -874,7 +870,7 @@ Entity* addTile(GameState* gameState, V2 p, Texture texture) {
 	Entity* result = addEntity(gameState, EntityType_tile, DrawOrder_tile, 
 								p, v2(0, 0));
 
-	initTile(result, gameState);
+	initTile(result, gameState, texture);
 
 	setFlags(result, EntityFlag_noMovementByDefault|
 					 EntityFlag_removeWhenOutsideLevel);
@@ -887,8 +883,8 @@ Entity* addTile(GameState* gameState, V2 p, Texture texture) {
 Entity* addHeavyTile(GameState* gameState, V2 p) {
 	Entity* result = addEntity(gameState, EntityType_heavyTile, DrawOrder_heavyTile, 
 								p, v2(0, 0));
-	initTile(result, gameState);
-	result->defaultTex = gameState->heavyTileTex;
+	initTile(result, gameState, gameState->tileAtlas[Tile_heavy]);
+	result->defaultTex = gameState->tileAtlas[Tile_heavy];
 
 	return result;
 }
@@ -1561,13 +1557,16 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 						if (collider && collider != entity &&
 							collidesWith(entity, collider, gameState)) {
 
-							if (isTileType(collider) && isTileType(entity)) {
-								Hitbox tileHitbox = {};
-								tileHitbox.collisionSize = v2(1, 1) * gameState->tileSize;
-								tileHitbox.collisionOffset = v2(0, -gameState->tileSize / 2);
-								R2 colliderHitbox = getHitbox(collider, &tileHitbox);
-								checkCollision(delta, colliderHitbox, entity, collider, &tileHitbox, &tileHitbox, &result, gameState);
-							} else {
+							// if (isTileType(collider) && isTileType(entity)) {
+							// 	Hitbox tileHitbox = {};
+
+							// 	double tileCollisionHeight = TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS;
+
+							// 	tileHitbox.collisionSize = gameState->tileSize;//v2(gameState->tileSize.x, tileCollisionHeight);
+							// 	//tileHitbox.collisionOffset = v2(0, -(gameState->tileSize.y - tileCollisionHeight) / 2.0);
+							// 	R2 colliderHitbox = getHitbox(collider, &tileHitbox);
+							// 	checkCollision(delta, colliderHitbox, entity, collider, &tileHitbox, &tileHitbox, &result, gameState);
+							// } else {
 								Hitbox* colliderHitboxList = collider->hitboxes;
 
 								while(colliderHitboxList) {
@@ -1583,7 +1582,7 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 
 									colliderHitboxList = colliderHitboxList->next;
 								}
-							}
+							//}
 						}
 					}
 					chunk = chunk->next;
@@ -2818,30 +2817,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 
 			case EntityType_background: {
-				Texture* bgTex = &gameState->bgTex;
-				Texture* mgTex = &gameState->mgTex;
-
-				TextureData* bg = getTextureData(bgTex, gameState->renderGroup);
-				TextureData* mg = getTextureData(mgTex, gameState->renderGroup);
-
-				double bgTexWidth = (double)bg->size.x;
-				double mgTexWidth = (double)mg->size.x;
-				double mgTexHeight = (double)mg->size.y;
-
-				double bgScrollRate = bgTexWidth / mgTexWidth;
-
-				double bgHeight = gameState->windowSize.y;
-				double mgWidth = max(gameState->mapSize.x, mgTexWidth);
-								
-				double bgWidth = mgWidth / bgScrollRate - 1;
-
-				double bgX = max(0, gameState->camera.p.x) * (1 -  bgScrollRate);
-
-				R2 bgBounds = r2(v2(bgX, 0), v2(bgWidth, bgHeight));
-				R2 mgBounds = r2(v2(0, 0), v2(mgWidth, bgHeight));
-
-				pushTexture(gameState->renderGroup, bg, translateRect(bgBounds, -gameState->camera.p), false, DrawOrder_background);
-				pushTexture(gameState->renderGroup, mg, translateRect(mgBounds, -gameState->camera.p), false, DrawOrder_middleground);
+				BackgroundTexture* backgroundTexture = getBackgroundTexture(&gameState->backgroundTextures);
+				drawBackgroundTexture(backgroundTexture, gameState->renderGroup, &gameState->camera, gameState->windowSize, gameState->mapSize.x);				
 			} break;
 
 
@@ -2863,12 +2840,15 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				s32 dYOffset = fieldYOffset - entity->tileYOffset;
 
 				if (dXOffset != 0 || dYOffset != 0) {
+					V2 tileSize = v2(gameState->tileSize.x, TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS);
+
 					V2 target = entity->startPos + hadamard(v2((double)dXOffset, (double)dYOffset), 
-						v2(1, 1) * gameState->tileSize/*getRectSize(entity->clickBox)*/);
+						tileSize/*getRectSize(entity->clickBox)*/);
 
 					//double initialDst = dXOffset == 0 ? getRectHeight(entity->clickBox) : getRectWidth(entity->clickBox);
 
-					double initialDst = max(gameState->tileSize, length(target - entity->p));
+					double initialDstTest = dXOffset != 0 ? tileSize.x : tileSize.y;
+					double initialDst = max(initialDstTest, length(target - entity->p));
 
 					if (moveTowardsTargetParabolic(entity, gameState, dtForFrame, target, initialDst, 6.0f)) {
 						entity->tileXOffset = fieldXOffset;

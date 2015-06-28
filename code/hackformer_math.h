@@ -257,6 +257,11 @@ V2 minComponents(V2 a, V2 b) {
 	return result;
 }
 
+V2 swapComponents(V2 a) {
+	V2 result = v2(a.y, a.x);
+	return result;
+}
+
 //NOTE: V3 operations here
 
 V3 v3(double x, double y, double z) {
