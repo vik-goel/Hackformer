@@ -914,9 +914,15 @@ bool updateConsole(GameState* gameState, double dt) {
 	Entity* entity = getEntityByRef(gameState, gameState->consoleEntityRef);
 
 	if (entity) {
+		if(gameState->input.c.justPressed) {
+			entity->rotation += PI / 4.0;
+		}
+
 		R2 renderBounds = getRenderBounds(entity, gameState);
 		
-		if(entity->type != EntityType_player && !(isTileType(entity) && getMovementField(entity) == NULL)) {
+		if(entity->type != EntityType_player && 
+		   !(isTileType(entity) && getMovementField(entity) == NULL) && 
+		   entity->type != EntityType_pickupField) {
 			pushOutlinedRect(gameState->renderGroup, renderBounds, 0.02, RED);
 		}
 		

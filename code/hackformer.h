@@ -54,6 +54,14 @@ Waypoint following
 	-Move around waypoints
 	-Clean up moving to first waypoint if not currently on the path
 
+
+Editor
+-------
+- Adding text
+- Setting the height of a laser controller
+- Setting and moving around waypoints
+- Displaying backgrounds at different zoom levels
+
 */
 
 #include "hackformer_types.h"
@@ -68,7 +76,7 @@ struct Input;
 #include "hackformer_entity.h"
 #include "hackformer_save.h"
 
-#define SHOW_COLLISION_BOUNDS 0
+#define SHOW_COLLISION_BOUNDS 1
 #define SHOW_CLICK_BOUNDS 0
 
 struct PathNode {
@@ -152,7 +160,7 @@ struct GameState {
 	ScreenType screenType;
 	
 	//NOTE: These must be sequential for laser collisions to work
-	s32 refCount;
+	s32 refCount_;
 
 	MemoryArena permanentStorage;
 	MemoryArena levelStorage;
@@ -214,6 +222,7 @@ struct GameState {
 	CharacterAnim playerDeathAnim;
 	CharacterAnim virus1Anim;
 	CharacterAnim flyingVirusAnim;
+	CharacterAnim trojanAnim;
 
 	BackgroundTextures backgroundTextures;
 

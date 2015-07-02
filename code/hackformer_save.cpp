@@ -203,7 +203,7 @@ void saveGame(GameState* gameState, char* fileName) {
 	assert(file);
 
 	writeS32(file, gameState->screenType);
-	writeS32(file, gameState->refCount);
+	writeS32(file, gameState->refCount_);
 	writeCamera(file, &gameState->camera);
 	writeRefNode(file, gameState->targetRefs);
 	writeS32(file, gameState->consoleEntityRef);
@@ -279,6 +279,7 @@ void saveGame(GameState* gameState, char* fileName) {
 		writeAnimNode(file, data->jumpAnim);
 		writeAnimNode(file, data->shootAnim);
 		writeAnimNode(file, data->walkAnim);
+		writeAnimNode(file, data->disappearAnim);
 	}
 
 	writePauseMenu(file, &gameState->pauseMenu);
@@ -432,7 +433,7 @@ void readEntity(FILE* file, GameState* gameState, s32 entityIndex) {
 	s32 numHitboxes = readS32(file);
 
 	for(s32 hitboxIndex = 0; hitboxIndex < numHitboxes; hitboxIndex++) {
-		Hitbox* hitbox = createHitbox(gameState);
+		Hitbox* hitbox = createUnzeroedHitbox(gameState);
 		hitbox->collisionSize = readV2(file);
 		hitbox->collisionOffset = readV2(file);
 
@@ -540,7 +541,7 @@ void loadGame(GameState* gameState, char* fileName) {
 	assert(file);
 
 	gameState->screenType = (ScreenType)readS32(file);
-	gameState->refCount = readS32(file);
+	gameState->refCount_ = readS32(file);
 	gameState->camera = readCamera(file);
 	
 	gameState->targetRefs = readRefNode(file, gameState);
@@ -653,6 +654,7 @@ void loadGame(GameState* gameState, char* fileName) {
 		data->jumpAnim = readAnimNode(file);
 		data->shootAnim = readAnimNode(file);
 		data->walkAnim = readAnimNode(file);
+		data->disappearAnim = readAnimNode(file);
 	}
 
 	readPauseMenu(file, &gameState->pauseMenu);

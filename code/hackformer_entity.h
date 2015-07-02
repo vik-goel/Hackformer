@@ -19,8 +19,18 @@ struct RefNode {
 	RefNode* next;
 };
 
+#define MAX_COLLISION_POINTS 8
+#define INVALID_STORED_HITBOX_ROTATION -9999999999.0
+
 struct Hitbox {
-	V2 collisionSize;
+	V2 collisionSize; //Broad phase
+
+	s32 collisionPointsCount;
+	V2 originalCollisionPoints[MAX_COLLISION_POINTS]; //Narrow phase
+
+	double storedRotation;
+	V2 rotatedCollisionPoints[MAX_COLLISION_POINTS];
+
 	V2 collisionOffset;
 	Hitbox* next;
 };
@@ -43,6 +53,7 @@ struct Entity {
 
 	V2 p;
 	V2 dP;
+	double rotation;
 
 	V2 renderSize;
 	DrawOrder drawOrder;
@@ -115,14 +126,19 @@ struct TileMoveNode {
 	TileMoveNode* next;
 };
 
+struct ProjectPointResult {
+	double hitTime;
+	V2 hitLineNormal;
+};
+
 struct GetCollisionTimeResult {
-	double collisionTime;
 	Entity* hitEntity;
-	bool horizontalCollision;
+	double collisionTime;
 
 	Entity* solidEntity;
 	double solidCollisionTime;
-	bool solidHorizontalCollision;
+
+	V2 collisionNormal; //Set to (0, 0) if colliding with something inside of you
 };
 
 void setFlags(Entity* entity, u32 flags) {

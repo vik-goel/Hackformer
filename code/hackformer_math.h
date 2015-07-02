@@ -88,6 +88,14 @@ bool isDegreesBetween(double testAngle, double minAngle, double maxAngle) {
 	return result;
 }
 
+bool rangesOverlap(double min1, double max1, double min2, double max2) {
+	assert(max1 >= min1);
+	assert(max2 >= min2);
+
+	bool result = (max1 > min2 && min1 < max2) || (max2 > min1 && min2 < max1);
+	return result;
+}
+
 //NOTE: V2 operations here
 
 V2 v2(double x, double y) {
@@ -208,6 +216,17 @@ V2 normalize(V2 a) {
 	double len = length(a);
 	if (len != 0) a *= (1.0 / len);
 	return a;
+}
+
+double dot(V2 a, V2 b) {
+	double result = a.x * b.x + a.y * b.y;
+	return result; 
+}
+
+//NOTE: This assumes that b is unit length
+V2 vectorProjection(V2 a, V2 b) {
+	V2 result = dot(a, b) * b;
+	return result;
 }
 
 void debugPrintV2(V2 v) {

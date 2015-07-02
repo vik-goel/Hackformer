@@ -418,6 +418,14 @@ AnimNode createAnimNodeFromData(AnimNodeData* data, GameState* gameState) {
 	return result;
 }
 
+AnimNode createAnimNode(Animation* animation, GameState* gameState) {
+	AnimNodeData data = {};
+	data.main = *animation;
+
+	AnimNode result = createAnimNodeFromData(&data, gameState);
+	return result;
+}
+
 AnimNode createAnimNode(Texture* stand, GameState* gameState) {
 	AnimNodeData node = {};
 	node.main = createAnimation(stand);
@@ -439,13 +447,15 @@ AnimNodeData* getAnimNodeData(AnimNode node, GameState* gameState) {
 	return result;
 }
 
-CharacterAnim createCharacterAnim(GameState* gameState, AnimNode standAnim, AnimNode jumpAnim, AnimNode shootAnim, AnimNode walkAnim) {
+CharacterAnim createCharacterAnim(GameState* gameState, AnimNode standAnim, AnimNode jumpAnim, AnimNode shootAnim,
+							 AnimNode walkAnim, AnimNode disappearAnim) {
 	CharacterAnimData* data = gameState->characterAnimData + gameState->characterAnimDataCount;
 
 	data->standAnim = standAnim;
 	data->jumpAnim = jumpAnim;
 	data->shootAnim = shootAnim;
 	data->walkAnim = walkAnim;
+	data->disappearAnim = disappearAnim;
 
 	CharacterAnim result = {};
 	result.dataIndex = gameState->characterAnimDataCount;
@@ -1558,7 +1568,7 @@ void drawRenderGroup(RenderGroup* group, FieldSpec* fieldSpec) {
 	PointLight light1 = {v3(15 + tempXOffset, 7, 0), v3(1, 0.3, 0.3), 6};
 	pushPointLight(group, &light1, true);
 
-	group->ambient = (GLfloat)0.4;
+	group->ambient = (GLfloat)0.43;
 #else
 	group->ambient = (GLfloat)1;
 #endif

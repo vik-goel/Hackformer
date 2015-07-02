@@ -93,17 +93,6 @@ void loadHackMap(GameState* gameState, char* fileName) {
 
 	initSpatialPartition(gameState);
 
-	//TODO: Ensure this is only loaded once!
-	gameState->tileAtlasCount = arrayCount(globalTileFileNames);
-	gameState->tileAtlas = pushArray(&gameState->permanentStorage, Texture, gameState->tileAtlasCount);
-
-	for(s32 tileIndex = 0; tileIndex < gameState->tileAtlasCount; tileIndex++) {
-		char fileName[2000];
-		sprintf(fileName, "tiles/%s", globalTileFileNames[tileIndex]);
-
-		gameState->tileAtlas[tileIndex] = loadTexture(gameState->renderGroup, fileName, false);
-	}
-
 	for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
 		for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
 			s32 tileIndex = readS32(file);
@@ -149,6 +138,11 @@ void loadHackMap(GameState* gameState, char* fileName) {
 				addEndPortal(gameState, p);
 			} break;
 
+			case EntityType_trojan: {
+				addTrojan(gameState, p);
+			} break;
+
+
 			InvalidDefaultCase;
 		}
 	}
@@ -157,35 +151,27 @@ void loadHackMap(GameState* gameState, char* fileName) {
 }
 
 void freeLevel(GameState* gameState) {
-	gameState->targetRefs = NULL;
-	gameState->consoleEntityRef = 0;
-	gameState->playerRef = 0;
-
 	for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-		freeEntity(gameState->entities + entityIndex, gameState, true);
+		freeEntityAtLevelEnd(gameState->entities + entityIndex, gameState);
 	}
 
-	gameState->numEntities = 0;
-	gameState->fieldSpec.hackEnergy = 0;
-
-	for (s32 refIndex = 0; refIndex < arrayCount(gameState->entityRefs_); refIndex++) {
-	//freeEntityReference(gameState->entityRefs_ + refIndex, gameState);
-		EntityReference* reference = gameState->entityRefs_ + refIndex;
-		*reference = {};
-	}
-
-	if (gameState->swapField) freeConsoleField(gameState->swapField, gameState);
+	memset(gameState->entityRefs_, 0, sizeof(gameState->entityRefs_));
 
 	gameState->entityRefFreeList = NULL;
-	gameState->refCount = 1; //NOTE: This is for the null reference
-
 	gameState->consoleFreeList = NULL;
 	gameState->hitboxFreeList = NULL;
 	gameState->refNodeFreeList = NULL;
 	gameState->messagesFreeList = NULL;
-
-	gameState->levelStorage.allocated = 0;
+	gameState->targetRefs = NULL;
 	gameState->swapField = NULL;
+
+	gameState->consoleEntityRef = 0;
+	gameState->playerRef = 0;
+	gameState->numEntities = 0;
+	gameState->fieldSpec.hackEnergy = 0;
+	gameState->levelStorage.allocated = 0;
+	
+	gameState->refCount_ = 1; //NOTE: This is for the null reference
 
 	initCamera(&gameState->camera);
 }
@@ -216,8 +202,6 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 	}
 
 	loadHackMap(gameState, maps[*mapFileIndex]);
-	addFlyingVirus(gameState, v2(7, 6));
-	addHeavyTile(gameState, v2(3, 7));
 
 	V2 playerDeathStartP = gameState->playerDeathStartP;
 	gameState->doingInitialSim = true;
@@ -404,12 +388,12 @@ void initMusic() {
 }
 
 GameState* createGameState(s32 windowWidth, s32 windowHeight) {
-	MemoryArena arena_ = createArena(1024 * 1024, true);
+	MemoryArena arena_ = createArena(2 * 1024 * 1024, true);
 
 	GameState* gameState = pushStruct(&arena_, GameState);
 	gameState->permanentStorage = arena_;
 
-	gameState->levelStorage = createArena(8 * 1024 * 1024, false);
+	gameState->levelStorage = createArena(16 * 1024 * 1024, false);
 	gameState->hackSaveStorage = createArena(12 * 1024 * 1024, false);
 
 	gameState->pixelsPerMeter = TEMP_PIXELS_PER_METER;
@@ -420,13 +404,13 @@ GameState* createGameState(s32 windowWidth, s32 windowHeight) {
 	gameState->gravity = v2(0, -9.81f);
 	gameState->solidGridSquareSize = 0.1;
 	gameState->tileSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_IN_METERS); 
-	gameState->chunkSize = v2(7, 7);
+	gameState->chunkSize = v2(6, 6);
 
 	gameState->textureDataCount = 1; //NOTE: 0 is a null texture data
 	gameState->animDataCount = 1; //NOTE: 0 is a null anim data
 	gameState->characterAnimDataCount = 1; //NOTE: 0 is a null character data
 
-	gameState->renderGroup = createRenderGroup(32 * 1024, &gameState->permanentStorage, gameState->pixelsPerMeter, 
+	gameState->renderGroup = createRenderGroup(256 * 1024, &gameState->permanentStorage, gameState->pixelsPerMeter, 
 		gameState->windowWidth, gameState->windowHeight, &gameState->camera,
 		gameState->textureData, &gameState->textureDataCount);
 
@@ -549,8 +533,8 @@ int main(int argc, char* argv[]) {
 	AnimNode playerJumpAnimNode = createAnimNodeFromData(&playerJumpAnimNodeData, gameState);
 	AnimNode playerWalkAnimNode = createAnimNodeFromData(&playerWalkAnimNodeData, gameState);
 
-	gameState->playerAnim = createCharacterAnim(gameState, playerStandAnimNode, playerJumpAnimNode, {}, playerWalkAnimNode);
-	gameState->playerDeathAnim = createCharacterAnim(gameState, playerStandAnimNode, {}, {}, {});
+	gameState->playerAnim = createCharacterAnim(gameState, playerStandAnimNode, playerJumpAnimNode, {}, playerWalkAnimNode, {});
+	gameState->playerDeathAnim = createCharacterAnim(gameState, playerStandAnimNode, {}, {}, {}, {});
 
 	AnimNodeData playerHackData = {};
 	playerHackData.main = playerHackingAnimation;
@@ -569,19 +553,27 @@ int main(int argc, char* argv[]) {
 
 	AnimNode virus1ShootAnimNode = createAnimNodeFromData(&virus1ShootAnimNodeData, gameState);
 
-	gameState->virus1Anim = createCharacterAnim(gameState, virus1StandAnimNode, {}, virus1ShootAnimNode, {});
+	gameState->virus1Anim = createCharacterAnim(gameState, virus1StandAnimNode, {}, virus1ShootAnimNode, {}, {});
 
 	//TODO: Make shoot animation time per frame be set by the shootDelay
 	TextureData flyingVirusStand = loadPNGTexture(gameState->renderGroup, "virus2/full");
-	Animation flyingVirusShoot = loadAnimation(gameState, "virus2/shoot", 133, 127, 0.04f, false);
-
 	AnimNode flyingVirusStandAnimNode = createAnimNode(&flyingVirusStand, gameState);
-	AnimNodeData flyingVirusShootAnimNodeData = {};
-	flyingVirusShootAnimNodeData.main = flyingVirusShoot;
 
-	AnimNode flyingVirusShootAnimNode = createAnimNodeFromData(&flyingVirusShootAnimNodeData, gameState);
+	Animation flyingVirusShoot = loadAnimation(gameState, "virus2/shoot", 133, 127, 0.04f, false);
+	AnimNode flyingVirusShootAnimNode = createAnimNode(&flyingVirusShoot, gameState);
 
-	gameState->flyingVirusAnim = createCharacterAnim(gameState, flyingVirusStandAnimNode, {}, flyingVirusShootAnimNode, {});
+	gameState->flyingVirusAnim = createCharacterAnim(gameState, flyingVirusStandAnimNode, {}, flyingVirusShootAnimNode, {}, {});
+
+	TextureData trojanStand = loadPNGTexture(gameState->renderGroup, "trojan/full");
+	AnimNode trojanStandAnimNode = createAnimNode(&trojanStand, gameState);
+
+	Animation trojanShoot = loadAnimation(gameState, "trojan/shoot", 364, 336, 0.04f, false);
+	AnimNode trojanShootAnimNode = createAnimNode(&trojanShoot, gameState);
+
+	Animation trojanDisappear = loadAnimation(gameState, "trojan/disappear", 397, 345, 0.04f, false);
+	AnimNode trojanDisappearAnimNode = createAnimNode(&trojanDisappear, gameState);
+
+	gameState->trojanAnim = createCharacterAnim(gameState, trojanStandAnimNode, {}, trojanShootAnimNode, {}, trojanDisappearAnimNode);
 
 	gameState->hackEnergyAnim = loadAnimation(gameState, "energy_animation", 173, 172, 0.08f, true);
 	gameState->laserBolt = loadTexture(renderGroup, "virus1/laser_bolt", false);
@@ -593,16 +585,21 @@ int main(int argc, char* argv[]) {
 	gameState->laserTopOn = loadTexture(renderGroup, "virus3/top_on", false);
 	gameState->laserBeam = loadTexture(renderGroup, "virus3/laser_beam", false);
 
+
+	gameState->tileAtlasCount = arrayCount(globalTileFileNames);
+	gameState->tileAtlas = pushArray(&gameState->permanentStorage, Texture, gameState->tileAtlasCount);
+
+	for(s32 tileIndex = 0; tileIndex < gameState->tileAtlasCount; tileIndex++) {
+		char fileName[2000];
+		sprintf(fileName, "tiles/%s", globalTileFileNames[tileIndex]);
+
+		gameState->tileAtlas[tileIndex] = loadTexture(gameState->renderGroup, fileName, false);
+	}
+
 	initFieldSpec(gameState);
 	initDock(gameState);
 	initPauseMenu(gameState);
 	initMainMenu(gameState);
-
-	// char* mapFileNames[] = {
-	// 	"map3.tmx",
-	// 	"map4.tmx",
-	// 	"map5.tmx",
-	// };
 
 	char* mapFileNames[] = {
 		"edit.hack",
@@ -626,10 +623,27 @@ int main(int argc, char* argv[]) {
 	char* saveFilePath = NULL;
 	char* saveFileName = "test_save.txt";
 
+	s32 fps = 0;
+	u32 frameTime = 0;
+	u32 fpsTimer = SDL_GetTicks();
+
 	while(running) {
 		currentTime = SDL_GetTicks();
 		dtForFrame += (double)((currentTime - lastTime) / 1000.0); 
 		lastTime = currentTime;
+
+		u32 frameStartTime = SDL_GetTicks();
+
+		#if 0
+		if(SDL_GetTicks() - fpsTimer >= 1000) {
+			fpsTimer += 1000;
+			gameState->fieldSpec.hackEnergy = (frameTime / fps);
+			fps = 0;
+			frameTime = 0;
+		}
+
+		fps++;
+		#endif
 
 		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -940,6 +954,9 @@ int main(int argc, char* argv[]) {
 	if(gameState->screenType == ScreenType_pause) {
 		gameState->input = oldInput;
 	}
+
+	u32 frameEndTime = SDL_GetTicks();
+	frameTime += frameEndTime - frameStartTime;
 
 	SDL_GL_SwapWindow(window);
 }

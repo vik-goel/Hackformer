@@ -28,6 +28,7 @@ struct CharacterAnimData {
 	AnimNode jumpAnim;
 	AnimNode shootAnim;
 	AnimNode walkAnim;
+	AnimNode disappearAnim;
 };
 
 enum TextAlignment {
@@ -209,7 +210,7 @@ struct RenderGroup {
 	R2 clipRect;
 	bool32 hasClipRect;
 
-	RenderHeader* sortPtrs[1000];
+	RenderHeader* sortPtrs[5000];
 	s32 numSortPtrs;
 	size_t sortAddressCutoff;
 

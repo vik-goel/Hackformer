@@ -57,6 +57,7 @@ enum EntityType {
 	EntityType_laserBeam,
 	EntityType_flyingVirus,
 	EntityType_pickupField,
+	EntityType_trojan,
 };
 
 enum DrawOrder {
@@ -72,6 +73,7 @@ enum DrawOrder {
 	DrawOrder_laserBase,
 	DrawOrder_virus,
 	DrawOrder_flyingVirus,
+	DrawOrder_trojan,
 	DrawOrder_heavyTile,
 	DrawOrder_laserBolt,
 	DrawOrder_playerDeath,

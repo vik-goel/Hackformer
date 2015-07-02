@@ -150,6 +150,7 @@ int main(int argc, char* argv[]) {
 		ENTITY(laserBase, 0.9, 0.65, "virus3/base_off")
 		ENTITY(hackEnergy, 0.7, 0.7, "energy_full")
 		ENTITY(endPortal, 1, 2, "end_portal")
+		ENTITY(trojan, 2, 2, "trojan/full")
 	};
 	#undef ENTITY
 
@@ -346,7 +347,7 @@ int main(int argc, char* argv[]) {
 			for(s32 specOffset = 0; specOffset < numEntitiesPerRow; specOffset++) {
 				s32 specIndex = specIndexIter + specOffset;
 
-				if(specIndex > arrayCount(entitySpecs)) break;
+				if(specIndex >= arrayCount(entitySpecs)) break;
 
 				EntitySpec* spec = entitySpecs + specIndex;
 				V2 specSpacing = v2(0.1, 0.1);
