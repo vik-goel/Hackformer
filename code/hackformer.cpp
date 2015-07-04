@@ -43,7 +43,13 @@ void loadHackMap(GameState* gameState, char* fileName) {
 
 			if(tileIndex >= 0) {
 				V2 tileP = hadamard(v2(tileX + 0.5, tileY + 0.5), tileSize);
-				addTile(gameState, tileP, gameState->tileAtlas[tileIndex]);
+
+				if(tileIndex == Tile_heavy) {
+					double tileOverhangHeight = TILE_HEIGHT_IN_METERS - TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS;
+					addHeavyTile(gameState, tileP + v2(0, tileOverhangHeight));
+				} else {
+					addTile(gameState, tileP, gameState->tileAtlas[tileIndex]);
+				}
 			}
 		}
 	}

@@ -1052,12 +1052,12 @@ void pushFilledStencil(RenderGroup* group, TextureData* stencil, R2 bounds, doub
 }
 
 void pushTexture(RenderGroup* group, TextureData* texture, R2 bounds, double rotation, bool flipX = false, DrawOrder drawOrder = DrawOrder_gui, 
-				 bool moveIntoCamera = true, Color color = WHITE, float emissivity = 0) {
+				 bool moveIntoCameraSpace = false, Color color = WHITE, float emissivity = 0) {
 
 	assert(validTexture(texture));
 
 	R2 drawBounds = bounds;
-	if(moveIntoCamera) drawBounds = translateRect(bounds, -group->camera->p);
+	if(moveIntoCameraSpace) drawBounds = translateRect(bounds, -group->camera->p);
 	drawBounds = scaleRect(drawBounds, v2(1, 1) * group->camera->scale);
 
 	R2 clipBounds = drawBounds;

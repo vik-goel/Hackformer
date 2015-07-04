@@ -84,7 +84,14 @@ bool isDegreesBetween(double testAngle, double minAngle, double maxAngle) {
 	minAngle = angleIn0360(minAngle);
 	maxAngle = angleIn0360(maxAngle);
 
-	bool result = (testAngle >= minAngle && testAngle <= maxAngle);
+	bool result;
+
+	if(maxAngle > minAngle) {
+		result = (testAngle > minAngle || testAngle < maxAngle);
+	} else {
+		result = (testAngle >= minAngle && testAngle <= maxAngle);
+	}
+
 	return result;
 }
 

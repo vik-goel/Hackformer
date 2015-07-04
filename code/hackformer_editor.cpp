@@ -44,7 +44,7 @@ s32 loadTileAtlas(RenderGroup* group, TextureData* textureData, s32* textureData
 		char fileNameWithPrefix[150];
 		sprintf(fileNameWithPrefix, "tiles/%s", fileName);
 
-		*data = loadPNGTexture(group, fileNameWithPrefix, false, false);
+		*data = loadPNGTexture(group, fileNameWithPrefix, false);
 	}
 
 	*textureDataCount += arrayCount(globalTileFileNames);
@@ -158,7 +158,7 @@ int main(int argc, char* argv[]) {
 	for(s32 specIndex = 0; specIndex < arrayCount(entitySpecs); specIndex++) {
 		EntitySpec* spec = entitySpecs + specIndex;
 		char* fileName = spec->fileName;
-		textureData[textureDataCount++] = loadPNGTexture(renderGroup, fileName, false, false);
+		textureData[textureDataCount++] = loadPNGTexture(renderGroup, fileName, false);
 	}
 
 	s32 selectedEntitySpecIndex = 0;

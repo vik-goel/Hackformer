@@ -19,7 +19,7 @@ struct RefNode {
 	RefNode* next;
 };
 
-#define MAX_COLLISION_POINTS 8
+#define MAX_COLLISION_POINTS 9
 #define INVALID_STORED_HITBOX_ROTATION -9999999999.0
 
 struct Hitbox {
@@ -134,11 +134,11 @@ struct ProjectPointResult {
 struct GetCollisionTimeResult {
 	Entity* hitEntity;
 	double collisionTime;
+	V2 collisionNormal; //Set to (0, 0) if colliding with something inside of you
 
 	Entity* solidEntity;
 	double solidCollisionTime;
-
-	V2 collisionNormal; //Set to (0, 0) if colliding with something inside of you
+	V2 solidCollisionNormal;
 };
 
 void setFlags(Entity* entity, u32 flags) {
