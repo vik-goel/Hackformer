@@ -915,6 +915,11 @@ void drawDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd,
 			end = lineEnd;
 		}
 
+		if((dashSkip.y > 0 && end.y > lineEnd.y) || (dashSkip.y < 0 && end.y < lineEnd.y)) {
+			doneDrawing = true;
+			end = lineEnd;
+		}
+
 		V2 p1 = start + normal;
 		V2 p2 = start - normal;
 		V2 p3 = end - normal;

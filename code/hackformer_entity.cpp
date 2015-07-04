@@ -801,38 +801,27 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 	assert(!getUnremovedEntityByRef(gameState, gameState->playerRef));
 	gameState->playerRef = result->ref;
 
-#if 1
+	double halfHitboxWidth = result->renderSize.x * 0.5;
+	double halfHitboxHeight = result->renderSize.y * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-
-	double bottomWidth = result->renderSize.x * 0.14;
-	double topWidth = bottomWidth;
-	double middleWidth = result->renderSize.x * 0.35;
-	double bottomMiddleWidth = bottomWidth;
-	double height = result->renderSize.y;
-	double middleHeight = height * 0.35;
-
-	setHitboxSize(hitbox, middleWidth, height);
-
-	double halfMiddleWidth = middleWidth * 0.5;
-	double halfTopWidth = topWidth * 0.5;
-	double halfBottomWidth = bottomWidth * 0.5;
-	double halfHeight = height * 0.5;
-	double halfMiddleHeight = middleHeight * 0.5;
-	double halfBottomMiddleWidth = bottomMiddleWidth * 0.5;
-
-	hitbox->collisionPointsCount = 8;
-	hitbox->originalCollisionPoints[0] = v2(-halfBottomWidth, -halfHeight);
-	hitbox->originalCollisionPoints[1] = v2(halfBottomWidth, -halfHeight);
-	hitbox->originalCollisionPoints[2] = v2(halfBottomMiddleWidth, -halfMiddleHeight);
-	hitbox->originalCollisionPoints[3] = v2(halfMiddleWidth, halfMiddleHeight);
-	hitbox->originalCollisionPoints[4] = v2(halfTopWidth, halfHeight);
-	hitbox->originalCollisionPoints[5] = v2(-halfTopWidth, halfHeight);
-	hitbox->originalCollisionPoints[6] = v2(-halfMiddleWidth, halfMiddleHeight);
-	hitbox->originalCollisionPoints[7] = v2(-halfBottomMiddleWidth, -halfMiddleHeight);
-#else
-	giveEntityRectangularCollisionBounds(result, gameState, result->renderSize.x * -0.01, 0,
-									 result->renderSize.x * 0.39, result->renderSize.y);
-#endif
+	setHitboxSize(hitbox, halfHitboxWidth * 2.0, halfHitboxHeight * 2.0);
+	hitbox->collisionPointsCount = 16;
+	hitbox->originalCollisionPoints[0] = v2(-0.138889 * halfHitboxWidth, -0.985243 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[1] = v2(0.173611 * halfHitboxWidth, -0.985243 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[2] = v2(0.308160 * halfHitboxWidth, -0.928819 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[3] = v2(0.243056 * halfHitboxWidth, -0.412326 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[4] = v2(0.342882 * halfHitboxWidth, -0.143229 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[5] = v2(0.364583 * halfHitboxWidth, 0.217014 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[6] = v2(0.316840 * halfHitboxWidth, 0.507812 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[7] = v2(0.243056 * halfHitboxWidth, 0.742187 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[8] = v2(0.208333 * halfHitboxWidth, 0.924479 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[9] = v2(-0.091146 * halfHitboxWidth, 0.985243 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[10] = v2(-0.217014 * halfHitboxWidth, 0.842014 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[11] = v2(-0.234375 * halfHitboxWidth, 0.555556 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[12] = v2(-0.364583 * halfHitboxWidth, 0.264757 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[13] = v2(-0.368924 * halfHitboxWidth, -0.117188 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[14] = v2(-0.273438 * halfHitboxWidth, -0.412326 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[15] = v2(-0.303819 * halfHitboxWidth, -0.902778 * halfHitboxHeight);
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), v2(result->renderSize.x * 0.4, result->renderSize.y));
 
@@ -1938,7 +1927,7 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP) {
 			double collisionTime = collisionResult.collisionTime;
 			remainingCollisionTime -= collisionTime;
 
-			double epsilon = 0.001;
+			double epsilon = 0.0025;
 			collisionTime = max(0, collisionTime - epsilon);
 
 			V2 movement = collisionTime * delta;
