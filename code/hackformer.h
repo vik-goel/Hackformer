@@ -76,8 +76,13 @@ struct Input;
 #include "hackformer_entity.h"
 #include "hackformer_save.h"
 
-#define SHOW_COLLISION_BOUNDS 1
+#define SHOW_COLLISION_BOUNDS 0
 #define SHOW_CLICK_BOUNDS 0
+#define DRAW_ENTITIES 1
+#define DEBUG_BUILD 1
+#define ENABLE_LIGHTING 1
+#define DRAW_BACKGROUND 1
+#define DRAW_DOCK 1
 
 struct PathNode {
 	bool32 solid;

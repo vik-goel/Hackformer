@@ -5,62 +5,6 @@
 #include "hackformer_entity.cpp"
 #include "hackformer_save.cpp"
 
-bool stringsMatch(char* a, char * b) {
-	s32 len = strlen(b);
-	bool result = strncmp(a, b, len) == 0;
-	return result;
-}
-
-char* findFirstStringOccurrence(char* str, s32 strSize, char* subStr, s32 subStrSize) {
-	s32 strPos = 0;
-	s32 maxStrPos = strSize - subStrSize;
-
-	for (; strPos < maxStrPos; strPos++) {
-		if (strncmp(str + strPos, subStr, subStrSize) == 0) {
-			return str + strPos;
-		}
-	}
-
-	return 0;
-}
-
-bool extractS32FromLine(char* line, s32 lineLen, char* intName, s32* result) {
-	s32 nameLength = strlen(intName);
-	char* occurrence = findFirstStringOccurrence(line, lineLen, intName, nameLength);
-
-	if (occurrence) {
-		//Need to add two to go past the ="
-		occurrence += nameLength + 2;
-		*result = atoi(occurrence);
-		return true;
-	}
-
-	return false;
-}
-
-bool extractStringFromLine(char* line, s32 lineLen, char* intName, char* result, s32 maxResultSize) {
-	s32 nameLength = strlen(intName);
-	char* occurrence = findFirstStringOccurrence(line, lineLen, intName, nameLength);
-
-	if (occurrence) {
-		//Need to add two to go past the ="
-		occurrence += nameLength + 2;
-		s32 resultSize = 0;
-
-		while (*occurrence != '"') {
-			result[resultSize] = *occurrence;
-			occurrence++;
-			resultSize++;
-			assert(resultSize < maxResultSize - 1);
-		}
-
-		result[resultSize] = 0;
-		return true;
-	}
-
-	return false;
-}
-
 void initSpatialPartition(GameState* gameState) {
 	gameState->chunksWidth = (s32)ceil(gameState->mapSize.x / gameState->chunkSize.x);
 	gameState->chunksHeight = (s32)ceil(gameState->windowSize.y / gameState->chunkSize.y);
@@ -202,6 +146,12 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 	}
 
 	loadHackMap(gameState, maps[*mapFileIndex]);
+
+	char textValues[10][100];
+	sprintf(textValues[0], "Batman!");
+	sprintf(textValues[1], "NANANANANA");
+	sprintf(textValues[2], "batman");
+	addText(gameState, v2(4, 5), textValues, 3, 1);
 
 	V2 playerDeathStartP = gameState->playerDeathStartP;
 	gameState->doingInitialSim = true;
@@ -363,6 +313,8 @@ void clearInput(Input* input) {
 }
 
 void initMusic() {
+#if DEBUG_BUILD
+#else
 #if 1
 	s32 mixerFlags = MIX_INIT_MP3;
 	s32 mixerInitStatus = Mix_Init(mixerFlags);
@@ -384,6 +336,7 @@ void initMusic() {
 	}
 
 	Mix_PlayMusic(music, -1); //loop forever
+#endif
 #endif
 }
 
@@ -448,7 +401,7 @@ void initDock(GameState* gameState) {
 	Dock* dock = &gameState->dock;
 	dock->dockTex = loadPNGTexture(gameState->renderGroup, "dock/dock", false);
 	dock->subDockTex = loadPNGTexture(gameState->renderGroup, "dock/sub_dock", false);
-	dock->energyBarStencil = loadPNGTexture(gameState->renderGroup, "dock/energy_bar_stencil", false, true);
+	dock->energyBarStencil = loadPNGTexture(gameState->renderGroup, "dock/energy_bar_stencil", true);
 	dock->barCircleTex = loadPNGTexture(gameState->renderGroup, "dock/bar_energy", false);
 	dock->gravityTex = loadPNGTexture(gameState->renderGroup, "dock/gravity_field", false);
 	dock->timeTex = loadPNGTexture(gameState->renderGroup, "dock/time_field", false);
@@ -576,14 +529,14 @@ int main(int argc, char* argv[]) {
 	gameState->trojanAnim = createCharacterAnim(gameState, trojanStandAnimNode, {}, trojanShootAnimNode, {}, trojanDisappearAnimNode);
 
 	gameState->hackEnergyAnim = loadAnimation(gameState, "energy_animation", 173, 172, 0.08f, true);
-	gameState->laserBolt = loadTexture(renderGroup, "virus1/laser_bolt", false);
+	gameState->laserBolt = loadTexture(renderGroup, "virus1/laser_bolt");
 	gameState->endPortal = loadTexture(renderGroup, "end_portal");
 
-	gameState->laserBaseOff = loadTexture(renderGroup, "virus3/base_off", false);
-	gameState->laserBaseOn = loadTexture(renderGroup, "virus3/base_on", false);
-	gameState->laserTopOff = loadTexture(renderGroup, "virus3/top_off", false);
-	gameState->laserTopOn = loadTexture(renderGroup, "virus3/top_on", false);
-	gameState->laserBeam = loadTexture(renderGroup, "virus3/laser_beam", false);
+	gameState->laserBaseOff = loadTexture(renderGroup, "virus3/base_off");
+	gameState->laserBaseOn = loadTexture(renderGroup, "virus3/base_on");
+	gameState->laserTopOff = loadTexture(renderGroup, "virus3/top_off");
+	gameState->laserTopOn = loadTexture(renderGroup, "virus3/top_on");
+	gameState->laserBeam = loadTexture(renderGroup, "virus3/laser_beam");
 
 
 	gameState->tileAtlasCount = arrayCount(globalTileFileNames);
@@ -593,7 +546,7 @@ int main(int argc, char* argv[]) {
 		char fileName[2000];
 		sprintf(fileName, "tiles/%s", globalTileFileNames[tileIndex]);
 
-		gameState->tileAtlas[tileIndex] = loadTexture(gameState->renderGroup, fileName, false);
+		gameState->tileAtlas[tileIndex] = loadTexture(gameState->renderGroup, fileName);
 	}
 
 	initFieldSpec(gameState);
@@ -608,7 +561,7 @@ int main(int argc, char* argv[]) {
 	s32 mapFileIndex = 0;
 	loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, false);
 
-	#if 0
+	#if DEBUG_BUILD
 	gameState->screenType = ScreenType_game;
 	#else
 	gameState->screenType = ScreenType_mainMenu;
@@ -681,6 +634,8 @@ int main(int argc, char* argv[]) {
 			pushSortEnd(renderGroup);
 
 			//NOTE: Draw the dock before the console
+
+		#if DRAW_DOCK
 			bool cancelButtonClicked = false;
 			bool acceptButtonClicked = false;
 
@@ -762,7 +717,6 @@ int main(int argc, char* argv[]) {
 			double energyBarPercentage = (double)energy / (double)maxEnergy;
 			pushFilledStencil(renderGroup, &dock->energyBarStencil, energyBarBounds, energyBarPercentage, energyColor);
 
-
 			bool clickHandled = updateConsole(gameState, dtForFrame);
 
 			if(!clickHandled) {
@@ -827,6 +781,7 @@ int main(int argc, char* argv[]) {
 				circleSize *= 0.9;
 				pushTexture(renderGroup, &dock->barCircleTex, rectCenterDiameter(timeCircleP, circleSize), false, DrawOrder_gui, false);
 			}
+		#endif
 
 			if(gameState->screenType == ScreenType_pause) {
 				drawAnimatedBackground(gameState, &pauseMenu->background, &pauseMenu->backgroundAnim, pauseMenu->animCounter);				

@@ -20,25 +20,14 @@ uniform SpotLight spotLights[NUM_SPOT_LIGHTS];
 uniform vec3 ambient;
 
 uniform sampler2D diffuseTexture;
-uniform sampler2D normalTexture;
 
 uniform vec4 tint;
-
-uniform float normalXFlip;
 
 varying vec2 texCoord;
 varying vec2 worldP;
 
 void main() {
 	vec4 texColor = texture2D(diffuseTexture, texCoord);
-	vec3 normal = vec3(0.0);
-	float innerOffs = 1.0;
-
-	if(normalXFlip != 0.0) {
-		normal = texture2D(normalTexture, texCoord).xyz * 2.0 - vec3(1.0);
-		normal.x *= normalXFlip;
-		innerOffs = 0.0;
-	}
 
 	vec3 result = ambient;
 
@@ -47,12 +36,10 @@ void main() {
 
 		float lightDistanceSquared = (lightDir.x * lightDir.x) + (lightDir.y * lightDir.y) + (lightDir.z * lightDir.z);
 		float lightDistance = sqrt(lightDistanceSquared);
-		lightDir *= (1.0 / lightDistance);
 
-		float inner = max(0.0, dot(normal, lightDir)) + innerOffs;
 		float intensity = max(0.0, (pointLights[lightIndex].range - lightDistance) / pointLights[lightIndex].range);
 
-		result += pointLights[lightIndex].color * (intensity * inner);
+		result += pointLights[lightIndex].color * intensity;
 	}
 
 	for(int lightIndex = 0; lightIndex < NUM_SPOT_LIGHTS; lightIndex++) {
@@ -63,13 +50,12 @@ void main() {
 		float lightDistance = sqrt(lightDistanceSquared);
 		lightDir *= (1.0 / lightDistance);
 
-		float inner = max(0.0, dot(normal, lightDir)) + innerOffs;
 		float intensity = max(0.0, (spotLights[lightIndex].base.range - lightDistance) / spotLights[lightIndex].base.range);
 
 		float conePercent = spotLights[lightIndex].dir.x * lightDir.x + spotLights[lightIndex].dir.y * lightDir.y;
 		float brightness = max(0.0, (conePercent - spotLights[lightIndex].cutoff) / (1.0 - spotLights[lightIndex].cutoff));
 		
-		result += spotLights[lightIndex].base.color * (brightness * intensity * inner);
+		result += spotLights[lightIndex].base.color * (brightness * intensity);
 	}
 
 	result *= result * result;

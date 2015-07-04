@@ -255,7 +255,6 @@ void saveGame(GameState* gameState, char* fileName) {
 		assert(data->hasFileName);
 
 		writeString(file, data->fileName);
-		writeS32(file, data->normalId > 0);
 		writeR2(file, data->uv);
 	}
 
@@ -604,7 +603,6 @@ void loadGame(GameState* gameState, char* fileName) {
 		readString(file, data->fileName);
 		data->hasFileName = true;
 
-		bool32 loadNormalMap = readS32(file);
 		TextureData* dataToCopy = NULL;
 
 		for(s32 testIndex = 1; testIndex < texIndex; testIndex++) {
@@ -619,20 +617,18 @@ void loadGame(GameState* gameState, char* fileName) {
 		TextureData loadedData;
 
 		if(!dataToCopy) {
-			loadedData = loadPNGTexture(gameState->renderGroup, data->fileName, loadNormalMap);
+			loadedData = loadPNGTexture(gameState->renderGroup, data->fileName);
 			dataToCopy = &loadedData;
 		}
 
 		assert(dataToCopy);
 
 		data->texId = dataToCopy->texId;
-		data->normalId = dataToCopy->normalId;
 		data->size = dataToCopy->size;
 
 		data->uv = readR2(file);
 
 		assert(data->texId);
-		if(loadNormalMap) assert(data->normalId);
 	}
 
 	gameState->animDataCount = readS32(file);

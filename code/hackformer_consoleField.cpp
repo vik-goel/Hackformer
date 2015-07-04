@@ -44,7 +44,7 @@ ConsoleField* createConsoleField(GameState* gameState, char* name, ConsoleFieldT
 	assert(strlen(name) < arrayCount(result->name));
 	strcpy(result->name, name);
 	result->tweakCost = tweakCost;
-
+		
 	return result;
 }
 
@@ -863,7 +863,7 @@ void drawWaypointInformation(ConsoleField* field, RenderGroup* group, FieldSpec*
 				R2 arrowBounds = rectCenterRadius(arrowCenter, arrowDimens);
 
 				pushDashedLine(group, lineColor, lineStart, lineEnd, lineThickness, lineDashSize, lineSpaceSize, true);
-				pushRotatedTexture(group, waypointArrowTex, arrowBounds, rad, lineColor, true);
+				pushTexture(group, waypointArrowTex, arrowBounds, rad, false, DrawOrder_gui, true, lineColor);
 
 				w = next;
 				if(w == field->curWaypoint) break;
@@ -955,7 +955,7 @@ bool updateConsole(GameState* gameState, double dt) {
 				V2 clickBoxCenter = getRectCenter(entity->clickBox) + entity->p - gameState->camera.p;
 
 				R2 shieldBounds = scaleRect(renderBounds, v2(1, 1) * 1.15);
-				pushTexture(gameState->renderGroup, &spec->tileHackShield, shieldBounds, false, DrawOrder_gui, false);
+				pushTexture(gameState->renderGroup, &spec->tileHackShield, shieldBounds, entity->rotation);
 
 				V2 offset = clickBoxSize * 0.5 + spec->spacing;
 

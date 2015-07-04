@@ -96,7 +96,6 @@ struct ForwardShader {
 	Shader shader;
 
 	GLint ambientUniform;
-	GLint normalXFlipUniform;
 
 	PointLight pointLights[32];
 	s32 numPointLights;
@@ -133,6 +132,7 @@ struct RenderEntityTexture {
 	RenderTexture tex;
 	V2* p;
 	V2* renderSize;
+	double rotation;
 };
 
 struct RenderBoundedTexture {
@@ -141,10 +141,9 @@ struct RenderBoundedTexture {
 };
 
 struct RenderRotatedTexture {
-	TextureData* texture;
+	RenderTexture tex;
 	R2 bounds;
 	double rad;
-	Color color;
 };
 
 struct RenderText {
@@ -193,7 +192,6 @@ struct RenderGroup {
 	Shader* currentShader;
 
 	TextureData whiteTex;
-	GLuint nullNormalId;
 
 	double pixelsPerMeter;
 	s32 windowWidth;

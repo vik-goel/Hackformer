@@ -5,7 +5,7 @@
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #define min(a, b) ((a) < (b) ? (a) : (b))
-#define swap(a, b) { auto temp##a##b = (a); (a) = (b); (b) = temp##a##b; }
+#define swap(a, b) { auto tempSwapVariable_ = (a); (a) = (b); (b) = tempSwapVariable_; }
 
 struct V2 {
 	double x, y;

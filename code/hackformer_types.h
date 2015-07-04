@@ -516,7 +516,6 @@ struct Texture {
 
 struct TextureData {
 	GLuint texId;
-	GLuint normalId;
 	R2 uv;
 	V2 size;
 
@@ -560,7 +559,7 @@ void initBackgroundTextures(BackgroundTextures* bgTextures) {
 }
 
 struct RenderGroup;
-TextureData loadPNGTexture(RenderGroup*, char* , bool32 = false, bool = false);
+TextureData loadPNGTexture(RenderGroup*, char*, bool = false);
 
 void setBackgroundTexture(BackgroundTextures* bgTextures, BackgroundType type, RenderGroup* group) {
 	BackgroundTexture* bt = bgTextures->textures + type;

@@ -133,11 +133,6 @@ ForwardShader createForwardShader(char* vertexShaderSourceFileName, char* fragme
 		lightUniforms->base.range = glGetUniformLocation(result.shader.program, uniformName);
 	}
 
-	result.normalXFlipUniform = glGetUniformLocation(result.shader.program, "normalXFlip");
-
-	GLint normalLocation = glGetUniformLocation(result.shader.program, "normalTexture");
-	glUniform1i(normalLocation, 1);
-
 	return result;
 }
 
@@ -196,18 +191,10 @@ Texture createTextureFromData(TextureData* data, RenderGroup* group) {
 	return texture;
 }
 
-TextureData createTexFromSurface(SDL_Surface* image, SDL_Surface* normal, RenderGroup* group, bool stencil) {
+TextureData createTexFromSurface(SDL_Surface* image, RenderGroup* group, bool stencil) {
 	TextureData result = {};
 
 	result.texId = generateTexture(image, !stencil);
-
-	if(normal) {
-		result.normalId = generateTexture(normal);
-		SDL_FreeSurface(normal);
-	} else {
-		result.normalId = group->nullNormalId;
-	}
-
 	result.uv = r2(v2(0, 0), v2(1, 1));
 	result.size = v2(image->w, image->h) * (1.0 / group->pixelsPerMeter);
 
@@ -224,37 +211,29 @@ void addFileName(TextureData* data, char* fileName) {
 }
 
 //loadNormalMap, stencil are both false by default
-TextureData loadPNGTexture(RenderGroup* group, char* fileName, bool32 loadNormalMap, bool stencil) {
+TextureData loadPNGTexture(RenderGroup* group, char* fileName, bool stencil) {
 	assert(strlen(fileName) < 400);
 
 	char diffuseFilePath[500];
 	sprintf(diffuseFilePath, "res/%s.png", fileName);
 
-	SDL_Surface* diffuse = IMG_Load(diffuseFilePath);
+	SDL_RWops* readStream = SDL_RWFromFile(diffuseFilePath, "r");
+	SDL_Surface* diffuse = IMG_LoadPNG_RW(readStream);
+	SDL_FreeRW(readStream);
+
 	if (!diffuse) {
 		fprintf(stderr, "Failed to load diffuse texture from: %s\n", diffuseFilePath);
 		InvalidCodePath;
 	}
 
-	SDL_Surface* normal = NULL;
-	if (loadNormalMap) {
-		char normalFilePath[500];
-		sprintf(normalFilePath, "res/%s_NRM.png", fileName);
-		normal = IMG_Load(normalFilePath);
-		if (!normal) {
-			fprintf(stderr, "Failed to load normal texture from: %s\n", normalFilePath);
-			InvalidCodePath;
-		}
-	}
-
-	TextureData result = createTexFromSurface(diffuse, normal, group, stencil);
+	TextureData result = createTexFromSurface(diffuse, group, stencil);
 	addFileName(&result, fileName);
 
 	return result;
 }
 
-Texture loadTexture(RenderGroup* group, char* fileName, bool loadNormalMap = true) {
-	TextureData data = loadPNGTexture(group, fileName, loadNormalMap);
+Texture loadTexture(RenderGroup* group, char* fileName) {
+	TextureData data = loadPNGTexture(group, fileName);
 	Texture result = createTextureFromData(&data, group);
 	return result;
 }
@@ -322,10 +301,11 @@ CachedFont loadCachedFont(RenderGroup* group, char* fileName, s32 fontSize, doub
 }
 
 Texture* extractTextures(RenderGroup* group, MemoryArena* arena, char* fileName, 
-	s32 frameWidth, s32 frameHeight, s32 frameSpacing, s32* numFrames, bool loadNormalMap = false) {
+	s32 frameWidth, s32 frameHeight, s32 frameSpacing, s32* numFrames) {
 
-	TextureData tex = loadPNGTexture(group, fileName, loadNormalMap);
+	TextureData tex = loadPNGTexture(group, fileName);
 
+	
 	s32 texWidth = (s32)(tex.size.x * group->pixelsPerMeter + 0.5);
 	s32 texHeight = (s32)(tex.size.y * group->pixelsPerMeter + 0.5);
 
@@ -355,7 +335,6 @@ Texture* extractTextures(RenderGroup* group, MemoryArena* arena, char* fileName,
 
 			TextureData data = {};
 			data.texId = tex.texId;
-			data.normalId = tex.normalId;
 
 			V2 minCorner = hadamard(v2(colIndex, rowIndex), frameSize) + frameOffset;
 			data.uv = r2(minCorner, minCorner + texSize);
@@ -545,7 +524,7 @@ TextureData createText(RenderGroup* group, TTF_Font* font, char* msg) {
 	SDL_Color fontColor = {0, 0, 0, 255};
 	SDL_Surface* fontSurface = TTF_RenderText_Blended(font, msg, fontColor);
 
-	TextureData result = createTexFromSurface(fontSurface, NULL, group, false);
+	TextureData result = createTexFromSurface(fontSurface, group, false);
 
 	return result;
 }
@@ -582,7 +561,7 @@ Glyph* getGlyph(CachedFont* cachedFont, RenderGroup* group, char c, double meter
 		cachedFont->cache[c].padding.max.x = minX * metersPerPixel;
 		cachedFont->cache[c].padding.min.x = ((glyphSurface->w - 1) * metersPerPixel) - (maxX * metersPerPixel);
 
-		cachedFont->cache[c].tex = createTexFromSurface(glyphSurface, NULL, group, false);
+		cachedFont->cache[c].tex = createTexFromSurface(glyphSurface, group, false);
 		assert(cachedFont->cache[c].tex.texId);
 	}
 
@@ -678,15 +657,6 @@ RenderGroup* createRenderGroup(size_t size, MemoryArena* arena, double pixelsPer
 	result->basicShader = createShader("shaders/basic.vert", "shaders/basic.frag", windowSize);
 	result->stencilShader = createShader("shaders/basic.vert", "shaders/stencil.frag", windowSize);
 
-	#if 0
-	SDL_Surface* nullNormalSurface = IMG_Load("res/no normal map.png");
-	assert(nullNormalSurface);
-	result->nullNormalId = generateTexture(nullNormalSurface);
-	SDL_FreeSurface(nullNormalSurface);
-	#else
-	result->nullNormalId = 0;
-	#endif
-
 	result->defaultClipRect = result->windowBounds;
 
 	result->whiteTex = loadPNGTexture(result, "white", false);
@@ -716,10 +686,8 @@ void sendTexCoord(V2 uvMin, V2 uvMax, s32 orientation) {
 	}
 }
 
-void bindTexture(TextureData* texture, RenderGroup* group, bool flipX) {
-	assert(texture);
-
-	assert(texture->texId);
+void bindTexture(TextureData* texture, RenderGroup* group) {
+	assert(validTexture(texture));
 
 	glEnable(GL_TEXTURE_2D);
 	glEnable(GL_BLEND);
@@ -727,17 +695,6 @@ void bindTexture(TextureData* texture, RenderGroup* group, bool flipX) {
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, texture->texId);
-
-	if(group->currentShader == (Shader*)&group->forwardShader) {
-		if(texture->normalId) {
-			glUniform1f(group->forwardShader.normalXFlipUniform, flipX ? 1.0f : -1.0f);
-
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, texture->normalId);
-		} else {
-			glUniform1f(group->forwardShader.normalXFlipUniform, 0);
-		}
-	}
 }
 
 void setAmbient(RenderGroup* group, GLfloat ambient) {
@@ -750,7 +707,7 @@ void drawTexture(RenderGroup* group, TextureData* texture, R2 bounds, bool flipX
 		setAmbient(group, ambient + (1 - ambient) * emissivity);
 	}
 
-	bindTexture(texture, group, flipX);
+	bindTexture(texture, group);
 
 	setColor(group, color);
 
@@ -758,9 +715,7 @@ void drawTexture(RenderGroup* group, TextureData* texture, R2 bounds, bool flipX
 	V2 uvMax = texture->uv.max;
 
 	if (!flipX) {
-		double temp = uvMin.x;
-		uvMin.x = uvMax.x;
-		uvMax.x = temp;
+		swap(uvMin.x, uvMax.x);
 	}
 
 	glBegin(GL_QUADS);
@@ -782,12 +737,21 @@ void drawTexture(RenderGroup* group, TextureData* texture, R2 bounds, bool flipX
 	}
 }
 
-void drawTexture(RenderGroup* group, TextureData* texture, R2 bounds, double rot, Color color) {
-	bindTexture(texture, group, false);
+void drawTexture(RenderGroup* group, TextureData* texture, R2 bounds, double rot, Color color, bool flipX, float emissivity,
+				 GLfloat ambient) {
+	if(emissivity) {
+		setAmbient(group, ambient + (1 - ambient) * emissivity);
+	}
+
+	bindTexture(texture, group);
 	setColor(group, color);
 
 	V2 uvMin = texture->uv.min;
 	V2 uvMax = texture->uv.max;
+
+	if (!flipX) {
+		swap(uvMin.x, uvMax.x);
+	}
 
 	V2 center = getRectCenter(bounds);
 
@@ -810,6 +774,10 @@ void drawTexture(RenderGroup* group, TextureData* texture, R2 bounds, double rot
 			glVertex2f((GLfloat)p[pIndex].x, (GLfloat)p[pIndex].y);
 		}
 	glEnd();
+
+	if(emissivity) {
+		setAmbient(group, ambient);
+	}
 }
 
 void drawFilledStencil(RenderGroup* group, TextureData* stencil, R2 bounds, double widthPercentage, Color color) {
@@ -824,7 +792,7 @@ void drawFilledStencil(RenderGroup* group, TextureData* stencil, R2 bounds, doub
 	Shader* oldShader = group->currentShader;
 	bindShader(group, &group->stencilShader);
 
-	bindTexture(stencil, group, false);
+	bindTexture(stencil, group);
 	setColor(group, color);
 
 	glBegin(GL_QUADS);
@@ -864,7 +832,7 @@ void drawFillRect(RenderGroup* group, R2 bounds, Color color) {
 	// SDL_Rect dstRect = getPixelSpaceRect(group->pixelsPerMeter, group->windowHeight, rect);
 	// SDL_RenderFillRect(group->renderer, &dstRect);
 
-	bindTexture(&group->whiteTex, group, false);
+	bindTexture(&group->whiteTex, group);
 	setColor(group, color);
 			
 	glBegin(GL_QUADS);
@@ -883,7 +851,7 @@ void drawFillRect(RenderGroup* group, R2 bounds, Color color) {
 }
 
 void drawFillQuad(RenderGroup* group, V2 p1, V2 p2, V2 p3, V2 p4) {
-	bindTexture(&group->whiteTex, group, false);
+	bindTexture(&group->whiteTex, group);
 
 	glBegin(GL_QUADS);
 		glTexCoord2f(0, 0);
@@ -1083,8 +1051,54 @@ void pushFilledStencil(RenderGroup* group, TextureData* stencil, R2 bounds, doub
 	}
 }
 
+void pushTexture(RenderGroup* group, TextureData* texture, R2 bounds, double rotation, bool flipX = false, DrawOrder drawOrder = DrawOrder_gui, 
+				 bool moveIntoCamera = true, Color color = WHITE, float emissivity = 0) {
+
+	assert(validTexture(texture));
+
+	R2 drawBounds = bounds;
+	if(moveIntoCamera) drawBounds = translateRect(bounds, -group->camera->p);
+	drawBounds = scaleRect(drawBounds, v2(1, 1) * group->camera->scale);
+
+	R2 clipBounds = drawBounds;
+
+	if(rotation) {
+		V2 halfSize = getRectSize(clipBounds) * 0.5;
+		double size = length(halfSize);
+
+		clipBounds = rectCenterDiameter(getRectCenter(clipBounds), v2(size, size));
+	}
+
+	if(rectanglesOverlap(group->windowBounds, clipBounds)) {
+		if(group->rendering) {
+			if(rotation) {
+				drawTexture(group, texture, drawBounds, rotation, color, flipX, emissivity, group->ambient);
+			} else {
+				drawTexture(group, texture, drawBounds, flipX, Orientation_0, emissivity, group->ambient, color);
+			}
+		} else {
+			if(rotation) {
+				RenderRotatedTexture* render = pushRenderElement(group, RenderRotatedTexture);
+
+				if (render) {
+					render->tex = createRenderTexture(drawOrder, texture, flipX, Orientation_0, emissivity, color);
+					render->bounds = drawBounds;
+					render->rad = rotation;
+				}
+			} else {
+				RenderBoundedTexture* render = pushRenderElement(group, RenderBoundedTexture);
+
+				if (render) {
+					render->tex = createRenderTexture(drawOrder, texture, flipX, Orientation_0, emissivity, color);
+					render->bounds = drawBounds;
+				}
+			}
+		}
+	}
+}
+
 void pushTexture(RenderGroup* group, TextureData* texture, R2 bounds, bool flipX, DrawOrder drawOrder, bool moveIntoCameraSpace,
-	 		Orientation orientation, Color color, float emissivity) {
+	 		     Orientation orientation, Color color, float emissivity) {
 
 	assert(validTexture(texture));
 
@@ -1111,6 +1125,7 @@ void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Dr
 	pushTexture(group, texData, bounds, flipX, drawOrder, moveIntoCameraSpace, orientation, color, emissivity);
 }
 
+#if 0
 void pushRotatedTexture(RenderGroup* group, TextureData* texture, R2 bounds, double rad, Color color, bool moveIntoCameraSpace = false) {
 	assert(texture);
 
@@ -1121,7 +1136,7 @@ void pushRotatedTexture(RenderGroup* group, TextureData* texture, R2 bounds, dou
 	}
 
 	if(group->rendering) {
-		drawTexture(group, texture, bounds, rad, color);
+		drawTexture(group, texture, bounds, rad, color, false, 0, group->ambient);
 	} else {
 		RenderRotatedTexture* render = pushRenderElement(group, RenderRotatedTexture);
 
@@ -1138,6 +1153,7 @@ void pushRotatedTexture(RenderGroup* group, Texture* texture, R2 bounds, double 
 	TextureData* texData = getTextureData(texture, group);
 	pushRotatedTexture(group, texData, bounds, rad, color, moveIntoCameraSpace);
 }
+#endif
 
 void pushDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd, double thickness,
 					 double dashSize, double spaceSize, bool moveIntoCameraSpace = false) {
@@ -1168,12 +1184,11 @@ void pushDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd, d
 			render->spaceSize = spaceSize;
 		}
 	}
-
 }
 
 #ifdef HACKFORMER_GAME
 void pushEntityTexture(RenderGroup* group, TextureData* texture, Entity* entity, bool flipX, DrawOrder drawOrder,
-					Orientation orientation = Orientation_0, Color color = createColor(255, 255, 255, 255)) {
+					Orientation orientation = Orientation_0, Color color = WHITE) {
 	assert(texture);
 
 	R2 drawBounds = translateRect(rectCenterDiameter(entity->p, entity->renderSize), -group->camera->p);
@@ -1181,9 +1196,20 @@ void pushEntityTexture(RenderGroup* group, TextureData* texture, Entity* entity,
 
 	R2 clipBounds = scaleRect(drawBounds, v2(1, 1) * 1.05);
 
+	if(entity->rotation) {
+		V2 halfSize = getRectSize(clipBounds) * 0.5;
+		double size = length(halfSize);
+
+		clipBounds = rectCenterDiameter(getRectCenter(clipBounds), v2(size, size));
+	}
+
 	if(rectanglesOverlap(group->windowBounds, clipBounds)) {
 		if(group->rendering) {
-			drawTexture(group, texture, drawBounds, flipX, orientation, entity->emissivity, group->ambient, color);
+			if(entity->rotation) {
+				drawTexture(group, texture, drawBounds, entity->rotation, color, flipX, entity->emissivity, group->ambient);
+			} else {
+				drawTexture(group, texture, drawBounds, flipX, orientation, entity->emissivity, group->ambient, color);
+			}
 		} else {
 			RenderEntityTexture* render = pushRenderElement(group, RenderEntityTexture);
 
@@ -1191,6 +1217,7 @@ void pushEntityTexture(RenderGroup* group, TextureData* texture, Entity* entity,
 				render->tex = createRenderTexture(drawOrder, texture, flipX, orientation, entity->emissivity, color);
 				render->p = &entity->p;
 				render->renderSize = &entity->renderSize;
+				render->rotation = entity->rotation;
 			}
 		}
 	}
@@ -1199,7 +1226,7 @@ void pushEntityTexture(RenderGroup* group, TextureData* texture, Entity* entity,
 
 #ifdef HACKFORMER_GAME
 void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, bool flipX, DrawOrder drawOrder,
-					Orientation orientation = Orientation_0, Color color = createColor(255, 255, 255, 255)) {
+					Orientation orientation = Orientation_0, Color color = WHITE) {
 	TextureData* texData = getTextureData(texture, group);
 	pushEntityTexture(group, texData, entity, flipX, drawOrder, orientation, color);
 }					
@@ -1377,8 +1404,14 @@ size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, G
 
 		START_CASE(RenderEntityTexture);
 			R2 bounds = rectCenterDiameter(*render->p - group->camera->p, *render->renderSize);
-			drawTexture(group, render->tex.texture, bounds, render->tex.flipX != 0, render->tex.orientation,
+
+			if(render->rotation) {
+				drawTexture(group, render->tex.texture, bounds, render->rotation, render->tex.color, render->tex.flipX != 0, 
+							render->tex.emissivity, group->ambient);
+			} else {
+				drawTexture(group, render->tex.texture, bounds, render->tex.flipX != 0, render->tex.orientation,
 						 render->tex.emissivity, ambient, render->tex.color);
+			}
 		END_CASE;
 
 		START_CASE(RenderText);
@@ -1404,7 +1437,7 @@ size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, G
 		END_CASE;
 
 		START_CASE(RenderRotatedTexture);
-			drawTexture(group, render->texture, render->bounds, render->rad, render->color);
+			drawTexture(group, render->tex.texture, render->bounds, render->rad, render->tex.color, render->tex.flipX != 0, render->tex.emissivity, group->ambient);
 		END_CASE;
 
 		START_CASE(RenderFilledStencil);
@@ -1560,7 +1593,7 @@ void drawRenderGroup(RenderGroup* group, FieldSpec* fieldSpec) {
 	qsort(group->sortPtrs, group->numSortPtrs, sizeof(RenderHeader*), renderElemCompare);
 	bindShader(group, &group->forwardShader.shader);
 
-#if 1
+#if ENABLE_LIGHTING
 	static float iter = 0;
 	iter += 0.01f;
 	float tempXOffset = 3 * sin(iter);
