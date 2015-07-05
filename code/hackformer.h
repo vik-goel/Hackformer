@@ -102,9 +102,9 @@ struct EntityChunk {
 };
 
 struct Button {
-	TextureData defaultTex;
-	TextureData hoverTex;
-	TextureData clickedTex;
+	Texture* defaultTex;
+	Texture* hoverTex;
+	Texture* clickedTex;
 
 	R2 renderBounds;
 	R2 clickBounds;
@@ -114,7 +114,7 @@ struct Button {
 };
 
 struct PauseMenu {
-	TextureData background;
+	Texture* background;
 	Animation backgroundAnim;
 	double animCounter;
 
@@ -125,7 +125,7 @@ struct PauseMenu {
 };
 
 struct MainMenu {
-	TextureData background;
+	Texture* background;
 	Animation backgroundAnim;
 	double animCounter;
 
@@ -135,12 +135,12 @@ struct MainMenu {
 };
 
 struct Dock {
-	TextureData dockTex;
-	TextureData subDockTex;
-	TextureData energyBarStencil;
-	TextureData barCircleTex;
-	TextureData gravityTex;
-	TextureData timeTex;
+	Texture* dockTex;
+	Texture* subDockTex;
+	Texture* energyBarStencil;
+	Texture* barCircleTex;
+	Texture* gravityTex;
+	Texture* timeTex;
 
 	Button acceptButton;
 	Button cancelButton;
@@ -180,7 +180,6 @@ struct GameState {
 	RefNode* targetRefs;
 	s32 consoleEntityRef;
 	s32 playerRef;
-	s32 playerDeathRef;
 
 	bool32 loadNextLevel;
 	bool32 reloadCurrentLevel;
@@ -219,35 +218,36 @@ struct GameState {
 
 	V2 gravity;
 
-	AnimNode playerHack;
-	CharacterAnim playerAnim;
-	CharacterAnim playerDeathAnim;
-	CharacterAnim virus1Anim;
-	CharacterAnim flyingVirusAnim;
-	CharacterAnim trojanAnim;
+	AnimNode* playerHack;
+	CharacterAnim* playerAnim;
+	CharacterAnim* virus1Anim;
+	CharacterAnim* flyingVirusAnim;
+	CharacterAnim* trojanAnim;
 
 	BackgroundTextures backgroundTextures;
 
 	Animation hackEnergyAnim;
-	Texture laserBolt;
-	Texture endPortal;
+	Texture* laserBolt;
+	Texture* endPortal;
 
-	Texture laserBaseOff, laserBaseOn;
-	Texture laserTopOff, laserTopOn;
-	Texture laserBeam;
+	Texture* laserBaseOff;
+	Texture* laserBaseOn;
+	Texture* laserTopOff;
+	Texture* laserTopOn;
+	Texture* laserBeam;
 
-	Texture heavyTileTex;
+	Texture* heavyTileTex;
 	s32 tileAtlasCount;
-	Texture* tileAtlas;
+	Texture** tileAtlas;
 
-	s32 textureDataCount;
-	TextureData textureData[TEXTURE_DATA_COUNT];
+	s32 texturesCount;
+	Texture textures[TEXTURE_DATA_COUNT];
 
-	s32 animDataCount;
-	AnimNodeData animData[ANIM_NODE_DATA_COUNT];
+	s32 animNodesCount;
+	AnimNode animNodes[ANIM_NODE_DATA_COUNT];
 
-	s32 characterAnimDataCount;
-	CharacterAnimData characterAnimData[CHARACTER_ANIM_DATA_COUNT];
+	s32 characterAnimsCount;
+	CharacterAnim characterAnims[CHARACTER_ANIM_DATA_COUNT];
 
 	PauseMenu pauseMenu;
 	MainMenu mainMenu;

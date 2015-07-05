@@ -510,10 +510,6 @@ SDL_Window* createWindow(s32 windowWidth, s32 windowHeight) {
 }
 
 struct Texture {
-	s32 dataIndex;
-};
-
-struct TextureData {
 	GLuint texId;
 	R2 uv;
 	V2 size;
@@ -533,8 +529,8 @@ struct BackgroundTexture {
 	char* bgTexPath;
 	char* mgTexPath;
 
-	TextureData bgData;
-	TextureData mgData;
+	Texture* bg;
+	Texture* mg;
 };
 
 struct BackgroundTextures {
@@ -546,8 +542,8 @@ void initBackgroundTexture(BackgroundTexture* texture, char* bgTexPath, char* mg
 	texture->bgTexPath = bgTexPath;
 	texture->mgTexPath = mgTexPath;
 
-	texture->bgData.texId = 0;
-	texture->mgData.texId = 0;
+	texture->bg = NULL;
+	texture->mg = NULL;
 }
 
 void initBackgroundTextures(BackgroundTextures* bgTextures) {
@@ -558,17 +554,17 @@ void initBackgroundTextures(BackgroundTextures* bgTextures) {
 }
 
 struct RenderGroup;
-TextureData loadPNGTexture(RenderGroup*, char*, bool = false);
+Texture* loadPNGTexture(RenderGroup*, char*, bool = false);
 
 void setBackgroundTexture(BackgroundTextures* bgTextures, BackgroundType type, RenderGroup* group) {
 	BackgroundTexture* bt = bgTextures->textures + type;
 
-	if(!bt->bgData.texId) {
-		bt->bgData = loadPNGTexture(group, bt->bgTexPath);
+	if(!bt->bg) {
+		bt->bg = loadPNGTexture(group, bt->bgTexPath);
 	}
 
-	if(!bt->mgData.texId) {
-		bt->mgData = loadPNGTexture(group, bt->mgTexPath);
+	if(!bt->mg) {
+		bt->mg = loadPNGTexture(group, bt->mgTexPath);
 	}
 
 	bgTextures->curBackgroundType = type;
@@ -611,12 +607,12 @@ Color createColor(u8 r, u8 g, u8 b, u8 a) {
 	return result;
 }
 
-void pushTexture(RenderGroup* group, TextureData* texture, R2 bounds, bool flipX, DrawOrder drawOrder, bool moveIntoCameraSpace = false,
+void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, DrawOrder drawOrder, bool moveIntoCameraSpace = false,
 	 		Orientation orientation = Orientation_0, Color color = WHITE, float emissivity = 0);
 
 void drawBackgroundTexture(BackgroundTexture* backgroundTexture, RenderGroup* group, Camera* camera, V2 windowSize, double mapWidth) {
-	TextureData* bg = &backgroundTexture->bgData;
-	TextureData* mg = &backgroundTexture->mgData;
+	Texture* bg = backgroundTexture->bg;
+	Texture* mg = backgroundTexture->mg;
 
 	double bgTexWidth = (double)bg->size.x;
 	double mgTexWidth = (double)mg->size.x;

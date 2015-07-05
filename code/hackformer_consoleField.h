@@ -109,18 +109,18 @@ struct FieldSpec {
 
 	int hackEnergy;
 
-	TextureData attribute;
-	TextureData behaviour;
-	TextureData valueBackground;
-	TextureData leftButtonClicked;
-	TextureData leftButtonUnavailable;
-	TextureData leftButtonDefault;
+	Texture* attribute;
+	Texture* behaviour;
+	Texture* valueBackground;
+	Texture* leftButtonClicked;
+	Texture* leftButtonUnavailable;
+	Texture* leftButtonDefault;
 
-	TextureData waypoint;
-	TextureData waypointArrow;
+	Texture* waypoint;
+	Texture* waypointArrow;
 
-	TextureData tileHackShield;
-	TextureData tileHackArrow;
+	Texture* tileHackShield;
+	Texture* tileHackArrow;
 
 	CachedFont consoleFont;
 };

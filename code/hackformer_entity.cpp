@@ -382,13 +382,13 @@ bool createsPickupFieldsOnDeath(Entity* entity) {
 }
 
 Entity* addPickupField(GameState*, Entity*, ConsoleField*);
-Entity* addDeath(GameState*, V2, V2, DrawOrder, CharacterAnim);
+Entity* addDeath(GameState*, V2, V2, DrawOrder, CharacterAnim*);
 
 void freeEntityAtLevelEnd(Entity* entity, GameState* gameState) {
 	Messages* messages = entity->messages;
 	if(messages) {
 		for (s32 messageIndex = 0; messageIndex < messages->count; messageIndex++) {
-			freeTexture(messages->textures[messageIndex]);
+			freeTexture(messages->textures + messageIndex);
 		}
 	}
 }
@@ -397,7 +397,7 @@ void freeEntityDuringLevel(Entity* entity, GameState* gameState) {
 	Messages* messages = entity->messages;
 	if(messages) {
 		for (s32 messageIndex = 0; messageIndex < messages->count; messageIndex++) {
-			freeTexture(messages->textures[messageIndex]);
+			freeTexture(messages->textures + messageIndex);
 		}
 
 		freeMessages(messages, gameState);
@@ -475,10 +475,10 @@ void freeEntityDuringLevel(Entity* entity, GameState* gameState) {
 			gameState->reloadCurrentLevel = true;
 		}
 	} else {
-		CharacterAnimData* charAnim = getCharacterAnimData(entity->characterAnim, gameState);
+		CharacterAnim* charAnim = entity->characterAnim;
 
 		if(charAnim) {
-			AnimNodeData* deathAnim = getAnimNodeData(charAnim->deathAnim, gameState);
+			AnimNode* deathAnim = charAnim->death;
 
 			if(deathAnim) {
 				addDeath(gameState, entity->p, entity->renderSize, entity->drawOrder, entity->characterAnim);
@@ -791,16 +791,15 @@ void addIsTargetField(Entity* entity, GameState* gameState) {
 }
 
 
-Entity* addDeath(GameState* gameState, V2 p, V2 renderSize, DrawOrder drawOrder, CharacterAnim anim) {
+Entity* addDeath(GameState* gameState, V2 p, V2 renderSize, DrawOrder drawOrder, CharacterAnim* anim) {
 	Entity* result = addEntity(gameState, EntityType_death, drawOrder, p, renderSize);
 
 	setFlags(result, EntityFlag_noMovementByDefault);
 
 	result->characterAnim = anim;
 
-	CharacterAnimData* data = getCharacterAnimData(anim, gameState);
-	assert(data);
-	assert(data->deathAnim.dataIndex != 0);
+	assert(anim);
+	assert(anim->death);
 
 	return result;
 }
@@ -859,20 +858,16 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 	return result;
 }
 
-TextureData* getStandTex(CharacterAnim characterAnim, GameState* gameState) {
+Texture* getStandTex(CharacterAnim* characterAnim, GameState* gameState) {
 	assert(gameState);
-	assert(characterAnim.dataIndex);
-	CharacterAnimData* characterAnimData = getCharacterAnimData(characterAnim, gameState);
-	assert(characterAnimData);
-	AnimNodeData* standData = getAnimNodeData(characterAnimData->standAnim, gameState);
-	assert(standData);
-	Animation* standAnim = &standData->main;
+	assert(characterAnim);
+	AnimNode* standAnimNode = characterAnim->stand;
+	assert(standAnimNode);
+	Animation* standAnim = &standAnimNode->main;
 	assert(standAnim->frames > 0);
 	Texture* standTex = standAnim->frames + 0;
-	assert(standTex && standTex->dataIndex > 0);
-	TextureData* standTexData = getTextureData(standTex, gameState->renderGroup);
-	assert(standTexData);
-	return standTexData;
+	assert(validTexture(standTex));
+	return standTex;
 }
 
 Entity* addVirus(GameState* gameState, V2 p) {
@@ -960,7 +955,7 @@ Entity* addBackground(GameState* gameState) {
 	return result;
 }
 
-void initTile(Entity* tile, GameState* gameState, Texture texture) {
+void initTile(Entity* tile, GameState* gameState, Texture* texture) {
 	tile->renderSize = gameState->tileSize;
 
 	double collisionHeight = tile->renderSize.y * 0.9;
@@ -976,7 +971,7 @@ void initTile(Entity* tile, GameState* gameState, Texture texture) {
 	addField(tile, createUnlimitedIntField(gameState, "y_offset", 0, 1));
 }
 
-Entity* addTile(GameState* gameState, V2 p, Texture texture) {
+Entity* addTile(GameState* gameState, V2 p, Texture* texture) {
 	Entity* result = addEntity(gameState, EntityType_tile, DrawOrder_tile, 
 								p, v2(0, 0));
 
@@ -1006,7 +1001,7 @@ void setSelectedText(Entity* text, s32 selectedIndex, GameState* gameState) {
 
 	messages->selectedIndex = selectedIndex;
 
-	TextureData* texture = messages->textures + selectedIndex;
+	Texture* texture = messages->textures + selectedIndex;
 
 	if(!texture->texId) {
 		*texture = createText(gameState->renderGroup, gameState->textFont, messages->text[selectedIndex]);
@@ -2995,7 +2990,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 	{
 		Entity* player = getEntityByRef(gameState, gameState->playerRef);
-		if(player && player->currentAnim.dataIndex == gameState->playerHack.dataIndex) hacking = true;
+		if(player && player->currentAnim == gameState->playerHack) hacking = true;
 	}
 
 	double dt = hacking ? 0 : dtForFrame;
@@ -3202,16 +3197,16 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 					if (beam) setFlags(beam, EntityFlag_laserOn);
 
-					topTexture = &gameState->laserTopOn;
-					baseTexture = &gameState->laserBaseOn;
+					topTexture = gameState->laserTopOn;
+					baseTexture = gameState->laserBaseOn;
 				}
 				else {
 					clearFlags(entity, EntityFlag_laserOn);
 
 					if (beam) clearFlags(beam, EntityFlag_laserOn);
 
-					topTexture = &gameState->laserTopOff;
-					baseTexture = &gameState->laserBaseOff;
+					topTexture = gameState->laserTopOff;
+					baseTexture = gameState->laserBaseOff;
 				}
 	
 				assert(topTexture && baseTexture);
@@ -3261,11 +3256,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 		//NOTE: This handles rendering all the entities
 		bool showPlayerHackingAnim = entity->type == EntityType_player && getEntityByRef(gameState, gameState->consoleEntityRef);
-		CharacterAnimData* characterAnim = NULL;
-
-		if(entity->characterAnim.dataIndex) {
-			characterAnim = getCharacterAnimData(entity->characterAnim, gameState);
-		}
+		CharacterAnim* characterAnim = entity->characterAnim;
 
 		if (entity->type == EntityType_player && hacking) {
 			entity->animTime += dtForFrame;
@@ -3275,10 +3266,10 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 		if(characterAnim) {
 			if(entity->type == EntityType_death) {
-				entity->currentAnim = characterAnim->deathAnim;
+				entity->currentAnim = characterAnim->death;
 				clearFlags(entity, EntityFlag_animIntro|EntityFlag_animOutro);
 
-				AnimNodeData* deathAnimNode = getAnimNodeData(characterAnim->deathAnim, gameState);
+				AnimNode* deathAnimNode = characterAnim->death;
 				assert(deathAnimNode);
 
 				Animation* deathAnim = &deathAnimNode->main;
@@ -3293,9 +3284,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			} else {
 				if(isSet(entity, EntityFlag_animIntro)) {
 					assert(!isSet(entity, EntityFlag_animOutro));
-					assert(entity->currentAnim.dataIndex);
+					assert(entity->currentAnim);
 
-					AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+					AnimNode* currentAnim = entity->currentAnim;
 					assert(currentAnim);
 					assert(currentAnim->intro.frames);
 					double duration = getAnimationDuration(&currentAnim->intro);
@@ -3307,9 +3298,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				}
 
 				else if(isSet(entity, EntityFlag_animOutro)) {
-					assert(entity->currentAnim.dataIndex && entity->nextAnim.dataIndex);
+					assert(entity->currentAnim && entity->nextAnim);
 
-					AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+					AnimNode* currentAnim = entity->currentAnim;
 					assert(currentAnim->outro.frames);
 
 					double duration = getAnimationDuration(&currentAnim->outro);
@@ -3321,42 +3312,31 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 					}
 				}
 
-				else if(entity->currentAnim.dataIndex) {
-					AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
-					assert(currentAnim->main.frames);
-
-					double duration = getAnimationDuration(&currentAnim->main);
-					//if(entity->currentAnim->main.pingPong) duration *= 2;
-
-					if(duration <= 0) {
-						entity->animTime = 0;
-					}
-				}
 
 				if(showPlayerHackingAnim) {
 					entity->nextAnim = gameState->playerHack;
 				}
-				else if(shootingState && characterAnim->shootAnim.dataIndex) {
-					entity->nextAnim = characterAnim->shootAnim;
+				else if(shootingState && characterAnim->shoot) {
+					entity->nextAnim = characterAnim->shoot;
 				}
-				else if((entity->dP.y != 0 || !isSet(entity, EntityFlag_grounded)) && characterAnim->jumpAnim.dataIndex) {
-					entity->nextAnim = characterAnim->jumpAnim;
+				else if((entity->dP.y != 0 || !isSet(entity, EntityFlag_grounded)) && characterAnim->jump) {
+					entity->nextAnim = characterAnim->jump;
 				}
-				else if(abs(entity->dP.x) > 0.1f && characterAnim->walkAnim.dataIndex) {
-					entity->nextAnim = characterAnim->walkAnim;
+				else if(abs(entity->dP.x) > 0.1f && characterAnim->walk) {
+					entity->nextAnim = characterAnim->walk;
 				}
-				else if (characterAnim->standAnim.dataIndex) {
-					entity->nextAnim = characterAnim->standAnim;
-				}
-
-				if(entity->nextAnim.dataIndex == entity->currentAnim.dataIndex) {
-					entity->nextAnim.dataIndex = 0;
+				else if (characterAnim->stand) {
+					entity->nextAnim = characterAnim->stand;
 				}
 
-				if (entity->nextAnim.dataIndex) {
+				if(entity->nextAnim == entity->currentAnim) {
+					entity->nextAnim = NULL;
+				}
+
+				if (entity->nextAnim) {
 					if(isSet(entity, EntityFlag_animIntro)) {
-						assert(entity->currentAnim.dataIndex);
-						AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+						assert(entity->currentAnim);
+						AnimNode* currentAnim = entity->currentAnim;
 						assert(currentAnim);
 						assert(currentAnim->intro.frames);
 						if(currentAnim->intro.frames &&
@@ -3367,10 +3347,10 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						}
 					} else if(!isSet(entity, EntityFlag_animOutro)) {
 						bool transitionToOutro = true;
-						bool transitionToNext = (entity->nextAnim.dataIndex == characterAnim->jumpAnim.dataIndex);
+						bool transitionToNext = (entity->nextAnim == characterAnim->jump);
 
-						if(entity->currentAnim.dataIndex){
-							AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+						if(entity->currentAnim){
+							AnimNode* currentAnim = entity->currentAnim;
 							assert(currentAnim);
 
 							if(currentAnim->finishMainBeforeOutro) {
@@ -3381,8 +3361,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						if(transitionToOutro) {
 							entity->animTime = 0;
 
-							if(entity->currentAnim.dataIndex) {
-								AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+							if(entity->currentAnim) {
+								AnimNode* currentAnim = entity->currentAnim;
 								assert(currentAnim);
 
 								if(currentAnim->outro.numFrames) {
@@ -3400,9 +3380,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 							clearFlags(entity, EntityFlag_animOutro);
 							entity->animTime = 0;
 							entity->currentAnim = entity->nextAnim;
-							assert(entity->currentAnim.dataIndex);
+							assert(entity->currentAnim);
 
-							AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+							AnimNode* currentAnim = entity->currentAnim;
 							assert(currentAnim);
 
 							if(currentAnim->intro.frames) {
@@ -3416,14 +3396,14 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 					clearFlags(entity, EntityFlag_animOutro);
 				}
 
-				AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+				AnimNode* currentAnim = entity->currentAnim;
 
-				if((!entity->nextAnim.dataIndex || !entity->currentAnim.dataIndex || !currentAnim->outro.frames) && 
+				if((!entity->nextAnim || !entity->currentAnim || !currentAnim->outro.frames) && 
 					isSet(entity, EntityFlag_animOutro)) {
 					InvalidCodePath;
 				}
 
-				if((!entity->currentAnim.dataIndex || !currentAnim->intro.frames) && 
+				if((!entity->currentAnim || !currentAnim->intro.frames) && 
 					isSet(entity, EntityFlag_animIntro)) {
 					InvalidCodePath;
 				}
@@ -3438,13 +3418,12 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		}
 		#endif
 
-		TextureData* texture = NULL;
-		Texture* tempTexture = NULL;
+		Texture* texture = NULL;
 
-		if(entity->currentAnim.dataIndex) {
+		if(entity->currentAnim) {
 			Animation* anim = NULL;
 
-			AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+			AnimNode* currentAnim = entity->currentAnim;
 			assert(currentAnim);
 
 			if(isSet(entity, EntityFlag_animIntro)) {
@@ -3458,23 +3437,17 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			}
 
 			assert(anim);
-			tempTexture = getAnimationFrame(anim, entity->animTime);
+			texture = getAnimationFrame(anim, entity->animTime);
 
-			assert(tempTexture);
-			assert(tempTexture->dataIndex);
+			assert(validTexture(texture));
 		}
-		else if(entity->defaultTex.dataIndex) {
-			tempTexture = &entity->defaultTex;
+		else if(entity->defaultTex) {
+			texture = entity->defaultTex;
 		}
 		else if(entity->messages) {
-			texture = &entity->messages->textures[entity->messages->selectedIndex];
+			texture = entity->messages->textures + entity->messages->selectedIndex;
 		} else if(entity->type == EntityType_hackEnergy) {
-			tempTexture = getAnimationFrame(&gameState->hackEnergyAnim, entity->animTime);
-		}
-
-		if(tempTexture) {
-			texture = getTextureData(tempTexture, gameState->renderGroup);
-			assert(texture);
+			texture = getAnimationFrame(&gameState->hackEnergyAnim, entity->animTime);
 		}
 
 		#if DRAW_ENTITIES

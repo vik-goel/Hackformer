@@ -6,13 +6,12 @@ struct Animation {
 	double secondsPerFrame;
 	bool32 pingPong;
 	bool32 reverse;
+	s32 frameWidth;
+	s32 frameHeight;
+	char fileName[100];
 };
 
 struct AnimNode {
-	s32 dataIndex;
-};
-
-struct AnimNodeData {
 	Animation intro;
 	Animation main;
 	Animation outro;
@@ -20,16 +19,12 @@ struct AnimNodeData {
 };
 
 struct CharacterAnim {
-	s32 dataIndex;
-};
-
-struct CharacterAnimData {
-	AnimNode standAnim;
-	AnimNode jumpAnim;
-	AnimNode shootAnim;
-	AnimNode walkAnim;
-	AnimNode disappearAnim;
-	AnimNode deathAnim;
+	AnimNode* stand;
+	AnimNode* jump;
+	AnimNode* shoot;
+	AnimNode* walk;
+	AnimNode* disappear;
+	AnimNode* death;
 };
 
 enum TextAlignment {
@@ -38,7 +33,7 @@ enum TextAlignment {
 };
 
 struct Glyph {
-	TextureData tex;
+	Texture tex;
 
 	//min for bottom and left
 	//max for top and right
@@ -122,7 +117,7 @@ enum DrawOrder;
 
 struct RenderTexture {
 	DrawOrder drawOrder;
-	TextureData* texture;
+	Texture* texture;
 	bool8 flipX;
 	Orientation orientation;
 	float emissivity;
@@ -166,7 +161,7 @@ struct RenderOutlinedRect {
 };
 
 struct RenderFilledStencil {
-	TextureData* stencil;
+	Texture* stencil;
 	R2 bounds;
 	double widthPercentage;
 	Color color;
@@ -192,7 +187,7 @@ struct RenderGroup {
 	Shader stencilShader;
 	Shader* currentShader;
 
-	TextureData whiteTex;
+	Texture* whiteTex;
 
 	double pixelsPerMeter;
 	s32 windowWidth;
@@ -217,6 +212,6 @@ struct RenderGroup {
 	size_t allocated;
 	size_t maxSize;
 
-	TextureData* textureData;
-	s32* textureDataCount;
+	Texture* textures;
+	s32* texturesCount;
 };

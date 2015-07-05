@@ -7,6 +7,12 @@ void writeHitboxes(FILE* file, Hitbox* hitboxes) {
 		writeV2(file, hitboxes->collisionSize);
 		writeV2(file, hitboxes->collisionOffset);
 
+		writeS32(file, hitboxes->collisionPointsCount);
+
+		for(s32 pIndex = 0; pIndex < hitboxes->collisionPointsCount; pIndex++) {
+			writeV2(file, hitboxes->originalCollisionPoints[pIndex]);
+		}
+
 		hitboxes = hitboxes->next;
 	}
 }
@@ -96,19 +102,40 @@ void writeMessages(FILE* file, Messages* messages) {
 	}
 }
 
-void writeTexture(FILE* file, Texture texture) {
-	writeS32(file, texture.dataIndex);
+void writeTexture(FILE* file, Texture* texture, GameState* gameState) {
+	if(texture) {
+		s32 dataIndex = ((size_t)texture - (size_t)gameState->textures) / sizeof(Texture);
+		assert(dataIndex >= 0 && dataIndex < gameState->texturesCount);
+
+		writeS32(file, dataIndex);
+	} else {
+		writeS32(file, -1);
+	}
 }
 
-void writeAnimNode(FILE* file, AnimNode anim) {
-	writeS32(file, anim.dataIndex);
+void writeAnimNode(FILE* file, AnimNode* anim, GameState* gameState) {
+	if (anim){
+		s32 dataIndex = ((size_t)anim - (size_t)gameState->animNodes) / sizeof(AnimNode);
+		assert(dataIndex >= 0 && dataIndex < gameState->animNodesCount);
+
+		writeS32(file, dataIndex);
+	} else {
+		writeS32(file, -1);
+	}
 }
 
-void writeCharacterAnim(FILE* file, CharacterAnim anim) {
-	writeS32(file, anim.dataIndex);
+void writeCharacterAnim(FILE* file, CharacterAnim* anim, GameState* gameState) {
+	if (anim){
+		s32 dataIndex = ((size_t)anim - (size_t)gameState->characterAnims) / sizeof(CharacterAnim);
+		assert(dataIndex >= 0 && dataIndex < gameState->characterAnimsCount);
+
+		writeS32(file, dataIndex);
+	} else {
+		writeS32(file, -1);
+	}
 }
 
-void writeEntity(FILE* file, Entity* entity) {
+void writeEntity(FILE* file, Entity* entity, GameState* gameState) {
 	writeS32(file, entity->ref);
 	writeS32(file, entity->type);
 	writeU32(file, entity->flags);
@@ -141,10 +168,10 @@ void writeEntity(FILE* file, Entity* entity) {
 	writeMessages(file, entity->messages);
 
 	writeDouble(file, entity->animTime);
-	writeAnimNode(file, entity->currentAnim);
-	writeAnimNode(file, entity->nextAnim);
-	writeTexture(file, entity->defaultTex);
-	writeCharacterAnim(file, entity->characterAnim);
+	writeAnimNode(file, entity->currentAnim, gameState);
+	writeAnimNode(file, entity->nextAnim, gameState);
+	writeTexture(file, entity->defaultTex, gameState);
+	writeCharacterAnim(file, entity->characterAnim, gameState);
 }
 
 void writeFieldSpec(FILE* file, FieldSpec* spec) {
@@ -156,13 +183,12 @@ void writeAnimation(FILE* file, Animation* anim) {
 	writeS32(file, anim->numFrames);
 
 	if(anim->numFrames) {
-		for(s32 frameIndex = 0; frameIndex < anim->numFrames; frameIndex++) {
-			writeTexture(file, anim->frames[frameIndex]);
-		}
-
 		writeDouble(file, anim->secondsPerFrame);
 		writeS32(file, anim->pingPong);
 		writeS32(file, anim->reverse);
+		writeS32(file, anim->frameWidth);
+		writeS32(file, anim->frameHeight);
+		writeString(file, anim->fileName);
 	}
 }
 
@@ -208,8 +234,8 @@ void saveGame(GameState* gameState, char* fileName) {
 	writeRefNode(file, gameState->targetRefs);
 	writeS32(file, gameState->consoleEntityRef);
 	writeS32(file, gameState->playerRef);
-	writeS32(file, gameState->playerDeathRef);
 	writeS32(file, gameState->loadNextLevel);
+	writeS32(file, gameState->reloadCurrentLevel);
 	writeS32(file, gameState->doingInitialSim);
 
 	writeConsoleField(file, gameState->timeField);
@@ -222,61 +248,7 @@ void saveGame(GameState* gameState, char* fileName) {
 	writeV2(file, gameState->worldSize);
 	writeV2(file, gameState->gravity);
 
-	writeAnimNode(file, gameState->playerHack);
-	writeCharacterAnim(file, gameState->playerAnim);
-	writeCharacterAnim(file, gameState->playerDeathAnim);
-	writeCharacterAnim(file, gameState->virus1Anim);
-	writeCharacterAnim(file, gameState->flyingVirusAnim);
-
 	writeS32(file, gameState->backgroundTextures.curBackgroundType);
-	writeAnimation(file, &gameState->hackEnergyAnim);
-	writeTexture(file, gameState->laserBolt);
-	writeTexture(file, gameState->endPortal);
-	writeTexture(file, gameState->laserBaseOff);
-	writeTexture(file, gameState->laserBaseOn);
-	writeTexture(file, gameState->laserTopOff);
-	writeTexture(file, gameState->laserTopOn);
-	writeTexture(file, gameState->laserBeam);
-	writeTexture(file, gameState->heavyTileTex);
-
-	writeS32(file, gameState->tileAtlasCount);
-
-	for(s32 texIndex = 0; texIndex < gameState->tileAtlasCount; texIndex++) {
-		writeTexture(file, gameState->tileAtlas[texIndex]);
-	}
-
-	writeS32(file, gameState->textureDataCount);
-
-	for(s32 texIndex = 1; texIndex < gameState->textureDataCount; texIndex++) {
-		TextureData* data = gameState->textureData + texIndex;
-		assert(data->hasFileName);
-
-		writeString(file, data->fileName);
-		writeR2(file, data->uv);
-	}
-
-	writeS32(file, gameState->animDataCount);
-
-	for(s32 nodeIndex = 1; nodeIndex < gameState->animDataCount; nodeIndex++) {
-		AnimNodeData* data = gameState->animData + nodeIndex;
-
-		writeAnimation(file, &data->intro);
-		writeAnimation(file, &data->main);
-		writeAnimation(file, &data->outro);
-		writeS32(file, data->finishMainBeforeOutro);
-	}
-
-	writeS32(file, gameState->characterAnimDataCount);
-
-	for(s32 characterIndex = 1; characterIndex < gameState->characterAnimDataCount; characterIndex++) {
-		CharacterAnimData* data = gameState->characterAnimData + characterIndex;
-
-		writeAnimNode(file, data->standAnim);
-		writeAnimNode(file, data->jumpAnim);
-		writeAnimNode(file, data->shootAnim);
-		writeAnimNode(file, data->walkAnim);
-		writeAnimNode(file, data->disappearAnim);
-	}
 
 	writePauseMenu(file, &gameState->pauseMenu);
 	writeDock(file, &gameState->dock);
@@ -285,7 +257,7 @@ void saveGame(GameState* gameState, char* fileName) {
 
 	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
 		Entity* entity = gameState->entities + entityIndex;
-		writeEntity(file, entity);
+		writeEntity(file, entity, gameState);
 	}
 
 	if(getEntityByRef(gameState, gameState->consoleEntityRef)) {
@@ -397,21 +369,42 @@ Messages* readMessages(FILE* file, GameState* gameState) {
 	return result;
 }
 
-Texture readTexture(FILE* file) {
-	Texture result = {};
-	result.dataIndex = readS32(file);
+Texture* readTexture(FILE* file, GameState* gameState) {
+	Texture* result = NULL;
+
+	s32 dataIndex = readS32(file);
+
+	if(dataIndex >= 0) {
+		assert(dataIndex < gameState->texturesCount);
+		result = gameState->textures + dataIndex;
+	}
+
 	return result;
 }
 
-AnimNode readAnimNode(FILE* file) {
-	AnimNode result = {};
-	result.dataIndex = readS32(file);
+AnimNode* readAnimNode(FILE* file, GameState* gameState) {
+	AnimNode* result = NULL;
+
+	s32 dataIndex = readS32(file);
+
+	if(dataIndex >= 0) {
+		assert(dataIndex < gameState->animNodesCount);
+		result = gameState->animNodes + dataIndex;
+	}
+
 	return result;
 }
 
-CharacterAnim readCharacterAnim(FILE* file) {
-	CharacterAnim result = {};
-	result.dataIndex = readS32(file);
+CharacterAnim* readCharacterAnim(FILE* file, GameState* gameState) {
+	CharacterAnim* result = NULL;
+
+	s32 dataIndex = readS32(file);
+
+	if(dataIndex >= 0) {
+		assert(dataIndex < gameState->characterAnimsCount);
+		result = gameState->characterAnims + dataIndex;
+	}
+
 	return result;
 }
 
@@ -432,6 +425,14 @@ void readEntity(FILE* file, GameState* gameState, s32 entityIndex) {
 		Hitbox* hitbox = createUnzeroedHitbox(gameState);
 		hitbox->collisionSize = readV2(file);
 		hitbox->collisionOffset = readV2(file);
+
+		hitbox->collisionPointsCount = readS32(file);
+
+		for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
+			hitbox->originalCollisionPoints[pIndex] = readV2(file);
+		}
+
+		hitbox->storedRotation = INVALID_STORED_HITBOX_ROTATION;
 
 		hitbox->next = entity->hitboxes;
 		entity->hitboxes = hitbox;
@@ -464,10 +465,10 @@ void readEntity(FILE* file, GameState* gameState, s32 entityIndex) {
 	entity->messages = readMessages(file, gameState);
 
 	entity->animTime = readDouble(file);
-	entity->currentAnim = readAnimNode(file);
-	entity->nextAnim = readAnimNode(file);
-	entity->defaultTex = readTexture(file);
-	entity->characterAnim = readCharacterAnim(file);
+	entity->currentAnim = readAnimNode(file, gameState);
+	entity->nextAnim = readAnimNode(file, gameState);
+	entity->defaultTex = readTexture(file, gameState);
+	entity->characterAnim = readCharacterAnim(file, gameState);
 
 	addToSpatialPartition(entity, gameState);
 }
@@ -490,16 +491,22 @@ Animation readAnimation(FILE* file, GameState* gameState) {
 
 	result.numFrames = readS32(file);
 
-	if(result.numFrames) {
-		result.frames = pushArray(&gameState->permanentStorage, Texture, result.numFrames);
-
-		for(s32 frameIndex = 0; frameIndex < result.numFrames; frameIndex++) {
-			result.frames[frameIndex] = readTexture(file);
-		}
-
+	if(result.numFrames > 0) {
 		result.secondsPerFrame = readDouble(file);
 		result.pingPong = readS32(file);
 		result.reverse = readS32(file);
+		result.frameWidth = readS32(file);
+		result.frameHeight = readS32(file);
+
+		char fileName[arrayCount(result.fileName)];
+		readString(file, fileName);
+
+		strcpy(result.fileName, fileName);
+
+		s32 numFrames = 0;
+		result.frames = extractTextures(gameState->renderGroup, &gameState->permanentStorage, fileName, result.frameWidth, 
+										result.frameHeight, 0, &numFrames);
+		assert(numFrames == result.numFrames);
 	}
 
 	return result;
@@ -543,9 +550,9 @@ void loadGame(GameState* gameState, char* fileName) {
 	gameState->targetRefs = readRefNode(file, gameState);
 	gameState->consoleEntityRef = readS32(file);
 	gameState->playerRef = readS32(file);
-	gameState->playerDeathRef = readS32(file);
 
 	gameState->loadNextLevel = readS32(file);
+	gameState->reloadCurrentLevel = readS32(file);
 	gameState->doingInitialSim = readS32(file);
 
 	gameState->timeField = readConsoleField(file, gameState);
@@ -559,93 +566,7 @@ void loadGame(GameState* gameState, char* fileName) {
 	gameState->worldSize = readV2(file);
 	gameState->gravity = readV2(file);
 
-	gameState->playerHack = readAnimNode(file);
-	gameState->playerAnim = readCharacterAnim(file);
-	gameState->playerDeathAnim = readCharacterAnim(file);
-	gameState->virus1Anim = readCharacterAnim(file);
-	gameState->flyingVirusAnim = readCharacterAnim(file);
-
 	gameState->backgroundTextures.curBackgroundType = (BackgroundType)readS32(file);
-	gameState->hackEnergyAnim = readAnimation(file, gameState);
-	gameState->laserBolt = readTexture(file);
-	gameState->endPortal = readTexture(file);
-	gameState->laserBaseOff = readTexture(file);
-	gameState->laserBaseOn = readTexture(file);
-	gameState->laserTopOff = readTexture(file);
-	gameState->laserTopOn = readTexture(file);
-	gameState->laserBeam = readTexture(file);
-	gameState->heavyTileTex = readTexture(file);
-
-	gameState->tileAtlasCount = readS32(file);
-
-	if(gameState->tileAtlasCount) {
-		//TODO: If there is already a tile atlas this will leak
-		gameState->tileAtlas = pushArray(&gameState->permanentStorage, Texture, gameState->tileAtlasCount);
-
-		for(s32 texIndex = 0; texIndex < gameState->tileAtlasCount; texIndex++) {
-			gameState->tileAtlas[texIndex] = readTexture(file);
-		}
-	}
-
-	gameState->textureDataCount = readS32(file);
-
-	//TODO: Many textures that need to be loaded in have probably already been loaded in
-	//		If any textures are unecessary delete them
-	//		This just orphans all of the already loaded textures
-	for(s32 texIndex = 1; texIndex < gameState->textureDataCount; texIndex++) {
-		TextureData* data = gameState->textureData + texIndex;
-		readString(file, data->fileName);
-		data->hasFileName = true;
-
-		TextureData* dataToCopy = NULL;
-
-		for(s32 testIndex = 1; testIndex < texIndex; testIndex++) {
-			TextureData* testData = gameState->textureData + testIndex;
-
-			if(strcmp(testData->fileName, data->fileName) == 0) {
-				dataToCopy = testData;
-				break;
-			}
-		}
-
-		TextureData loadedData;
-
-		if(!dataToCopy) {
-			loadedData = loadPNGTexture(gameState->renderGroup, data->fileName);
-			dataToCopy = &loadedData;
-		}
-
-		assert(dataToCopy);
-
-		data->texId = dataToCopy->texId;
-		data->size = dataToCopy->size;
-
-		data->uv = readR2(file);
-
-		assert(data->texId);
-	}
-
-	gameState->animDataCount = readS32(file);
-
-	for(s32 nodeIndex = 1; nodeIndex < gameState->animDataCount; nodeIndex++) {
-		AnimNodeData* data = gameState->animData + nodeIndex;
-		data->intro = readAnimation(file, gameState);
-		data->main = readAnimation(file, gameState);
-		data->outro = readAnimation(file, gameState);
-		data->finishMainBeforeOutro = readS32(file);
-	}
-
-	gameState->characterAnimDataCount = readS32(file);
-
-	for(s32 dataIndex = 1; dataIndex < gameState->characterAnimDataCount; dataIndex++) {
-		CharacterAnimData* data = gameState->characterAnimData + dataIndex;
-
-		data->standAnim = readAnimNode(file);
-		data->jumpAnim = readAnimNode(file);
-		data->shootAnim = readAnimNode(file);
-		data->walkAnim = readAnimNode(file);
-		data->disappearAnim = readAnimNode(file);
-	}
 
 	readPauseMenu(file, &gameState->pauseMenu);
 	readDock(file, &gameState->dock);

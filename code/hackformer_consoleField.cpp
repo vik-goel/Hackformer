@@ -552,7 +552,7 @@ bool drawTileArrow(V2 p, V2 offset, ConsoleField* field, RenderGroup* group, Inp
 		}
 	}
 
-	pushTexture(group, &spec->tileHackArrow, arrowBounds, false, DrawOrder_gui, false, orientation, color);	
+	pushTexture(group, spec->tileHackArrow, arrowBounds, false, DrawOrder_gui, false, orientation, color);	
 
 	return clickHandled;
 }
@@ -579,23 +579,23 @@ bool drawValueArrow(V2 p, ConsoleField* field, RenderGroup* group, Input* input,
 		clickConsoleButton(clickBounds, field, input, spec, facesRight, &state, gameState);
 	}	
 
-	TextureData* tex = NULL;
+	Texture* tex = NULL;
 	Color color = WHITE;
 
 	switch(state) {
 		case ButtonState_cantAfford:
-			tex = &spec->leftButtonUnavailable;
+			tex = spec->leftButtonUnavailable;
 			color = createColor(255, 255, 255, 100);
 			break;
 		case ButtonState_default:
-			tex = &spec->leftButtonDefault;
+			tex = spec->leftButtonDefault;
 			break;
 		case ButtonState_hover:
-			tex = &spec->leftButtonDefault;
+			tex = spec->leftButtonDefault;
 			color = createColor(150, 150, 150, 255);
 			break;
 		case ButtonState_clicked:
-			tex = &spec->leftButtonClicked;
+			tex = spec->leftButtonClicked;
 			break;
 
 		InvalidDefaultCase;
@@ -673,7 +673,7 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 			if(hasValue) {
 				V2 valueP = fieldP + v2(0.1, (spec->valueSize.y + spec->fieldSize.y) * -0.5 + spec->valueBackgroundPenetration);
 				R2 valueBounds = rectCenterDiameter(valueP, spec->valueSize);
-				pushTexture(group, &spec->valueBackground, valueBounds, false, DrawOrder_gui);
+				pushTexture(group, spec->valueBackground, valueBounds, false, DrawOrder_gui);
 
 				V2 textP = valueP - v2(0, 0.225);
 				pushText(group, &spec->consoleFont, valueStr, textP, WHITE, TextAlignment_center);
@@ -694,7 +694,7 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 		}
 
 		if(drawField) {
-			TextureData* fieldTex = hasValues(field) ? &spec->attribute : &spec->behaviour;
+			Texture* fieldTex = hasValues(field) ? spec->attribute : spec->behaviour;
 			pushTexture(group, fieldTex, fieldBounds, false, DrawOrder_gui);
 
 			V2 nameP = fieldP + v2(0.14, -0.04);
@@ -833,8 +833,8 @@ void drawWaypointInformation(ConsoleField* field, RenderGroup* group, FieldSpec*
 			double arrowSize = 0.15;
 			V2 arrowDimens = v2(1, 1) * arrowSize;
 
-			TextureData* waypointTex = &spec->waypoint;
-			TextureData* waypointArrowTex = &spec->waypointArrow;
+			Texture* waypointTex = spec->waypoint;
+			Texture* waypointArrowTex = spec->waypointArrow;
 
 			while(w) {
 				Waypoint* next = w->next;
@@ -955,7 +955,7 @@ bool updateConsole(GameState* gameState, double dt) {
 				V2 clickBoxCenter = getRectCenter(entity->clickBox) + entity->p - gameState->camera.p;
 
 				R2 shieldBounds = scaleRect(renderBounds, v2(1, 1) * 1.15);
-				pushTexture(gameState->renderGroup, &spec->tileHackShield, shieldBounds, entity->rotation);
+				pushTexture(gameState->renderGroup, spec->tileHackShield, shieldBounds, entity->rotation);
 
 				V2 offset = clickBoxSize * 0.5 + spec->spacing;
 

@@ -174,8 +174,7 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 	Entity* player = getEntityByRef(gameState, gameState->playerRef);
 	assert(player);
 
-	CharacterAnimData* characterAnim = getCharacterAnimData(player->characterAnim, gameState);
-	player->currentAnim = characterAnim->standAnim;
+	player->currentAnim = player->characterAnim->stand;
 	clearFlags(player, EntityFlag_animIntro|EntityFlag_animOutro);
 
 	centerCameraAround(player, gameState);
@@ -193,7 +192,7 @@ Button createButton(GameState* gameState, char* defaultTextureFilePath, V2 p, do
 
 	result.defaultTex = loadPNGTexture(gameState->renderGroup, defaultTextureFilePath, false);
 
-	double buttonWidth = getAspectRatio(&result.defaultTex) * buttonHeight;
+	double buttonWidth = getAspectRatio(result.defaultTex) * buttonHeight;
 
 	V2 size = v2(buttonWidth, buttonHeight);
 	result.renderBounds = rectCenterDiameter(p, size);
@@ -230,7 +229,7 @@ Button createPauseMenuButton(GameState* gameState, char* textureFilePath, V2 p, 
 bool updateAndDrawButton(Button* button, RenderGroup* group, Input* input, double dt) {
 	bool clicked = false;
 
-	TextureData* tex = NULL;
+	Texture* tex = NULL;
 
 	bool mouseInsideButton = pointInsideRect(button->clickBounds, input->mouseInMeters);
 
@@ -243,7 +242,7 @@ bool updateAndDrawButton(Button* button, RenderGroup* group, Input* input, doubl
 
 	if(button->selected) {
 		if(input->leftMouse.pressed) {
-			tex = &button->clickedTex;
+			tex = button->clickedTex;
 			button->scale -= scaleSpeed;
 		} else {
 			button->selected = false;
@@ -255,9 +254,9 @@ bool updateAndDrawButton(Button* button, RenderGroup* group, Input* input, doubl
 		button->scale += scaleSpeed;
 
 		if(mouseInsideButton) {
-			tex = &button->hoverTex;
+			tex = button->hoverTex;
 		} else {
-			tex = &button->defaultTex;
+			tex = button->defaultTex;
 		}
 	}
 
@@ -268,7 +267,7 @@ bool updateAndDrawButton(Button* button, RenderGroup* group, Input* input, doubl
 
 	R2 scaledRenderBounds = scaleRect(button->renderBounds, v2(1, 1) * scale);
 
-	if(!validTexture(tex)) tex = &button->defaultTex;
+	if(!validTexture(tex)) tex = button->defaultTex;
 
 	assert(validTexture(tex));
 	pushTexture(group, tex, scaledRenderBounds, false, DrawOrder_gui);
@@ -281,7 +280,7 @@ void translateButton(Button* button, V2 translation) {
 	button->renderBounds = translateRect(button->renderBounds, translation);
 }
 
-void drawAnimatedBackground(GameState* gameState, TextureData* background, Animation* backgroundAnim, double animTime) {
+void drawAnimatedBackground(GameState* gameState, Texture* background, Animation* backgroundAnim, double animTime) {
 	R2 windowBounds = r2(v2(0, 0), gameState->windowSize);
 
 	Texture* frame1 = getAnimationFrame(backgroundAnim, animTime);
@@ -363,13 +362,13 @@ GameState* createGameState(s32 windowWidth, s32 windowHeight) {
 	gameState->tileSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_IN_METERS); 
 	gameState->chunkSize = v2(6, 6);
 
-	gameState->textureDataCount = 1; //NOTE: 0 is a null texture data
-	gameState->animDataCount = 1; //NOTE: 0 is a null anim data
-	gameState->characterAnimDataCount = 1; //NOTE: 0 is a null character data
+	gameState->texturesCount = 1; //NOTE: 0 is a null texture data
+	gameState->animNodesCount = 1; //NOTE: 0 is a null anim data
+	gameState->characterAnimsCount = 1; //NOTE: 0 is a null character data
 
 	gameState->renderGroup = createRenderGroup(256 * 1024, &gameState->permanentStorage, gameState->pixelsPerMeter, 
 		gameState->windowWidth, gameState->windowHeight, &gameState->camera,
-		gameState->textureData, &gameState->textureDataCount);
+		gameState->textures, &gameState->texturesCount);
 
 	initInputKeyCodes(&gameState->input);
 
@@ -390,13 +389,13 @@ void initFieldSpec(GameState* gameState) {
 	spec->waypointArrow = loadPNGTexture(gameState->renderGroup, "waypoint_arrow", false);
 	spec->tileHackShield = loadPNGTexture(gameState->renderGroup, "tile_hacking/tile_hack_shield", false);
 	spec->tileHackArrow = loadPNGTexture(gameState->renderGroup, "tile_hacking/right_button", false);
-	spec->tileArrowSize = getDrawSize(&spec->tileHackArrow, 0.5);
+	spec->tileArrowSize = getDrawSize(spec->tileHackArrow, 0.5);
 
-	spec->fieldSize = getDrawSize(&spec->behaviour, 0.5);
-	spec->valueSize = getDrawSize(&spec->valueBackground, 0.8);
+	spec->fieldSize = getDrawSize(spec->behaviour, 0.5);
+	spec->valueSize = getDrawSize(spec->valueBackground, 0.8);
 	spec->valueBackgroundPenetration = 0.4;
 	
-	spec->triangleSize = getDrawSize(&spec->leftButtonDefault, spec->valueSize.y - spec->valueBackgroundPenetration + spec->fieldSize.y);
+	spec->triangleSize = getDrawSize(spec->leftButtonDefault, spec->valueSize.y - spec->valueBackgroundPenetration + spec->fieldSize.y);
 	spec->spacing = v2(0.05, 0);
 	spec->childInset = spec->fieldSize.x * 0.125;
 }
@@ -448,6 +447,92 @@ char* getSaveFilePath(char* saveFileName, MemoryArena* arena) {
 	return saveFilePath;
 }
 
+void loadImages(GameState* gameState) {
+	RenderGroup* renderGroup = gameState->renderGroup;
+
+	{
+		CharacterAnim* character = createCharacterAnim(gameState, &gameState->playerAnim);
+
+		AnimNode* walkNode = createAnimNode(gameState, &character->walk);
+		walkNode->intro = loadAnimation(gameState, "player/running_transition", 256, 256, 0.05f, true);
+		walkNode->main = loadAnimation(gameState, "player/running", 256, 256, 0.0425f, true);
+		walkNode->outro = createReversedAnimation(&walkNode->intro);
+
+		AnimNode* standNode = createAnimNode(gameState, &character->stand);
+		standNode->main = loadAnimation(gameState, "player/stand", 256, 256, 0.08f, true);
+
+		AnimNode* deathNode = createAnimNode(gameState, &character->death);
+		deathNode->main = loadAnimation(gameState, "player/death", 256, 256, 0.06f, true);
+
+		AnimNode* jumpNode = createAnimNode(gameState, &character->jump);
+		jumpNode->intro = loadAnimation(gameState, "player/jumping_intro", 256, 256, 0.04f, false);
+		jumpNode->main = createAnimation(loadPNGTexture(gameState->renderGroup, "player/jump"));
+		jumpNode->outro = loadAnimation(gameState, "player/jumping_outro", 256, 256, 0.04f, false);
+
+		AnimNode* hackNode = createAnimNode(gameState, &gameState->playerHack);
+		hackNode->intro = loadAnimation(gameState, "player/hacking", 256, 256, 0.07f, false);
+		hackNode->main = createAnimation(hackNode->intro.frames + (hackNode->intro.numFrames - 1));
+		hackNode->outro = createReversedAnimation(&hackNode->intro);
+	}
+
+	{
+		CharacterAnim* character = createCharacterAnim(gameState, &gameState->virus1Anim);
+
+		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
+		shoot->main = loadAnimation(gameState, "virus1/shoot", 145, 170, 0.04f, true);
+		gameState->shootDelay = getAnimationDuration(&shoot->main);
+		//TODO: Make shoot animation time per frame be set by the shootDelay
+
+		AnimNode* stand = createAnimNode(gameState, &character->stand);
+		stand->main = createAnimation(loadPNGTexture(gameState->renderGroup, "virus1/stand"));
+	}
+
+	{
+		CharacterAnim* character = createCharacterAnim(gameState, &gameState->flyingVirusAnim);
+
+		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
+		shoot->main = loadAnimation(gameState, "virus2/shoot", 133, 127, 0.04f, false);
+
+		AnimNode* stand = createAnimNode(gameState, &character->stand);
+		stand->main = createAnimation(loadPNGTexture(gameState->renderGroup, "virus2/full"));
+	}
+
+	{
+		CharacterAnim* character = createCharacterAnim(gameState, &gameState->trojanAnim);
+
+		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
+		shoot->main = loadAnimation(gameState, "trojan/shoot", 364, 336, 0.04f, false);
+
+		AnimNode* disappear = createAnimNode(gameState, &character->disappear);
+		disappear->main = loadAnimation(gameState, "trojan/disappear", 397, 345, 0.04f, false);
+
+		AnimNode* stand = createAnimNode(gameState, &character->stand);
+		stand->main = createAnimation(loadPNGTexture(gameState->renderGroup, "trojan/full"));
+	}
+	
+	gameState->hackEnergyAnim = loadAnimation(gameState, "energy_animation", 173, 172, 0.08f, true);
+	gameState->laserBolt = loadPNGTexture(renderGroup, "virus1/laser_bolt");
+	gameState->endPortal = loadPNGTexture(renderGroup, "end_portal");
+
+	gameState->laserBaseOff = loadPNGTexture(renderGroup, "virus3/base_off");
+	gameState->laserBaseOn = loadPNGTexture(renderGroup, "virus3/base_on");
+	gameState->laserTopOff = loadPNGTexture(renderGroup, "virus3/top_off");
+	gameState->laserTopOn = loadPNGTexture(renderGroup, "virus3/top_on");
+	gameState->laserBeam = loadPNGTexture(renderGroup, "virus3/laser_beam");
+
+	gameState->tileAtlasCount = arrayCount(globalTileFileNames);
+	gameState->tileAtlas = pushArray(&gameState->permanentStorage, Texture*, gameState->tileAtlasCount);
+
+	for(s32 tileIndex = 0; tileIndex < gameState->tileAtlasCount; tileIndex++) {
+		char fileName[2000];
+		sprintf(fileName, "tiles/%s", globalTileFileNames[tileIndex]);
+
+		//TODO: No need to put these textures in the textures array
+		gameState->tileAtlas[tileIndex] = loadPNGTexture(gameState->renderGroup, fileName);
+	}
+}
+
+
 int main(int argc, char* argv[]) {
 	s32 windowWidth = 1280, windowHeight = 720;
 	SDL_Window* window = createWindow(windowWidth, windowHeight);
@@ -467,93 +552,7 @@ int main(int argc, char* argv[]) {
 
 	initBackgroundTextures(&gameState->backgroundTextures);
 
-	Animation playerWalk = loadAnimation(gameState, "player/running", 256, 256, 0.0425f, true);
-	Animation playerDeath = loadAnimation(gameState, "player/death", 256, 256, 0.06f, true);
-	Animation playerWalkTransition = loadAnimation(gameState, "player/running_transition", 256, 256, 0.05f, true);
-	Animation playerJumpIntro = loadAnimation(gameState, "player/jumping_intro", 256, 256, 0.04f, false);
-	Animation playerJumpOutro = loadAnimation(gameState, "player/jumping_outro", 256, 256, 0.04f, false);
-	TextureData playerJump = loadPNGTexture(gameState->renderGroup, "player/jump");
-	Animation playerHacking = loadAnimation(gameState, "player/hacking", 256, 256, 0.07f, false);
-	Animation playerStand = loadAnimation(gameState, "player/stand", 256, 256, 0.08f, true);
-
-	AnimNode playerStandAnimNode = createAnimNode(&playerStand, gameState);
-	AnimNode playerDeathAnimNode = createAnimNode(&playerDeath, gameState);
-
-	AnimNodeData playerHackNode = {};
-	playerHackNode.intro = playerHacking;
-	playerHackNode.outro = createReversedAnimation(&playerHacking);
-	playerHackNode.main = createAnimation(playerHacking.frames + (playerHacking.numFrames - 1));
-	AnimNode playerHackAnimNode = createAnimNodeFromData(&playerHackNode, gameState);
-
-	AnimNodeData playerJumpNode = {};
-	playerJumpNode.intro = playerJumpIntro;
-	playerJumpNode.main = createAnimation(&playerJump, gameState);
-	playerJumpNode.outro = playerJumpOutro;
-	AnimNode playerJumpAnimNode = createAnimNodeFromData(&playerJumpNode, gameState);
-
-	AnimNodeData playerWalkNode = {};
-	playerWalkNode.intro = playerWalkTransition;
-	playerWalkNode.main = playerWalk;
-	playerWalkNode.outro = createReversedAnimation(&playerWalkTransition);
-	playerWalkNode.finishMainBeforeOutro = true;
-	AnimNode playerWalkAnimNode = createAnimNodeFromData(&playerWalkNode, gameState);
-
-	gameState->playerAnim = createCharacterAnim(gameState, playerStandAnimNode, playerJumpAnimNode, {}, playerWalkAnimNode, {}, playerDeathAnimNode);
-	gameState->playerDeathAnim = createCharacterAnim(gameState, playerStandAnimNode, {}, {}, {}, {}, {});
-	gameState->playerHack = playerHackAnimNode;
-
-	TextureData virus1Stand = loadPNGTexture(gameState->renderGroup, "virus1/stand");
-	Animation virus1Shoot = loadAnimation(gameState, "virus1/shoot", 145, 170, 0.04f, true);
-	gameState->shootDelay = getAnimationDuration(&virus1Shoot);
-
-	AnimNode virus1StandAnimNode = createAnimNode(&virus1Stand, gameState);
-	AnimNodeData virus1ShootAnimNodeData = {};
-	virus1ShootAnimNodeData.main = virus1Shoot;
-
-	AnimNode virus1ShootAnimNode = createAnimNodeFromData(&virus1ShootAnimNodeData, gameState);
-
-	gameState->virus1Anim = createCharacterAnim(gameState, virus1StandAnimNode, {}, virus1ShootAnimNode, {}, {}, {});
-
-	//TODO: Make shoot animation time per frame be set by the shootDelay
-	TextureData flyingVirusStand = loadPNGTexture(gameState->renderGroup, "virus2/full");
-	AnimNode flyingVirusStandAnimNode = createAnimNode(&flyingVirusStand, gameState);
-
-	Animation flyingVirusShoot = loadAnimation(gameState, "virus2/shoot", 133, 127, 0.04f, false);
-	AnimNode flyingVirusShootAnimNode = createAnimNode(&flyingVirusShoot, gameState);
-
-	gameState->flyingVirusAnim = createCharacterAnim(gameState, flyingVirusStandAnimNode, {}, flyingVirusShootAnimNode, {}, {}, {});
-
-	TextureData trojanStand = loadPNGTexture(gameState->renderGroup, "trojan/full");
-	AnimNode trojanStandAnimNode = createAnimNode(&trojanStand, gameState);
-
-	Animation trojanShoot = loadAnimation(gameState, "trojan/shoot", 364, 336, 0.04f, false);
-	AnimNode trojanShootAnimNode = createAnimNode(&trojanShoot, gameState);
-
-	Animation trojanDisappear = loadAnimation(gameState, "trojan/disappear", 397, 345, 0.04f, false);
-	AnimNode trojanDisappearAnimNode = createAnimNode(&trojanDisappear, gameState);
-
-	gameState->trojanAnim = createCharacterAnim(gameState, trojanStandAnimNode, {}, trojanShootAnimNode, {}, trojanDisappearAnimNode, {});
-
-	gameState->hackEnergyAnim = loadAnimation(gameState, "energy_animation", 173, 172, 0.08f, true);
-	gameState->laserBolt = loadTexture(renderGroup, "virus1/laser_bolt");
-	gameState->endPortal = loadTexture(renderGroup, "end_portal");
-
-	gameState->laserBaseOff = loadTexture(renderGroup, "virus3/base_off");
-	gameState->laserBaseOn = loadTexture(renderGroup, "virus3/base_on");
-	gameState->laserTopOff = loadTexture(renderGroup, "virus3/top_off");
-	gameState->laserTopOn = loadTexture(renderGroup, "virus3/top_on");
-	gameState->laserBeam = loadTexture(renderGroup, "virus3/laser_beam");
-
-
-	gameState->tileAtlasCount = arrayCount(globalTileFileNames);
-	gameState->tileAtlas = pushArray(&gameState->permanentStorage, Texture, gameState->tileAtlasCount);
-
-	for(s32 tileIndex = 0; tileIndex < gameState->tileAtlasCount; tileIndex++) {
-		char fileName[2000];
-		sprintf(fileName, "tiles/%s", globalTileFileNames[tileIndex]);
-
-		gameState->tileAtlas[tileIndex] = loadTexture(gameState->renderGroup, fileName);
-	}
+	loadImages(gameState);
 
 	initFieldSpec(gameState);
 	initDock(gameState);
@@ -648,7 +647,7 @@ int main(int argc, char* argv[]) {
 
 			CachedFont* font = &gameState->fieldSpec.consoleFont;
 
-			V2 dockSize = gameState->windowSize.x * v2(1, dock->dockTex.size.y / dock->dockTex.size.x);
+			V2 dockSize = gameState->windowSize.x * v2(1, dock->dockTex->size.y / dock->dockTex->size.x);
 			V2 dockP = v2(0, gameState->windowSize.y - dockSize.y);
 			R2 dockBounds = r2(dockP, dockP + dockSize);
 			V2 dockCenter = getRectCenter(dockBounds);
@@ -666,7 +665,7 @@ int main(int argc, char* argv[]) {
 			dock->subDockYOffs = clamp(dock->subDockYOffs, minSubDockYOffs, maxSubDockYOffs);
 
 			if(dock->subDockYOffs > minSubDockYOffs) {
-				V2 subDockSize = (gameState->windowSize.x * 0.58) * v2(1, dock->subDockTex.size.y / dock->subDockTex.size.x);
+				V2 subDockSize = (gameState->windowSize.x * 0.58) * v2(1, dock->subDockTex->size.y / dock->subDockTex->size.x);
 				V2 subDockP = v2(gameState->windowSize.x * 0.5 + 0.42, gameState->windowSize.y - maxSubDockYOffs);
 				R2 subDockBounds = rectCenterDiameter(subDockP, subDockSize);
 
@@ -683,7 +682,7 @@ int main(int argc, char* argv[]) {
 					cancelButtonClicked = true;
 				}
 
-				pushTexture(renderGroup, &dock->subDockTex, subDockBounds, false, DrawOrder_gui, false);
+				pushTexture(renderGroup, dock->subDockTex, subDockBounds, false, DrawOrder_gui, false);
 
 				if (updateAndDrawButton(&dock->acceptButton, renderGroup, input, unpausedDtForFrame)) {
 					acceptButtonClicked = true;
@@ -701,7 +700,7 @@ int main(int argc, char* argv[]) {
 				pushDefaultClipRect(renderGroup);
 			}
 
-			pushTexture(renderGroup, &dock->dockTex, dockBounds, false, DrawOrder_gui, false);
+			pushTexture(renderGroup, dock->dockTex, dockBounds, false, DrawOrder_gui, false);
 
 			s32 maxEnergy = 100;
 			if(gameState->fieldSpec.hackEnergy > maxEnergy) gameState->fieldSpec.hackEnergy = maxEnergy;
@@ -722,7 +721,7 @@ int main(int argc, char* argv[]) {
 			R2 energyBarBounds = rectCenterDiameter(energyBarP, energyBarSize);
 
 			double energyBarPercentage = (double)energy / (double)maxEnergy;
-			pushFilledStencil(renderGroup, &dock->energyBarStencil, energyBarBounds, energyBarPercentage, energyColor);
+			pushFilledStencil(renderGroup, dock->energyBarStencil, energyBarBounds, energyBarPercentage, energyColor);
 
 			bool clickHandled = updateConsole(gameState, dtForFrame);
 
@@ -743,7 +742,7 @@ int main(int argc, char* argv[]) {
 			}
 
 		//NOTE: Draw the dock after the console
-			V2 topFieldSize = getDrawSize(&dock->gravityTex, 0.7);
+			V2 topFieldSize = getDrawSize(dock->gravityTex, 0.7);
 
 			V2 gravityP = gameState->gravityField->p + v2(0, 0.48);
 			R2 gravityBounds = rectCenterDiameter(gravityP, topFieldSize);
@@ -751,8 +750,8 @@ int main(int argc, char* argv[]) {
 			V2 timeP = gameState->timeField->p + v2(0.3, 0.36);
 			R2 timeBounds = rectCenterDiameter(timeP, topFieldSize);
 
-			pushTexture(renderGroup, &dock->gravityTex, gravityBounds, false, DrawOrder_gui, false);
-			pushTexture(renderGroup, &dock->timeTex, timeBounds, false, DrawOrder_gui, false);
+			pushTexture(renderGroup, dock->gravityTex, gravityBounds, false, DrawOrder_gui, false);
+			pushTexture(renderGroup, dock->timeTex, timeBounds, false, DrawOrder_gui, false);
 
 			Color barColor = createColor(191, 16, 16, 255);
 
@@ -765,11 +764,11 @@ int main(int argc, char* argv[]) {
 				V2 gravityBarP = gravityP + v2(-0.9, -0.3);
 				V2 gravityLeftCircleP = gravityBarP + v2(-0.02, 0.035);
 
-				pushTexture(renderGroup, &dock->barCircleTex, rectCenterDiameter(gravityLeftCircleP, circleSize), false, DrawOrder_gui, false);
+				pushTexture(renderGroup, dock->barCircleTex, rectCenterDiameter(gravityLeftCircleP, circleSize), false, DrawOrder_gui, false);
 				
 				if(gravityBarLength == maxGravityBarLength) {
 					V2 gravityRightCircleP = gravityLeftCircleP + v2(gravityBarLength + 0.03, 0);
-					pushTexture(renderGroup, &dock->barCircleTex, rectCenterDiameter(gravityRightCircleP, circleSize), false, DrawOrder_gui, false);
+					pushTexture(renderGroup, dock->barCircleTex, rectCenterDiameter(gravityRightCircleP, circleSize), false, DrawOrder_gui, false);
 				}
 
 				pushFilledRect(renderGroup, r2(gravityBarP, gravityBarP + gravityBarSize), barColor);
@@ -786,12 +785,12 @@ int main(int argc, char* argv[]) {
 
 				V2 timeCircleP = timeBarP - v2(0.015, -0.035);
 				circleSize *= 0.9;
-				pushTexture(renderGroup, &dock->barCircleTex, rectCenterDiameter(timeCircleP, circleSize), false, DrawOrder_gui, false);
+				pushTexture(renderGroup, dock->barCircleTex, rectCenterDiameter(timeCircleP, circleSize), false, DrawOrder_gui, false);
 			}
 		#endif
 
 			if(gameState->screenType == ScreenType_pause) {
-				drawAnimatedBackground(gameState, &pauseMenu->background, &pauseMenu->backgroundAnim, pauseMenu->animCounter);				
+				drawAnimatedBackground(gameState, pauseMenu->background, &pauseMenu->backgroundAnim, pauseMenu->animCounter);				
 
 				if (updateAndDrawButton(&pauseMenu->quit, renderGroup, &oldInput, unpausedDtForFrame)) {
 					running = false;
@@ -816,7 +815,7 @@ int main(int argc, char* argv[]) {
 			pushSortEnd(renderGroup);
 
 			mainMenu->animCounter += dtForFrame;
-			drawAnimatedBackground(gameState, &mainMenu->background, &mainMenu->backgroundAnim, mainMenu->animCounter);
+			drawAnimatedBackground(gameState, mainMenu->background, &mainMenu->backgroundAnim, mainMenu->animCounter);
 
 			if (updateAndDrawButton(&mainMenu->quit, renderGroup, input, dtForFrame)) {
 				running = false;
