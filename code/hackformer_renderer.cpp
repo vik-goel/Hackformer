@@ -380,21 +380,29 @@ double getAnimationDuration(Animation* animation) {
 Texture* getAnimationFrame(Animation* animation, double animTime) {
 	bool32 reverse = animation->reverse;
 
-	if(animation->pingPong) {
-		double duration = getAnimationDuration(animation);
-		s32 numTimesPlayed = (s32)(animTime / duration);
-
-		animTime += animation->secondsPerFrame * numTimesPlayed;
-
-		if (numTimesPlayed % 2 == 1) {
-			reverse = !reverse;
-		}
-	}
-
 	s32 frameIndex = 0;
 	if (animation->secondsPerFrame > 0) {
 		frameIndex = (s32)(animTime / animation->secondsPerFrame) % animation->numFrames;
 	}
+
+	if(animation->pingPong && animation->numFrames > 1) {
+		double duration = getAnimationDuration(animation);
+
+		if(animTime > duration) {
+			duration -= animation->secondsPerFrame;
+			animTime -= duration;
+
+			frameIndex = (s32)(animTime / animation->secondsPerFrame) % (animation->numFrames - 1);
+
+			s32 numTimesPlayed = (s32)(animTime / duration) + 1;
+
+			if (numTimesPlayed % 2 == 1) {
+				reverse = !reverse;
+			}
+		}
+	}
+
+	
 
 	if (reverse) {
 		frameIndex = (animation->numFrames - 1) - frameIndex;
