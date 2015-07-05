@@ -45,9 +45,9 @@ typedef int8_t bool8;
 enum EntityType {
 	EntityType_background,
 	EntityType_player,
-	EntityType_playerDeath,
 	EntityType_tile,
 	EntityType_heavyTile,
+	EntityType_death,
 	EntityType_hackEnergy,
 	EntityType_text,
 	EntityType_virus,
@@ -76,7 +76,6 @@ enum DrawOrder {
 	DrawOrder_trojan,
 	DrawOrder_heavyTile,
 	DrawOrder_laserBolt,
-	DrawOrder_playerDeath,
 	DrawOrder_player,
 	DrawOrder_gui,
 };

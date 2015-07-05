@@ -144,7 +144,7 @@ int main(int argc, char* argv[]) {
 
 	#define ENTITY(type, width, height, fileName) {EntityType_##type, DrawOrder_##type, v2(width, height), fileName},
 	EntitySpec entitySpecs[] {
-		ENTITY(player, 1.75, 1.75, "player/stand2")
+		ENTITY(player, 1.75, 1.75, "player/full")
 		ENTITY(virus, 1.6, 1.6, "virus1/stand")
 		ENTITY(flyingVirus, 0.75, 0.75, "virus2/full")
 		ENTITY(laserBase, 0.9, 0.65, "virus3/base_off")

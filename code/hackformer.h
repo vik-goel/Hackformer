@@ -183,6 +183,7 @@ struct GameState {
 	s32 playerDeathRef;
 
 	bool32 loadNextLevel;
+	bool32 reloadCurrentLevel;
 	bool32 doingInitialSim;
 
 	ConsoleField* consoleFreeList;
@@ -217,10 +218,6 @@ struct GameState {
 	V2 windowSize;
 
 	V2 gravity;
-
-	V2 playerStartP;
-	V2 playerDeathStartP;
-	V2 playerDeathSize;
 
 	AnimNode playerHack;
 	CharacterAnim playerAnim;

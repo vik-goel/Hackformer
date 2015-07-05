@@ -64,7 +64,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 			case EntityType_player: {
 				addPlayer(gameState, p);
 			} break;
-
+				 
 			case EntityType_virus: {
 				addVirus(gameState, p);
 			} break;
@@ -120,20 +120,20 @@ void freeLevel(GameState* gameState) {
 	gameState->numEntities = 0;
 	gameState->fieldSpec.hackEnergy = 0;
 	gameState->levelStorage.allocated = 0;
+
+	gameState->reloadCurrentLevel = false;
 	
 	gameState->refCount_ = 1; //NOTE: This is for the null reference
-
-	initCamera(&gameState->camera);
 }
 
-void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex, bool initPlayerDeath) {
+void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex, bool firstLevelLoad) {
 	freeLevel(gameState);
 
 	if (gameState->loadNextLevel) {
+		firstLevelLoad = true;
 		gameState->loadNextLevel = false;
 		(*mapFileIndex)++;
 		(*mapFileIndex) %= numMaps;
-		initPlayerDeath = false;
 	}
 
 	double topFieldYOffset = 1.05;
@@ -159,7 +159,6 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 	sprintf(textValues[2], "batman");
 	addText(gameState, v2(4, 5), textValues, 3, 1);
 
-	V2 playerDeathStartP = gameState->playerDeathStartP;
 	gameState->doingInitialSim = true;
 	gameState->renderGroup->enabled = false;
 
@@ -171,22 +170,21 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 
 	gameState->renderGroup->enabled = true;
 	gameState->doingInitialSim = false;
-	gameState->playerDeathStartP = playerDeathStartP;
 
 	Entity* player = getEntityByRef(gameState, gameState->playerRef);
 	assert(player);
 
-	if(!initPlayerDeath) {
-		centerCameraAround(player, gameState);
+	CharacterAnimData* characterAnim = getCharacterAnimData(player->characterAnim, gameState);
+	player->currentAnim = characterAnim->standAnim;
+	clearFlags(player, EntityFlag_animIntro|EntityFlag_animOutro);
+
+	centerCameraAround(player, gameState);
+
+	if(firstLevelLoad) {
 		gameState->camera.p = gameState->camera.newP;
 		gameState->camera.moveToTarget = false;
 	} else {
-		if (!epsilonEquals(player->p, gameState->playerDeathStartP, 0.1)) {
-			setFlags(player, EntityFlag_remove);
-			gameState->playerStartP = player->p;
-
-			addPlayerDeath(gameState);
-		}
+		gameState->camera.moveToTarget = true;
 	}
 }
 
@@ -469,38 +467,40 @@ int main(int argc, char* argv[]) {
 
 	initBackgroundTextures(&gameState->backgroundTextures);
 
-	TextureData playerStand = loadPNGTexture(gameState->renderGroup, "player/stand2", false);
-	TextureData playerJump = loadPNGTexture(gameState->renderGroup, "player/jump3", false);
-	Animation playerStandJumpTransition = loadAnimation(gameState, "player/jump_transition", 256, 256, 0.025f, false);
-	Animation playerWalk = loadAnimation(gameState, "player/running_2", 256, 256, 0.0325f, true);
-	Animation playerStandWalkTransition = loadAnimation(gameState, "player/stand_run_transition", 256, 256, 0.01f, false);
-	Animation playerHackingAnimation = loadAnimation(gameState, "player/hacking_flow_sprite", 512, 256, 0.07f, true);
-	Animation playerHackingAnimationTransition = loadAnimation(gameState, "player/hacking_sprite_full_2", 256, 256, 0.025f, false);
-
-	AnimNodeData playerWalkAnimNodeData = {};
-	AnimNodeData playerJumpAnimNodeData = {};
-
-	playerJumpAnimNodeData.intro = playerStandJumpTransition;
-	playerJumpAnimNodeData.main = createAnimation(&playerJump, gameState);
-	playerJumpAnimNodeData.outro = createReversedAnimation(&playerStandJumpTransition);
-
-	playerWalkAnimNodeData.main = playerWalk;
-	playerWalkAnimNodeData.intro = playerStandWalkTransition;
-	playerWalkAnimNodeData.finishMainBeforeOutro = true;
+	Animation playerWalk = loadAnimation(gameState, "player/running", 256, 256, 0.0425f, true);
+	Animation playerDeath = loadAnimation(gameState, "player/death", 256, 256, 0.06f, true);
+	Animation playerWalkTransition = loadAnimation(gameState, "player/running_transition", 256, 256, 0.05f, true);
+	Animation playerJumpIntro = loadAnimation(gameState, "player/jumping_intro", 256, 256, 0.04f, false);
+	Animation playerJumpOutro = loadAnimation(gameState, "player/jumping_outro", 256, 256, 0.04f, false);
+	TextureData playerJump = loadPNGTexture(gameState->renderGroup, "player/jump");
+	Animation playerHacking = loadAnimation(gameState, "player/hacking", 256, 256, 0.07f, false);
+	Animation playerStand = loadAnimation(gameState, "player/stand", 256, 256, 0.08f, true);
 
 	AnimNode playerStandAnimNode = createAnimNode(&playerStand, gameState);
-	AnimNode playerJumpAnimNode = createAnimNodeFromData(&playerJumpAnimNodeData, gameState);
-	AnimNode playerWalkAnimNode = createAnimNodeFromData(&playerWalkAnimNodeData, gameState);
+	AnimNode playerDeathAnimNode = createAnimNode(&playerDeath, gameState);
 
-	gameState->playerAnim = createCharacterAnim(gameState, playerStandAnimNode, playerJumpAnimNode, {}, playerWalkAnimNode, {});
-	gameState->playerDeathAnim = createCharacterAnim(gameState, playerStandAnimNode, {}, {}, {}, {});
+	AnimNodeData playerHackNode = {};
+	playerHackNode.intro = playerHacking;
+	playerHackNode.outro = createReversedAnimation(&playerHacking);
+	playerHackNode.main = createAnimation(playerHacking.frames + (playerHacking.numFrames - 1));
+	AnimNode playerHackAnimNode = createAnimNodeFromData(&playerHackNode, gameState);
 
-	AnimNodeData playerHackData = {};
-	playerHackData.main = playerHackingAnimation;
-	playerHackData.intro = playerHackingAnimationTransition;
-	playerHackData.outro = createReversedAnimation(&playerHackingAnimationTransition);
+	AnimNodeData playerJumpNode = {};
+	playerJumpNode.intro = playerJumpIntro;
+	playerJumpNode.main = createAnimation(&playerJump, gameState);
+	playerJumpNode.outro = playerJumpOutro;
+	AnimNode playerJumpAnimNode = createAnimNodeFromData(&playerJumpNode, gameState);
 
-	gameState->playerHack = createAnimNodeFromData(&playerHackData, gameState);
+	AnimNodeData playerWalkNode = {};
+	playerWalkNode.intro = playerWalkTransition;
+	playerWalkNode.main = playerWalk;
+	playerWalkNode.outro = createReversedAnimation(&playerWalkTransition);
+	playerWalkNode.finishMainBeforeOutro = true;
+	AnimNode playerWalkAnimNode = createAnimNodeFromData(&playerWalkNode, gameState);
+
+	gameState->playerAnim = createCharacterAnim(gameState, playerStandAnimNode, playerJumpAnimNode, {}, playerWalkAnimNode, {}, playerDeathAnimNode);
+	gameState->playerDeathAnim = createCharacterAnim(gameState, playerStandAnimNode, {}, {}, {}, {}, {});
+	gameState->playerHack = playerHackAnimNode;
 
 	TextureData virus1Stand = loadPNGTexture(gameState->renderGroup, "virus1/stand");
 	Animation virus1Shoot = loadAnimation(gameState, "virus1/shoot", 145, 170, 0.04f, true);
@@ -512,7 +512,7 @@ int main(int argc, char* argv[]) {
 
 	AnimNode virus1ShootAnimNode = createAnimNodeFromData(&virus1ShootAnimNodeData, gameState);
 
-	gameState->virus1Anim = createCharacterAnim(gameState, virus1StandAnimNode, {}, virus1ShootAnimNode, {}, {});
+	gameState->virus1Anim = createCharacterAnim(gameState, virus1StandAnimNode, {}, virus1ShootAnimNode, {}, {}, {});
 
 	//TODO: Make shoot animation time per frame be set by the shootDelay
 	TextureData flyingVirusStand = loadPNGTexture(gameState->renderGroup, "virus2/full");
@@ -521,7 +521,7 @@ int main(int argc, char* argv[]) {
 	Animation flyingVirusShoot = loadAnimation(gameState, "virus2/shoot", 133, 127, 0.04f, false);
 	AnimNode flyingVirusShootAnimNode = createAnimNode(&flyingVirusShoot, gameState);
 
-	gameState->flyingVirusAnim = createCharacterAnim(gameState, flyingVirusStandAnimNode, {}, flyingVirusShootAnimNode, {}, {});
+	gameState->flyingVirusAnim = createCharacterAnim(gameState, flyingVirusStandAnimNode, {}, flyingVirusShootAnimNode, {}, {}, {});
 
 	TextureData trojanStand = loadPNGTexture(gameState->renderGroup, "trojan/full");
 	AnimNode trojanStandAnimNode = createAnimNode(&trojanStand, gameState);
@@ -532,7 +532,7 @@ int main(int argc, char* argv[]) {
 	Animation trojanDisappear = loadAnimation(gameState, "trojan/disappear", 397, 345, 0.04f, false);
 	AnimNode trojanDisappearAnimNode = createAnimNode(&trojanDisappear, gameState);
 
-	gameState->trojanAnim = createCharacterAnim(gameState, trojanStandAnimNode, {}, trojanShootAnimNode, {}, trojanDisappearAnimNode);
+	gameState->trojanAnim = createCharacterAnim(gameState, trojanStandAnimNode, {}, trojanShootAnimNode, {}, trojanDisappearAnimNode, {});
 
 	gameState->hackEnergyAnim = loadAnimation(gameState, "energy_animation", 173, 172, 0.08f, true);
 	gameState->laserBolt = loadTexture(renderGroup, "virus1/laser_bolt");
@@ -561,11 +561,12 @@ int main(int argc, char* argv[]) {
 	initMainMenu(gameState);
 
 	char* mapFileNames[] = {
-		"edit.hack",
+		"map1.hack",
+		"map2.hack",
 	};
 
 	s32 mapFileIndex = 0;
-	loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, false);
+	loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, true);
 
 	#if DEBUG_BUILD
 	gameState->screenType = ScreenType_game;
@@ -902,25 +903,23 @@ int main(int argc, char* argv[]) {
 		}
 
 		{ //NOTE: This reloads the game
-			bool resetLevel = !getEntityByRef(gameState, gameState->playerDeathRef) &&
-			(!getEntityByRef(gameState, gameState->playerRef) || input->r.justPressed || levelResetRequested);
+			bool resetLevel = gameState->reloadCurrentLevel || input->r.justPressed || levelResetRequested;
 
-			
-			if (gameState->loadNextLevel || 
-				resetLevel) {
-				loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, true);
+			if(resetLevel || gameState->loadNextLevel) {
+				loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, false);
+			}
 		}
+	
+
+		if(gameState->screenType == ScreenType_pause) {
+			gameState->input = oldInput;
+		}
+
+		u32 frameEndTime = SDL_GetTicks();
+		frameTime += frameEndTime - frameStartTime;
+
+		SDL_GL_SwapWindow(window);
 	}
 
-	if(gameState->screenType == ScreenType_pause) {
-		gameState->input = oldInput;
-	}
-
-	u32 frameEndTime = SDL_GetTicks();
-	frameTime += frameEndTime - frameStartTime;
-
-	SDL_GL_SwapWindow(window);
-}
-
-return 0;
+	return 0;
 }

@@ -382,6 +382,7 @@ bool createsPickupFieldsOnDeath(Entity* entity) {
 }
 
 Entity* addPickupField(GameState*, Entity*, ConsoleField*);
+Entity* addDeath(GameState*, V2, V2, DrawOrder, CharacterAnim);
 
 void freeEntityAtLevelEnd(Entity* entity, GameState* gameState) {
 	Messages* messages = entity->messages;
@@ -468,6 +469,22 @@ void freeEntityDuringLevel(Entity* entity, GameState* gameState) {
 	}
 
 	entity->numFields = 0;
+
+	if(entity->type == EntityType_death) {
+		if(entity->drawOrder == DrawOrder_player) {
+			gameState->reloadCurrentLevel = true;
+		}
+	} else {
+		CharacterAnimData* charAnim = getCharacterAnimData(entity->characterAnim, gameState);
+
+		if(charAnim) {
+			AnimNodeData* deathAnim = getAnimNodeData(charAnim->deathAnim, gameState);
+
+			if(deathAnim) {
+				addDeath(gameState, entity->p, entity->renderSize, entity->drawOrder, entity->characterAnim);
+			}
+		}
+	}
 }
 
 void removeEntities(GameState* gameState) {
@@ -774,54 +791,56 @@ void addIsTargetField(Entity* entity, GameState* gameState) {
 }
 
 
-Entity* addPlayerDeath(GameState* gameState) {
-	assert(!getEntityByRef(gameState, gameState->playerDeathRef));
-
-	Entity* player = getEntityByRef(gameState, gameState->playerRef);
-	assert(player);
-
-	V2 p = gameState->playerDeathStartP;
-	p += (player->renderSize - gameState->playerDeathSize) * 0.5;
-
-	Entity* result = addEntity(gameState, EntityType_playerDeath, DrawOrder_playerDeath, 
-								p, player->renderSize);
-
-	gameState->playerDeathRef = result->ref;
+Entity* addDeath(GameState* gameState, V2 p, V2 renderSize, DrawOrder drawOrder, CharacterAnim anim) {
+	Entity* result = addEntity(gameState, EntityType_death, drawOrder, p, renderSize);
 
 	setFlags(result, EntityFlag_noMovementByDefault);
 
-	result->characterAnim = gameState->playerDeathAnim;
+	result->characterAnim = anim;
+
+	CharacterAnimData* data = getCharacterAnimData(anim, gameState);
+	assert(data);
+	assert(data->deathAnim.dataIndex != 0);
 
 	return result;
 }
 
 Entity* addPlayer(GameState* gameState, V2 p) {
-	Entity* result = addEntity(gameState, EntityType_player, DrawOrder_player, p, v2(1, 1) * 1.75);
+	Entity* result = addEntity(gameState, EntityType_player, DrawOrder_player, p, v2(1, 1) * 2);
 
 	assert(!getUnremovedEntityByRef(gameState, gameState->playerRef));
 	gameState->playerRef = result->ref;
 
-	double halfHitboxWidth = result->renderSize.x * 0.5;
-	double halfHitboxHeight = result->renderSize.y * 0.5;
+	double hitboxWidth = result->renderSize.x;
+	double hitboxHeight = result->renderSize.y;
+	double halfHitboxWidth = hitboxWidth * 0.5;
+	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(hitbox, halfHitboxWidth * 2.0, halfHitboxHeight * 2.0);
-	hitbox->collisionPointsCount = 16;
-	hitbox->originalCollisionPoints[0] = v2(-0.138889 * halfHitboxWidth, -0.985243 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[1] = v2(0.173611 * halfHitboxWidth, -0.985243 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[2] = v2(0.308160 * halfHitboxWidth, -0.928819 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[3] = v2(0.243056 * halfHitboxWidth, -0.412326 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[4] = v2(0.342882 * halfHitboxWidth, -0.143229 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[5] = v2(0.364583 * halfHitboxWidth, 0.217014 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[6] = v2(0.316840 * halfHitboxWidth, 0.507812 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[7] = v2(0.243056 * halfHitboxWidth, 0.742187 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[8] = v2(0.208333 * halfHitboxWidth, 0.924479 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[9] = v2(-0.091146 * halfHitboxWidth, 0.985243 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[10] = v2(-0.217014 * halfHitboxWidth, 0.842014 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[11] = v2(-0.234375 * halfHitboxWidth, 0.555556 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[12] = v2(-0.364583 * halfHitboxWidth, 0.264757 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[13] = v2(-0.368924 * halfHitboxWidth, -0.117188 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[14] = v2(-0.273438 * halfHitboxWidth, -0.412326 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[15] = v2(-0.303819 * halfHitboxWidth, -0.902778 * halfHitboxHeight);
+	setHitboxSize(hitbox, hitboxWidth, hitboxHeight);
+	hitbox->collisionPointsCount = 22;
+	hitbox->originalCollisionPoints[0] = v2(-0.247396 * halfHitboxWidth, -0.954861 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[1] = v2(0.243056 * halfHitboxWidth, -0.950521 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[2] = v2(0.243056 * halfHitboxWidth, -0.820313 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[3] = v2(0.221354 * halfHitboxWidth, -0.672743 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[4] = v2(0.264757 * halfHitboxWidth, -0.438368 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[5] = v2(0.217014 * halfHitboxWidth, -0.186632 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[6] = v2(0.338542 * halfHitboxWidth, -0.199653 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[7] = v2(0.390625 * halfHitboxWidth, 0.004340 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[8] = v2(0.260417 * halfHitboxWidth, 0.442708 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[9] = v2(0.199653 * halfHitboxWidth, 0.837674 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[10] = v2(0.060764 * halfHitboxWidth, 0.920139 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[11] = v2(-0.073785 * halfHitboxWidth, 0.907118 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[12] = v2(-0.203993 * halfHitboxWidth, 0.798611 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[13] = v2(-0.125868 * halfHitboxWidth, 0.594618 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[14] = v2(-0.247396 * halfHitboxWidth, 0.481771 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[15] = v2(-0.329861 * halfHitboxWidth, 0.169271 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[16] = v2(-0.381944 * halfHitboxWidth, -0.030382 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[17] = v2(-0.355903 * halfHitboxWidth, -0.203993 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[18] = v2(-0.225694 * halfHitboxWidth, -0.195313 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[19] = v2(-0.264757 * halfHitboxWidth, -0.438368 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[20] = v2(-0.208333 * halfHitboxWidth, -0.685764 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[21] = v2(-0.247396 * halfHitboxWidth, -0.815972 * halfHitboxHeight);
+
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), v2(result->renderSize.x * 0.4, result->renderSize.y));
 
@@ -3095,14 +3114,13 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 		//NOTE: Individual entity logic here
 		switch(entity->type) {
-			 case EntityType_player: {
-				if (!isSet(entity, EntityFlag_remove) && !gameState->doingInitialSim) {
-					gameState->playerDeathStartP = entity->p;
-					gameState->playerDeathSize = entity->renderSize;
-				}
-			} break;
-		
 
+			case EntityType_player: {
+				if(gameState->input.c.justPressed) {
+					setFlags(entity, EntityFlag_remove);
+				}
+
+			} break;
 
 			case EntityType_background: {
 				#if DRAW_BACKGROUND
@@ -3161,22 +3179,6 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			} break;
 
 
-
-
-			case EntityType_playerDeath: {
-				double initialDstToTarget = length(gameState->playerDeathStartP - gameState->playerStartP);
-				double maxSpeed = 7.5 * cbrt(initialDstToTarget);
-
-				if (moveTowardsTargetParabolic(entity, gameState, dt, gameState->playerStartP, 
-										initialDstToTarget, maxSpeed)) {
-					setFlags(entity, EntityFlag_remove);
-					Entity* player = addPlayer(gameState, gameState->playerStartP);
-					setFlags(player, EntityFlag_grounded);
-					player->dP = v2(0, 0);
-				}
-
-				centerCameraAround(entity, gameState);
-			} break;
 
 
 
@@ -3269,141 +3271,159 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		}
 
 		if(characterAnim) {
-			if(isSet(entity, EntityFlag_animIntro)) {
-				assert(!isSet(entity, EntityFlag_animOutro));
-				assert(entity->currentAnim.dataIndex);
+			if(entity->type == EntityType_death) {
+				entity->currentAnim = characterAnim->deathAnim;
+				clearFlags(entity, EntityFlag_animIntro|EntityFlag_animOutro);
 
-				AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
-				assert(currentAnim);
-				assert(currentAnim->intro.frames);
-				double duration = getAnimationDuration(&currentAnim->intro);
+				AnimNodeData* deathAnimNode = getAnimNodeData(characterAnim->deathAnim, gameState);
+				assert(deathAnimNode);
 
-				if(entity->animTime >= duration) {
-					clearFlags(entity, EntityFlag_animIntro);
-					entity->animTime -= duration;
-				}
-			}
+				Animation* deathAnim = &deathAnimNode->main;
 
-			else if(isSet(entity, EntityFlag_animOutro)) {
-				assert(entity->currentAnim.dataIndex && entity->nextAnim.dataIndex);
+				if(entity->animTime > getAnimationDuration(deathAnim)) {
+					setFlags(entity, EntityFlag_remove);
 
-				AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
-				assert(currentAnim->outro.frames);
-
-				double duration = getAnimationDuration(&currentAnim->outro);
-
-				if(entity->animTime >= duration) {
-					clearFlags(entity, EntityFlag_animOutro);
-					entity->animTime -= duration;
-					entity->currentAnim = entity->nextAnim;
-				}
-			}
-
-			else if(entity->currentAnim.dataIndex) {
-				AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
-				assert(currentAnim->main.frames);
-
-				double duration = getAnimationDuration(&currentAnim->main);
-				//if(entity->currentAnim->main.pingPong) duration *= 2;
-
-				if(duration <= 0) {
-					entity->animTime = 0;
-				}
-			}
-
-			if(showPlayerHackingAnim) {
-				entity->nextAnim = gameState->playerHack;
-			}
-			else if(shootingState && characterAnim->shootAnim.dataIndex) {
-				entity->nextAnim = characterAnim->shootAnim;
-			}
-			else if((entity->dP.y != 0 || !isSet(entity, EntityFlag_grounded)) && characterAnim->jumpAnim.dataIndex) {
-				entity->nextAnim = characterAnim->jumpAnim;
-			}
-			else if(abs(entity->dP.x) > 0.1f && characterAnim->walkAnim.dataIndex) {
-				entity->nextAnim = characterAnim->walkAnim;
-			}
-			else if (characterAnim->standAnim.dataIndex) {
-				entity->nextAnim = characterAnim->standAnim;
-			}
-
-			if(entity->nextAnim.dataIndex == entity->currentAnim.dataIndex) {
-				entity->nextAnim.dataIndex = 0;
-			}
-
-			if (entity->nextAnim.dataIndex) {
-				if(isSet(entity, EntityFlag_animIntro)) {
-					assert(entity->currentAnim.dataIndex);
-					AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
-					assert(currentAnim);
-					assert(currentAnim->intro.frames);
-					if(currentAnim->intro.frames &&
-					    currentAnim->intro.frames == currentAnim->outro.frames) {
-						clearFlags(entity, EntityFlag_animIntro);
-						setFlags(entity, EntityFlag_animOutro);
-						entity->animTime = getAnimationDuration(&currentAnim->intro) - entity->animTime;
-					}
-				} else if(!isSet(entity, EntityFlag_animOutro)) {
-					bool transitionToOutro = true;
-					bool transitionToNext = (entity->nextAnim.dataIndex == characterAnim->jumpAnim.dataIndex);
-
-					if(entity->currentAnim.dataIndex){
-						AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
-						assert(currentAnim);
-
-						if(currentAnim->finishMainBeforeOutro) {
-							transitionToOutro = (entity->animTime >= getAnimationDuration(&currentAnim->main));
-						}
-					}
-
-					if(transitionToOutro) {
-						entity->animTime = 0;
-
-						if(entity->currentAnim.dataIndex) {
-							AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
-							assert(currentAnim);
-
-							if(currentAnim->outro.numFrames) {
-								setFlags(entity, EntityFlag_animOutro);
-							} else {
-								transitionToNext = true;
-							}
-						}
-						else {
-							transitionToNext = true;
-						}
-					}
-
-					if(transitionToNext) {
-						clearFlags(entity, EntityFlag_animOutro);
-						entity->animTime = 0;
-						entity->currentAnim = entity->nextAnim;
-						assert(entity->currentAnim.dataIndex);
-
-						AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
-						assert(currentAnim);
-
-						if(currentAnim->intro.frames) {
-							setFlags(entity, EntityFlag_animIntro);
-						} else {
-							clearFlags(entity, EntityFlag_animIntro);
-						}
+					if(entity->drawOrder == DrawOrder_player) {
+						gameState->reloadCurrentLevel = true;
 					}
 				}
 			} else {
-				clearFlags(entity, EntityFlag_animOutro);
-			}
+				if(isSet(entity, EntityFlag_animIntro)) {
+					assert(!isSet(entity, EntityFlag_animOutro));
+					assert(entity->currentAnim.dataIndex);
 
-			AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+					AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+					assert(currentAnim);
+					assert(currentAnim->intro.frames);
+					double duration = getAnimationDuration(&currentAnim->intro);
 
-			if((!entity->nextAnim.dataIndex || !entity->currentAnim.dataIndex || !currentAnim->outro.frames) && 
-				isSet(entity, EntityFlag_animOutro)) {
-				InvalidCodePath;
-			}
+					if(entity->animTime >= duration) {
+						clearFlags(entity, EntityFlag_animIntro);
+						entity->animTime -= duration;
+					}
+				}
 
-			if((!entity->currentAnim.dataIndex || !currentAnim->intro.frames) && 
-				isSet(entity, EntityFlag_animIntro)) {
-				InvalidCodePath;
+				else if(isSet(entity, EntityFlag_animOutro)) {
+					assert(entity->currentAnim.dataIndex && entity->nextAnim.dataIndex);
+
+					AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+					assert(currentAnim->outro.frames);
+
+					double duration = getAnimationDuration(&currentAnim->outro);
+
+					if(entity->animTime >= duration) {
+						clearFlags(entity, EntityFlag_animOutro);
+						entity->animTime -= duration;
+						entity->currentAnim = entity->nextAnim;
+					}
+				}
+
+				else if(entity->currentAnim.dataIndex) {
+					AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+					assert(currentAnim->main.frames);
+
+					double duration = getAnimationDuration(&currentAnim->main);
+					//if(entity->currentAnim->main.pingPong) duration *= 2;
+
+					if(duration <= 0) {
+						entity->animTime = 0;
+					}
+				}
+
+				if(showPlayerHackingAnim) {
+					entity->nextAnim = gameState->playerHack;
+				}
+				else if(shootingState && characterAnim->shootAnim.dataIndex) {
+					entity->nextAnim = characterAnim->shootAnim;
+				}
+				else if((entity->dP.y != 0 || !isSet(entity, EntityFlag_grounded)) && characterAnim->jumpAnim.dataIndex) {
+					entity->nextAnim = characterAnim->jumpAnim;
+				}
+				else if(abs(entity->dP.x) > 0.1f && characterAnim->walkAnim.dataIndex) {
+					entity->nextAnim = characterAnim->walkAnim;
+				}
+				else if (characterAnim->standAnim.dataIndex) {
+					entity->nextAnim = characterAnim->standAnim;
+				}
+
+				if(entity->nextAnim.dataIndex == entity->currentAnim.dataIndex) {
+					entity->nextAnim.dataIndex = 0;
+				}
+
+				if (entity->nextAnim.dataIndex) {
+					if(isSet(entity, EntityFlag_animIntro)) {
+						assert(entity->currentAnim.dataIndex);
+						AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+						assert(currentAnim);
+						assert(currentAnim->intro.frames);
+						if(currentAnim->intro.frames &&
+						    currentAnim->intro.frames == currentAnim->outro.frames) {
+							clearFlags(entity, EntityFlag_animIntro);
+							setFlags(entity, EntityFlag_animOutro);
+							entity->animTime = getAnimationDuration(&currentAnim->intro) - entity->animTime;
+						}
+					} else if(!isSet(entity, EntityFlag_animOutro)) {
+						bool transitionToOutro = true;
+						bool transitionToNext = (entity->nextAnim.dataIndex == characterAnim->jumpAnim.dataIndex);
+
+						if(entity->currentAnim.dataIndex){
+							AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+							assert(currentAnim);
+
+							if(currentAnim->finishMainBeforeOutro) {
+								transitionToOutro = (entity->animTime >= getAnimationDuration(&currentAnim->main));
+							}
+						}
+
+						if(transitionToOutro) {
+							entity->animTime = 0;
+
+							if(entity->currentAnim.dataIndex) {
+								AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+								assert(currentAnim);
+
+								if(currentAnim->outro.numFrames) {
+									setFlags(entity, EntityFlag_animOutro);
+								} else {
+									transitionToNext = true;
+								}
+							}
+							else {
+								transitionToNext = true;
+							}
+						}
+
+						if(transitionToNext) {
+							clearFlags(entity, EntityFlag_animOutro);
+							entity->animTime = 0;
+							entity->currentAnim = entity->nextAnim;
+							assert(entity->currentAnim.dataIndex);
+
+							AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+							assert(currentAnim);
+
+							if(currentAnim->intro.frames) {
+								setFlags(entity, EntityFlag_animIntro);
+							} else {
+								clearFlags(entity, EntityFlag_animIntro);
+							}
+						}
+					}
+				} else {
+					clearFlags(entity, EntityFlag_animOutro);
+				}
+
+				AnimNodeData* currentAnim = getAnimNodeData(entity->currentAnim, gameState);
+
+				if((!entity->nextAnim.dataIndex || !entity->currentAnim.dataIndex || !currentAnim->outro.frames) && 
+					isSet(entity, EntityFlag_animOutro)) {
+					InvalidCodePath;
+				}
+
+				if((!entity->currentAnim.dataIndex || !currentAnim->intro.frames) && 
+					isSet(entity, EntityFlag_animIntro)) {
+					InvalidCodePath;
+				}
 			}
 		}
 
@@ -3461,14 +3481,15 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			bool drawLeft = isSet(entity, EntityFlag_facesLeft) != 0;
 			if (entity->type == EntityType_laserBase) drawLeft = false;
 
-			if(entity->currentAnim.dataIndex == gameState->playerHack.dataIndex && !isSet(entity, EntityFlag_animIntro|EntityFlag_animOutro)) {
-				V2 boundsIncrease = v2(entity->renderSize.x, 0);
-				V2 offset = boundsIncrease * 0.5 * (drawLeft ? -1 : 1);
-				R2 bounds = rectCenterDiameter(entity->p + offset, entity->renderSize + boundsIncrease);
+			// if(entity->currentAnim.dataIndex == gameState->playerHack.dataIndex && !isSet(entity, EntityFlag_animIntro|EntityFlag_animOutro)) {
+			// 	V2 boundsIncrease = v2(entity->renderSize.x, 0);
+			// 	V2 offset = boundsIncrease * 0.5 * (drawLeft ? -1 : 1);
+			// 	R2 bounds = rectCenterDiameter(entity->p + offset, entity->renderSize + boundsIncrease);
 
-				pushTexture(gameState->renderGroup, texture, bounds, drawLeft, entity->drawOrder, true);
-			}
-			else if (entity->type != EntityType_laserBeam || isSet(entity, EntityFlag_laserOn)) {
+			// 	pushTexture(gameState->renderGroup, texture, bounds, drawLeft, entity->drawOrder, true);
+			// }
+			// else
+			 if (entity->type != EntityType_laserBeam || isSet(entity, EntityFlag_laserOn)) {
 				DrawOrder drawOrder = entity->drawOrder;
 
 				if(entity->type == EntityType_tile && getMovementField(entity) != NULL) drawOrder = DrawOrder_movingTile;

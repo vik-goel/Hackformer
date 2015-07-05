@@ -221,9 +221,6 @@ void saveGame(GameState* gameState, char* fileName) {
 	writeV2(file, gameState->mapSize);
 	writeV2(file, gameState->worldSize);
 	writeV2(file, gameState->gravity);
-	writeV2(file, gameState->playerStartP);
-	writeV2(file, gameState->playerDeathStartP);
-	writeV2(file, gameState->playerDeathSize);
 
 	writeAnimNode(file, gameState->playerHack);
 	writeCharacterAnim(file, gameState->playerAnim);
@@ -561,9 +558,6 @@ void loadGame(GameState* gameState, char* fileName) {
 	gameState->mapSize = readV2(file);
 	gameState->worldSize = readV2(file);
 	gameState->gravity = readV2(file);
-	gameState->playerStartP = readV2(file);
-	gameState->playerDeathStartP = readV2(file);
-	gameState->playerDeathSize = readV2(file);
 
 	gameState->playerHack = readAnimNode(file);
 	gameState->playerAnim = readCharacterAnim(file);

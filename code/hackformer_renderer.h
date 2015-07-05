@@ -29,6 +29,7 @@ struct CharacterAnimData {
 	AnimNode shootAnim;
 	AnimNode walkAnim;
 	AnimNode disappearAnim;
+	AnimNode deathAnim;
 };
 
 enum TextAlignment {

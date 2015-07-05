@@ -239,11 +239,13 @@ Texture loadTexture(RenderGroup* group, char* fileName) {
 }
 
 TextureData* getTextureData(Texture* texture, TextureData* dataArray) {
+	if(texture->dataIndex == 0) return NULL;
 	TextureData* result = dataArray + texture->dataIndex;
 	return result;
 }
 
 TextureData* getTextureData(Texture* texture, RenderGroup* group) {
+	if(texture->dataIndex == 0) return NULL;
 	TextureData* result = getTextureData(texture, group->textureData);
 	return result;
 }
@@ -329,6 +331,8 @@ Texture* extractTextures(RenderGroup* group, MemoryArena* arena, char* fileName,
 
 	V2 frameOffset = v2(frameSpacing / (double)texWidth, frameSpacing / (double)texHeight) * 0.5;
 
+	V2 dataTexSize = hadamard(texSize, tex.size);
+
 	for (s32 rowIndex = 0; rowIndex < numRows; rowIndex++) {
 		for (s32 colIndex = 0; colIndex < numCols; colIndex++) {
 			s32 textureIndex = colIndex + rowIndex * numCols;
@@ -338,6 +342,7 @@ Texture* extractTextures(RenderGroup* group, MemoryArena* arena, char* fileName,
 
 			V2 minCorner = hadamard(v2(colIndex, rowIndex), frameSize) + frameOffset;
 			data.uv = r2(minCorner, minCorner + texSize);
+			data.size = dataTexSize;
 
 			addFileName(&data, fileName);
 			result[textureIndex] = createTextureFromData(&data, group);
@@ -347,16 +352,13 @@ Texture* extractTextures(RenderGroup* group, MemoryArena* arena, char* fileName,
 	return result;
 }
 
-#ifdef HACKFORMER_GAME
-
-//TODO: Add a way to load animations with normal maps
-Animation loadAnimation(GameState* gameState, char* fileName, 
+Animation loadAnimation(RenderGroup* group, MemoryArena* arena, char* fileName, 
 	s32 frameWidth, s32 frameHeight, double secondsPerFrame, bool pingPong) {
 	Animation result = {};
 
 	assert(secondsPerFrame > 0);
 	result.secondsPerFrame = secondsPerFrame;
-	result.frames = extractTextures(gameState->renderGroup, &gameState->permanentStorage, fileName, frameWidth, frameHeight, 0, &result.numFrames);
+	result.frames = extractTextures(group, arena, fileName, frameWidth, frameHeight, 0, &result.numFrames);
 	result.pingPong = pingPong;
 
 	return result;
@@ -367,6 +369,48 @@ Animation createAnimation(Texture* tex) {
 	result.secondsPerFrame = 0;
 	result.frames = tex;
 	result.numFrames = 1;
+	return result;
+}
+
+double getAnimationDuration(Animation* animation) {
+	double result = animation->numFrames * animation->secondsPerFrame;
+	return result;
+}
+
+Texture* getAnimationFrame(Animation* animation, double animTime) {
+	bool32 reverse = animation->reverse;
+
+	if(animation->pingPong) {
+		double duration = getAnimationDuration(animation);
+		s32 numTimesPlayed = (s32)(animTime / duration);
+
+		animTime += animation->secondsPerFrame * numTimesPlayed;
+
+		if (numTimesPlayed % 2 == 1) {
+			reverse = !reverse;
+		}
+	}
+
+	s32 frameIndex = 0;
+	if (animation->secondsPerFrame > 0) {
+		frameIndex = (s32)(animTime / animation->secondsPerFrame) % animation->numFrames;
+	}
+
+	if (reverse) {
+		frameIndex = (animation->numFrames - 1) - frameIndex;
+	}
+
+	Texture* result = animation->frames + frameIndex;
+	return result;
+}
+
+#ifdef HACKFORMER_GAME
+
+Animation loadAnimation(GameState* gameState, char* fileName, 
+	s32 frameWidth, s32 frameHeight, double secondsPerFrame, bool pingPong) {
+	Animation result = loadAnimation(gameState->renderGroup, &gameState->permanentStorage, fileName, 
+									 frameWidth, frameHeight, secondsPerFrame, pingPong);
+
 	return result;
 }
 
@@ -422,12 +466,13 @@ AnimNode createAnimNode(TextureData* stand, GameState* gameState) {
 }
 
 AnimNodeData* getAnimNodeData(AnimNode node, GameState* gameState) {
+	if(node.dataIndex == 0) return NULL;
 	AnimNodeData* result = gameState->animData + node.dataIndex;
 	return result;
 }
 
 CharacterAnim createCharacterAnim(GameState* gameState, AnimNode standAnim, AnimNode jumpAnim, AnimNode shootAnim,
-							 AnimNode walkAnim, AnimNode disappearAnim) {
+							 AnimNode walkAnim, AnimNode disappearAnim, AnimNode deathAnim) {
 	CharacterAnimData* data = gameState->characterAnimData + gameState->characterAnimDataCount;
 
 	data->standAnim = standAnim;
@@ -435,6 +480,7 @@ CharacterAnim createCharacterAnim(GameState* gameState, AnimNode standAnim, Anim
 	data->shootAnim = shootAnim;
 	data->walkAnim = walkAnim;
 	data->disappearAnim = disappearAnim;
+	data->deathAnim = deathAnim;
 
 	CharacterAnim result = {};
 	result.dataIndex = gameState->characterAnimDataCount;
@@ -445,35 +491,9 @@ CharacterAnim createCharacterAnim(GameState* gameState, AnimNode standAnim, Anim
 }
 
 CharacterAnimData* getCharacterAnimData(CharacterAnim anim, GameState* gameState) {
+	if(anim.dataIndex == 0) return NULL;
+
 	CharacterAnimData* result = gameState->characterAnimData + anim.dataIndex;
-	return result;
-}
-
-double getAnimationDuration(Animation* animation) {
-	double result = animation->numFrames * animation->secondsPerFrame;
-	return result;
-}
-
-Texture* getAnimationFrame(Animation* animation, double animTime) {
-	bool32 reverse = animation->reverse;
-
-	s32 frameIndex = 0;
-	if (animation->secondsPerFrame > 0) frameIndex = (s32)(animTime / animation->secondsPerFrame) % animation->numFrames;
-
-	if(animation->pingPong) {
-		double duration = getAnimationDuration(animation);
-		s32 numTimesPlayed = (s32)(animTime / duration);
-
-		if (numTimesPlayed % 2 == 1) {
-			reverse = !reverse;
-		}
-	}
-
-	if (reverse) {
-		frameIndex = (animation->numFrames - 1) - frameIndex;
-	}
-
-	Texture* result = animation->frames + frameIndex;
 	return result;
 }
 
