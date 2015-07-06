@@ -45,7 +45,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 				V2 tileP = hadamard(v2(tileX + 0.5, tileY + 0.5), tileSize);
 
 				if(tileIndex == Tile_heavy) {
-					addHeavyTile(gameState, tileP);
+					addHeavyTile(gameState, tileP + v2(0, 0.0001));
 				} 
 				else if(tileIndex == Tile_disappear) {
 					addDisappearingTile(gameState, tileP);
@@ -126,6 +126,7 @@ void freeLevel(GameState* gameState) {
 	gameState->hitboxFreeList = NULL;
 	gameState->refNodeFreeList = NULL;
 	gameState->messagesFreeList = NULL;
+	gameState->waypointFreeList = NULL;
 	gameState->targetRefs = NULL;
 	gameState->swapField = NULL;
 

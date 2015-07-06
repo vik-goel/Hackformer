@@ -608,10 +608,58 @@ void loadGame(GameState* gameState, char* fileName) {
 
 void saveConsoleFieldToArena(MemoryArena* arena, ConsoleField* field) {
 	if(field) {
-		void* dst = (char*)arena->base + arena->allocated;
-		memcpy(dst, field, sizeof(ConsoleField));
-		arena->allocated += sizeof(ConsoleField);
-		assert(arena->allocated < arena->size);
+		ConsoleFieldHackSave* save = pushStruct(arena, ConsoleFieldHackSave);
+
+		save->type = field->type;
+		save->flags = field->flags;
+		strcpy(save->name, field->name);
+		save->numValues = field->numValues;
+		save->selectedIndex = field->selectedIndex;
+		save->initialIndex = field->initialIndex;
+		save->tweakCost = field->tweakCost;
+		save->p = field->p;
+		save->offs = field->offs;
+		save->numChildren = field->numChildren;
+		save->childYOffs = field->childYOffs;
+
+		if(save->type == ConsoleField_double) {
+			for(s32 i = 0; i < save->numValues; i++) {
+				pushElem(arena, double, field->doubleValues[i]);
+			}
+		} 
+		else if(save->type == ConsoleField_s32) {
+			for(s32 i = 0; i < save->numValues; i++) {
+				pushElem(arena, s32, field->s32Values[i]);
+			}
+		}
+		else if(save->type == ConsoleField_followsWaypoints) {
+			s32 waypointCount = 0;
+
+			Waypoint* wp = field->curWaypoint;
+
+			while(wp) {
+				if(wp == field->curWaypoint && waypointCount != 0) break;
+				waypointCount++;
+
+				wp = wp->next;
+			}
+
+			wp = field->curWaypoint;
+
+			pushElem(arena, s32, waypointCount);
+
+			for(s32 wpIndex = 0; wpIndex < waypointCount; wpIndex++) {
+				pushElem(arena, V2, wp->p);
+				wp = wp->next;
+			}
+
+			pushElem(arena, double, field->waypointDelay);
+		}
+		else if(save->type == ConsoleField_bobsVertically) {
+			pushElem(arena, double, field->bobHeight);
+			pushElem(arena, s32, field->bobbingUp);
+			pushElem(arena, s32, field->initialBob);
+		}
 
 		for(s32 fieldIndex = 0; fieldIndex < field->numChildren; fieldIndex++) {
 			saveConsoleFieldToArena(arena, field->children[fieldIndex]);
@@ -766,49 +814,85 @@ void saveGameToArena(GameState* gameState) {
 
 ;
 void readConsoleFieldFromArena(void** readPtr, ConsoleField** fieldPtr, GameState* gameState) {
-	if((**(s32**)readPtr) >= 0) {
-		bool createField = !(*fieldPtr);
+	if(**(s32**)readPtr >= 0) {
+		ConsoleField* field = *fieldPtr;
 
-		ConsoleField* children[MAX_CONSOLE_FIELD_CHILDREN];
-		s32 numChildren;
-
-		if(createField) {
+		if(!field) {
 			*fieldPtr = createConsoleField_(gameState);
-		} else {
-			numChildren = (*fieldPtr)->numChildren;
-
-			for(s32 childIndex = 0; childIndex < numChildren; childIndex++) {
-				children[childIndex] = (*fieldPtr)->children[childIndex];
-			}
+			field = *fieldPtr;
 		}
 
-		**fieldPtr = **(ConsoleField**)readPtr;
+		s32 originalChildrenCount = field->numChildren;
 
-		s32 newNumChildren = (*fieldPtr)->numChildren;
-
-		if(createField) {
-			for(s32 childIndex = 0; childIndex < newNumChildren; childIndex++) {
-				(*fieldPtr)->children[childIndex] = NULL;
-			}
-		} else {
-			s32 childrenToWrite = min(numChildren, newNumChildren);
-
-			for(s32 childIndex = 0; childIndex < childrenToWrite; childIndex++) {
-				(*fieldPtr)->children[childIndex] = children[childIndex];
-			}
-
-			for(s32 childIndex = newNumChildren; childIndex < numChildren; childIndex++) {
-				freeConsoleField(children[childIndex], gameState);
-			}
+		if(field->type == ConsoleField_followsWaypoints) {
+			freeWaypoints(field->curWaypoint, gameState);
+			field->curWaypoint = NULL;
 		}
 
-		clearFlags(*fieldPtr, ConsoleFlag_selected);
-		(*fieldPtr)->offs = v2(0, 0);
+		ConsoleFieldHackSave* save = readElemPtr(*readPtr, ConsoleFieldHackSave);
 
-		*readPtr = (ConsoleField*)(*readPtr) + 1;
+		field->type = save->type;
+		field->flags = save->flags;
+		strcpy(field->name, save->name);
+		field->numValues = save->numValues;
+		field->selectedIndex = save->selectedIndex;
+		field->initialIndex = save->initialIndex;
+		field->tweakCost = save->tweakCost;
+		field->p = save->p;
+		field->offs = save->offs;
+		field->numChildren = save->numChildren;
+		field->childYOffs = save->childYOffs;
 
-		for(s32 fieldIndex = 0; fieldIndex < (*fieldPtr)->numChildren; fieldIndex++) {
-			readConsoleFieldFromArena(readPtr, (*fieldPtr)->children + fieldIndex, gameState);
+		for(s32 childIndex = save->numChildren; childIndex < originalChildrenCount; childIndex++) {
+			freeConsoleField(field->children[childIndex], gameState);
+			field->children[childIndex] = NULL;
+		}
+
+		if(field->type == ConsoleField_double) {
+			for(s32 i = 0; i < field->numValues; i++) {
+				field->doubleValues[i] = readElem(*readPtr, double);
+			}
+		}
+		else if(field->type == ConsoleField_s32) {
+			for(s32 i = 0; i < field->numValues; i++) {
+				field->s32Values[i] = readElem(*readPtr, s32);
+			}
+		}
+		else if(field->type == ConsoleField_followsWaypoints) {
+			s32 numWaypoints = readElem(*readPtr, s32);
+
+			Waypoint* firstWp = NULL;
+			Waypoint* prevWp = NULL;
+
+			for(s32 wpIndex = 0; wpIndex < numWaypoints; wpIndex++) {
+				V2 p = readElem(*readPtr, V2);
+				Waypoint* wp = allocateWaypoint(gameState, p);
+
+				if(firstWp) {
+					prevWp->next = wp;
+				} else {
+					firstWp = wp;
+				}
+
+				prevWp = wp;
+			}
+
+			prevWp->next = firstWp;
+			field->curWaypoint = firstWp;
+
+			field->waypointDelay = readElem(*readPtr, double);
+		} 
+		else if(field->type == ConsoleField_bobsVertically) {
+			field->bobHeight = readElem(*readPtr, double);
+			field->bobbingUp = readElem(*readPtr, s32);
+			field->initialBob = readElem(*readPtr, s32);
+		} 
+
+		clearFlags(field, ConsoleFlag_selected);
+		field->offs = v2(0, 0);
+
+		for(s32 fieldIndex = 0; fieldIndex < field->numChildren; fieldIndex++) {
+			readConsoleFieldFromArena(readPtr, field->children + fieldIndex, gameState);
 		}
 	} else {
 		*readPtr = (s32*)(*readPtr) + 1;

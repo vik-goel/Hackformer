@@ -168,6 +168,7 @@ bool isTileType(Entity* entity) {
 	return result;
 }
 
+void freeWaypoints(Waypoint* waypoint, GameState* gameState);
 GetCollisionTimeResult getCollisionTime(Entity*, GameState*, V2, bool actuallyMoving, double maxCollisionTime = 1);
 
 Entity* getEntityByRef(GameState*, s32 ref);

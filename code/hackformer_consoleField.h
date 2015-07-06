@@ -93,6 +93,26 @@ struct ConsoleField {
 	double childYOffs;
 };
 
+struct ConsoleFieldHackSave {
+	ConsoleFieldType type; //NOTE: This must NEVER be negative
+	u32 flags;
+
+	char name[20];
+	
+	s32 numValues;
+
+	s32 selectedIndex;
+	s32 initialIndex;
+
+	s32 tweakCost;
+	
+	V2 p;
+	V2 offs;
+
+	s32 numChildren;
+	double childYOffs;
+};
+
 enum ButtonState {
 	ButtonState_cantAfford,
 	ButtonState_default,

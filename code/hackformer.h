@@ -202,6 +202,7 @@ struct GameState {
 	EntityReference* entityRefFreeList;
 	Hitbox* hitboxFreeList;
 	Messages* messagesFreeList;
+	Waypoint* waypointFreeList;
 
 	ConsoleField* timeField;
 	ConsoleField* gravityField;

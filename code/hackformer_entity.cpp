@@ -1,3 +1,38 @@
+Waypoint* allocateWaypoint(GameState* gameState, V2 p, Waypoint* next = NULL) {
+	Waypoint* result;
+
+	if(gameState->waypointFreeList) {
+		result = gameState->waypointFreeList;
+		gameState->waypointFreeList = gameState->waypointFreeList->next;
+	} else {
+		result = pushStruct(&gameState->levelStorage, Waypoint);
+	}
+
+	result->p = p;
+	result->next = next;
+
+	return result;
+}
+
+void freeWaypoints(Waypoint* waypoint, GameState* gameState) {
+	Waypoint* start = waypoint;
+	Waypoint* wp = waypoint;
+
+	s32 freeCount = 0;
+
+	while(wp) {
+		if(freeCount != 0 && wp == start) break;
+		freeCount++;
+
+		Waypoint* next = wp->next;
+
+		wp->next = gameState->waypointFreeList;
+		gameState->waypointFreeList = wp;
+
+		wp = next;
+	}
+}
+
 Hitbox* createUnzeroedHitbox(GameState* gameState) {
 	Hitbox* hitbox = NULL;
 
@@ -1515,7 +1550,7 @@ bool isSolidCollisionRaw(Entity* a, Entity* b, GameState* gameState, bool actual
 	}
 
 	if(actuallyMoving && getField(a, ConsoleField_crushesEntities)) {
-		if(!(b->type == EntityType_tile && getMovementField(b) == NULL)) result = false;
+		if(!((b->type == EntityType_tile || b->type == EntityType_disappearingTile) && getMovementField(b) == NULL)) result = false;
 		if(getField(b, ConsoleField_crushesEntities)) result = true;
 	}
 

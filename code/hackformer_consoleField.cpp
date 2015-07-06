@@ -8,6 +8,11 @@ void freeConsoleField(ConsoleField* field, GameState* gameState) {
 	//		never be freed again, the next pointer should be null. 
 	assert(!field->next);
 
+	if(field->type == ConsoleField_followsWaypoints && field->curWaypoint) {
+		freeWaypoints(field->curWaypoint, gameState);
+		field->curWaypoint = NULL;
+	}
+
 	for (s32 childIndex = 0; childIndex < field->numChildren; childIndex++) {
 		freeConsoleField(field->children[childIndex], gameState);
 		field->children[childIndex] = NULL;
