@@ -91,7 +91,19 @@ void loadHackMap(GameState* gameState, char* fileName) {
 			} break;
 
 			case EntityType_trojan: {
-				addTrojan(gameState, p);
+				s32 numWaypoints = readS32(file);
+
+				Entity* entity = addTrojan(gameState, p);
+
+				if(numWaypoints > 0) {
+					ConsoleField* wpField = addFollowsWaypointsField(entity, gameState);
+					wpField->curWaypoint = pushArray(&gameState->levelStorage, Waypoint, numWaypoints);
+
+					for(s32 wpIndex = 0; wpIndex < numWaypoints; wpIndex++) {
+						wpField->curWaypoint[wpIndex].p = readV2(file);
+						wpField->curWaypoint[wpIndex].next = wpField->curWaypoint + ((wpIndex + 1) % numWaypoints);						
+					}					
+				}
 			} break;
 
 

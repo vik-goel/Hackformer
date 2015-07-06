@@ -94,6 +94,18 @@ void setTile(s32* tiles, s32 mapWidthInTiles, s32 mapHeightInTiles, Camera* came
 	}
 }
 
+bool entityGetsWaypoints(Entity* entity) {
+	bool result = entity->type == EntityType_trojan;
+	return result;
+}
+
+Waypoint* allocateWaypoint(MemoryArena* arena, V2 p, Waypoint* next = NULL) {
+	Waypoint* result = pushStruct(arena, Waypoint);
+	result->p = p;
+	result->next = next;
+	return result;
+}
+
 int main(int argc, char* argv[]) {
 	s32 panelWidth = 250;
 	s32 windowWidth = 1280 + panelWidth, windowHeight = 720;
@@ -102,7 +114,7 @@ int main(int argc, char* argv[]) {
 	Input input = {};
 	initInputKeyCodes(&input);
 
-	MemoryArena arena = createArena(1024 * 1024 * 128, true);
+	MemoryArena arena = createArena(1024 * 1024 * 150, true);
 
 	Camera camera = {};
 	initCamera(&camera);
@@ -139,7 +151,7 @@ int main(int argc, char* argv[]) {
 
 	s32 selectedTileIndex = -1;
 
-	CursorMode cursorMode = CursorMode_stampTile;
+	CursorMode cursorMode = CursorMode_moveEntity;
 
 	#define ENTITY(type, width, height, fileName) {EntityType_##type, DrawOrder_##type, v2(width, height), fileName},
 	EntitySpec entitySpecs[] {
@@ -162,6 +174,7 @@ int main(int argc, char* argv[]) {
 
 	s32 selectedEntitySpecIndex = 0;
 	Entity* movingEntity = NULL;
+	Waypoint* movingWaypoint = NULL;
 
 	BackgroundTextures backgroundTextures;
 	initBackgroundTextures(&backgroundTextures);
@@ -203,6 +216,22 @@ int main(int argc, char* argv[]) {
 					entity->drawOrder = spec->drawOrder;
 					entity->tex = entityTextureAtlas + specIndex;
 					entity->bounds = rectCenterDiameter(readV2(file), spec->size);
+
+					if(entityGetsWaypoints(entity)) {
+						s32 numWaypoints = readS32(file);
+
+						if(numWaypoints > 0) {
+							entity->waypoints = pushArray(&arena, Waypoint, numWaypoints);
+
+							for(s32 wpIndex = 0; wpIndex < numWaypoints; wpIndex++) {
+								entity->waypoints[wpIndex].p = readV2(file);
+
+								if (wpIndex < numWaypoints - 1) {
+									entity->waypoints[wpIndex].next = entity->waypoints + (wpIndex + 1);
+								}
+							}
+						}
+					}
 
 					foundSpec = true;
 					break;
@@ -279,6 +308,12 @@ int main(int argc, char* argv[]) {
 		}
 		if(input.num[2].justPressed) {
 			setBackgroundTexture(&backgroundTextures, Background_sunset, renderGroup);
+		}
+
+		if(cursorMode == CursorMode_moveEntity && movingEntity) {
+			if(movingEntity->waypoints && input.n.justPressed) {
+				cursorMode = CursorMode_editWaypoints;
+			}
 		}
 
 
@@ -406,9 +441,100 @@ int main(int argc, char* argv[]) {
 
 					entity->bounds = rectCenterDiameter(center, spec->size);
 					entity->tex = tex;
+
+					if(entityGetsWaypoints(entity)) {
+						entity->waypoints = allocateWaypoint(&arena, center);
+					}
 				}
 				
 				pushTexture(renderGroup, tex, entityBounds, false, DrawOrder_gui);
+			}
+		} else if(cursorMode == CursorMode_editWaypoints) {
+			if(movingEntity) {
+				if(input.leftMouse.justPressed) {
+					Waypoint* wp = movingEntity->waypoints;
+
+					if(wp) {
+						while(wp->next) {
+							wp = wp->next;
+						}
+
+						V2 center = unprojectP(&camera, input.mouseInWorld);
+						wp->next = allocateWaypoint(&arena, center);
+					}
+				}
+
+				if(input.m.justPressed) {
+					Waypoint* wp = movingEntity->waypoints;
+
+					if(wp->next) {
+						while(wp->next) {
+							Waypoint* next = wp->next;
+
+							if(!next->next) {
+								wp->next = NULL;
+								break;
+							}
+
+							wp = next;
+						}
+					}
+				}
+
+				V2 wpSize = v2(1, 1) * 0.05;
+
+				if(input.rightMouse.justPressed) {
+					V2 mouse = unprojectP(&camera, input.mouseInWorld);
+
+					for(Waypoint* wp = movingEntity->waypoints; wp; wp = wp->next) {
+						R2 wpBounds = rectCenterRadius(wp->p, wpSize);
+						
+						if(pointInsideRect(wpBounds, mouse)) {
+							movingWaypoint = wp;
+							break;
+						}
+					}
+				}
+
+				if(movingWaypoint) {
+					if(input.rightMouse.pressed) {
+						movingWaypoint->p += input.dMouseMeters;
+					} else {
+						movingWaypoint = NULL;
+					}
+				}
+
+				Waypoint* lastPoint = movingEntity->waypoints;
+				Waypoint* firstPoint = movingEntity->waypoints;
+
+				if(lastPoint) {
+					Waypoint* wp = movingEntity->waypoints->next;
+
+					if(wp) {
+						while(true) {
+							Waypoint* wp1 = lastPoint;
+							Waypoint* wp2 = wp;
+
+							if(!wp2) {
+								wp2 = firstPoint;
+							}
+
+							pushDashedLine(renderGroup, RED, wp1->p, wp2->p, 0.02, 0.05, 0.05, true);
+
+							if(!wp) {
+								break;
+							}
+
+							lastPoint = wp;
+							wp = wp->next;
+						}
+					}
+				}
+
+				for(Waypoint* wp = movingEntity->waypoints; wp; wp = wp->next) {
+					R2 wpBounds = rectCenterRadius(wp->p, wpSize);
+					pushFilledRect(renderGroup, wpBounds, BLUE, true);
+				}
 			}
 		}
 
@@ -427,8 +553,13 @@ int main(int argc, char* argv[]) {
 			}
 		}
 
-		if(input.rightMouse.pressed) {
+		if(input.rightMouse.pressed && cursorMode != CursorMode_editWaypoints) {
 			if(clickedEntity) {
+				if(clickedEntity == movingEntity) {
+					movingEntity = NULL;
+					cursorMode = CursorMode_moveEntity;
+				}
+
 				entities[clickedEntityIndex] = entities[entityCount-- - 1];
 				clickedEntity = NULL;
 				clickedEntityIndex = -1;
@@ -445,13 +576,23 @@ int main(int argc, char* argv[]) {
 				}
 
 				if(movingEntity) {
+					V2 oldCenter = getRectCenter(movingEntity->bounds);
+
 					V2 center = unprojectP(&camera, input.mouseInWorld);
 					movingEntity->bounds = reCenterRect(movingEntity->bounds, center);
+
+					V2 dCenter = center - oldCenter;
+
+					for (Waypoint* wp = movingEntity->waypoints; wp; wp = wp->next) {
+						wp->p += dCenter;
+					}
+
+
 					maintainMovingEntity = true;
 				}
 			}
 		}
-		if(!maintainMovingEntity) {
+		if(!maintainMovingEntity && cursorMode != CursorMode_editWaypoints) {
 			movingEntity = NULL;
 		}
 
@@ -476,6 +617,20 @@ int main(int argc, char* argv[]) {
 				Entity* entity = entities + entityIndex;
 				writeS32(file, entity->type);
 				writeV2(file, getRectCenter(entity->bounds));
+
+				if(entity->waypoints) {
+					s32 wpCount = 0;
+
+					for(Waypoint* wp = entity->waypoints; wp; wp = wp->next) {
+						wpCount++;
+					}
+
+					writeS32(file, wpCount);
+
+					for(Waypoint* wp = entity->waypoints; wp; wp = wp->next) {
+						writeV2(file, wp->p);
+					}
+				}
 			}
 
 			fclose(file);

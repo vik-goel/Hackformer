@@ -863,7 +863,7 @@ void drawWaypointInformation(ConsoleField* field, RenderGroup* group, FieldSpec*
 				R2 arrowBounds = rectCenterRadius(arrowCenter, arrowDimens);
 
 				pushDashedLine(group, lineColor, lineStart, lineEnd, lineThickness, lineDashSize, lineSpaceSize, true);
-				pushTexture(group, waypointArrowTex, arrowBounds, rad, false, DrawOrder_gui, true, lineColor);
+				pushTexture(group, waypointArrowTex, arrowBounds, rad + PI, false, DrawOrder_gui, true, lineColor);
 
 				w = next;
 				if(w == field->curWaypoint) break;

@@ -725,7 +725,7 @@ void addDisappearsField(Entity* entity, GameState* gameState) {
 void addCloaksField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "cloaks", ConsoleField_cloaks, 10);
 
-	double time[] = {0.1, 0.5, 1, 1.5, 2}; 
+	double time[] = {0.1, 0.25, 0.5, 0.75, 1}; 
 
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "disappear_time", time, 
 												   arrayCount(time), 2, 1));
@@ -786,7 +786,7 @@ Waypoint* createWaypoint(GameState* gameState, V2 p, Waypoint* next = NULL) {
 	return result;
 }
 
-void addFollowsWaypointsField(Entity* entity, GameState* gameState) {
+ConsoleField* addFollowsWaypointsField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "follows_waypoints", ConsoleField_followsWaypoints, 3);
 
 	double followsWaypointsSpeedFieldValues[] = {1, 2, 3, 4, 5}; 
@@ -798,24 +798,12 @@ void addFollowsWaypointsField(Entity* entity, GameState* gameState) {
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "waypoint_delay", waypointDelays, 
 	 												    arrayCount(waypointDelays), 2, 1));
 
-	s32 numWaypoints = 4;
-	Waypoint* waypoints = pushArray(&gameState->levelStorage, Waypoint, numWaypoints);
-
-	for(s32 waypointIndex = 0; waypointIndex < numWaypoints; waypointIndex++) {
-		Waypoint* w = waypoints + waypointIndex;
-		Waypoint* next = waypoints + (waypointIndex + 1) % numWaypoints;
-		w->next = next;
-	}
-
-	waypoints[0].p = v2(2, 4);
-	waypoints[1].p = v2(5, 7);
-	waypoints[2].p = v2(8, 6);
-	waypoints[3].p = v2(11, 3);
-
-	result->curWaypoint = waypoints;
+	result->curWaypoint = NULL;
 	result->waypointDelay = 0;
 
 	addField(entity, result);
+
+	return result;
 }
 
 void addGivesEnergyField(Entity* entity, GameState* gameState) {
@@ -1132,6 +1120,8 @@ Entity* addDisappearingTile(GameState* gameState, V2 p) {
 
 	Texture* texture = gameState->tileAtlas[Tile_disappear];
 
+	setFlags(result, EntityFlag_noMovementByDefault|EntityFlag_removeWhenOutsideLevel);
+
 	initTile(result, gameState, texture);
 	result->defaultTex = texture;
 	addDisappearsField(result, gameState);
@@ -1288,7 +1278,6 @@ Entity* addFlyingVirus(GameState* gameState, V2 p) {
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
 
-	addFollowsWaypointsField(result, gameState);
 	addShootField(result, gameState);
 	addSpotlightField(result, gameState);
 
@@ -1332,7 +1321,6 @@ Entity* addTrojan(GameState* gameState, V2 p) {
 	addCloaksField(result, gameState);
 	addShootField(result, gameState);
 	addSpotlightField(result, gameState);
-	addFollowsWaypointsField(result, gameState);
 
 	return result;
 }
@@ -3501,7 +3489,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 					setFlags(entity, EntityFlag_remove);
 				}
 			} else {
-				entity->alpha = min(1, entity->alpha + rate);
+				//entity->alpha = min(1, entity->alpha + rate);
 			}
 		}
 

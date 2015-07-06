@@ -12,15 +12,22 @@ struct EntitySpec {
 	char* fileName;
 };
 
+struct Waypoint {
+	V2 p;
+	Waypoint* next;
+};
+
 struct Entity {
 	EntityType type;
 	DrawOrder drawOrder;
 	R2 bounds;
 	Texture* tex;
+	Waypoint* waypoints;
 };
 
 enum CursorMode {
 	CursorMode_stampTile,
 	CursorMode_stampEntity,
 	CursorMode_moveEntity,
+	CursorMode_editWaypoints,
 };
