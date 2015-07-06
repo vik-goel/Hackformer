@@ -36,15 +36,15 @@ int main(int argc, char* argv[]) {
 
 	MemoryArena arena = createArena(1024 * 1024 * 32, true);
 
-	TextureData* textureDatas = pushArray(&arena, TextureData, 1000);
-	s32 textureDatasCount = 1;
+	Texture* textures = pushArray(&arena, Texture, 1000);
+	s32 texturesCount = 1;
 
 	RenderGroup* renderGroup = createRenderGroup(1024 * 1024, &arena, TEMP_PIXELS_PER_METER, windowWidth, windowHeight, 
-		&camera, textureDatas, &textureDatasCount);
+		&camera, textures, &texturesCount);
 	renderGroup->enabled = true;
 
-	Animation anim = loadAnimation(renderGroup, &arena, animationFilePath, frameWidth, frameHeight, secondsPerFrame, pingPong);
-	V2 drawSize = getDrawSize(anim.frames, windowHeight / TEMP_PIXELS_PER_METER, renderGroup);
+	Animation anim = loadAnimation(renderGroup, animationFilePath, frameWidth, frameHeight, secondsPerFrame, pingPong);
+	V2 drawSize = getDrawSize(anim.frames, windowHeight / TEMP_PIXELS_PER_METER);
 
 	double animTime = 0;
 

@@ -141,6 +141,7 @@ void writeEntity(FILE* file, Entity* entity, GameState* gameState) {
 	writeU32(file, entity->flags);
 	writeV2(file, entity->p);
 	writeV2(file, entity->dP);
+	writeDouble(file, entity->rotation);
 	writeV2(file, entity->renderSize);
 	writeS32(file, entity->drawOrder);
 	writeHitboxes(file, entity->hitboxes);
@@ -217,15 +218,31 @@ void writeDock(FILE* file, Dock* dock) {
 	writeDouble(file, dock->subDockYOffs);
 }
 
+void offsetSavePtrs(MemoryArena* arena, bool forwards) {
+	SaveMemoryHeader* header = (SaveMemoryHeader*)arena->base;
+
+	size_t movement = (size_t)arena->base;
+	if(!forwards) movement *= -1;
+
+	for(s32 saveIndex = 0; saveIndex < header->numSaveGames; saveIndex++) {
+		SaveReference* ref = header->saves + saveIndex;
+		ref->save = (char*)ref->save + movement;
+	}
+}
+
 void writeMemoryArena(FILE* file, MemoryArena* arena) {
-	writeS32(file, (s32)arena->allocated);
+	offsetSavePtrs(arena, false);
+
+	writeSize_t(file, arena->allocated);
 
 	size_t numElementsWritten = fwrite(arena->base, sizeof(char), arena->allocated, file);
 	assert(numElementsWritten == arena->allocated);
+
+	offsetSavePtrs(arena, true);
 }
 
 void saveGame(GameState* gameState, char* fileName) {
-	FILE* file = fopen(fileName, "w");
+	FILE* file = fopen(fileName, "wb");
 	assert(file);
 
 	writeS32(file, gameState->screenType);
@@ -416,6 +433,7 @@ void readEntity(FILE* file, GameState* gameState, s32 entityIndex) {
 	entity->flags = readU32(file);
 	entity->p = readV2(file);
 	entity->dP = readV2(file);
+	entity->rotation = readDouble(file);
 	entity->renderSize = readV2(file);
 	entity->drawOrder = (DrawOrder)readS32(file);
 
@@ -504,8 +522,7 @@ Animation readAnimation(FILE* file, GameState* gameState) {
 		strcpy(result.fileName, fileName);
 
 		s32 numFrames = 0;
-		result.frames = extractTextures(gameState->renderGroup, &gameState->permanentStorage, fileName, result.frameWidth, 
-										result.frameHeight, 0, &numFrames);
+		result.frames = extractTextures(gameState->renderGroup, fileName, result.frameWidth, result.frameHeight, 0, &numFrames);
 		assert(numFrames == result.numFrames);
 	}
 
@@ -530,18 +547,21 @@ void readDock(FILE* file, Dock* dock) {
 }
 
 void readMemoryArena(FILE* file, MemoryArena* arena) {
-	arena->allocated = readS32(file);
-
+	arena->allocated = readSize_t(file);
+	assert(arena->allocated < arena->size);
 	size_t numElementsRead = fread(arena->base, sizeof(char), arena->allocated, file);
-
-	s32 res = feof(file);
-
 	assert(numElementsRead == arena->allocated);
+
+	offsetSavePtrs(arena, true);
 }
 
+void freeLevel(GameState*);
+
 void loadGame(GameState* gameState, char* fileName) {
-	FILE* file = fopen(fileName, "r");
+	FILE* file = fopen(fileName, "rb");
 	assert(file);
+
+	freeLevel(gameState);
 
 	gameState->screenType = (ScreenType)readS32(file);
 	gameState->refCount_ = readS32(file);
@@ -588,8 +608,10 @@ void loadGame(GameState* gameState, char* fileName) {
 
 void saveConsoleFieldToArena(MemoryArena* arena, ConsoleField* field) {
 	if(field) {
-		ConsoleField* save = pushStruct(arena, ConsoleField);
-		*save = *field;
+		void* dst = (char*)arena->base + arena->allocated;
+		memcpy(dst, field, sizeof(ConsoleField));
+		arena->allocated += sizeof(ConsoleField);
+		assert(arena->allocated < arena->size);
 
 		for(s32 fieldIndex = 0; fieldIndex < field->numChildren; fieldIndex++) {
 			saveConsoleFieldToArena(arena, field->children[fieldIndex]);
@@ -603,6 +625,7 @@ void saveEntityToArena(MemoryArena* arena, Entity* entity) {
 	EntityHackSave* save = pushStruct(arena, EntityHackSave);
 
 	save->p = entity->p;
+	save->rotation = entity->rotation;
 	save->tileXOffset = entity->tileXOffset;
 	save->tileYOffset = entity->tileYOffset;
 
@@ -743,30 +766,52 @@ void saveGameToArena(GameState* gameState) {
 
 ;
 void readConsoleFieldFromArena(void** readPtr, ConsoleField** fieldPtr, GameState* gameState) {
-	void* read = *readPtr;
+	if((**(s32**)readPtr) >= 0) {
+		bool createField = !(*fieldPtr);
 
-	if(*(s32*)read >= 0) {
-		ConsoleField* field = *fieldPtr;
+		ConsoleField* children[MAX_CONSOLE_FIELD_CHILDREN];
+		s32 numChildren;
 
-		if(!field) {
-			field = createConsoleField_(gameState);
-			*fieldPtr = field;
+		if(createField) {
+			*fieldPtr = createConsoleField_(gameState);
+		} else {
+			numChildren = (*fieldPtr)->numChildren;
+
+			for(s32 childIndex = 0; childIndex < numChildren; childIndex++) {
+				children[childIndex] = (*fieldPtr)->children[childIndex];
+			}
 		}
 
-		assert(field);
+		**fieldPtr = **(ConsoleField**)readPtr;
 
-		*field = *(ConsoleField*)read;
+		s32 newNumChildren = (*fieldPtr)->numChildren;
 
-		clearFlags(field, ConsoleFlag_selected);
-		field->offs = v2(0, 0);
+		if(createField) {
+			for(s32 childIndex = 0; childIndex < newNumChildren; childIndex++) {
+				(*fieldPtr)->children[childIndex] = NULL;
+			}
+		} else {
+			s32 childrenToWrite = min(numChildren, newNumChildren);
 
-		*readPtr = (ConsoleField*)read + 1;
+			for(s32 childIndex = 0; childIndex < childrenToWrite; childIndex++) {
+				(*fieldPtr)->children[childIndex] = children[childIndex];
+			}
 
-		for(s32 fieldIndex = 0; fieldIndex < field->numChildren; fieldIndex++) {
-			readConsoleFieldFromArena(readPtr, &field->children[fieldIndex], gameState);
+			for(s32 childIndex = newNumChildren; childIndex < numChildren; childIndex++) {
+				freeConsoleField(children[childIndex], gameState);
+			}
+		}
+
+		clearFlags(*fieldPtr, ConsoleFlag_selected);
+		(*fieldPtr)->offs = v2(0, 0);
+
+		*readPtr = (ConsoleField*)(*readPtr) + 1;
+
+		for(s32 fieldIndex = 0; fieldIndex < (*fieldPtr)->numChildren; fieldIndex++) {
+			readConsoleFieldFromArena(readPtr, (*fieldPtr)->children + fieldIndex, gameState);
 		}
 	} else {
-		*readPtr = (s32*)read + 1;
+		*readPtr = (s32*)(*readPtr) + 1;
 
 		if(*fieldPtr) {
 			freeConsoleField(*fieldPtr, gameState);
@@ -776,9 +821,10 @@ void readConsoleFieldFromArena(void** readPtr, ConsoleField** fieldPtr, GameStat
 }
 
 void readEntityFromArena(void** readPtr, Entity* entity, GameState* gameState) {
-	EntityHackSave* save = readElemPtr(*readPtr, EntityHackSave);
+	EntityHackSave* save = readElemPtr((*readPtr), EntityHackSave);
 
 	setEntityP(entity, save->p, gameState);
+	entity->rotation = save->rotation;
 	entity->tileXOffset = save->tileXOffset;
 	entity->tileYOffset = save->tileYOffset;
 	if(entity->messages)entity->messages->selectedIndex = save->messagesSelectedIndex;
@@ -786,12 +832,18 @@ void readEntityFromArena(void** readPtr, Entity* entity, GameState* gameState) {
 
 	for(s32 fieldIndex = save->numFields; fieldIndex < entity->numFields; fieldIndex++) {
 		freeConsoleField(entity->fields[fieldIndex], gameState);
+		entity->fields[fieldIndex] = NULL;
 	}
 
 	entity->numFields = save->numFields;
+	assert(entity->numFields < 8);
+
+	if(entity->type == EntityType_player) {
+		s32 breakHere = 5;
+	}
 
 	for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
-		readConsoleFieldFromArena(readPtr, &entity->fields[fieldIndex], gameState);
+		readConsoleFieldFromArena(readPtr, entity->fields + fieldIndex, gameState);
 	}
 }
 

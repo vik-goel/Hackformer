@@ -24,7 +24,7 @@ ConsoleField* createConsoleField_(GameState* gameState) {
 		result = gameState->consoleFreeList;
 		gameState->consoleFreeList = gameState->consoleFreeList->next;
 	} else {
-		result = (ConsoleField*)pushStruct(&gameState->levelStorage, ConsoleField);
+		result = pushStruct(&gameState->levelStorage, ConsoleField);
 	}
 
 	return result;
@@ -920,11 +920,11 @@ bool updateConsole(GameState* gameState, double dt) {
 
 		R2 renderBounds = getRenderBounds(entity, gameState);
 		
-		if(entity->type != EntityType_player && 
-		   !(isTileType(entity) && getMovementField(entity) == NULL) && 
-		   entity->type != EntityType_pickupField) {
-			pushOutlinedRect(gameState->renderGroup, renderBounds, 0.02, RED);
-		}
+		// if(entity->type != EntityType_player && 
+		//    !(isTileType(entity) && getMovementField(entity) == NULL) && 
+		//    entity->type != EntityType_pickupField) {
+		// 	pushOutlinedRect(gameState->renderGroup, renderBounds, 0.02, RED);
+		// }
 		
 		V2 fieldP = getBottomFieldP(entity, gameState, spec);
 

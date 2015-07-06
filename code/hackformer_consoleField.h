@@ -14,6 +14,7 @@ enum ConsoleFieldType {
 	ConsoleField_Alertness,
 	ConsoleField_followsWaypoints,
 	ConsoleField_spotlight,
+	ConsoleField_crushesEntities,
 
 	ConsoleField_double,
 	ConsoleField_unlimitedInt,
@@ -44,8 +45,10 @@ struct Waypoint {
 	Waypoint* next;
 };
 
+#define MAX_CONSOLE_FIELD_CHILDREN 4
+
 struct ConsoleField {
-	ConsoleFieldType type; //NOTE: This must NEVER be -1
+	ConsoleFieldType type; //NOTE: This must NEVER be negative
 	u32 flags;
 
 	char name[20];
@@ -84,7 +87,7 @@ struct ConsoleField {
 
 	//NOTE: This is used for hierarchal console fields
 	s32 numChildren;
-	ConsoleField* children[4];
+	ConsoleField* children[MAX_CONSOLE_FIELD_CHILDREN];
 	double childYOffs;
 };
 

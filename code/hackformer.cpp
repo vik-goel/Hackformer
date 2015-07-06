@@ -45,8 +45,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 				V2 tileP = hadamard(v2(tileX + 0.5, tileY + 0.5), tileSize);
 
 				if(tileIndex == Tile_heavy) {
-					double tileOverhangHeight = TILE_HEIGHT_IN_METERS - TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS;
-					addHeavyTile(gameState, tileP + v2(0, tileOverhangHeight));
+					addHeavyTile(gameState, tileP);
 				} else {
 					addTile(gameState, tileP, gameState->tileAtlas[tileIndex]);
 				}
@@ -315,10 +314,32 @@ void clearInput(Input* input) {
 	}
 }
 
-void initMusic() {
-#if DEBUG_BUILD
-#else
-#if 1
+Music loadMusic(char* fileName) {
+	char filePath[1000];
+	sprintf(filePath, "res/music/%s.mp3", fileName);
+
+	Music result = {};
+	result.data = Mix_LoadMUS(filePath);
+
+	if(!result.data) {
+		fprintf(stderr, "Error loading music: %s\n", Mix_GetError());
+		InvalidCodePath;
+	}
+
+	return result;
+}
+
+void playMusic(Music* music, MusicState* musicState) {
+	musicState->menuMusic.playing = false;
+	musicState->gameMusic.playing = false;
+
+	Mix_HaltMusic();
+	if (music->data) Mix_PlayMusic(music->data, -1); //loop forever
+	music->playing = true;
+}
+
+void initMusic(MusicState* musicState) {
+#if PLAY_MUSIC
 	s32 mixerFlags = MIX_INIT_MP3;
 	s32 mixerInitStatus = Mix_Init(mixerFlags);
 
@@ -327,19 +348,13 @@ void initMusic() {
 		InvalidCodePath;
 	}
 
-	if (Mix_OpenAudio(44100, AUDIO_S16SYS, 2, 1024) < 0) {
+	if (Mix_OpenAudio(48000, AUDIO_S16SYS, 2, 1024) < 0) {
 		fprintf(stderr, "Error initializing SDL_mixer: %s\n", Mix_GetError());
 		InvalidCodePath;
 	}
 
-	Mix_Music* music = Mix_LoadMUS("res/hackformer_theme.mp3");
-	if(!music) {
-		fprintf(stderr, "Error loading music: %s\n", Mix_GetError());
-		InvalidCodePath;
-	}
-
-	Mix_PlayMusic(music, -1); //loop forever
-#endif
+	musicState->menuMusic = loadMusic("hackformer_theme");
+	musicState->gameMusic = loadMusic("hackformerlevel0");
 #endif
 }
 
@@ -402,6 +417,7 @@ void initFieldSpec(GameState* gameState) {
 
 void initDock(GameState* gameState) {
 	Dock* dock = &gameState->dock;
+
 	dock->dockTex = loadPNGTexture(gameState->renderGroup, "dock/dock", false);
 	dock->subDockTex = loadPNGTexture(gameState->renderGroup, "dock/sub_dock", false);
 	dock->energyBarStencil = loadPNGTexture(gameState->renderGroup, "dock/energy_bar_stencil", true);
@@ -416,8 +432,10 @@ void initDock(GameState* gameState) {
 void initPauseMenu(GameState* gameState) {
 	PauseMenu* pauseMenu = &gameState->pauseMenu;
 
-	pauseMenu->background = loadPNGTexture(gameState->renderGroup, "pause_menu/pause_menu", false);
-	pauseMenu->backgroundAnim = loadAnimation(gameState, "pause_menu/pause_menu_sprite", 1280, 720, 1.f, true);
+	RenderGroup* group = gameState->renderGroup;
+
+	pauseMenu->background = loadPNGTexture(group, "pause_menu/pause_menu", false);
+	pauseMenu->backgroundAnim = loadAnimation(group, "pause_menu/pause_menu_sprite", 1280, 720, 1.f, true);
 
 	pauseMenu->quit = createPauseMenuButton(gameState, "pause_menu/quit_button", v2(15.51, 2.62), 1.5);
 	pauseMenu->restart = createPauseMenuButton(gameState, "pause_menu/restart_button", v2(6.54, 4.49), 1.1);
@@ -428,8 +446,10 @@ void initPauseMenu(GameState* gameState) {
 void initMainMenu(GameState* gameState) {
 	MainMenu* mainMenu = &gameState->mainMenu;
 
-	mainMenu->background = loadPNGTexture(gameState->renderGroup, "main_menu/background", false);
-	mainMenu->backgroundAnim = loadAnimation(gameState, "main_menu/background_animation", 1280, 720, 1.f, true);
+	RenderGroup* group = gameState->renderGroup;
+
+	mainMenu->background = loadPNGTexture(group, "main_menu/background", false);
+	mainMenu->backgroundAnim = loadAnimation(group, "main_menu/background_animation", 1280, 720, 1.f, true);
 
 	double mainMenuButtonHeight = 0.6;
 	mainMenu->play = createPauseMenuButton(gameState, "main_menu/play_button", v2(10, 6), mainMenuButtonHeight);
@@ -454,23 +474,28 @@ void loadImages(GameState* gameState) {
 		CharacterAnim* character = createCharacterAnim(gameState, &gameState->playerAnim);
 
 		AnimNode* walkNode = createAnimNode(gameState, &character->walk);
-		walkNode->intro = loadAnimation(gameState, "player/running_transition", 256, 256, 0.05f, true);
-		walkNode->main = loadAnimation(gameState, "player/running", 256, 256, 0.0425f, true);
+		walkNode->intro = loadAnimation(renderGroup, "player/running_transition", 256, 256, 0.05f, true);
+		walkNode->main = loadAnimation(renderGroup, "player/running", 256, 256, 0.0425f, true);
 		walkNode->outro = createReversedAnimation(&walkNode->intro);
 
 		AnimNode* standNode = createAnimNode(gameState, &character->stand);
-		standNode->main = loadAnimation(gameState, "player/stand", 256, 256, 0.08f, true);
+		standNode->main = loadAnimation(renderGroup, "player/stand", 256, 256, 0.09f, true);
 
 		AnimNode* deathNode = createAnimNode(gameState, &character->death);
-		deathNode->main = loadAnimation(gameState, "player/death", 256, 256, 0.06f, true);
+		deathNode->main = loadAnimation(renderGroup, "player/death", 256, 256, 0.06f, true);
 
 		AnimNode* jumpNode = createAnimNode(gameState, &character->jump);
-		jumpNode->intro = loadAnimation(gameState, "player/jumping_intro", 256, 256, 0.04f, false);
-		jumpNode->main = createAnimation(loadPNGTexture(gameState->renderGroup, "player/jump"));
-		jumpNode->outro = loadAnimation(gameState, "player/jumping_outro", 256, 256, 0.04f, false);
+
+		// jumpNode->intro = loadAnimation(renderGroup, "player/jumping_intro", 256, 256, 0.04f, false);
+		// jumpNode->main = createAnimation(loadPNGTexture(renderGroup, "player/jump"));
+		// jumpNode->outro = loadAnimation(renderGroup, "player/jumping_outro", 256, 256, 0.04f, false);
+
+		jumpNode->intro = loadAnimation(renderGroup, "player/jumping_intro_2", 256, 256, 0.07f, false);
+		jumpNode->main = loadAnimation(renderGroup, "player/jumping_2", 256, 256, 0.12f, true);
+		jumpNode->outro = loadAnimation(renderGroup, "player/jumping_outro_2", 256, 256, 0.03f, false);
 
 		AnimNode* hackNode = createAnimNode(gameState, &gameState->playerHack);
-		hackNode->intro = loadAnimation(gameState, "player/hacking", 256, 256, 0.07f, false);
+		hackNode->intro = loadAnimation(renderGroup, "player/hacking", 256, 256, 0.07f, false);
 		hackNode->main = createAnimation(hackNode->intro.frames + (hackNode->intro.numFrames - 1));
 		hackNode->outro = createReversedAnimation(&hackNode->intro);
 	}
@@ -479,38 +504,38 @@ void loadImages(GameState* gameState) {
 		CharacterAnim* character = createCharacterAnim(gameState, &gameState->virus1Anim);
 
 		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
-		shoot->main = loadAnimation(gameState, "virus1/shoot", 145, 170, 0.04f, true);
+		shoot->main = loadAnimation(renderGroup, "virus1/shoot", 145, 170, 0.04f, true);
 		gameState->shootDelay = getAnimationDuration(&shoot->main);
 		//TODO: Make shoot animation time per frame be set by the shootDelay
 
 		AnimNode* stand = createAnimNode(gameState, &character->stand);
-		stand->main = createAnimation(loadPNGTexture(gameState->renderGroup, "virus1/stand"));
+		stand->main = createAnimation(loadPNGTexture(renderGroup, "virus1/stand"));
 	}
 
 	{
 		CharacterAnim* character = createCharacterAnim(gameState, &gameState->flyingVirusAnim);
 
 		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
-		shoot->main = loadAnimation(gameState, "virus2/shoot", 133, 127, 0.04f, false);
+		shoot->main = loadAnimation(renderGroup, "virus2/shoot", 133, 127, 0.04f, false);
 
 		AnimNode* stand = createAnimNode(gameState, &character->stand);
-		stand->main = createAnimation(loadPNGTexture(gameState->renderGroup, "virus2/full"));
+		stand->main = createAnimation(loadPNGTexture(renderGroup, "virus2/full"));
 	}
 
 	{
 		CharacterAnim* character = createCharacterAnim(gameState, &gameState->trojanAnim);
 
 		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
-		shoot->main = loadAnimation(gameState, "trojan/shoot", 364, 336, 0.04f, false);
+		shoot->main = loadAnimation(renderGroup, "trojan/shoot", 364, 336, 0.04f, false);
 
 		AnimNode* disappear = createAnimNode(gameState, &character->disappear);
-		disappear->main = loadAnimation(gameState, "trojan/disappear", 397, 345, 0.04f, false);
+		disappear->main = loadAnimation(renderGroup, "trojan/disappear", 397, 345, 0.04f, false);
 
 		AnimNode* stand = createAnimNode(gameState, &character->stand);
-		stand->main = createAnimation(loadPNGTexture(gameState->renderGroup, "trojan/full"));
+		stand->main = createAnimation(loadPNGTexture(renderGroup, "trojan/full"));
 	}
 	
-	gameState->hackEnergyAnim = loadAnimation(gameState, "energy_animation", 173, 172, 0.08f, true);
+	gameState->hackEnergyAnim = loadAnimation(renderGroup, "energy_animation", 173, 172, 0.08f, true);
 	gameState->laserBolt = loadPNGTexture(renderGroup, "virus1/laser_bolt");
 	gameState->endPortal = loadPNGTexture(renderGroup, "end_portal");
 
@@ -537,8 +562,10 @@ int main(int argc, char* argv[]) {
 	s32 windowWidth = 1280, windowHeight = 720;
 	SDL_Window* window = createWindow(windowWidth, windowHeight);
 	GameState* gameState = createGameState(windowWidth, windowHeight);
-	initMusic();
-	
+	MusicState* musicState = &gameState->musicState;
+
+	initMusic(musicState);
+
 	RenderGroup* renderGroup = gameState->renderGroup;
 	Input* input = &gameState->input;
 	FieldSpec* spec = &gameState->fieldSpec;
@@ -560,17 +587,18 @@ int main(int argc, char* argv[]) {
 	initMainMenu(gameState);
 
 	char* mapFileNames[] = {
-		"map1.hack",
-		"map2.hack",
+		"edit.hack",
 	};
 
 	s32 mapFileIndex = 0;
 	loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, true);
 
-	#if DEBUG_BUILD
-	gameState->screenType = ScreenType_game;
-	#else
+	#if SHOW_MAIN_MENU
 	gameState->screenType = ScreenType_mainMenu;
+	playMusic(&musicState->menuMusic, musicState);
+	#else
+	gameState->screenType = ScreenType_game;
+	playMusic(&musicState->gameMusic, musicState);
 	#endif
 
 	bool running = true;
@@ -823,6 +851,7 @@ int main(int argc, char* argv[]) {
 
 			if (updateAndDrawButton(&mainMenu->play, renderGroup, input, dtForFrame)) {
 				gameState->screenType = ScreenType_game;
+				playMusic(&musicState->gameMusic, musicState);
 			}
 
 			if (updateAndDrawButton(&mainMenu->settings, renderGroup, input, dtForFrame)) {

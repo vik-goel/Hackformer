@@ -64,6 +64,7 @@ Editor
 
 */
 
+#define SAVE_BINARY
 #include "hackformer_types.h"
 
 #define HACKFORMER_GAME
@@ -76,10 +77,11 @@ struct Input;
 #include "hackformer_entity.h"
 #include "hackformer_save.h"
 
-#define SHOW_COLLISION_BOUNDS 0
+#define SHOW_COLLISION_BOUNDS 1
 #define SHOW_CLICK_BOUNDS 0
 #define DRAW_ENTITIES 1
-#define DEBUG_BUILD 1
+#define PLAY_MUSIC 1
+#define SHOW_MAIN_MENU 0
 #define ENABLE_LIGHTING 1
 #define DRAW_BACKGROUND 1
 #define DRAW_DOCK 1
@@ -153,6 +155,16 @@ enum ScreenType {
 	ScreenType_settings,
 	ScreenType_game,
 	ScreenType_pause
+};
+
+struct Music {
+	Mix_Music* data;
+	bool32 playing;
+};
+
+struct MusicState {
+	Music menuMusic;
+	Music gameMusic;
 };
 
 struct GameState {
@@ -252,6 +264,8 @@ struct GameState {
 	PauseMenu pauseMenu;
 	MainMenu mainMenu;
 	Dock dock;
+
+	MusicState musicState;
 };
 
 void setCameraTarget(Camera* camera, V2 target) {

@@ -1,3 +1,4 @@
+#define SAVE_BINARY
 #include "hackformer_types.h"
 
 #include "hackformer_renderer.h"
@@ -15,7 +16,7 @@ struct Entity {
 	EntityType type;
 	DrawOrder drawOrder;
 	R2 bounds;
-	TextureData* tex;
+	Texture* tex;
 };
 
 enum CursorMode {

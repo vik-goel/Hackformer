@@ -34,17 +34,16 @@ void moveCamera(Input* input, Camera* camera, V2 gameWindowSize) {
 	}
 }
 
-s32 loadTileAtlas(RenderGroup* group, TextureData* textureData, s32* textureDataCount) {
-	TextureData* tileAtlas = textureData + *textureDataCount;
+s32 loadTileAtlas(RenderGroup* group, Texture* textureData, s32* textureDataCount) {
+	Texture* tileAtlas = textureData + *textureDataCount;
 
 	for(s32 tileIndex = 0; tileIndex < arrayCount(globalTileFileNames); tileIndex++) {
 		char* fileName = globalTileFileNames[tileIndex];
-		TextureData* data = tileAtlas + tileIndex;
 
 		char fileNameWithPrefix[150];
 		sprintf(fileNameWithPrefix, "tiles/%s", fileName);
 
-		*data = loadPNGTexture(group, fileNameWithPrefix, false);
+		loadPNGTexture(group, fileNameWithPrefix, false);
 	}
 
 	*textureDataCount += arrayCount(globalTileFileNames);
@@ -77,7 +76,7 @@ void drawScaledLine(RenderGroup* group, Color lineColor, V2 lineStart, V2 lineEn
 	pushDashedLine(group, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, true);
 }
 
-void drawScaledTex(RenderGroup* group, TextureData* tex, Camera* camera, V2 center, V2 size) {
+void drawScaledTex(RenderGroup* group, Texture* tex, Camera* camera, V2 center, V2 size) {
 	center = (center - camera->scaleCenter) * camera->scale + camera->scaleCenter;
 
 	R2 bounds = rectCenterDiameter(center, size);
@@ -109,17 +108,17 @@ int main(int argc, char* argv[]) {
 	initCamera(&camera);
 	double oldScale = camera.scale;
 
-	TextureData* textureData = pushArray(&arena, TextureData, TEXTURE_DATA_COUNT);
-	s32 textureDataCount = 1;
+	Texture* textures = pushArray(&arena, Texture, TEXTURE_DATA_COUNT);
+	s32 texturesCount = 1;
 
 	RenderGroup* renderGroup  = createRenderGroup(8 * 1024 * 1024, &arena, TEMP_PIXELS_PER_METER, windowWidth, windowHeight, 
-													&camera, textureData, &textureDataCount);
+													&camera, textures, &texturesCount);
 	renderGroup->enabled = true;
 
 	bool running = true;
 
-	TextureData* tileAtlas = textureData + textureDataCount;
-	s32 tileAtlasCount = loadTileAtlas(renderGroup, textureData, &textureDataCount);
+	Texture* tileAtlas = textures + texturesCount;
+	s32 tileAtlasCount = loadTileAtlas(renderGroup, textures, &texturesCount);
 
 	Entity* entities = pushArray(&arena, Entity, 5000);
 	s32 entityCount = 0;
@@ -154,11 +153,11 @@ int main(int argc, char* argv[]) {
 	};
 	#undef ENTITY
 
-	TextureData* entityTextureAtlas = textureData + textureDataCount;
+	Texture* entityTextureAtlas = textures + texturesCount;
 	for(s32 specIndex = 0; specIndex < arrayCount(entitySpecs); specIndex++) {
 		EntitySpec* spec = entitySpecs + specIndex;
 		char* fileName = spec->fileName;
-		textureData[textureDataCount++] = loadPNGTexture(renderGroup, fileName, false);
+		loadPNGTexture(renderGroup, fileName, false);
 	}
 
 	s32 selectedEntitySpecIndex = 0;
@@ -288,7 +287,7 @@ int main(int argc, char* argv[]) {
 				s32 tileIndex = tiles[tileY * mapWidthInTiles + tileX];
 
 				if(tileIndex >= 0) {
-					TextureData* tex = tileAtlas + tileIndex;
+					Texture* tex = tileAtlas + tileIndex;
 					V2 tileCenter = hadamard(v2(tileX, tileY), gridSize) + tileSize * 0.5;
 					drawScaledTex(renderGroup, tex, &camera, tileCenter, tileSize);					
 				}
@@ -334,7 +333,7 @@ int main(int argc, char* argv[]) {
 				cursorMode = CursorMode_stampTile;
 			}
 
-			TextureData* tex = tileAtlas + tileIndex;
+			Texture* tex = tileAtlas + tileIndex;
 
 			pushTexture(renderGroup, tex, tileBounds, false, DrawOrder_gui);
 		}
@@ -363,7 +362,7 @@ int main(int argc, char* argv[]) {
 					cursorMode = CursorMode_stampEntity;
 				}
 
-				TextureData* tex = entityTextureAtlas + specIndex;
+				Texture* tex = entityTextureAtlas + specIndex;
 
 				pushTexture(renderGroup, tex, specBounds, false, DrawOrder_gui);
 			}
@@ -387,14 +386,14 @@ int main(int argc, char* argv[]) {
 				}
 
 
-				TextureData* tex = tileAtlas + selectedTileIndex;
+				Texture* tex = tileAtlas + selectedTileIndex;
 				pushTexture(renderGroup, tex, tileBounds, false, DrawOrder_gui);
 			}
 		}
 		else if(cursorMode == CursorMode_stampEntity) {
 			if(selectedEntitySpecIndex >= 0) {
 				EntitySpec* spec = entitySpecs + selectedEntitySpecIndex;
-				TextureData* tex = entityTextureAtlas + selectedEntitySpecIndex;
+				Texture* tex = entityTextureAtlas + selectedEntitySpecIndex;
 
 				R2 entityBounds = rectCenterDiameter(input.mouseInMeters, spec->size);
 

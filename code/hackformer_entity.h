@@ -28,6 +28,7 @@ struct Hitbox {
 	s32 collisionPointsCount;
 	V2 originalCollisionPoints[MAX_COLLISION_POINTS]; //Narrow phase
 
+	bool32 storedFlipped;
 	double storedRotation;
 	V2 rotatedCollisionPoints[MAX_COLLISION_POINTS];
 
@@ -69,6 +70,7 @@ struct Entity {
 
 	float emissivity;
 	double spotLightAngle;
+	double alpha;
 
 	//Used by any entity that shoots
 	//TODO: This could be stored in the shoot console field
@@ -102,6 +104,7 @@ struct Entity {
 
 struct EntityHackSave {
 	V2 p;
+	double rotation;
 	s32 tileXOffset;
 	s32 tileYOffset;
 	s32 messagesSelectedIndex;
@@ -162,6 +165,8 @@ bool isTileType(Entity* entity) {
 	bool result = entity->type == EntityType_tile || entity->type == EntityType_heavyTile;
 	return result;
 }
+
+GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2 delta, double maxCollisionTime = 1);
 
 Entity* getEntityByRef(GameState*, s32 ref);
 ConsoleField* getMovementField(Entity* entity);

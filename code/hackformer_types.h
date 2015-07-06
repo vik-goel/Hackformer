@@ -38,7 +38,7 @@ typedef int8_t bool8;
 #define TILE_HEIGHT_IN_METERS 1.035f
 #define TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS ((TILE_HEIGHT_IN_METERS) * (116.0 / 138.0))
 
-#define TEXTURE_DATA_COUNT 200
+#define TEXTURE_DATA_COUNT 500
 #define ANIM_NODE_DATA_COUNT 20
 #define CHARACTER_ANIM_DATA_COUNT 10
 
@@ -325,32 +325,53 @@ bool controlZJustPressed(Input* input) {
 }
 
 void writeS32(FILE* file, s32 value) {
-	fprintf(file, "%d ", value);
-	// size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
-	// assert(numElementsWritten == 1);
+	#ifdef SAVE_BINARY
+		size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
+		assert(numElementsWritten == 1);
+	#else
+		fprintf(file, "%d ", value);
+	#endif
 }
 
+void writeSize_t(FILE* file, size_t value) {
+	#ifdef SAVE_BINARY
+		size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
+		assert(numElementsWritten == 1);
+	#else
+		fprintf(file, "%u ", value);
+	#endif
+}
+
+
 void writeU32(FILE* file, u32 value) {
-	fprintf(file, "%u ", value);
-	// size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
-	// assert(numElementsWritten == 1);
+	#ifdef SAVE_BINARY
+		size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
+		assert(numElementsWritten == 1);
+	#else
+		fprintf(file, "%u ", value);
+	#endif
 }
 
 void writeDouble(FILE* file, double value) {
-	fprintf(file, "%f ", value);
-	// size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
-	// assert(numElementsWritten == 1);
+	#ifdef SAVE_BINARY
+		size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
+		assert(numElementsWritten == 1);
+	#else
+		fprintf(file, "%f ", value);
+	#endif
 }
 
 void writeString(FILE* file, char* value) {
-	fprintf(file, " \"");
-	fprintf(file, value);
-	fprintf(file, "\" ");
-
-	// s32 len = strlen(value);
-	// writeS32(file, len);
-	// size_t numElementsWritten = fwrite(value, sizeof(char), len, file);
-	// assert(numElementsWritten == len);
+	#ifdef SAVE_BINARY
+		s32 len = strlen(value);
+		writeS32(file, len);
+		size_t numElementsWritten = fwrite(value, sizeof(char), len, file);
+		assert(numElementsWritten == len);
+	#else
+		fprintf(file, " \"");
+		fprintf(file, value);
+		fprintf(file, "\" ");
+	#endif
 }
 
 void writeV2(FILE* file, V2 value) {
@@ -365,20 +386,39 @@ void writeR2(FILE* file, R2 value) {
 
 s32 readS32(FILE* file) {
 	s32 result = 0;
-	fscanf (file, "%d", &result);
 
-	// size_t numElementsRead = fread(&result, sizeof(result), 1, file);
-	// assert(numElementsRead == 1);
+	#ifdef SAVE_BINARY
+		size_t numElementsRead = fread(&result, sizeof(result), 1, file);
+		assert(numElementsRead == 1);
+	#else
+		fscanf (file, "%d", &result);
+	#endif
+
+	return result;  
+}
+
+size_t readSize_t(FILE* file) {
+	size_t result = 0;
+
+	#ifdef SAVE_BINARY
+		size_t numElementsRead = fread(&result, sizeof(result), 1, file);
+		assert(numElementsRead == 1);
+	#else
+		fscanf (file, "%u", &result);
+	#endif
 
 	return result;  
 }
 
 u32 readU32(FILE* file) {
 	u32 result = 0;
-	fscanf (file, "%u", &result);
 
-	// size_t numElementsRead = fread(&result, sizeof(result), 1, file);
-	// assert(numElementsRead == 1);
+	#ifdef SAVE_BINARY
+		size_t numElementsRead = fread(&result, sizeof(result), 1, file);
+		assert(numElementsRead == 1);
+	#else
+		fscanf (file, "%u", &result);
+	#endif
 
 	return result;  
 }
@@ -386,49 +426,47 @@ u32 readU32(FILE* file) {
 double readDouble(FILE* file) {
 	double result = 0;
 
-	fscanf(file, "%lf", &result);
-
-	// size_t numElementsRead = fread(&result, sizeof(result), 1, file);
-
-	// if(numElementsRead != 1) {
-
-	// int r = feof(file);
-	// int q = ferror(file);
-	// } 
-
-	// assert(numElementsRead == 1);
+	#ifdef SAVE_BINARY
+		size_t numElementsRead = fread(&result, sizeof(result), 1, file);
+		assert(numElementsRead == 1);
+	#else
+		fscanf (file, "%lf", &result);
+	#endif
 
 	return result;  
 }
 
 void readString(FILE* file, char* buffer) {
-	char tempBuffer[1024];
-	s32 offset = 0;
-	bool32 firstWord = true;
+	#ifdef SAVE_BINARY
+		s32 len = readS32(file);
+		size_t numElementsRead = fread(buffer, sizeof(char), len, file);
+		assert(numElementsRead == len);
+		buffer[len] = 0;
+	#else
+		char tempBuffer[1024];
+		s32 offset = 0;
+		bool32 firstWord = true;
 
-	while(true) {
-		fscanf (file, "%s", tempBuffer);
+		while(true) {
+			fscanf (file, "%s", tempBuffer);
 
-		s32 strSize = strlen(tempBuffer) - 2; //-2 for the ""
-		memcpy(buffer + offset, tempBuffer + firstWord, strSize);
+			s32 strSize = strlen(tempBuffer) - 2; //-2 for the ""
+			memcpy(buffer + offset, tempBuffer + firstWord, strSize);
 
-		offset += strSize;
-		firstWord = false;
+			offset += strSize;
+			firstWord = false;
 
-		if(tempBuffer[strSize + 1] == '\"') {
-			break;
+			if(tempBuffer[strSize + 1] == '\"') {
+				break;
+			}
+			else {
+				buffer[offset++] = tempBuffer[strSize + 1];
+				buffer[offset++] = ' ';
+			}
 		}
-		else {
-			buffer[offset++] = tempBuffer[strSize + 1];
-			buffer[offset++] = ' ';
-		}
-	}
 
-	buffer[offset] = 0;
-
-	// s32 len = readS32(file);
-	// size_t numElementsRead = fread(buffer, sizeof(char), len, file);
-	// assert(numElementsRead == len);
+		buffer[offset] = 0;
+	#endif
 }
 
 V2 readV2(FILE* file) {
@@ -513,9 +551,6 @@ struct Texture {
 	GLuint texId;
 	R2 uv;
 	V2 size;
-
-	char fileName[128];
-	bool32 hasFileName;
 };
 
 enum BackgroundType {

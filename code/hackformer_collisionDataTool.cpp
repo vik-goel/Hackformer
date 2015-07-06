@@ -35,12 +35,15 @@ int main(int argc, char* argv[]) {
 
 	MemoryArena arena = createArena(1024 * 1024 * 16, true);
 
+	Texture* textures = pushArray(&arena, Texture, 10);
+	s32 texturesCount = 1;
+
 	RenderGroup* renderGroup = createRenderGroup(1024 * 1024, &arena, TEMP_PIXELS_PER_METER, windowWidth, windowHeight, 
-		&camera, 0, 0);
+		&camera, textures, &texturesCount);
 	renderGroup->enabled = true;
 
 
-	TextureData tex = loadPNGTexture(renderGroup, bgImage, false);
+	Texture* tex = loadPNGTexture(renderGroup, bgImage, false);
 
 	bool flipX = false;
 	bool drawBothFlips = false;
@@ -64,11 +67,12 @@ int main(int argc, char* argv[]) {
 		if(input.c.justPressed) drawBothFlips = !drawBothFlips;
 
 		double bgHeight = windowHeight / TEMP_PIXELS_PER_METER;
-		R2 bgBounds = r2(v2(0, 0), getDrawSize(&tex, bgHeight));
+		R2 bgBounds = r2(v2(0, 0), getDrawSize(tex, bgHeight));
 		bgBounds = scaleRect(bgBounds, v2(1, 1) * 0.9);
 
-		pushTexture(renderGroup, &tex, bgBounds, flipX, DrawOrder_gui, false, Orientation_0, WHITE, 1);
-		if (drawBothFlips) pushTexture(renderGroup, &tex, bgBounds, !flipX, DrawOrder_gui, false, Orientation_0, WHITE, 1);
+		pushFilledRect(renderGroup, bgBounds, createColor(255, 255, 255, 50));
+		pushTexture(renderGroup, tex, bgBounds, flipX, DrawOrder_gui, false, Orientation_0, WHITE, 1);
+		if (drawBothFlips) pushTexture(renderGroup, tex, bgBounds, !flipX, DrawOrder_gui, false, Orientation_0, WHITE, 1);
 
 		for(s32 pIndex = 0; pIndex < pointsCount; pIndex++) {
 			R2 rect = rectCenterRadius(points[pIndex], v2(1, 1) * pointThickness);
@@ -129,7 +133,7 @@ int main(int argc, char* argv[]) {
 			writeStr(file, "double halfHitboxWidth = hitboxWidth * 0.5;\n");
 			writeStr(file, "double halfHitboxHeight = hitboxHeight * 0.5;\n");
 			writeStr(file, "Hitbox* hitbox = addHitbox(result, gameState);\n");
-			writeStr(file, "setHitboxSize(hitbox, hitboxWidth, hitboxHeight);\n");
+			writeStr(file, "setHitboxSize(hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);\n");
 
 			char buffer[1000];
 

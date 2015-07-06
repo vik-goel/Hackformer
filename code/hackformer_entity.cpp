@@ -29,7 +29,10 @@ void setHitboxSize(Hitbox* hitbox, double width, double height) {
 }
 
 V2 getHitboxCenter(Hitbox* hitbox, Entity* entity) {
-	V2 result = entity->p + hitbox->collisionOffset;
+	V2 offset =  hitbox->collisionOffset;
+	if(isSet(entity, EntityFlag_facesLeft)) offset.x *= -1;
+
+	V2 result = entity->p + offset;
 	return result;
 }
 
@@ -66,18 +69,54 @@ void giveEntityRectangularCollisionBounds(Entity* entity, GameState* gameState,
 }
 
 void updateHitboxRotatedPoints(Hitbox* hitbox, Entity* entity) {
-	if(hitbox->storedRotation == INVALID_STORED_HITBOX_ROTATION || hitbox->storedRotation != entity->rotation) {
+	bool32 facesLeft = isSet(entity, EntityFlag_facesLeft);
+
+	if(hitbox->storedRotation == INVALID_STORED_HITBOX_ROTATION || 
+	   hitbox->storedRotation != entity->rotation ||
+	   hitbox->storedFlipped != facesLeft) {
 		double cosRot = cos(entity->rotation);
 		double sinRot = sin(entity->rotation);
 
 		for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
 			V2 original = hitbox->originalCollisionPoints[pIndex];
 
+			if(facesLeft) original.x *= -1;
+
 			hitbox->rotatedCollisionPoints[pIndex] = v2(original.x * cosRot - original.y * sinRot, 
 														original.x * sinRot + original.y * cosRot);
 		}
 
 		hitbox->storedRotation = entity->rotation;
+		hitbox->storedFlipped = facesLeft;
+	}
+}
+
+bool toggleEntityFacingDirection(Entity* entity, GameState* gameState) {
+	toggleFlags(entity, EntityFlag_facesLeft);
+
+	for(Hitbox* hitbox = entity->hitboxes; hitbox; hitbox = hitbox->next) {
+		updateHitboxRotatedPoints(hitbox, entity);
+	}
+
+	V2 delta = v2(0.00000001, 0);
+	GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, delta);
+
+	if(collisionResult.solidEntity) {
+		toggleFlags(entity, EntityFlag_facesLeft);
+
+		for(Hitbox* hitbox = entity->hitboxes; hitbox; hitbox = hitbox->next) {
+			updateHitboxRotatedPoints(hitbox, entity);
+		}
+
+		return false;
+	}
+
+	return true;
+}
+
+void setEntityFacingDirection(Entity* entity, bool32 facesLeft, GameState* gameState) {
+	if(facesLeft != isSet(entity, EntityFlag_facesLeft)) {
+		toggleEntityFacingDirection(entity, gameState);
 	}
 }
 
@@ -580,6 +619,7 @@ Entity* addEntity(GameState* gameState, s32 ref, s32 entityIndex) {
 	Entity* result = gameState->entities + entityIndex;
 	*result = {};
 
+	result->alpha = 1;
 	result->ref = ref;
 	initEntityReference(result, gameState);
 
@@ -597,6 +637,7 @@ Entity* addEntity(GameState* gameState, EntityType type, DrawOrder drawOrder, V2
 	result->drawOrder = drawOrder;
 	result->p = p;
 	result->renderSize = renderSize;
+	result->alpha = 1;
 
 	initEntityReference(result, gameState);
 
@@ -662,6 +703,11 @@ void addKeyboardField(Entity* entity, GameState* gameState) {
 													    arrayCount(keyboardJumpHeightFieldValues), 2, 1));
 	addChildToConsoleField(result, createBoolField(gameState, "double_jump", false, 3));
 
+	addField(entity, result);
+}
+
+void addCrushesEntitiesField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "crushes_entities", ConsoleField_crushesEntities, 20);
 	addField(entity, result);
 }
 
@@ -761,7 +807,7 @@ void addGivesEnergyField(Entity* entity, GameState* gameState) {
 void addShootField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "shoots", ConsoleField_shootsAtTarget, 4);
 
-	double bulletSpeedFieldValues[] = {1, 2, 3, 4, 5}; 
+	double bulletSpeedFieldValues[] = {2, 4, 6, 8, 10}; 
 	double sightRadii[] = {2, 4, 6, 8, 10};
 
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "bullet_speed", bulletSpeedFieldValues, 
@@ -815,34 +861,23 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(hitbox, hitboxWidth, hitboxHeight);
-	hitbox->collisionPointsCount = 25;
-	hitbox->originalCollisionPoints[0] = v2(-0.199653 * halfHitboxWidth, -0.950521 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[1] = v2(0.160590 * halfHitboxWidth, -0.950521 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[2] = v2(0.243056 * halfHitboxWidth, -0.846354 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[3] = v2(0.212674 * halfHitboxWidth, -0.659722 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[4] = v2(0.264757 * halfHitboxWidth, -0.403646 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[5] = v2(0.203993 * halfHitboxWidth, -0.225694 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[6] = v2(0.381944 * halfHitboxWidth, -0.134549 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[7] = v2(0.351562 * halfHitboxWidth, 0.169271 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[8] = v2(0.299479 * halfHitboxWidth, 0.234375 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[9] = v2(0.199653 * halfHitboxWidth, 0.529514 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[10] = v2(0.134549 * halfHitboxWidth, 0.581597 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[11] = v2(0.177951 * halfHitboxWidth, 0.807292 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[12] = v2(0.073785 * halfHitboxWidth, 0.911458 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[13] = v2(-0.026042 * halfHitboxWidth, 0.920139 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[14] = v2(-0.190972 * halfHitboxWidth, 0.828993 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[15] = v2(-0.147569 * halfHitboxWidth, 0.577257 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[16] = v2(-0.217014 * halfHitboxWidth, 0.503472 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[17] = v2(-0.282118 * halfHitboxWidth, 0.364583 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[18] = v2(-0.321181 * halfHitboxWidth, 0.186632 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[19] = v2(-0.364583 * halfHitboxWidth, 0.143229 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[20] = v2(-0.377604 * halfHitboxWidth, -0.182292 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[21] = v2(-0.212674 * halfHitboxWidth, -0.256076 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[22] = v2(-0.260417 * halfHitboxWidth, -0.403646 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[23] = v2(-0.212674 * halfHitboxWidth, -0.698785 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[24] = v2(-0.247396 * halfHitboxWidth, -0.820313 * halfHitboxHeight);
-
+	setHitboxSize(hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);
+	hitbox->collisionPointsCount = 15;
+	hitbox->originalCollisionPoints[0] = v2(-0.199653 * halfHitboxWidth, -0.967882 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[1] = v2(0.243056 * halfHitboxWidth, -0.959201 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[2] = v2(0.282118 * halfHitboxWidth, -0.421007 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[3] = v2(0.390625 * halfHitboxWidth, -0.147569 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[4] = v2(0.377604 * halfHitboxWidth, 0.160590 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[5] = v2(0.190972 * halfHitboxWidth, 0.568576 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[6] = v2(0.199653 * halfHitboxWidth, 0.807292 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[7] = v2(0.017361 * halfHitboxWidth, 0.907118 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[8] = v2(-0.099826 * halfHitboxWidth, 0.863715 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[9] = v2(-0.138889 * halfHitboxWidth, 0.651042 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[10] = v2(-0.186632 * halfHitboxWidth, 0.546875 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[11] = v2(-0.316840 * halfHitboxWidth, 0.247396 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[12] = v2(-0.329861 * halfHitboxWidth, -0.186632 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[13] = v2(-0.203993 * halfHitboxWidth, -0.434028 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[14] = v2(-0.269097 * halfHitboxWidth, -0.820313 * halfHitboxHeight);
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), v2(result->renderSize.x * 0.4, result->renderSize.y));
 
@@ -876,8 +911,26 @@ Entity* addVirus(GameState* gameState, V2 p) {
 
 	double heightOffs = 0.4;
 
-	#if 0
-		Hitbox* hitbox = addHitbox(result, gameState);
+	#if 1
+double hitboxWidth = result->renderSize.x;
+double hitboxHeight = result->renderSize.y;
+double halfHitboxWidth = hitboxWidth * 0.5;
+double halfHitboxHeight = hitboxHeight * 0.5;
+Hitbox* hitbox = addHitbox(result, gameState);
+setHitboxSize(hitbox, hitboxWidth, hitboxHeight);
+hitbox->collisionPointsCount = 12;
+hitbox->originalCollisionPoints[0] = v2(-0.929457 * halfHitboxWidth, -1 * halfHitboxHeight);
+hitbox->originalCollisionPoints[1] = v2(1 * halfHitboxWidth, -1 * halfHitboxHeight);
+hitbox->originalCollisionPoints[2] = v2(1 * halfHitboxWidth, -0.438368 * halfHitboxHeight);
+hitbox->originalCollisionPoints[3] = v2(0.902656 * halfHitboxWidth, -0.303819 * halfHitboxHeight);
+hitbox->originalCollisionPoints[4] = v2(0.570489 * halfHitboxWidth, -0.256076 * halfHitboxHeight);
+hitbox->originalCollisionPoints[5] = v2(0.829995 * halfHitboxWidth, 0.260417 * halfHitboxHeight);
+hitbox->originalCollisionPoints[6] = v2(0.586059 * halfHitboxWidth, 0.503472 * halfHitboxHeight);
+hitbox->originalCollisionPoints[7] = v2(0.518587 * halfHitboxWidth, 0.985243 * halfHitboxHeight);
+hitbox->originalCollisionPoints[8] = v2(-0.176889 * halfHitboxWidth, 0.985243 * halfHitboxHeight);
+hitbox->originalCollisionPoints[9] = v2(-0.483106 * halfHitboxWidth, 0.434028 * halfHitboxHeight);
+hitbox->originalCollisionPoints[10] = v2(-0.711472 * halfHitboxWidth, 0.399306 * halfHitboxHeight);
+hitbox->originalCollisionPoints[11] = v2(-1.022879 * halfHitboxWidth, -0.494792 * halfHitboxHeight);
 	#else 
 	giveEntityRectangularCollisionBounds(result, gameState, 0, 0,
 										 result->renderSize.x, result->renderSize.y + heightOffs);
@@ -900,8 +953,24 @@ Entity* addVirus(GameState* gameState, V2 p) {
 Entity* addEndPortal(GameState* gameState, V2 p) {
 	Entity* result = addEntity(gameState, EntityType_endPortal, DrawOrder_endPortal, p, v2(1, 2));
 
-	giveEntityRectangularCollisionBounds(result, gameState, 0, 0,
-										 result->renderSize.x * 0.4f, result->renderSize.y * 0.95f);
+	// giveEntityRectangularCollisionBounds(result, gameState, 0, 0,
+	// 									 result->renderSize.x * 0.4f, result->renderSize.y * 0.95f);
+
+	double hitboxWidth = result->renderSize.x;
+	double hitboxHeight = result->renderSize.y;
+	double halfHitboxWidth = hitboxWidth * 0.5;
+	double halfHitboxHeight = hitboxHeight * 0.5;
+	Hitbox* hitbox = addHitbox(result, gameState);
+	setHitboxSize(hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);
+	hitbox->collisionPointsCount = 7;
+	hitbox->originalCollisionPoints[0] = v2(-0.625000 * halfHitboxWidth, -0.950521 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[1] = v2(0.564236 * halfHitboxWidth, -0.963542 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[2] = v2(0.407986 * halfHitboxWidth, -0.789931 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[3] = v2(0.451389 * halfHitboxWidth, 0.577257 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[4] = v2(0.017361 * halfHitboxWidth, 0.807292 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[5] = v2(-0.460069 * halfHitboxWidth, 0.611979 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[6] = v2(-0.442708 * halfHitboxWidth, -0.759549 * halfHitboxHeight);
+
 
 	result->defaultTex = gameState->endPortal;
 	result->emissivity = 0.75f;
@@ -931,8 +1000,24 @@ Entity* addPickupField(GameState* gameState, Entity* parent, ConsoleField* field
 Entity* addHackEnergy(GameState* gameState, V2 p) {
 	Entity* result = addEntity(gameState, EntityType_hackEnergy, DrawOrder_hackEnergy, p, v2(1, 1) * 0.6);
 
-	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
-										 result->renderSize.x, result->renderSize.y - 0.18);
+	double hitboxWidth = result->renderSize.x;
+	double hitboxHeight = result->renderSize.y;
+	double halfHitboxWidth = hitboxWidth * 0.5;
+	double halfHitboxHeight = hitboxHeight * 0.5;
+	Hitbox* hitbox = addHitbox(result, gameState);
+	setHitboxSize(hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);
+	hitbox->collisionPointsCount = 8;
+	hitbox->originalCollisionPoints[0] = v2(-0.004340 * halfHitboxWidth, -1.046007 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[1] = v2(0.763889 * halfHitboxWidth, -0.815972 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[2] = v2(1.063368 * halfHitboxWidth, -0.013021 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[3] = v2(0.802951 * halfHitboxWidth, 0.763889 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[4] = v2(-0.017361 * halfHitboxWidth, 1.059028 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[5] = v2(-0.907118 * halfHitboxWidth, 0.681424 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[6] = v2(-1.041667 * halfHitboxWidth, -0.351563 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[7] = v2(-0.638021 * halfHitboxWidth, -0.876736 * halfHitboxHeight);
+
+	// giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
+	// 									 result->renderSize.x, result->renderSize.y - 0.18);
 
 	addGivesEnergyField(result, gameState);
 	addBobsVerticallyField(result, gameState);
@@ -951,6 +1036,28 @@ Entity* addBackground(GameState* gameState) {
 
 	setEntityP(result, result->renderSize * 0.5, gameState);
 	setFlags(result, EntityFlag_noMovementByDefault);
+
+	return result;
+}
+
+Hitbox getTileHitboxWithoutOverhang() {
+	Hitbox result = {};
+
+	double offset = (TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS - TILE_HEIGHT_IN_METERS) * 0.5;
+	result.collisionOffset = v2(0, offset);
+
+	V2 tileSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS);
+	setHitboxSize(&result, tileSize.x, tileSize.y);
+
+	result.collisionPointsCount = 4;
+	result.storedRotation = INVALID_STORED_HITBOX_ROTATION;
+
+	V2 halfSize = tileSize * 0.5;
+
+	result.originalCollisionPoints[0] = -halfSize;
+	result.originalCollisionPoints[1] = v2(halfSize.x, -halfSize.y);
+	result.originalCollisionPoints[2] = halfSize;
+	result.originalCollisionPoints[3] = v2(-halfSize.x, halfSize.y);
 
 	return result;
 }
@@ -987,8 +1094,25 @@ Entity* addTile(GameState* gameState, V2 p, Texture* texture) {
 Entity* addHeavyTile(GameState* gameState, V2 p) {
 	Entity* result = addEntity(gameState, EntityType_heavyTile, DrawOrder_heavyTile, 
 								p, v2(0, 0));
-	initTile(result, gameState, gameState->tileAtlas[Tile_heavy]);
-	result->defaultTex = gameState->tileAtlas[Tile_heavy];
+
+	Texture* texture = gameState->tileAtlas[Tile_heavy];
+
+	initTile(result, gameState, texture);
+	result->defaultTex = texture;
+	addCrushesEntitiesField(result, gameState);
+
+	return result;
+}
+
+Entity* addDisappearingTile(GameState* gameState, V2 p) {
+	Entity* result = addEntity(gameState, EntityType_heavyTile, DrawOrder_heavyTile, 
+								p, v2(0, 0));
+
+	Texture* texture = gameState->tileAtlas[Tile_heavy];
+
+	initTile(result, gameState, texture);
+	result->defaultTex = texture;
+	addCrushesEntitiesField(result, gameState);
 
 	return result;
 }
@@ -1032,8 +1156,24 @@ Entity* addText(GameState* gameState, V2 p, char values[10][100], s32 numValues,
 Entity* addLaserBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, double speed) {
 	Entity* result = addEntity(gameState, EntityType_laserBolt, DrawOrder_laserBolt, p, v2(0.24f, 0.24f));
 
-	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
-										 result->renderSize.x, result->renderSize.y);
+	// giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
+	// 									 result->renderSize.x, result->renderSize.y);
+
+	double hitboxWidth = result->renderSize.x;
+	double hitboxHeight = result->renderSize.y;
+	double halfHitboxWidth = hitboxWidth * 0.5;
+	double halfHitboxHeight = hitboxHeight * 0.5;
+	Hitbox* hitbox = addHitbox(result, gameState);
+	setHitboxSize(hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);
+	hitbox->collisionPointsCount = 8;
+	hitbox->originalCollisionPoints[0] = v2(-0.013021 * halfHitboxWidth, -0.989583 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[1] = v2(0.651042 * halfHitboxWidth, -0.763889 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[2] = v2(0.998264 * halfHitboxWidth, -0.073785 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[3] = v2(0.785590 * halfHitboxWidth, 0.664062 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[4] = v2(0.013021 * halfHitboxWidth, 0.998264 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[5] = v2(-0.616319 * halfHitboxWidth, 0.789931 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[6] = v2(-0.989583 * halfHitboxWidth, 0.008681 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[7] = v2(-0.724826 * halfHitboxWidth, -0.707465 * halfHitboxHeight);
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
 
@@ -1337,18 +1477,14 @@ bool isSolidCollisionRaw(Entity* a, Entity* b, GameState* gameState) {
 				b->type == EntityType_endPortal) result = false;
 		} break;
 
-		case EntityType_heavyTile: {
-			// if (!isTileType(b) &&
-			// 	!isLaserEntityType(b) &&
-			// 	a->dP.y < 0 && 
-			// 	isEntityAbove(a, b)) result = false; 
-
-			if(!(b->type == EntityType_tile && getMovementField(b) == NULL)) result = false;
-		} break;
-
 		case EntityType_pickupField: {
 			result = !canPickupField(a, b, gameState);
 		} break;
+	}
+
+	if(getField(a, ConsoleField_crushesEntities)) {
+		if(!(b->type == EntityType_tile && getMovementField(b) == NULL)) result = false;
+		if(getField(b, ConsoleField_crushesEntities)) result = true;
 	}
 
 	return result;
@@ -1434,7 +1570,7 @@ V2 getHitboxPoint(Entity* entity, HitboxPointType type) {
 	return result;
 }
 
-bool squishEntity(Entity* entity, double amt, Entity* heavyTile, GameState* gameState) {
+bool crushEntity(Entity* entity, double amt, Entity* heavyTile, GameState* gameState) {
 	V2 lowestHeavyTilePoint = getHitboxPoint(heavyTile, HPT_lowest);
 	V2 highestEntityPoint = getHitboxPoint(entity, HPT_highest);
 
@@ -1530,24 +1666,23 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 			setFlags(hitEntity, EntityFlag_remove);
 		} break;
 
-
-		case EntityType_heavyTile: {
-
-			if(!(*solid)) {
-				bool toggleSolid = true;
-
-				if(entityVel.y < 0 && !getEntityByRef(gameState, gameState->consoleEntityRef)) {
-					if(squishEntity(hitEntity, -entityVel.y, entity, gameState)) toggleSolid = false;
-				}
-
-				if(toggleSolid) *solid = true;
-			}
-		} break;
 	}
 
 	if(!killed && killField && isSet(entity, EntityFlag_remove)) {
 		setFlags(killField, ConsoleFlag_remove);
 		removeFieldsIfSet(entity->fields, &entity->numFields);
+	}
+
+	if(getField(entity, ConsoleField_crushesEntities)) {
+		if(!(*solid)) {
+			bool toggleSolid = true;
+
+			if(entityVel.y < 0 && !getEntityByRef(gameState, gameState->consoleEntityRef)) {
+				if(crushEntity(hitEntity, -entityVel.y, entity, gameState)) toggleSolid = false;
+			}
+
+			if(toggleSolid) *solid = true;
+		}
 	}
 }
 
@@ -1725,7 +1860,7 @@ void projectPointOntoHitbox(V2 point, Hitbox* hitbox, V2 hitboxOffset, V2 direct
 			}
 		} else {
 			//we are moving parallel to the line
-			//can only collide with the line if we are already on it
+			//TODO: can still collide with the line if we are already on it
 		}
 
 		if(insideHitbox) {
@@ -1776,7 +1911,7 @@ void getPolygonCollisionTime(Hitbox* moving, Hitbox* fixed, Entity* movingEntity
 	}
 }
 
-GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2 delta, double maxCollisionTime = 1) {
+GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2 delta, double maxCollisionTime) {
 	GetCollisionTimeResult result = {};
 	result.collisionTime = maxCollisionTime;
 	result.solidCollisionTime = maxCollisionTime;
@@ -1805,30 +1940,43 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 						if (collider && collider != entity && collidesWith(entity, collider, gameState)) {
 							bool solidCollision = isSolidCollision(entity, collider, gameState);
 
-							Hitbox* colliderHitboxList = collider->hitboxes;
+							if (isTileType(collider) && isTileType(entity)) {
+								Hitbox tileHitbox1 = getTileHitboxWithoutOverhang();
+								Hitbox tileHitbox2 = getTileHitboxWithoutOverhang();
 
-							while(colliderHitboxList) {
-								R2 colliderHitbox = getBoundingBox(collider, colliderHitboxList);
-								R2 paddedColliderHitbox = addRadiusTo(colliderHitbox, v2(abs(delta.x), abs(delta.y)));
+								R2 bounds1 = getBoundingBox(entity, &tileHitbox1);
+								R2 bounds2 = addRadiusTo(getBoundingBox(collider, &tileHitbox2), v2(abs(delta.x), abs(delta.y)));
 
-								Hitbox* entityHitboxList = entity->hitboxes;
-
-								while (entityHitboxList) {
-									R2 entityHitbox = getBoundingBox(entity, entityHitboxList);
-								
-									//Broad phase
-									if(rectanglesOverlap(paddedColliderHitbox, entityHitbox)) {
-
-										//Narrow phase
-										getPolygonCollisionTime(entityHitboxList, colliderHitboxList, entity, collider, &result,
+								if(rectanglesOverlap(bounds1, bounds2)) {
+									getPolygonCollisionTime(&tileHitbox1, &tileHitbox2, entity, collider, &result,
 																 delta, solidCollision);
-									}
-										
-									entityHitboxList = entityHitboxList->next;
 								}
-							
+							} else {
+								Hitbox* colliderHitboxList = collider->hitboxes;
 
-								colliderHitboxList = colliderHitboxList->next;
+								while(colliderHitboxList) {
+									R2 colliderHitbox = getBoundingBox(collider, colliderHitboxList);
+									R2 paddedColliderHitbox = addRadiusTo(colliderHitbox, v2(abs(delta.x), abs(delta.y)));
+
+									Hitbox* entityHitboxList = entity->hitboxes;
+
+									while (entityHitboxList) {
+										R2 entityHitbox = getBoundingBox(entity, entityHitboxList);
+									
+										//Broad phase
+										if(rectanglesOverlap(paddedColliderHitbox, entityHitbox)) {
+
+											//Narrow phase
+											getPolygonCollisionTime(entityHitboxList, colliderHitboxList, entity, collider, &result,
+																	 delta, solidCollision);
+										}
+											
+										entityHitboxList = entityHitboxList->next;
+									}
+								
+
+									colliderHitboxList = colliderHitboxList->next;
+								}
 							}
 						}
 					}
@@ -1887,9 +2035,10 @@ void adjustVelocitiesFromHit(V2 normal, V2* delta, V2* dP, V2* ddP) {
 		if(ddP) *ddP = v2(0, 0);
 	} else {
 		//normalizing twice is necessary because of precision errors
-		normal = normalize(normalize(normal));
+		normal = normalize(normalize(-normal));
 
 		*delta -= vectorProjection(*delta, normal);
+
 		*dP -= vectorProjection(*dP, normal);
 
 		if(ddP) {
@@ -2020,8 +2169,11 @@ bool moveTowardsTargetParabolic(Entity* entity, GameState* gameState, double dt,
 	V2 change = moveRaw(entity, gameState, movement);
 	//}
 
-	if (change.x && change.x < 0 != isSet(entity, EntityFlag_facesLeft)) {
-		toggleFlags(entity, EntityFlag_facesLeft);
+	if(change.x < 0) {
+		setEntityFacingDirection(entity, true, gameState);
+	} 
+	else if (change.x > 0) {
+		setEntityFacingDirection(entity, false, gameState);
 	}
 
 	return entity->p == target;
@@ -2044,8 +2196,11 @@ bool moveTowardsWaypoint(Entity* entity, GameState* gameState, double dt, V2 tar
 			move(entity, dt, gameState, ddP);
 		}		
 
-		if (delta.x && delta.x < 0 == isSet(entity, EntityFlag_facesLeft)) {
-			toggleFlags(entity, EntityFlag_facesLeft);
+		if(delta.x < 0) {
+			setEntityFacingDirection(entity, true, gameState);
+		} 
+		else if (delta.x > 0) {
+			setEntityFacingDirection(entity, false, gameState);
 		}
 
 		return false;
@@ -2538,6 +2693,7 @@ Entity* getClosestTargetInSight(Entity* entity, GameState* gameState, double sig
 						#if 1
 						Hitbox* entityHitboxes = entity->hitboxes;
 
+						//TODO: Use the hitbox of a projectile to do the raycast
 						Hitbox raycastOrigin = {};
 						raycastOrigin.collisionPointsCount = 1;
 						raycastOrigin.storedRotation = entity->rotation;
@@ -2548,10 +2704,6 @@ Entity* getClosestTargetInSight(Entity* entity, GameState* gameState, double sig
 						entity->hitboxes = entityHitboxes;
 
 						bool occluded = (collisionResult.hitEntity && collisionResult.hitEntity != testEntity);
-
-						if(occluded) {
-							int breakHere = 5;
-						}
 
 						#else				
 						bool occluded = false;
@@ -2622,13 +2774,16 @@ bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt) 
 
 			if (target) {
 				if (target->p.x < entity->p.x) {
-					setFlags(entity, EntityFlag_facesLeft);
+					setEntityFacingDirection(entity, true, gameState);
 				}
-				else {
-					clearFlags(entity, EntityFlag_facesLeft);
+				else if (target->p.x > entity->p.x) {
+					setEntityFacingDirection(entity, false, gameState);
 				}
 
 				changeSpotLightAngle(entity, getDegrees(target->p - entity->p), dt);
+			} else {
+				clearFlags(entity, EntityFlag_shooting);
+				setFlags(entity, EntityFlag_unchargingAfterShooting);
 			}
 
 			if(isSet(entity, EntityFlag_shooting)) {
@@ -2790,10 +2945,10 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 					ddP.x += xMove;
 
 					if (xMove > 0) {
-						clearFlags(entity, EntityFlag_facesLeft);
+						setEntityFacingDirection(entity, false, gameState);
 					}
 					else if (xMove < 0) {
-						setFlags(entity, EntityFlag_facesLeft);
+						setEntityFacingDirection(entity, true, gameState);
 					}
 
 
@@ -2828,14 +2983,14 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 					bool shouldChangeDirection = tryPatrolMove(entity, gameState, xMoveAcceleration, dt, ddP);
 
 					if (shouldChangeDirection) {
-						toggleFlags(entity, EntityFlag_facesLeft);
-
-						shouldChangeDirection = tryPatrolMove(entity, gameState, xMoveAcceleration, dt, ddP);
-						
-						if (shouldChangeDirection) {
-							toggleFlags(entity, EntityFlag_facesLeft);
-						} else {
-							entity->spotLightAngle = yReflectDegrees(entity->spotLightAngle);
+						if(toggleEntityFacingDirection(entity, gameState)) {
+							shouldChangeDirection = tryPatrolMove(entity, gameState, xMoveAcceleration, dt, ddP);
+							
+							if (shouldChangeDirection) {
+								toggleFlags(entity, EntityFlag_facesLeft);
+							} else {
+								entity->spotLightAngle = yReflectDegrees(entity->spotLightAngle);
+							}
 						}
 					}
 				} else {
@@ -2982,6 +3137,30 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 
 	if(getField(entity, ConsoleField_cameraFollows) && gameState->screenType == ScreenType_game && !getEntityByRef(gameState, gameState->consoleEntityRef)) {
 		centerCameraAround(entity, gameState);
+	}
+}
+
+void drawCollisionBounds(Entity* entity, RenderGroup* renderGroup) {
+	Hitbox* hitbox = entity->hitboxes;
+
+	while (hitbox) {
+		V2 hitboxOffset = getHitboxCenter(hitbox, entity);
+
+		updateHitboxRotatedPoints(hitbox, entity);
+
+		#if 0
+		pushOutlinedRect(gameState->renderGroup, getBoundingBox(entity, hitbox),
+						 0.02f, createColor(255, 127, 255, 255), true);
+		#endif
+
+		for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
+			V2 p1 = hitbox->rotatedCollisionPoints[pIndex] + hitboxOffset;
+			V2 p2 = hitbox->rotatedCollisionPoints[(pIndex + 1) % hitbox->collisionPointsCount] + hitboxOffset;
+
+			pushDashedLine(renderGroup, RED, p1, p2, 0.02, 0.05, 0.05, true);
+		}
+
+		hitbox = hitbox->next;
 	}
 }
 
@@ -3474,29 +3653,16 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		}
 		#endif
 
+		bool shouldDrawCollisionBounds = entity->type != EntityType_player &&
+										 getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
+
 		#if SHOW_COLLISION_BOUNDS
-			Hitbox* hitbox = entity->hitboxes;
-
-			while (hitbox) {
-				V2 hitboxOffset = getHitboxCenter(hitbox, entity);
-
-				updateHitboxRotatedPoints(hitbox, entity);
-
-				#if 0
-				pushOutlinedRect(gameState->renderGroup, getBoundingBox(entity, hitbox),
-								 0.02f, createColor(255, 127, 255, 255), true);
-				#endif
-
-				for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
-					V2 p1 = hitbox->rotatedCollisionPoints[pIndex] + hitboxOffset;
-					V2 p2 = hitbox->rotatedCollisionPoints[(pIndex + 1) % hitbox->collisionPointsCount] + hitboxOffset;
-
-					pushDashedLine(gameState->renderGroup, RED, p1, p2, 0.02, 0.05, 0.05, true);
-				}
-
-				hitbox = hitbox->next;
-			}
+			shouldDrawCollisionBounds = true;
 		#endif
+		
+		if(shouldDrawCollisionBounds) {
+			drawCollisionBounds(entity, gameState->renderGroup);
+		}
 
 		#if SHOW_CLICK_BOUNDS
 			if(isSet(entity, EntityFlag_hackable)) {
