@@ -168,7 +168,7 @@ bool isTileType(Entity* entity) {
 	return result;
 }
 
-GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2 delta, double maxCollisionTime = 1);
+GetCollisionTimeResult getCollisionTime(Entity*, GameState*, V2, bool actuallyMoving, double maxCollisionTime = 1);
 
 Entity* getEntityByRef(GameState*, s32 ref);
 ConsoleField* getMovementField(Entity* entity);

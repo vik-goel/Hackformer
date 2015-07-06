@@ -205,10 +205,8 @@ Texture* loadPNGTexture(RenderGroup* group, char* fileName, bool stencil) {
 		InvalidCodePath;
 	}
 
-	Texture texture = createTexFromSurface(diffuse, group, stencil);
-
 	Texture* result = group->textures + *group->texturesCount;
-	*result = texture;
+	*result = createTexFromSurface(diffuse, group, stencil);
 
 	*group->texturesCount = *group->texturesCount + 1;
 	assert(*group->texturesCount < TEXTURE_DATA_COUNT);
@@ -1106,7 +1104,7 @@ void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, boo
 
 #endif
 
-void pushText(RenderGroup* group, CachedFont* font, char* msg, V2 p, Color color = createColor(0, 0, 0, 255),
+void pushText(RenderGroup* group, CachedFont* font, char* msg, V2 p, Color color = BLACK,
 			  TextAlignment alignment = TextAlignment_bottomLeft) {
 
 	switch(alignment) {
@@ -1516,7 +1514,7 @@ void drawRenderGroup(RenderGroup* group, FieldSpec* fieldSpec) {
 			uniformSpotLightIndex++;
 			setPointLightUniforms(&lightUniforms->base, &light->base);
 
-			double angle = toRadians(light->angle);
+			double angle = light->angle;
 			V2 lightDir = v2(cos(angle), sin(angle));
 			double cutoff = cos(toRadians(light->spread / 2));
 

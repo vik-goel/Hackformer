@@ -519,7 +519,7 @@ void loadImages(GameState* gameState) {
 		CharacterAnim* character = createCharacterAnim(gameState, &gameState->flyingVirusAnim);
 
 		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
-		shoot->main = loadAnimation(renderGroup, "virus2/shoot", 133, 127, 0.04f, false);
+		shoot->main = loadAnimation(renderGroup, "virus2/shoot", 133, 127, 0.04f, true);
 
 		AnimNode* stand = createAnimNode(gameState, &character->stand);
 		stand->main = createAnimation(loadPNGTexture(renderGroup, "virus2/full"));
@@ -529,10 +529,10 @@ void loadImages(GameState* gameState) {
 		CharacterAnim* character = createCharacterAnim(gameState, &gameState->trojanAnim);
 
 		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
-		shoot->main = loadAnimation(renderGroup, "trojan/shoot", 364, 336, 0.04f, false);
+		shoot->main = loadAnimation(renderGroup, "trojan/shoot", 256, 256, 0.04f, true);
 
 		AnimNode* disappear = createAnimNode(gameState, &character->disappear);
-		disappear->main = loadAnimation(renderGroup, "trojan/disappear", 397, 345, 0.04f, false);
+		disappear->main = loadAnimation(renderGroup, "trojan/disappear", 256, 256, 0.04f, false);
 
 		AnimNode* stand = createAnimNode(gameState, &character->stand);
 		stand->main = createAnimation(loadPNGTexture(renderGroup, "trojan/full"));

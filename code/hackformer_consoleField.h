@@ -15,7 +15,8 @@ enum ConsoleFieldType {
 	ConsoleField_followsWaypoints,
 	ConsoleField_spotlight,
 	ConsoleField_crushesEntities,
-	ConsoleField_disappears,
+	ConsoleField_disappearsOnHit,
+	ConsoleField_cloaks,
 
 	ConsoleField_double,
 	ConsoleField_unlimitedInt,

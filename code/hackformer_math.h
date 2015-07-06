@@ -1,5 +1,5 @@
-#define PI 3.14159265
-#define TAU (2*PI)
+#define PI 3.14159265359
+#define TAU (2.0*PI)
 #define E  2.71828182
 #define SQRT2 1.41421356237
 
@@ -75,6 +75,15 @@ double yReflectDegrees(double angle) {
 
 	if(result <= 180) result = 180 - result;
 	else result = 540 - result;
+	
+	return result;
+}
+
+double yReflectRad(double angle) {
+	double result = angleIn0Tau(angle);
+
+	if(result <= PI) result = PI - result;
+	else result = (3 * PI) - result;
 	
 	return result;
 }
