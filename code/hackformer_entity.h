@@ -162,7 +162,9 @@ bool32 isSet(Entity* entity, u32 flags) {
 }
 
 bool isTileType(Entity* entity) {
-	bool result = entity->type == EntityType_tile || entity->type == EntityType_heavyTile;
+	bool result = entity->type == EntityType_tile || 
+				  entity->type == EntityType_heavyTile ||
+				  entity->type == EntityType_disappearingTile;
 	return result;
 }
 

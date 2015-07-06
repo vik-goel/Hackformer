@@ -711,6 +711,17 @@ void addCrushesEntitiesField(Entity* entity, GameState* gameState) {
 	addField(entity, result);
 }
 
+void addDisappearsField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "disappears", ConsoleField_disappears, 10);
+
+	double time[] = {0.1, 0.5, 1, 1.5, 2}; 
+
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "disappear_time", time, 
+												   arrayCount(time), 2, 1));
+
+	addField(entity, result);
+}
+
 void addBobsVerticallyField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "bobs_vertically", ConsoleField_bobsVertically, 4);
 
@@ -1105,14 +1116,14 @@ Entity* addHeavyTile(GameState* gameState, V2 p) {
 }
 
 Entity* addDisappearingTile(GameState* gameState, V2 p) {
-	Entity* result = addEntity(gameState, EntityType_heavyTile, DrawOrder_heavyTile, 
+	Entity* result = addEntity(gameState, EntityType_disappearingTile, DrawOrder_disappearingTile, 
 								p, v2(0, 0));
 
-	Texture* texture = gameState->tileAtlas[Tile_heavy];
+	Texture* texture = gameState->tileAtlas[Tile_disappear];
 
 	initTile(result, gameState, texture);
 	result->defaultTex = texture;
-	addCrushesEntitiesField(result, gameState);
+	addDisappearsField(result, gameState);
 
 	return result;
 }
@@ -3430,6 +3441,26 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			} break;
 
 		} //End of switch statement on entity type
+
+
+
+		ConsoleField* disappearField = getField(entity, ConsoleField_disappears);
+		if(disappearField) {
+			ConsoleField* timeField = disappearField->children[0];
+			double timeToDisappear = timeField->doubleValues[timeField->selectedIndex];
+			double rate = timeToDisappear * dt;
+
+			if(entity->groundReferenceList) {
+				entity->alpha -= rate;
+
+				if(entity->alpha <= 0) {
+					entity->alpha = 0;
+					setFlags(entity, EntityFlag_remove);
+				}
+			} else {
+				entity->alpha = min(1, entity->alpha + rate);
+			}
+		}
 
 
 

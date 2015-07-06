@@ -46,6 +46,9 @@ void loadHackMap(GameState* gameState, char* fileName) {
 
 				if(tileIndex == Tile_heavy) {
 					addHeavyTile(gameState, tileP);
+				} 
+				else if(tileIndex == Tile_disappear) {
+					addDisappearingTile(gameState, tileP);
 				} else {
 					addTile(gameState, tileP, gameState->tileAtlas[tileIndex]);
 				}
