@@ -17,6 +17,7 @@ enum ConsoleFieldType {
 	ConsoleField_crushesEntities,
 	ConsoleField_disappearsOnHit,
 	ConsoleField_cloaks,
+	ConsoleField_dropsOnHit,
 
 	ConsoleField_double,
 	ConsoleField_unlimitedInt,

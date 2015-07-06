@@ -597,6 +597,24 @@ int main(int argc, char* argv[]) {
 		}
 
 		if(input.x.justPressed) {
+			s32 playerIndex = -1;
+
+			for(s32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
+				Entity* entity = entities + entityIndex;
+
+				if(entity->type == EntityType_player) {
+					playerIndex = entityIndex;
+					break;
+				}
+			}
+
+			if(playerIndex >= 0) {
+				entities[entityCount] = entities[playerIndex];
+				entities[playerIndex] = entities[entityCount - 1];
+				entities[entityCount - 1] = entities[entityCount];
+				entities[entityCount] = {};
+			}
+
 			FILE* file = fopen(saveFileName, "w");
 			assert(file);
 

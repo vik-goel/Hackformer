@@ -417,7 +417,7 @@ bool refNodeListContainsRef(RefNode* list, s32 ref) {
 void addGroundReference(Entity* top, Entity* ground, GameState* gameState, bool isLaserBaseToBeamReference = false) {
 	ConsoleField* topMovementField = getMovementField(top);
 
-	if(top->type == EntityType_tile && !topMovementField) return;
+	if(isNonHeavyTile(top) && !topMovementField) return;
 	if(!affectedByGravity(top, topMovementField) && !isLaserBaseToBeamReference) return;
 
 	top->jumpCount = 0;
@@ -757,6 +757,12 @@ void addDisappearsField(Entity* entity, GameState* gameState) {
 	addField(entity, result);
 }
 
+void addDroppingField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "drops_on_hit", ConsoleField_dropsOnHit, 10);
+
+	addField(entity, result);
+}
+
 void addCloaksField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "cloaks", ConsoleField_cloaks, 10);
 
@@ -913,23 +919,21 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
-	hitbox->collisionPointsCount = 15;
-	hitbox->originalCollisionPoints[0] = v2(-0.199653 * halfHitboxWidth, -0.967882 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[1] = v2(0.243056 * halfHitboxWidth, -0.959201 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[2] = v2(0.282118 * halfHitboxWidth, -0.421007 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[3] = v2(0.390625 * halfHitboxWidth, -0.147569 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[4] = v2(0.377604 * halfHitboxWidth, 0.160590 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[5] = v2(0.190972 * halfHitboxWidth, 0.568576 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[6] = v2(0.199653 * halfHitboxWidth, 0.807292 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[7] = v2(0.017361 * halfHitboxWidth, 0.907118 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[8] = v2(-0.099826 * halfHitboxWidth, 0.863715 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[9] = v2(-0.138889 * halfHitboxWidth, 0.651042 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[10] = v2(-0.186632 * halfHitboxWidth, 0.546875 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[11] = v2(-0.316840 * halfHitboxWidth, 0.247396 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[12] = v2(-0.329861 * halfHitboxWidth, -0.186632 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[13] = v2(-0.203993 * halfHitboxWidth, -0.434028 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[14] = v2(-0.269097 * halfHitboxWidth, -0.820313 * halfHitboxHeight);
+	setHitboxSize(hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);
+	hitbox->collisionPointsCount = 13;
+	hitbox->originalCollisionPoints[0] = v2(-0.221354 * halfHitboxWidth, -0.959201 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[1] = v2(0.256076 * halfHitboxWidth, -0.959201 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[2] = v2(0.303819 * halfHitboxWidth, -0.490451 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[3] = v2(0.390625 * halfHitboxWidth, -0.108507 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[4] = v2(0.355903 * halfHitboxWidth, 0.182292 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[5] = v2(0.203993 * halfHitboxWidth, 0.538194 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[6] = v2(0.212674 * halfHitboxWidth, 0.815972 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[7] = v2(0.056424 * halfHitboxWidth, 0.924479 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[8] = v2(-0.086806 * halfHitboxWidth, 0.881076 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[9] = v2(-0.203993 * halfHitboxWidth, 0.677083 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[10] = v2(-0.295139 * halfHitboxWidth, 0.264757 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[11] = v2(-0.325521 * halfHitboxWidth, -0.186632 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[12] = v2(-0.256076 * halfHitboxWidth, -0.486111 * halfHitboxHeight);
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), v2(result->renderSize.x * 0.4, result->renderSize.y));
 
@@ -1133,7 +1137,6 @@ void initTile(Entity* tile, GameState* gameState, Texture* texture) {
 Entity* addTile(GameState* gameState, V2 p, Texture* texture) {
 	Entity* result = addEntity(gameState, EntityType_tile, DrawOrder_tile, 
 								p, v2(0, 0));
-
 	initTile(result, gameState, texture);
 
 	setFlags(result, EntityFlag_noMovementByDefault|EntityFlag_removeWhenOutsideLevel);
@@ -1167,6 +1170,21 @@ Entity* addDisappearingTile(GameState* gameState, V2 p) {
 	initTile(result, gameState, texture);
 	result->defaultTex = texture;
 	addDisappearsField(result, gameState);
+
+	return result;
+}
+
+Entity* addDroppingTile(GameState* gameState, V2 p) {
+	Entity* result = addEntity(gameState, EntityType_droppingTile, DrawOrder_droppingTile, 
+								p, v2(0, 0));
+
+	Texture* texture = gameState->tileAtlas[Tile_delay];
+
+	setFlags(result, EntityFlag_noMovementByDefault|EntityFlag_removeWhenOutsideLevel);
+
+	initTile(result, gameState, texture);
+	result->defaultTex = texture;
+	addDroppingField(result, gameState);
 
 	return result;
 }
@@ -1461,8 +1479,7 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 
 		case EntityType_endPortal: {
 			if (b->type != EntityType_player && 
-				b->type != EntityType_tile &&
-				b->type != EntityType_heavyTile) result = false;
+				!isTileType(b)) result = false;
 		} break;
 
 		case EntityType_laserBeam: {
@@ -1471,8 +1488,10 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 				!isSet(a, EntityFlag_laserOn)) result = false;
 		} break;
 
+		case EntityType_disappearingTile:
+		case EntityType_droppingTile:
 		case EntityType_tile: {
-			if (b->type == EntityType_tile && 
+			if (isNonHeavyTile(b) && 
 				getMovementField(a) == NULL && 
 				getMovementField(b) == NULL) result = false;
 		} break;
@@ -1482,7 +1501,7 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 
 			if(isPickupFieldSolid(a) ||
 			   canPickupField(a, b, gameState) || 
-			  (b->type == EntityType_tile && getMovementField(b) == NULL)) result = true;
+			  (isNonHeavyTile(b) && getMovementField(b) == NULL)) result = true;
 
 			if(b->type == EntityType_laserBeam || b->type == EntityType_laserBolt) result = false;
 		} break;
@@ -1556,9 +1575,15 @@ bool isSolidCollisionRaw(Entity* a, Entity* b, GameState* gameState, bool actual
 		} break;
 	}
 
-	if(actuallyMoving && getField(a, ConsoleField_crushesEntities)) {
-		if(!((b->type == EntityType_tile || b->type == EntityType_disappearingTile) && getMovementField(b) == NULL)) result = false;
-		if(getField(b, ConsoleField_crushesEntities)) result = true;
+	if(actuallyMoving) {
+		if(getField(a, ConsoleField_dropsOnHit)) {
+			result = false;
+		}
+
+		if(getField(a, ConsoleField_crushesEntities)) {
+			if(!(isNonHeavyTile(b) && getMovementField(b) == NULL)) result = false;
+			if(getField(b, ConsoleField_crushesEntities)) result = true;
+		}
 	}
 
 	return result;
@@ -1645,43 +1670,80 @@ V2 getHitboxPoint(Entity* entity, HitboxPointType type) {
 	return result;
 }
 
-bool crushEntity(Entity* entity, double amt, Entity* heavyTile, GameState* gameState) {
+bool crushEntity(Entity* entity, double amt, Entity* heavyTile, GameState* gameState, bool onlyDoMovement) {
 	V2 lowestHeavyTilePoint = getHitboxPoint(heavyTile, HPT_lowest);
 	V2 highestEntityPoint = getHitboxPoint(entity, HPT_highest);
 
 	if(highestEntityPoint.y <= lowestHeavyTilePoint.y) {
 		V2 movement = moveRaw(entity, gameState, v2(0, -amt));
-		amt += movement.y;
 
-		double height = getCollisionSize(entity).y;
-		double squishAmount = min(height, amt);
+		if(movement.y < 0) {
+			setFlags(heavyTile, EntityFlag_grounded);
+			heavyTile->timeSinceLastOnGround = 0;
+		}
 
-		Hitbox* hitbox = entity->hitboxes;
-		hitbox->storedRotation = INVALID_STORED_HITBOX_ROTATION;
+		if(!onlyDoMovement) {
+			amt += movement.y;
 
-		double squishedHeight = height - squishAmount;
+			double height = getCollisionSize(entity).y;
+			double squishAmount = min(height, amt);
 
-		if(squishedHeight > 0) {
-			double heightRatio = squishedHeight / height;
-			entity->renderSize.y *= heightRatio;
+			Hitbox* hitbox = entity->hitboxes;
+			hitbox->storedRotation = INVALID_STORED_HITBOX_ROTATION;
 
-			while(hitbox) {
-				hitbox->collisionOffset *= heightRatio;
+			double squishedHeight = height - squishAmount;
 
-				for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
-					hitbox->originalCollisionPoints[pIndex].y *= heightRatio;
+			if(squishedHeight > 0) {
+				double heightRatio = squishedHeight / height;
+				entity->renderSize.y *= heightRatio;
+
+				while(hitbox) {
+					hitbox->collisionOffset *= heightRatio;
+
+					for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
+						hitbox->originalCollisionPoints[pIndex].y *= heightRatio;
+					}
+
+					hitbox = hitbox->next;
 				}
-
-				hitbox = hitbox->next;
+			} else {
+				setFlags(entity, EntityFlag_remove);			
 			}
-		} else {
-			setFlags(entity, EntityFlag_remove);			
 		}
 
 		return true;
 	}
 
 	return false;
+}
+
+void tryKeyboardJump(Entity* entity, GameState* gameState, ConsoleField* keyboardField) {
+	assert(keyboardField->type == ConsoleField_keyboardControlled);
+
+	ConsoleField* jumpField = keyboardField->children[1];
+	double jumpHeight = jumpField->doubleValues[jumpField->selectedIndex];
+
+	ConsoleField* doubleJumpField = keyboardField->children[2];
+	bool canDoubleJump = doubleJumpField->selectedIndex != 0;
+
+	bool canJump = entity->jumpCount == 0 && 
+				   entity->timeSinceLastOnGround < KEYBOARD_JUMP_AIR_TOLERANCE_TIME && 
+				   gameState->input.up.pressed;
+
+	bool attemptingDoubleJump = false;
+	
+	if (!canJump) {
+		attemptingDoubleJump = true;
+		canJump = entity->jumpCount < 2 && canDoubleJump && gameState->input.up.justPressed;
+	}
+
+	if (canJump) {
+		clearFlags(entity, EntityFlag_grounded);
+
+		entity->dP.y = jumpHeight;
+		if (attemptingDoubleJump) entity->jumpCount = 2;
+		else entity->jumpCount++;
+	}
 }
 
 void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* solid, V2 entityVel) {
@@ -1753,12 +1815,33 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 			bool toggleSolid = true;
 
 			if(entityVel.y < 0 && !getEntityByRef(gameState, gameState->consoleEntityRef)) {
-				if(crushEntity(hitEntity, -entityVel.y, entity, gameState)) toggleSolid = false;
+				if(crushEntity(hitEntity, -entityVel.y, entity, gameState, false)) toggleSolid = false;
 			}
 
 			if(toggleSolid) {
 				*solid = true;
 			}
+		}
+	}
+
+	if(getField(hitEntity, ConsoleField_dropsOnHit)) {
+		bool toggleSolid = true;
+
+		if(entityVel.y < 0) {
+			double timeSinceGrounded = entity->timeSinceLastOnGround;
+			if (crushEntity(hitEntity, -entityVel.y, entity, gameState, true)) toggleSolid = false;
+
+			if(timeSinceGrounded > KEYBOARD_JUMP_AIR_TOLERANCE_TIME && !entity->timeSinceLastOnGround) {
+				ConsoleField* keyboardField = getField(entity, ConsoleField_keyboardControlled);
+
+				if(keyboardField) {
+					tryKeyboardJump(entity, gameState, keyboardField);
+				}
+			}
+		}
+
+		if(toggleSolid) {
+			*solid = true;
 		}
 	}
 }
@@ -2082,6 +2165,7 @@ Entity* onGround(Entity* entity, GameState* gameState, double dt, V2 dP, V2 ddP)
 	GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, delta, false);
 
 	Entity* result = collisionResult.solidEntity;
+
 	return result;
 }
 
@@ -3020,12 +3104,6 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 
 					double xMove = 0;
 
-					ConsoleField* jumpField = movementField->children[1];
-					double jumpHeight = jumpField->doubleValues[jumpField->selectedIndex];
-
-					ConsoleField* doubleJumpField = movementField->children[2];
-					bool canDoubleJump = doubleJumpField->selectedIndex != 0;
-
 					if (gameState->input.right.pressed) xMove += xMoveAcceleration;
 					if (gameState->input.left.pressed) xMove -= xMoveAcceleration;
 
@@ -3038,23 +3116,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 						setEntityFacingDirection(entity, true, gameState);
 					}
 
-
-					bool canJump = entity->jumpCount == 0 && 
-								   entity->timeSinceLastOnGround < 0.15 && 
-								   gameState->input.up.pressed;
-
-					bool attemptingDoubleJump = false;
-					
-					if (!canJump) {
-						attemptingDoubleJump = true;
-						canJump = entity->jumpCount < 2 && canDoubleJump && gameState->input.up.justPressed;
-					}
-
-					if (canJump) {
-						entity->dP.y = jumpHeight;
-						if (attemptingDoubleJump) entity->jumpCount = 2;
-						else entity->jumpCount++;
-					}
+					tryKeyboardJump(entity, gameState, movementField);					
 				}
 
 				move(entity, dt, gameState, ddP);
@@ -3404,6 +3466,17 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 		moveEntityBasedOnMovementField(entity, gameState, dt, groundFriction, doingOtherAction);
 
+		ConsoleField* keyboardField = getField(entity, ConsoleField_keyboardControlled);
+
+		if(keyboardField) {
+			V3 lightP = v3(entity->p, 1);
+			V3 lightColor = v3(1, 1, 1) * 0.8;
+			double lightRange = 1.8;
+
+			PointLight pl = createPointLight(lightP, lightColor, lightRange);
+			pushPointLight(gameState->renderGroup, &pl, true);
+		}
+
 		bool insideLevel = false;
 
 		//NOTE: This removes the entity if they are outside of the world
@@ -3472,6 +3545,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			} break;
 
 
+			case EntityType_disappearingTile:
+			case EntityType_droppingTile:
 			case EntityType_heavyTile:
 			case EntityType_tile: {
 				assert(entity->numFields >= 2);
@@ -3703,7 +3778,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 					else if(shootingState && characterAnim->shoot) {
 						entity->nextAnim = characterAnim->shoot;
 					}
-					else if((entity->dP.y != 0 || !isSet(entity, EntityFlag_grounded)) && characterAnim->jump) {
+					else if((!isSet(entity, EntityFlag_grounded)) && characterAnim->jump) {
 						entity->nextAnim = characterAnim->jump;
 					}
 					else if(abs(entity->dP.x) > 0.1f && characterAnim->walk) {
@@ -3848,7 +3923,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				 if (entity->type != EntityType_laserBeam || isSet(entity, EntityFlag_laserOn)) {
 					DrawOrder drawOrder = entity->drawOrder;
 
-					if(entity->type == EntityType_tile && getMovementField(entity) != NULL) drawOrder = DrawOrder_movingTile;
+					if(isTileType(entity) && getMovementField(entity) != NULL) drawOrder = DrawOrder_movingTile;
 
 					double alpha = entity->alpha;
 

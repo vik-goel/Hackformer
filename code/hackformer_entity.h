@@ -1,3 +1,5 @@
+#define KEYBOARD_JUMP_AIR_TOLERANCE_TIME 0.15
+
 enum EntityFlag {
 	EntityFlag_facesLeft = 1 << 0,
 	EntityFlag_noMovementByDefault = 1 << 1,
@@ -164,10 +166,17 @@ bool32 isSet(Entity* entity, u32 flags) {
 	return result;
 }
 
+
 bool isTileType(Entity* entity) {
 	bool result = entity->type == EntityType_tile || 
 				  entity->type == EntityType_heavyTile ||
-				  entity->type == EntityType_disappearingTile;
+				  entity->type == EntityType_disappearingTile ||
+				  entity->type == EntityType_droppingTile;
+	return result;
+}
+
+bool isNonHeavyTile(Entity* entity) {
+	bool result = isTileType(entity) && entity->type != EntityType_heavyTile;
 	return result;
 }
 

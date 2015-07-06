@@ -49,7 +49,11 @@ void loadHackMap(GameState* gameState, char* fileName) {
 				} 
 				else if(tileIndex == Tile_disappear) {
 					addDisappearingTile(gameState, tileP);
-				} else {
+				}
+				else if(tileIndex == Tile_delay) {
+					addDroppingTile(gameState, tileP);
+				} 
+				else {
 					addTile(gameState, tileP, gameState->tileAtlas[tileIndex]);
 				}
 			}

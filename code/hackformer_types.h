@@ -59,6 +59,7 @@ enum EntityType {
 	EntityType_pickupField,
 	EntityType_trojan,
 	EntityType_disappearingTile,
+	EntityType_droppingTile,
 };
 
 enum DrawOrder {
@@ -76,6 +77,7 @@ enum DrawOrder {
 	DrawOrder_flyingVirus,
 	DrawOrder_trojan,
 	DrawOrder_disappearingTile,
+	DrawOrder_droppingTile,
 	DrawOrder_heavyTile,
 	DrawOrder_laserBolt,
 	DrawOrder_player,
