@@ -490,9 +490,10 @@ void loadImages(GameState* gameState) {
 		CharacterAnim* character = createCharacterAnim(gameState, &gameState->playerAnim);
 
 		AnimNode* walkNode = createAnimNode(gameState, &character->walk);
-		walkNode->intro = loadAnimation(renderGroup, "player/running_transition", 256, 256, 0.05f, true);
-		walkNode->main = loadAnimation(renderGroup, "player/running", 256, 256, 0.0425f, true);
-		walkNode->outro = createReversedAnimation(&walkNode->intro);
+		walkNode->main = loadAnimation(renderGroup, "player/running", 256, 256, 0.07f, true);
+		// walkNode->intro = loadAnimation(renderGroup, "player/running_transition", 256, 256, 0.05f, true);
+		// walkNode->main = loadAnimation(renderGroup, "player/running", 256, 256, 0.0425f, true);
+		// walkNode->outro = createReversedAnimation(&walkNode->intro);
 
 		AnimNode* standNode = createAnimNode(gameState, &character->stand);
 		standNode->main = loadAnimation(renderGroup, "player/stand", 256, 256, 0.09f, true);
@@ -502,13 +503,9 @@ void loadImages(GameState* gameState) {
 
 		AnimNode* jumpNode = createAnimNode(gameState, &character->jump);
 
-		// jumpNode->intro = loadAnimation(renderGroup, "player/jumping_intro", 256, 256, 0.04f, false);
-		// jumpNode->main = createAnimation(loadPNGTexture(renderGroup, "player/jump"));
-		// jumpNode->outro = loadAnimation(renderGroup, "player/jumping_outro", 256, 256, 0.04f, false);
-
-		jumpNode->intro = loadAnimation(renderGroup, "player/jumping_intro_2", 256, 256, 0.07f, false);
-		jumpNode->main = loadAnimation(renderGroup, "player/jumping_2", 256, 256, 0.12f, true);
-		jumpNode->outro = loadAnimation(renderGroup, "player/jumping_outro_2", 256, 256, 0.03f, false);
+		jumpNode->intro = loadAnimation(renderGroup, "player/jumping_intro", 256, 256, 0.07f, false);
+		jumpNode->main = loadAnimation(renderGroup, "player/jumping", 256, 256, 0.12f, true);
+		jumpNode->outro = loadAnimation(renderGroup, "player/jumping_outro", 256, 256, 0.03f, false);
 
 		AnimNode* hackNode = createAnimNode(gameState, &gameState->playerHack);
 		hackNode->intro = loadAnimation(renderGroup, "player/hacking", 256, 256, 0.07f, false);

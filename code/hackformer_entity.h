@@ -12,6 +12,8 @@ enum EntityFlag {
 	EntityFlag_animIntro = 1 << 10,
 	EntityFlag_animOutro = 1 << 11,
 	EntityFlag_wasSolid = 1 << 12, //Used by pickup fields
+	EntityFlag_cloaked = 1 << 13,
+	EntityFlag_togglingCloak = 1 << 14,
 };
 
 struct RefNode {
@@ -71,6 +73,7 @@ struct Entity {
 	float emissivity;
 	double spotLightAngle;
 	double alpha;
+	double cloakFactor;
 
 	//Used by any entity that shoots
 	//TODO: This could be stored in the shoot console field

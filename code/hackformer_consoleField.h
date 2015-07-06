@@ -165,7 +165,11 @@ bool canOnlyHaveOneFieldOfType(ConsoleFieldType type) {
 				  type == ConsoleField_shootsAtTarget ||
 				  type == ConsoleField_cameraFollows || 
 				  type == ConsoleField_killsOnHit || 
-				  type == ConsoleField_spotlight;
+				  type == ConsoleField_spotlight ||
+				  type == ConsoleField_cloaks ||
+				  type == ConsoleField_disappearsOnHit ||
+				  type == ConsoleField_crushesEntities ||
+				  type == ConsoleField_Alertness;
 
  	return result;
 }

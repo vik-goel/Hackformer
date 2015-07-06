@@ -126,6 +126,30 @@ s32 getNumVisibleFields(ConsoleField** fields, s32 fieldsCount) {
 	return result;
 }
 
+double getDoubleValue(ConsoleField* field) {
+	assert(field);
+	assert(field->type == ConsoleField_double);
+
+	assert(field->selectedIndex >= 0);
+	assert(field->selectedIndex < field->numValues);
+
+	double result = field->doubleValues[field->selectedIndex];
+
+	return result;
+}
+
+s32 getS32Value(ConsoleField* field) {
+	assert(field);
+	assert(field->type == ConsoleField_s32);
+
+	assert(field->selectedIndex >= 0);
+	assert(field->selectedIndex < field->numValues);
+
+	s32 result = field->s32Values[field->selectedIndex];
+
+	return result;
+}
+
 double getMaxChildYOffset(ConsoleField* field, FieldSpec* spec) {
 	double result = 0;
 

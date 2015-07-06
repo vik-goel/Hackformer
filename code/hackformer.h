@@ -80,7 +80,7 @@ struct Input;
 #define SHOW_COLLISION_BOUNDS 0
 #define SHOW_CLICK_BOUNDS 0
 #define DRAW_ENTITIES 1
-#define PLAY_MUSIC 1
+#define PLAY_MUSIC 0
 #define SHOW_MAIN_MENU 0
 #define ENABLE_LIGHTING 1
 #define DRAW_BACKGROUND 1

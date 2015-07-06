@@ -157,6 +157,8 @@ void writeEntity(FILE* file, Entity* entity, GameState* gameState) {
 
 	writeDouble(file, entity->emissivity);
 	writeDouble(file, entity->spotLightAngle);
+	writeDouble(file, entity->alpha);
+	writeDouble(file, entity->cloakFactor);
 	writeDouble(file, entity->shootTimer);
 	writeS32(file, entity->targetRef);
 	writeS32(file, entity->shooterRef);
@@ -468,6 +470,8 @@ void readEntity(FILE* file, GameState* gameState, s32 entityIndex) {
 
 	entity->emissivity = (float)readDouble(file);
 	entity->spotLightAngle = readDouble(file);
+	entity->alpha = readDouble(file);
+	entity->cloakFactor = readDouble(file);
 	entity->shootTimer = readDouble(file);
 
 	entity->targetRef = readS32(file);

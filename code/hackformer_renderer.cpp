@@ -1075,7 +1075,9 @@ void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, boo
 
 	color.a = (u8)(color.a * entity->alpha);
 
-	if(entity->rotation) {
+	double rotation = entity->rotation;
+
+	if(rotation) {
 		V2 halfSize = getRectSize(clipBounds) * 0.5;
 		double size = length(halfSize);
 
@@ -1084,8 +1086,8 @@ void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, boo
 
 	if(rectanglesOverlap(group->windowBounds, clipBounds)) {
 		if(group->rendering) {
-			if(entity->rotation) {
-				drawTexture(group, texture, drawBounds, entity->rotation, color, flipX, entity->emissivity, group->ambient);
+			if(rotation) {
+				drawTexture(group, texture, drawBounds, rotation, color, flipX, entity->emissivity, group->ambient);
 			} else {
 				drawTexture(group, texture, drawBounds, flipX, orientation, entity->emissivity, group->ambient, color);
 			}
@@ -1096,7 +1098,7 @@ void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, boo
 				render->tex = createRenderTexture(drawOrder, texture, flipX, orientation, entity->emissivity, color);
 				render->p = &entity->p;
 				render->renderSize = &entity->renderSize;
-				render->rotation = entity->rotation;
+				render->rotation = rotation;
 			}
 		}
 	}

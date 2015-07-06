@@ -729,7 +729,7 @@ void addChildToConsoleField(ConsoleField* parent, ConsoleField* child) {
 void addKeyboardField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "keyboard_controlled", ConsoleField_keyboardControlled, 5);
 
-	double keyboardSpeedFieldValues[] = {20, 40, 60, 80, 100}; 
+	double keyboardSpeedFieldValues[] = {10, 30, 50, 70, 90}; 
 	double keyboardJumpHeightFieldValues[] = {1, 3, 5, 7, 9}; 
 
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", keyboardSpeedFieldValues, 
@@ -760,10 +760,14 @@ void addDisappearsField(Entity* entity, GameState* gameState) {
 void addCloaksField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "cloaks", ConsoleField_cloaks, 10);
 
-	double time[] = {0.1, 0.25, 0.5, 0.75, 1}; 
+	double cloakTime[] = {0.1, 0.5, 1, 1.5, 2}; 
+	double uncloakTime[] = {0.1, 0.5, 1, 1.5, 2}; 
 
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "disappear_time", time, 
-												   arrayCount(time), 2, 1));
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "cloak_time", cloakTime, 
+												   arrayCount(cloakTime), 2, 1));
+
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "uncloak_time", uncloakTime, 
+											   arrayCount(uncloakTime), 2, 1));
 
 	addField(entity, result);
 }
@@ -857,6 +861,9 @@ void addShootField(Entity* entity, GameState* gameState) {
 
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "bullet_speed", bulletSpeedFieldValues, 
 													    arrayCount(bulletSpeedFieldValues), 2, 1));
+
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "detect_radius", sightRadii, 
+													    arrayCount(sightRadii), 2, 1));
 
 	addField(entity, result);
 }
@@ -2696,7 +2703,7 @@ bool isTarget(Entity* entity, GameState* gameState) {
 	return result;
 }
 
-Entity* getClosestTarget(Entity* entity, GameState* gameState) {
+Entity* getClosestTarget(Entity* entity, GameState* gameState, double* targetDst) {
 	Entity* result = NULL;
 	double minDstSq = 99999999999;
 
@@ -2716,6 +2723,8 @@ Entity* getClosestTarget(Entity* entity, GameState* gameState) {
 
 		node = node->next;
 	}
+
+	*targetDst = minDstSq;
 
 	return result;
 }
@@ -2823,8 +2832,7 @@ void updateSpotlightBasedOnSpotlightField(Entity* entity, GameState* gameState) 
 	}
 }
 
-bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt) {
-	ConsoleField* shootField = getField(entity, ConsoleField_shootsAtTarget);
+bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt, ConsoleField* shootField) {
 	bool shootingEnabled = shootField && !gameState->doingInitialSim;
 	bool shootingState = shootingEnabled;
 
@@ -2962,7 +2970,7 @@ bool tryPatrolMove(Entity* entity, GameState* gameState, double xMoveAcceleratio
 	return shouldChangeDirection;
 }
 
-void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double dt, double groundFriction, bool shootingState) {
+void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double dt, double groundFriction, bool doingOtherAction) {
 	//NOTE: This is a hack to make the gravity feel better. There is more gravity when an object
 	//		like the player is falling to make the gravity seem less 'floaty'.
 	V2 gravity = gameState->gravity;
@@ -3056,7 +3064,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 
 
 			case ConsoleField_movesBackAndForth: {
-				bool shouldPatrol = !shootingState && dt > 0 && isSet(entity, EntityFlag_grounded); 
+				bool shouldPatrol = !doingOtherAction && dt > 0 && isSet(entity, EntityFlag_grounded); 
 
 				if (shouldPatrol) {
 					bool shouldChangeDirection = tryPatrolMove(entity, gameState, xMoveAcceleration, dt, ddP);
@@ -3086,16 +3094,15 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 
 				Alertness alertness = (Alertness)alertnessField->selectedIndex;
 
-				if (!shootingState && !gameState->doingInitialSim && alertness > Alertness_asleep) {
+				if (!doingOtherAction && !gameState->doingInitialSim && alertness > Alertness_asleep) {
 					ConsoleField* sightRadiusField = movementField->children[1];
 					double sightRadius = sightRadiusField->doubleValues[sightRadiusField->selectedIndex];
 
 					//TODO: If obstacles were taken into account, this might not actually be the closest entity
 					//		Maybe something like a bfs should be used here to find the actual closest entity
-					Entity* targetEntity = getClosestTarget(entity, gameState);
+					double dstToTarget;
+					Entity* targetEntity = getClosestTarget(entity, gameState, &dstToTarget);
 					if (targetEntity) {
-						double dstToTarget = dst(targetEntity->p, entity->p);
-
 						if (dstToTarget <= sightRadius && dstToTarget > 0.1) {
 							V2 wayPoint = computePath(gameState, entity, targetEntity);
 							moveTowardsWaypoint(entity, gameState, dt, wayPoint, xMoveAcceleration);
@@ -3111,7 +3118,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 
 				Alertness alertness = (Alertness)alertnessField->selectedIndex;
 
-				if(!shootingState && alertness > Alertness_asleep) {
+				if(!doingOtherAction && alertness > Alertness_asleep) {
 					Waypoint* cur = movementField->curWaypoint;
 					assert(cur);
 
@@ -3199,7 +3206,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 				wantedSpotLightAngle = getDegrees(entity->dP);
 			}
 
-			if (!shootingState) changeSpotLightAngle(entity, wantedSpotLightAngle, dt);
+			if (!doingOtherAction) changeSpotLightAngle(entity, wantedSpotLightAngle, dt);
 		}
 	} 
 
@@ -3313,8 +3320,89 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		removeFieldsIfSet(entity->fields, &entity->numFields);
 
 		updateSpotlightBasedOnSpotlightField(entity, gameState);
-		bool shootingState = shootBasedOnShootingField(entity, gameState, dt);
-		moveEntityBasedOnMovementField(entity, gameState, dt, groundFriction, shootingState);
+
+		ConsoleField* shootField = getField(entity, ConsoleField_shootsAtTarget);
+		ConsoleField* cloakField = getField(entity, ConsoleField_cloaks);
+
+		Entity* target = getEntityByRef(gameState, entity->targetRef);
+
+		if(!target) {
+			if(shootField) {
+				double targetDst;
+				target = getClosestTarget(entity, gameState, &targetDst);			
+				
+				ConsoleField* detectRadiusField = shootField->children[1];
+				double detectRadius = getDoubleValue(detectRadiusField);
+
+				if(target && targetDst <= detectRadius) {
+					entity->targetRef = target->ref;
+				} else {
+					target = NULL;
+				}								
+			}
+		}
+
+		bool shootingState = false;
+		bool doingOtherAction = false;
+
+		if(entity->type == EntityType_trojan) {
+			s32 breakHere = 6;
+		}
+
+		if(cloakField) {
+			if(target) {
+				if(isSet(entity, EntityFlag_cloaked)) {
+					setFlags(entity, EntityFlag_togglingCloak);
+					clearFlags(entity, EntityFlag_cloaked);
+				}
+			} else {
+				if(!isSet(entity, EntityFlag_cloaked)) {
+					setFlags(entity, EntityFlag_cloaked|EntityFlag_togglingCloak);
+				}
+			}
+
+			bool32 togglingCloak = isSet(entity, EntityFlag_togglingCloak);
+			bool32 cloaked = isSet(entity, EntityFlag_cloaked);
+
+			if(togglingCloak || cloaked) {
+				shootField = NULL;
+
+				if(togglingCloak && !gameState->doingInitialSim) {
+					doingOtherAction = true;
+
+					if(cloaked) {
+						ConsoleField* cloakTimeField = cloakField->children[0];
+						double cloakTime = getDoubleValue(cloakTimeField);
+						double cloakAmt = dt / cloakTime;
+						entity->cloakFactor += cloakAmt;
+
+						if(entity->cloakFactor >= 1) {
+							entity->cloakFactor = 1;
+							clearFlags(entity, EntityFlag_togglingCloak);
+						}
+					} else {
+						ConsoleField* cloakTimeField = cloakField->children[1];
+						double cloakTime = getDoubleValue(cloakTimeField);
+						double cloakAmt = -dt / cloakTime;
+						entity->cloakFactor += cloakAmt;
+
+						if(entity->cloakFactor <= 0) {
+							entity->cloakFactor = 0;
+							clearFlags(entity, EntityFlag_togglingCloak);
+						}
+					}
+				}
+			}
+		} else {
+			clearFlags(entity, EntityFlag_cloaked|EntityFlag_togglingCloak);
+		}
+
+		if(shootField) {
+			shootingState = shootBasedOnShootingField(entity, gameState, dt, shootField);
+			doingOtherAction |= shootingState;
+		}
+
+		moveEntityBasedOnMovementField(entity, gameState, dt, groundFriction, doingOtherAction);
 
 		bool insideLevel = false;
 
@@ -3514,7 +3602,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		if(disappearField) {
 			ConsoleField* timeField = disappearField->children[0];
 			double timeToDisappear = timeField->doubleValues[timeField->selectedIndex];
-			double rate = timeToDisappear * dt;
+			double rate = dt / timeToDisappear;
 
 			if(entity->groundReferenceList) {
 				entity->alpha -= rate;
@@ -3540,6 +3628,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			entity->animTime += dt;
 		}
 
+		bool32 fadeAlphaFromDisappearing = false;
+
 		if(characterAnim) {
 			if(entity->type == EntityType_death) {
 				entity->currentAnim = characterAnim->death;
@@ -3558,130 +3648,149 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 					}
 				}
 			} else {
-				if(isSet(entity, EntityFlag_animIntro)) {
-					assert(!isSet(entity, EntityFlag_animOutro));
-					assert(entity->currentAnim);
+				bool32 disappearing = false;
 
-					AnimNode* currentAnim = entity->currentAnim;
-					assert(currentAnim);
-					assert(currentAnim->intro.frames);
-					double duration = getAnimationDuration(&currentAnim->intro);
+				if(isSet(entity, EntityFlag_togglingCloak)) {
+					if(characterAnim->disappear) {
+						entity->currentAnim = entity->nextAnim = characterAnim->disappear;
+						clearFlags(entity, EntityFlag_animIntro|EntityFlag_animOutro);
+						disappearing = true;
 
-					if(entity->animTime >= duration) {
-						clearFlags(entity, EntityFlag_animIntro);
-						entity->animTime -= duration;
+						double duration = getAnimationDuration(&entity->currentAnim->main);
+						entity->animTime = duration * entity->cloakFactor;
+
+						if(!isSet(entity, EntityFlag_cloaked)) entity->animTime = duration - entity->animTime;
+					} else {
+						fadeAlphaFromDisappearing = true;
 					}
 				}
 
-				else if(isSet(entity, EntityFlag_animOutro)) {
-					assert(entity->currentAnim && entity->nextAnim);
-
-					AnimNode* currentAnim = entity->currentAnim;
-					assert(currentAnim->outro.frames);
-
-					double duration = getAnimationDuration(&currentAnim->outro);
-
-					if(entity->animTime >= duration) {
-						clearFlags(entity, EntityFlag_animOutro);
-						entity->animTime -= duration;
-						entity->currentAnim = entity->nextAnim;
-					}
-				}
-
-
-				if(showPlayerHackingAnim) {
-					entity->nextAnim = gameState->playerHack;
-				}
-				else if(shootingState && characterAnim->shoot) {
-					entity->nextAnim = characterAnim->shoot;
-				}
-				else if((entity->dP.y != 0 || !isSet(entity, EntityFlag_grounded)) && characterAnim->jump) {
-					entity->nextAnim = characterAnim->jump;
-				}
-				else if(abs(entity->dP.x) > 0.1f && characterAnim->walk) {
-					entity->nextAnim = characterAnim->walk;
-				}
-				else if (characterAnim->stand) {
-					entity->nextAnim = characterAnim->stand;
-				}
-
-				if(entity->nextAnim == entity->currentAnim) {
-					entity->nextAnim = NULL;
-				}
-
-				if (entity->nextAnim) {
+				if(!disappearing) {
 					if(isSet(entity, EntityFlag_animIntro)) {
+						assert(!isSet(entity, EntityFlag_animOutro));
 						assert(entity->currentAnim);
+
 						AnimNode* currentAnim = entity->currentAnim;
 						assert(currentAnim);
 						assert(currentAnim->intro.frames);
-						if(currentAnim->intro.frames &&
-						    currentAnim->intro.frames == currentAnim->outro.frames) {
-							clearFlags(entity, EntityFlag_animIntro);
-							setFlags(entity, EntityFlag_animOutro);
-							entity->animTime = getAnimationDuration(&currentAnim->intro) - entity->animTime;
-						}
-					} else if(!isSet(entity, EntityFlag_animOutro)) {
-						bool transitionToOutro = true;
-						bool transitionToNext = (entity->nextAnim == characterAnim->jump);
+						double duration = getAnimationDuration(&currentAnim->intro);
 
-						if(entity->currentAnim){
+						if(entity->animTime >= duration) {
+							clearFlags(entity, EntityFlag_animIntro);
+							entity->animTime -= duration;
+						}
+					}
+
+					else if(isSet(entity, EntityFlag_animOutro)) {
+						assert(entity->currentAnim && entity->nextAnim);
+
+						AnimNode* currentAnim = entity->currentAnim;
+						assert(currentAnim->outro.frames);
+
+						double duration = getAnimationDuration(&currentAnim->outro);
+
+						if(entity->animTime >= duration) {
+							clearFlags(entity, EntityFlag_animOutro);
+							entity->animTime -= duration;
+							entity->currentAnim = entity->nextAnim;
+						}
+					}
+
+
+					if(showPlayerHackingAnim) {
+						entity->nextAnim = gameState->playerHack;
+					}
+					else if(shootingState && characterAnim->shoot) {
+						entity->nextAnim = characterAnim->shoot;
+					}
+					else if((entity->dP.y != 0 || !isSet(entity, EntityFlag_grounded)) && characterAnim->jump) {
+						entity->nextAnim = characterAnim->jump;
+					}
+					else if(abs(entity->dP.x) > 0.1f && characterAnim->walk) {
+						entity->nextAnim = characterAnim->walk;
+					}
+					else if (characterAnim->stand) {
+						entity->nextAnim = characterAnim->stand;
+					}
+
+					if(entity->nextAnim == entity->currentAnim) {
+						entity->nextAnim = NULL;
+					}
+
+					if (entity->nextAnim) {
+						if(isSet(entity, EntityFlag_animIntro)) {
+							assert(entity->currentAnim);
 							AnimNode* currentAnim = entity->currentAnim;
 							assert(currentAnim);
-
-							if(currentAnim->finishMainBeforeOutro) {
-								transitionToOutro = (entity->animTime >= getAnimationDuration(&currentAnim->main));
+							assert(currentAnim->intro.frames);
+							if(currentAnim->intro.frames &&
+							    currentAnim->intro.frames == currentAnim->outro.frames) {
+								clearFlags(entity, EntityFlag_animIntro);
+								setFlags(entity, EntityFlag_animOutro);
+								entity->animTime = getAnimationDuration(&currentAnim->intro) - entity->animTime;
 							}
-						}
+						} else if(!isSet(entity, EntityFlag_animOutro)) {
+							bool transitionToOutro = true;
+							bool transitionToNext = (entity->nextAnim == characterAnim->jump);
 
-						if(transitionToOutro) {
-							entity->animTime = 0;
-
-							if(entity->currentAnim) {
+							if(entity->currentAnim){
 								AnimNode* currentAnim = entity->currentAnim;
 								assert(currentAnim);
 
-								if(currentAnim->outro.numFrames) {
-									setFlags(entity, EntityFlag_animOutro);
-								} else {
+								if(currentAnim->finishMainBeforeOutro) {
+									transitionToOutro = (entity->animTime >= getAnimationDuration(&currentAnim->main));
+								}
+							}
+
+							if(transitionToOutro) {
+								entity->animTime = 0;
+
+								if(entity->currentAnim) {
+									AnimNode* currentAnim = entity->currentAnim;
+									assert(currentAnim);
+
+									if(currentAnim->outro.numFrames) {
+										setFlags(entity, EntityFlag_animOutro);
+									} else {
+										transitionToNext = true;
+									}
+								}
+								else {
 									transitionToNext = true;
 								}
 							}
-							else {
-								transitionToNext = true;
+
+							if(transitionToNext) {
+								clearFlags(entity, EntityFlag_animOutro);
+								entity->animTime = 0;
+								entity->currentAnim = entity->nextAnim;
+								assert(entity->currentAnim);
+
+								AnimNode* currentAnim = entity->currentAnim;
+								assert(currentAnim);
+
+								if(currentAnim->intro.frames) {
+									setFlags(entity, EntityFlag_animIntro);
+								} else {
+									clearFlags(entity, EntityFlag_animIntro);
+								}
 							}
 						}
-
-						if(transitionToNext) {
-							clearFlags(entity, EntityFlag_animOutro);
-							entity->animTime = 0;
-							entity->currentAnim = entity->nextAnim;
-							assert(entity->currentAnim);
-
-							AnimNode* currentAnim = entity->currentAnim;
-							assert(currentAnim);
-
-							if(currentAnim->intro.frames) {
-								setFlags(entity, EntityFlag_animIntro);
-							} else {
-								clearFlags(entity, EntityFlag_animIntro);
-							}
-						}
+					} else {
+						clearFlags(entity, EntityFlag_animOutro);
 					}
-				} else {
-					clearFlags(entity, EntityFlag_animOutro);
-				}
 
-				AnimNode* currentAnim = entity->currentAnim;
+					AnimNode* currentAnim = entity->currentAnim;
 
-				if((!entity->nextAnim || !entity->currentAnim || !currentAnim->outro.frames) && 
-					isSet(entity, EntityFlag_animOutro)) {
-					InvalidCodePath;
-				}
+					if((!entity->nextAnim || !entity->currentAnim || !currentAnim->outro.frames) && 
+						isSet(entity, EntityFlag_animOutro)) {
+						InvalidCodePath;
+					}
 
-				if((!entity->currentAnim || !currentAnim->intro.frames) && 
-					isSet(entity, EntityFlag_animIntro)) {
-					InvalidCodePath;
+					if((!entity->currentAnim || !currentAnim->intro.frames) && 
+						isSet(entity, EntityFlag_animIntro)) {
+						InvalidCodePath;
+					}
 				}
 			}
 		}
@@ -3728,16 +3837,28 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 		#if DRAW_ENTITIES
 		if (texture != NULL) {
-			assert(texture->texId);
+			bool32 cloaked = isSet(entity, EntityFlag_cloaked) && !isSet(entity, EntityFlag_togglingCloak);
 
-			bool drawLeft = isSet(entity, EntityFlag_facesLeft) != 0;
-			if (entity->type == EntityType_laserBase) drawLeft = false;
+			if(!cloaked) {
+				assert(texture->texId);
 
-			 if (entity->type != EntityType_laserBeam || isSet(entity, EntityFlag_laserOn)) {
-				DrawOrder drawOrder = entity->drawOrder;
+				bool drawLeft = isSet(entity, EntityFlag_facesLeft) != 0;
+				if (entity->type == EntityType_laserBase) drawLeft = false;
 
-				if(entity->type == EntityType_tile && getMovementField(entity) != NULL) drawOrder = DrawOrder_movingTile;
-				pushEntityTexture(gameState->renderGroup, texture, entity, drawLeft, drawOrder);
+				 if (entity->type != EntityType_laserBeam || isSet(entity, EntityFlag_laserOn)) {
+					DrawOrder drawOrder = entity->drawOrder;
+
+					if(entity->type == EntityType_tile && getMovementField(entity) != NULL) drawOrder = DrawOrder_movingTile;
+
+					double alpha = entity->alpha;
+
+					if(fadeAlphaFromDisappearing) {
+						entity->alpha = max(0, entity->alpha - entity->cloakFactor);
+					}
+
+					pushEntityTexture(gameState->renderGroup, texture, entity, drawLeft, drawOrder);
+					entity->alpha = alpha;
+				}
 			}
 		}
 		#endif
