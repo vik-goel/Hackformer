@@ -70,6 +70,8 @@ void writeConsoleField(FILE* file, ConsoleField* field) {
 			writeDouble(file, field->bobHeight);
 			writeS32(file, field->bobbingUp);
 			writeS32(file, field->initialBob);
+		} else if(field->type == ConsoleField_shootsAtTarget) {
+			writeDouble(file, field->shootTimer);
 		}
 
 		writeS32(file, field->selectedIndex);
@@ -160,9 +162,8 @@ void writeEntity(FILE* file, Entity* entity, GameState* gameState) {
 	writeDouble(file, entity->spotLightAngle);
 	writeDouble(file, entity->alpha);
 	writeDouble(file, entity->cloakFactor);
-	writeDouble(file, entity->shootTimer);
 	writeS32(file, entity->targetRef);
-	writeS32(file, entity->shooterRef);
+	writeS32(file, entity->spawnerRef);
 	writeV2(file, entity->startPos);
 	writeS32(file, entity->tileXOffset);
 	writeS32(file, entity->tileYOffset);
@@ -334,6 +335,8 @@ ConsoleField* readConsoleField(FILE* file, GameState* gameState) {
 			field->bobHeight = readDouble(file);
 			field->bobbingUp = readS32(file);
 			field->initialBob = readS32(file);
+		} else if(field->type == ConsoleField_shootsAtTarget) {
+			field->shootTimer = readDouble(file);
 		}
 
 		field->selectedIndex = readS32(file);
@@ -477,10 +480,9 @@ void readEntity(FILE* file, GameState* gameState, s32 entityIndex) {
 	entity->spotLightAngle = readDouble(file);
 	entity->alpha = readDouble(file);
 	entity->cloakFactor = readDouble(file);
-	entity->shootTimer = readDouble(file);
 
 	entity->targetRef = readS32(file);
-	entity->shooterRef = readS32(file);
+	entity->spawnerRef = readS32(file);
 
 	entity->startPos = readV2(file);
 
@@ -671,6 +673,8 @@ void saveConsoleFieldToArena(MemoryArena* arena, ConsoleField* field) {
 			pushElem(arena, double, field->bobHeight);
 			pushElem(arena, s32, field->bobbingUp);
 			pushElem(arena, s32, field->initialBob);
+		} else if(save->type == ConsoleField_shootsAtTarget) {
+			pushElem(arena, double, field->shootTimer);
 		}
 
 		for(s32 fieldIndex = 0; fieldIndex < field->numChildren; fieldIndex++) {
@@ -898,7 +902,9 @@ void readConsoleFieldFromArena(void** readPtr, ConsoleField** fieldPtr, GameStat
 			field->bobHeight = readElem(*readPtr, double);
 			field->bobbingUp = readElem(*readPtr, s32);
 			field->initialBob = readElem(*readPtr, s32);
-		} 
+		} else if(field->type == ConsoleField_shootsAtTarget) {
+			field->shootTimer = readElem(*readPtr, double);
+		}
 
 		clearFlags(field, ConsoleFlag_selected);
 		field->offs = v2(0, 0);

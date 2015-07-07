@@ -240,8 +240,24 @@ void onAddConsoleFieldToEntity(Entity* entity, ConsoleField* field, bool exchang
 		} break;
 	}
 
-	if(field->type == ConsoleField_cameraFollows) {
-		setCameraTarget(&gameState->camera, entity->p);
+	switch(field->type) {
+		case ConsoleField_cameraFollows: {
+			setCameraTarget(&gameState->camera, entity->p);
+		} break;
+
+		case ConsoleField_shootsAtTarget: {
+			field->shootTimer = 0;
+		} break;
+
+		case ConsoleField_spawnsTrawlers: {
+			for(RefNode* node = field->spawnedEntities; node; node = node->next) {
+				Entity* spawned = getEntityByRef(gameState, node->ref);
+
+				if(spawned) {
+					spawned->spawnerRef = entity->ref;
+				}
+			}
+		};
 	}
 }
 
@@ -1148,6 +1164,7 @@ bool updateConsole(GameState* gameState, double dt) {
 		}
 
 		if(remove) {
+			fadingOut->next = NULL;
 			freeRefNode(fadingOut, gameState);
 
 			if(prevFadingOut) prevFadingOut->next = nextFadingOut;

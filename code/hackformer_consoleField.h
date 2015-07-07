@@ -18,6 +18,7 @@ enum ConsoleFieldType {
 	ConsoleField_disappearsOnHit,
 	ConsoleField_cloaks,
 	ConsoleField_dropsOnHit,
+	ConsoleField_spawnsTrawlers,
 
 	ConsoleField_double,
 	ConsoleField_unlimitedInt,
@@ -73,7 +74,16 @@ struct ConsoleField {
 			bool32 bobbingUp;
 			bool32 initialBob;
 		};
-	};
+
+		struct {
+			double shootTimer;
+		};
+
+		struct {
+			double spawnTimer;
+			struct RefNode* spawnedEntities;
+		};
+	};	
 	
 	s32 selectedIndex;
 	s32 initialIndex;
@@ -171,7 +181,8 @@ bool canOnlyHaveOneFieldOfType(ConsoleFieldType type) {
 				  type == ConsoleField_cloaks ||
 				  type == ConsoleField_disappearsOnHit ||
 				  type == ConsoleField_crushesEntities ||
-				  type == ConsoleField_Alertness;
+				  type == ConsoleField_Alertness ||
+				  type == ConsoleField_spawnsTrawlers;
 
  	return result;
 }
