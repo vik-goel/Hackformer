@@ -105,12 +105,17 @@ void giveEntityRectangularCollisionBounds(Entity* entity, GameState* gameState,
 
 void updateHitboxRotatedPoints(Hitbox* hitbox, Entity* entity) {
 	bool32 facesLeft = isSet(entity, EntityFlag_facesLeft);
+	double rotation = entity->rotation;
+
+	if(entity->type == EntityType_motherShip) {
+		facesLeft = false;
+	}
 
 	if(hitbox->storedRotation == INVALID_STORED_HITBOX_ROTATION || 
-	   hitbox->storedRotation != entity->rotation ||
+	   hitbox->storedRotation != rotation ||
 	   hitbox->storedFlipped != facesLeft) {
-		double cosRot = cos(entity->rotation);
-		double sinRot = sin(entity->rotation);
+		double cosRot = cos(rotation);
+		double sinRot = sin(rotation);
 
 		for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
 			V2 original = hitbox->originalCollisionPoints[pIndex];
@@ -121,12 +126,14 @@ void updateHitboxRotatedPoints(Hitbox* hitbox, Entity* entity) {
 														original.x * sinRot + original.y * cosRot);
 		}
 
-		hitbox->storedRotation = entity->rotation;
+		hitbox->storedRotation = rotation;
 		hitbox->storedFlipped = facesLeft;
 	}
 }
 
 bool toggleEntityFacingDirection(Entity* entity, GameState* gameState) {
+	if(entity->type == EntityType_motherShip) return true;
+
 	toggleFlags(entity, EntityFlag_facesLeft);
 
 	for(Hitbox* hitbox = entity->hitboxes; hitbox; hitbox = hitbox->next) {
@@ -1290,7 +1297,7 @@ Entity* addLaserBeam_(GameState* gameState, V2 p, V2 renderSize) {
 	renderSize.x *= 0.8;
 
 	Entity* result = addEntity(gameState, EntityType_laserBeam, DrawOrder_laserBeam, p, renderSize);
-	result->defaultTex = gameState->laserBeam;
+	result->defaultTex = gameState->laserImages.beam;
 
 	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, result->renderSize.x, result->renderSize.y);
 
@@ -1385,6 +1392,39 @@ Entity* addTrojan(GameState* gameState, V2 p) {
 	return result;
 }
 
+Entity* addMotherShip(GameState* gameState, V2 p) {
+	V2 size = v2(1, 1) * 6;
+	Entity* result = addEntity(gameState, EntityType_motherShip, DrawOrder_motherShip, p, size);
+
+	setFlags(result, EntityFlag_hackable|
+					 EntityFlag_noMovementByDefault);
+
+	double hitboxWidth = result->renderSize.x;
+	double hitboxHeight = result->renderSize.y;
+	double halfHitboxWidth = hitboxWidth * 0.5;
+	double halfHitboxHeight = hitboxHeight * 0.5;
+	Hitbox* hitbox = addHitbox(result, gameState);
+	setHitboxSize(hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);
+	hitbox->collisionPointsCount = 10;
+	hitbox->originalCollisionPoints[0] = v2(-0.056424 * halfHitboxWidth, -0.798611 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[1] = v2(0.047743 * halfHitboxWidth, -0.798611 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[2] = v2(0.373264 * halfHitboxWidth, -0.577257 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[3] = v2(0.529514 * halfHitboxWidth, -0.321181 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[4] = v2(0.581597 * halfHitboxWidth, -0.021701 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[5] = v2(0.590278 * halfHitboxWidth, 0.312500 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[6] = v2(0.073785 * halfHitboxWidth, 0.616319 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[7] = v2(-0.429688 * halfHitboxWidth, 0.490451 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[8] = v2(-0.594618 * halfHitboxWidth, -0.134549 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[9] = v2(-0.312500 * halfHitboxWidth, -0.551215 * halfHitboxHeight);
+
+	result->clickBox = rectCenterDiameter(v2(0, 0), 0.7 * result->renderSize);
+
+	addShootField(result, gameState);
+	addSpotlightField(result, gameState);
+
+	return result;
+}
+
 ConsoleField* getMovementField(Entity* entity) {
 	ConsoleField* result = NULL;
 
@@ -1445,6 +1485,7 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 	bool result = true;
 
 	switch(a->type) {
+		case EntityType_death:
 		case EntityType_background: {
 			result = false;
 		} break;
@@ -1456,7 +1497,8 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 		case EntityType_player: {
 			if (b->type == EntityType_virus ||
 				b->type == EntityType_flyingVirus ||
-				b->type == EntityType_trojan) result = false;
+				b->type == EntityType_trojan ||
+				b->type == EntityType_motherShip) result = false;
 		} break;
 
 		case EntityType_laserBolt: {
@@ -1597,11 +1639,6 @@ bool isSolidCollision(Entity* a, Entity* b, GameState* gameState, bool actuallyM
 
 V2 moveRaw(Entity*, GameState*, V2, V2* ddP = 0);
 
-enum HitboxPointType {
-	HPT_lowest,
-	HPT_highest,
-};
-
 V2 getCollisionSize(Entity* entity) {
 	R2 bounds;
 	bounds.min = v2(99999999, 99999999);
@@ -1637,6 +1674,11 @@ V2 getCollisionSize(Entity* entity) {
 	return result;
 }
 
+enum HitboxPointType {
+	HPT_lowest,
+	HPT_highest,
+};
+
 V2 getHitboxPoint(Entity* entity, HitboxPointType type) {
 	V2 result = entity->p;
 
@@ -1670,11 +1712,18 @@ V2 getHitboxPoint(Entity* entity, HitboxPointType type) {
 	return result;
 }
 
-bool crushEntity(Entity* entity, double amt, Entity* heavyTile, GameState* gameState, bool onlyDoMovement) {
-	V2 lowestHeavyTilePoint = getHitboxPoint(heavyTile, HPT_lowest);
-	V2 highestEntityPoint = getHitboxPoint(entity, HPT_highest);
+bool crushEntity(Entity* entity, double amt, Entity* heavyTile, GameState* gameState, bool onlyDoMovement, 
+				 V2 collisionNormal, bool collisionNormalIsFromHeavyTile) {
+	// V2 lowestHeavyTilePoint = getHitboxPoint(heavyTile, HPT_lowest);
+	// V2 highestEntityPoint = getHitboxPoint(entity, HPT_highest);
 
-	if(highestEntityPoint.y <= lowestHeavyTilePoint.y) {
+	// if(highestEntityPoint.y <= lowestHeavyTilePoint.y) {
+
+
+	// if(heavyTile->p.y > entity->p.y && 
+	// 	((collisionNormal.y > 0 && !collisionNormalIsFromHeavyTile) || 
+	// 	(collisionNormal.y < 0 && collisionNormalIsFromHeavyTile))) {
+	if(heavyTile->p.y > entity->p.y) {
 		V2 movement = moveRaw(entity, gameState, v2(0, -amt));
 
 		if(movement.y < 0) {
@@ -1746,7 +1795,8 @@ void tryKeyboardJump(Entity* entity, GameState* gameState, ConsoleField* keyboar
 	}
 }
 
-void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* solid, V2 entityVel) {
+void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* solid, V2 entityVel, V2 collisionNormal, 
+			   bool collisionNormalFromHitEntity) {
 	ConsoleField* killField = getField(entity, ConsoleField_killsOnHit); 
 	bool killed = false;
 
@@ -1815,7 +1865,7 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 			bool toggleSolid = true;
 
 			if(entityVel.y < 0 && !getEntityByRef(gameState, gameState->consoleEntityRef)) {
-				if(crushEntity(hitEntity, -entityVel.y, entity, gameState, false)) toggleSolid = false;
+				if(crushEntity(hitEntity, -entityVel.y, entity, gameState, false, collisionNormal, !collisionNormalFromHitEntity)) toggleSolid = false;
 			}
 
 			if(toggleSolid) {
@@ -1829,7 +1879,7 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 
 		if(entityVel.y < 0) {
 			double timeSinceGrounded = entity->timeSinceLastOnGround;
-			if (crushEntity(hitEntity, -entityVel.y, entity, gameState, true)) toggleSolid = false;
+			if (crushEntity(hitEntity, -entityVel.y, entity, gameState, true, collisionNormal, !collisionNormalFromHitEntity)) toggleSolid = false;
 
 			if(timeSinceGrounded > KEYBOARD_JUMP_AIR_TOLERANCE_TIME && !entity->timeSinceLastOnGround) {
 				ConsoleField* keyboardField = getField(entity, ConsoleField_keyboardControlled);
@@ -1983,7 +2033,8 @@ void ignoreAllPenetratingEntities(Entity* entity, GameState* gameState) {
 	}
 }
 
-void projectPointOntoHitbox(V2 point, Hitbox* hitbox, V2 hitboxOffset, V2 direction, ProjectPointResult* result) {
+void projectPointOntoHitbox(V2 point, Hitbox* hitbox, V2 hitboxOffset, V2 direction, ProjectPointResult* result, 
+							bool projectingOntoMovingEntity) {
 	if(hitbox->collisionPointsCount < 2) {
 		//can't project onto a point
 		return;
@@ -2021,6 +2072,7 @@ void projectPointOntoHitbox(V2 point, Hitbox* hitbox, V2 hitboxOffset, V2 direct
 				if(lineExtent >= 0 && lineExtent <= 1) {
 					result->hitTime = hitTime;
 					result->hitLineNormal = lineNormal;
+					result->collisionNormalFromMovingEntity = projectingOntoMovingEntity;
 				}
 			}
 		} else {
@@ -2053,20 +2105,22 @@ void getPolygonCollisionTime(Hitbox* moving, Hitbox* fixed, Entity* movingEntity
 
 	for(s32 pIndex = 0; pIndex < moving->collisionPointsCount; pIndex++) {
 		V2 movingPoint = moving->rotatedCollisionPoints[pIndex] + movingOffset;
-		projectPointOntoHitbox(movingPoint, fixed, fixedOffset, delta, &projectResult);
+		projectPointOntoHitbox(movingPoint, fixed, fixedOffset, delta, &projectResult, true);
 	}
 
 	delta *= -1;
 
 	for(s32 pIndex = 0; pIndex < fixed->collisionPointsCount; pIndex++) {
 		V2 movingPoint = fixed->rotatedCollisionPoints[pIndex] + fixedOffset;
-		projectPointOntoHitbox(movingPoint, moving, movingOffset, delta, &projectResult);
+		projectPointOntoHitbox(movingPoint, moving, movingOffset, delta, &projectResult, false);
 	}
 
 	if(projectResult.hitTime < result->collisionTime) {
 		result->hitEntity = fixedEntity;
 		result->collisionTime = projectResult.hitTime;
 		result->collisionNormal = projectResult.hitLineNormal;
+
+		result->collisionNormalFromHitEntity = projectResult.collisionNormalFromMovingEntity;
 
 		if(solidCollision) {
 			result->solidEntity = fixedEntity;
@@ -2272,8 +2326,10 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP) {
 				bool solid1 = collisionResult.solidEntity != NULL;
 				bool solid2 = solid1;
 
-				onCollide(entity, collisionResult.hitEntity, gameState, &solid1, entityVelOriginal);
-				onCollide(collisionResult.hitEntity, entity, gameState, &solid2, v2(0, 0));
+				onCollide(entity, collisionResult.hitEntity, gameState, &solid1, entityVelOriginal, 
+						  collisionResult.collisionNormal, collisionResult.collisionNormalFromHitEntity);
+				onCollide(collisionResult.hitEntity, entity, gameState, &solid2, v2(0, 0), 
+					      collisionResult.collisionNormal, collisionResult.collisionNormalFromHitEntity);
 
 				if(!collisionResult.solidEntity && (solid1 || solid2)) {
 					adjustVelocitiesFromHit(collisionResult.collisionNormal, &delta, &entity->dP, ddP);
@@ -2373,7 +2429,13 @@ bool moveTowardsWaypoint(Entity* entity, GameState* gameState, double dt, V2 tar
 }
 
 void changeSpotLightAngle(Entity* entity, double wantedSpotLightAngle, double dt) {
-	wantedSpotLightAngle = angleIn0Tau(wantedSpotLightAngle - entity->rotation);
+	if(entity->type == EntityType_trojan) {
+		wantedSpotLightAngle = angleIn0Tau(wantedSpotLightAngle);
+	} else {
+		wantedSpotLightAngle = angleIn0Tau(wantedSpotLightAngle - entity->rotation);
+	}
+
+	
 			
 	double spotlightAngleMoveSpeed = PI * dt;
 
@@ -2813,10 +2875,22 @@ Entity* getClosestTarget(Entity* entity, GameState* gameState, double* targetDst
 	return result;
 }
 
+double getSpotLightAngle(Entity* entity) {
+	double lightAngle;
+
+	if(entity->type == EntityType_trojan) {
+		lightAngle = entity->spotLightAngle;
+	} else {
+		lightAngle = entity->rotation + entity->spotLightAngle;
+	}
+
+	return lightAngle;
+}
+
 Entity* getClosestTargetInSight(Entity* entity, GameState* gameState, double sightRadius, double fov) {
 	double halfFov = fov * 0.5;
 
-	double lightAngle = entity->spotLightAngle + entity->rotation;
+	double lightAngle = getSpotLightAngle(entity);
 	double minSightAngle = angleIn0Tau(lightAngle - halfFov);
 	double maxSightAngle = angleIn0Tau(lightAngle + halfFov);
 
@@ -2902,7 +2976,8 @@ void updateSpotlightBasedOnSpotlightField(Entity* entity, GameState* gameState) 
 		ConsoleField* fovField = spotlightField->children[1];
 		double fov = fovField->doubleValues[fovField->selectedIndex];
 
-		double lightAngle = entity->spotLightAngle + entity->rotation;
+		double lightAngle = getSpotLightAngle(entity);
+
 		SpotLight spotLight = createSpotLight(entity->p, v3(1, 1, .9), sightRadius, lightAngle, fov);
 		pushSpotLight(gameState->renderGroup, &spotLight, true);
 
@@ -3457,6 +3532,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			}
 		} else {
 			clearFlags(entity, EntityFlag_cloaked|EntityFlag_togglingCloak);
+			entity->cloakFactor = 0;
 		}
 
 		if(shootField) {
@@ -3616,16 +3692,16 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 					if (beam) setFlags(beam, EntityFlag_laserOn);
 
-					topTexture = gameState->laserTopOn;
-					baseTexture = gameState->laserBaseOn;
+					topTexture = gameState->laserImages.topOn;
+					baseTexture = gameState->laserImages.baseOn;
 				}
 				else {
 					clearFlags(entity, EntityFlag_laserOn);
 
 					if (beam) clearFlags(beam, EntityFlag_laserOn);
 
-					topTexture = gameState->laserTopOff;
-					baseTexture = gameState->laserBaseOff;
+					topTexture = gameState->laserImages.topOff;
+					baseTexture = gameState->laserImages.baseOff;
 				}
 	
 				assert(topTexture && baseTexture);
@@ -3663,10 +3739,12 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			} break;
 
 			case EntityType_trojan: {
+				entity->rotation = entity->spotLightAngle - PI / 2.0;
+			} break;
 
-				//if(entity->dP != v2(0, 0)) entity->rotation = getRad(entity->dP);
-				//if(entity->rotation > 360) entity->rotation -= 360;
-
+			case EntityType_motherShip: {
+				entity->rotation += dt * TAU * 0.3;
+				if(entity->rotation > TAU) entity->rotation -= TAU; 
 			} break;
 
 		} //End of switch statement on entity type
@@ -3703,7 +3781,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			entity->animTime += dt;
 		}
 
-		bool32 fadeAlphaFromDisappearing = false;
+		bool32 fadeAlphaFromDisappearing = isSet(entity, EntityFlag_togglingCloak) && 
+										   (!characterAnim || !characterAnim->disappear);
 
 		if(characterAnim) {
 			if(entity->type == EntityType_death) {
@@ -3735,8 +3814,6 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						entity->animTime = duration * entity->cloakFactor;
 
 						if(!isSet(entity, EntityFlag_cloaked)) entity->animTime = duration - entity->animTime;
-					} else {
-						fadeAlphaFromDisappearing = true;
 					}
 				}
 
@@ -3935,6 +4012,37 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 					entity->alpha = alpha;
 				}
 			}
+		}
+
+		if(entity->type == EntityType_motherShip) {
+			double alpha = entity->alpha;
+
+			//TODO: This won't properly blend the alpha
+			//		The mothership would have to rendered at full alpha into an intermidiate texture
+			//		And then that texture would be rendered with less alpha to the screen
+			//		Otherwise, parts of lower layers that shouldn't be visible will become visible 
+			if(fadeAlphaFromDisappearing) {
+				entity->alpha = max(0, entity->alpha - entity->cloakFactor);
+			}
+
+			double rotation = entity->rotation;
+
+			MotherShipImages* images = &gameState->motherShipImages;
+
+			pushEntityTexture(gameState->renderGroup, images->emitter, entity, false, entity->drawOrder);
+			pushEntityTexture(gameState->renderGroup, images->base, entity, false, entity->drawOrder);
+
+			entity->rotation = rotation;
+			pushEntityTexture(gameState->renderGroup, images->rotators[0], entity, false, entity->drawOrder);
+
+			entity->rotation = -0.7 * rotation;
+			pushEntityTexture(gameState->renderGroup, images->rotators[1], entity, false, entity->drawOrder);
+
+			entity->rotation = 1.3 * rotation;
+			pushEntityTexture(gameState->renderGroup, images->rotators[2], entity, false, entity->drawOrder);
+
+			entity->rotation = rotation;
+			entity->alpha = alpha;
 		}
 		#endif
 

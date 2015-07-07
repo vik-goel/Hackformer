@@ -15,6 +15,20 @@ void initSpatialPartition(GameState* gameState) {
 	memset(gameState->chunks, 0, numChunks * sizeof(EntityChunk));
 }
 
+void loadWaypoints(FILE* file, Entity* entity, GameState* gameState) {
+	s32 numWaypoints = readS32(file);
+
+	if(numWaypoints > 0) {
+		ConsoleField* wpField = addFollowsWaypointsField(entity, gameState);
+		wpField->curWaypoint = pushArray(&gameState->levelStorage, Waypoint, numWaypoints);
+
+		for(s32 wpIndex = 0; wpIndex < numWaypoints; wpIndex++) {
+			wpField->curWaypoint[wpIndex].p = readV2(file);
+			wpField->curWaypoint[wpIndex].next = wpField->curWaypoint + ((wpIndex + 1) % numWaypoints);						
+		}					
+	}
+}
+
 void loadHackMap(GameState* gameState, char* fileName) {
 	char filePath[2000];
 	assert(strlen(fileName) < arrayCount(filePath) - 100);
@@ -95,19 +109,13 @@ void loadHackMap(GameState* gameState, char* fileName) {
 			} break;
 
 			case EntityType_trojan: {
-				s32 numWaypoints = readS32(file);
-
 				Entity* entity = addTrojan(gameState, p);
+				loadWaypoints(file, entity, gameState);
+			} break;
 
-				if(numWaypoints > 0) {
-					ConsoleField* wpField = addFollowsWaypointsField(entity, gameState);
-					wpField->curWaypoint = pushArray(&gameState->levelStorage, Waypoint, numWaypoints);
-
-					for(s32 wpIndex = 0; wpIndex < numWaypoints; wpIndex++) {
-						wpField->curWaypoint[wpIndex].p = readV2(file);
-						wpField->curWaypoint[wpIndex].next = wpField->curWaypoint + ((wpIndex + 1) % numWaypoints);						
-					}					
-				}
+			case EntityType_motherShip: {
+				Entity* entity = addMotherShip(gameState, p);
+				loadWaypoints(file, entity, gameState);
 			} break;
 
 
@@ -379,13 +387,13 @@ void initMusic(MusicState* musicState) {
 }
 
 GameState* createGameState(s32 windowWidth, s32 windowHeight) {
-	MemoryArena arena_ = createArena(2 * 1024 * 1024, true);
+	MemoryArena arena_ = createArena(4 * 1024 * 1024, true);
 
 	GameState* gameState = pushStruct(&arena_, GameState);
 	gameState->permanentStorage = arena_;
 
-	gameState->levelStorage = createArena(16 * 1024 * 1024, false);
-	gameState->hackSaveStorage = createArena(12 * 1024 * 1024, false);
+	gameState->levelStorage = createArena(24 * 1024 * 1024, false);
+	gameState->hackSaveStorage = createArena(24 * 1024 * 1024, false);
 
 	gameState->pixelsPerMeter = TEMP_PIXELS_PER_METER;
 	gameState->windowWidth = windowWidth;
@@ -500,7 +508,7 @@ void loadImages(GameState* gameState) {
 		// walkNode->outro = createReversedAnimation(&walkNode->intro);
 
 		AnimNode* standNode = createAnimNode(gameState, &character->stand);
-		standNode->main = loadAnimation(renderGroup, "player/stand", 256, 256, 0.09f, true);
+		standNode->main = loadAnimation(renderGroup, "player/stand_2", 256, 256, 0.09f, true);
 
 		AnimNode* deathNode = createAnimNode(gameState, &character->death);
 		deathNode->main = loadAnimation(renderGroup, "player/death", 256, 256, 0.06f, true);
@@ -556,11 +564,23 @@ void loadImages(GameState* gameState) {
 	gameState->laserBolt = loadPNGTexture(renderGroup, "virus1/laser_bolt");
 	gameState->endPortal = loadPNGTexture(renderGroup, "end_portal");
 
-	gameState->laserBaseOff = loadPNGTexture(renderGroup, "virus3/base_off");
-	gameState->laserBaseOn = loadPNGTexture(renderGroup, "virus3/base_on");
-	gameState->laserTopOff = loadPNGTexture(renderGroup, "virus3/top_off");
-	gameState->laserTopOn = loadPNGTexture(renderGroup, "virus3/top_on");
-	gameState->laserBeam = loadPNGTexture(renderGroup, "virus3/laser_beam");
+	LaserImages* laser = &gameState->laserImages;
+
+	laser->baseOff = loadPNGTexture(renderGroup, "virus3/base_off");
+	laser->baseOn = loadPNGTexture(renderGroup, "virus3/base_on");
+	laser->topOff = loadPNGTexture(renderGroup, "virus3/top_off");
+	laser->topOn = loadPNGTexture(renderGroup, "virus3/top_on");
+	laser->beam = loadPNGTexture(renderGroup, "virus3/laser_beam");
+
+	MotherShipImages* motherShip = &gameState->motherShipImages;
+
+	motherShip->emitter = loadPNGTexture(renderGroup, "mothership/emitter");
+	motherShip->base = loadPNGTexture(renderGroup, "mothership/base");
+	motherShip->rotators[0] = loadPNGTexture(renderGroup, "mothership/rotator_3");
+	motherShip->rotators[1] = loadPNGTexture(renderGroup, "mothership/rotator_2");
+	motherShip->rotators[2] = loadPNGTexture(renderGroup, "mothership/rotator_1");
+	motherShip->projectile = loadPNGTexture(renderGroup, "mothership/projectile");
+	motherShip->spawning = loadAnimation(renderGroup, "mothership/spawning", 512, 512, 0.04f, true);
 
 	gameState->tileAtlasCount = arrayCount(globalTileFileNames);
 	gameState->tileAtlas = pushArray(&gameState->permanentStorage, Texture*, gameState->tileAtlasCount);

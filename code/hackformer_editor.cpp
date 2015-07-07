@@ -95,7 +95,8 @@ void setTile(s32* tiles, s32 mapWidthInTiles, s32 mapHeightInTiles, Camera* came
 }
 
 bool entityGetsWaypoints(Entity* entity) {
-	bool result = entity->type == EntityType_trojan;
+	bool result = entity->type == EntityType_trojan ||
+				  entity->type == EntityType_motherShip;
 	return result;
 }
 
@@ -153,15 +154,16 @@ int main(int argc, char* argv[]) {
 
 	CursorMode cursorMode = CursorMode_moveEntity;
 
-	#define ENTITY(type, width, height, fileName) {EntityType_##type, DrawOrder_##type, v2(width, height), fileName},
+	#define ENTITY(type, width, height, fileName, offsetX, offsetY) {EntityType_##type, DrawOrder_##type, v2(width, height), fileName, v2(offsetX, offsetY)},
 	EntitySpec entitySpecs[] {
-		ENTITY(player, 1.75, 1.75, "player/full")
-		ENTITY(virus, 1.6, 1.6, "virus1/stand")
-		ENTITY(flyingVirus, 0.75, 0.75, "virus2/full")
-		ENTITY(laserBase, 0.9, 0.65, "virus3/base_off")
-		ENTITY(hackEnergy, 0.7, 0.7, "energy_full")
-		ENTITY(endPortal, 1, 2, "end_portal")
-		ENTITY(trojan, 2, 2, "trojan/full")
+		ENTITY(player, 1.75, 1.75, "player/full", 0, 0)
+		ENTITY(virus, 1.6, 1.6, "virus1/stand", 0, 0)
+		ENTITY(flyingVirus, 0.75, 0.75, "virus2/full", 0, 0)
+		ENTITY(laserBase, 0.9, 0.65, "virus3/base_off", 0, 0)
+		ENTITY(hackEnergy, 0.7, 0.7, "energy_full", 0, 0)
+		ENTITY(endPortal, 1, 2, "end_portal", 0, 0)
+		ENTITY(trojan, 2, 2, "trojan/full", 0, 0)
+		ENTITY(motherShip, 6, 6, "mothership/full", -2, -1)
 	};
 	#undef ENTITY
 
@@ -399,6 +401,7 @@ int main(int argc, char* argv[]) {
 
 				Texture* tex = entityTextureAtlas + specIndex;
 
+				specBounds = translateRect(specBounds, spec->editorOffset);
 				pushTexture(renderGroup, tex, specBounds, false, DrawOrder_gui);
 			}
 

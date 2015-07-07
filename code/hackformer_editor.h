@@ -10,6 +10,7 @@ struct EntitySpec {
 	DrawOrder drawOrder;
 	V2 size;
 	char* fileName;
+	V2 editorOffset;
 };
 
 struct Waypoint {

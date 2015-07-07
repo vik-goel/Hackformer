@@ -60,6 +60,7 @@ enum EntityType {
 	EntityType_trojan,
 	EntityType_disappearingTile,
 	EntityType_droppingTile,
+	EntityType_motherShip,
 };
 
 enum DrawOrder {
@@ -76,6 +77,7 @@ enum DrawOrder {
 	DrawOrder_virus,
 	DrawOrder_flyingVirus,
 	DrawOrder_trojan,
+	DrawOrder_motherShip,
 	DrawOrder_disappearingTile,
 	DrawOrder_droppingTile,
 	DrawOrder_heavyTile,
@@ -113,7 +115,7 @@ MemoryArena createArena(size_t size, bool clearToZero) {
 	result.size = size;
 
 	if(clearToZero) {
-		result.base = calloc(size, 1);
+		result.base = calloc(1, size);
 	} else {
 		result.base = malloc(size);
 	}

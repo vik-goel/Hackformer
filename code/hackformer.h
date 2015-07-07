@@ -167,6 +167,22 @@ struct MusicState {
 	Music gameMusic;
 };
 
+struct LaserImages {
+	Texture* baseOff;
+	Texture* baseOn;
+	Texture* topOff;
+	Texture* topOn;
+	Texture* beam;
+};
+
+struct MotherShipImages {
+	Texture* emitter;
+	Texture* base;
+	Texture* rotators[3];
+	Animation spawning;
+	Texture* projectile;
+};
+
 struct GameState {
 	s32 numEntities;
 	Entity entities[1000];
@@ -243,11 +259,8 @@ struct GameState {
 	Texture* laserBolt;
 	Texture* endPortal;
 
-	Texture* laserBaseOff;
-	Texture* laserBaseOn;
-	Texture* laserTopOff;
-	Texture* laserTopOn;
-	Texture* laserBeam;
+	LaserImages laserImages;
+	MotherShipImages motherShipImages;
 
 	Texture* heavyTileTex;
 	s32 tileAtlasCount;
@@ -268,6 +281,7 @@ struct GameState {
 
 	MusicState musicState;
 };
+
 
 void setCameraTarget(Camera* camera, V2 target) {
 	camera->newP = target;

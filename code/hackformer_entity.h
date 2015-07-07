@@ -137,6 +137,7 @@ struct TileMoveNode {
 struct ProjectPointResult {
 	double hitTime;
 	V2 hitLineNormal;
+	bool collisionNormalFromMovingEntity;
 };
 
 struct GetCollisionTimeResult {
@@ -147,6 +148,8 @@ struct GetCollisionTimeResult {
 	Entity* solidEntity;
 	double solidCollisionTime;
 	V2 solidCollisionNormal;
+
+	bool collisionNormalFromHitEntity;
 };
 
 void setFlags(Entity* entity, u32 flags) {
