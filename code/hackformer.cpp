@@ -118,6 +118,11 @@ void loadHackMap(GameState* gameState, char* fileName) {
 				loadWaypoints(file, entity, gameState);
 			} break;
 
+			case EntityType_trawler: {
+				Entity* entity = addTrawlerBootup(gameState, p);
+				loadWaypoints(file, entity, gameState);
+			} break;
+
 
 			InvalidDefaultCase;
 		}
@@ -582,6 +587,14 @@ void loadImages(GameState* gameState) {
 	motherShip->rotators[2] = loadPNGTexture(renderGroup, "mothership/rotator_2");
 	motherShip->projectile = loadPNGTexture(renderGroup, "mothership/projectile");
 	motherShip->spawning = loadAnimation(renderGroup, "mothership/spawning", 512, 512, 0.04f, true);
+
+	TrawlerImages* trawler = &gameState->trawlerImages;
+
+	trawler->frame = loadPNGTexture(renderGroup, "trawler/right_frame");
+	trawler->body = loadPNGTexture(renderGroup, "trawler/body");
+	trawler->wheel = loadPNGTexture(renderGroup, "trawler/wheel");
+	trawler->shoot = loadAnimation(renderGroup, "trawler/shoot", 128, 128, 0.04f, true);
+	trawler->bootUp = loadAnimation(renderGroup, "trawler/boot_up", 128, 128, 0.1f, false);
 
 	gameState->tileAtlasCount = arrayCount(globalTileFileNames);
 	gameState->tileAtlas = pushArray(&gameState->permanentStorage, Texture*, gameState->tileAtlasCount);

@@ -62,6 +62,8 @@ enum EntityType {
 	EntityType_droppingTile,
 	EntityType_motherShip,
 	EntityType_motherShipProjectile,
+	EntityType_trawler,
+	EntityType_trawlerBootUp,
 };
 
 enum DrawOrder {
@@ -85,6 +87,11 @@ enum DrawOrder {
 	DrawOrder_motherShip_3,
 	DrawOrder_motherShip_4,
 	DrawOrder_motherShip_5,
+	DrawOrder_trawler,
+	DrawOrder_trawler_0,
+	DrawOrder_trawler_1,
+	DrawOrder_trawler_2,
+	DrawOrder_trawler_3,
 	DrawOrder_disappearingTile,
 	DrawOrder_droppingTile,
 	DrawOrder_heavyTile,

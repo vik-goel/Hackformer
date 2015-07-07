@@ -183,6 +183,14 @@ struct MotherShipImages {
 	Texture* projectile;
 };
 
+struct TrawlerImages {
+	Texture* frame;
+	Texture* wheel;
+	Texture* body;
+	Animation shoot;
+	Animation bootUp;
+};
+
 struct GameState {
 	s32 numEntities;
 	Entity entities[1000];
@@ -262,6 +270,7 @@ struct GameState {
 
 	LaserImages laserImages;
 	MotherShipImages motherShipImages;
+	TrawlerImages trawlerImages;
 
 	Texture* heavyTileTex;
 	s32 tileAtlasCount;

@@ -96,7 +96,8 @@ void setTile(s32* tiles, s32 mapWidthInTiles, s32 mapHeightInTiles, Camera* came
 
 bool entityGetsWaypoints(Entity* entity) {
 	bool result = entity->type == EntityType_trojan ||
-				  entity->type == EntityType_motherShip;
+				  entity->type == EntityType_motherShip ||
+				  entity->type == EntityType_trawler;
 	return result;
 }
 
@@ -163,7 +164,8 @@ int main(int argc, char* argv[]) {
 		ENTITY(hackEnergy, 0.7, 0.7, "energy_full", 0, 0)
 		ENTITY(endPortal, 1, 2, "end_portal", 0, 0)
 		ENTITY(trojan, 2, 2, "trojan/full", 0, 0)
-		ENTITY(motherShip, 6, 6, "mothership/full", -2, -1)
+		ENTITY(motherShip, 6 * (264.0 / 512.0), 6 * (339.0 / 512.0), "mothership/full", 0, 0)
+		ENTITY(trawler, 1, 1, "trawler/full", 0, -2)
 	};
 	#undef ENTITY
 
@@ -391,6 +393,8 @@ int main(int argc, char* argv[]) {
 				V2 specMin = v2(minX, maxTileY);
 
 				R2 specBounds = r2(specMin, specMin + spec->size);
+				specBounds = translateRect(specBounds, spec->editorOffset);
+
 				minX = specBounds.max.x;
 				maxY = max(maxY, specBounds.max.y);
 
@@ -401,7 +405,6 @@ int main(int argc, char* argv[]) {
 
 				Texture* tex = entityTextureAtlas + specIndex;
 
-				specBounds = translateRect(specBounds, spec->editorOffset);
 				pushTexture(renderGroup, tex, specBounds, false, DrawOrder_gui);
 			}
 
