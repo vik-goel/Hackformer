@@ -84,6 +84,7 @@ void writeConsoleField(FILE* file, ConsoleField* field) {
 		}
 
 		writeDouble(file, field->childYOffs); 
+		writeDouble(file, field->alpha); 
 	} else {
 		writeS32(file, -1);
 	}
@@ -252,6 +253,7 @@ void saveGame(GameState* gameState, char* fileName) {
 	writeCamera(file, &gameState->camera);
 	writeRefNode(file, gameState->targetRefs);
 	writeS32(file, gameState->consoleEntityRef);
+	writeRefNode(file, gameState->fadingOutConsoles);
 	writeS32(file, gameState->playerRef);
 	writeS32(file, gameState->loadNextLevel);
 	writeS32(file, gameState->reloadCurrentLevel);
@@ -271,6 +273,8 @@ void saveGame(GameState* gameState, char* fileName) {
 
 	writePauseMenu(file, &gameState->pauseMenu);
 	writeDock(file, &gameState->dock);
+
+	writeDouble(file, gameState->collisionBoundsAlpha);
 
 	writeS32(file, gameState->numEntities);
 
@@ -348,6 +352,7 @@ ConsoleField* readConsoleField(FILE* file, GameState* gameState) {
 		}
 
 		field->childYOffs = readDouble(file);
+		field->alpha = readDouble(file);
 	}
 
 	return field;
@@ -573,6 +578,7 @@ void loadGame(GameState* gameState, char* fileName) {
 	
 	gameState->targetRefs = readRefNode(file, gameState);
 	gameState->consoleEntityRef = readS32(file);
+	gameState->fadingOutConsoles = readRefNode(file, gameState);
 	gameState->playerRef = readS32(file);
 
 	gameState->loadNextLevel = readS32(file);
@@ -594,6 +600,8 @@ void loadGame(GameState* gameState, char* fileName) {
 
 	readPauseMenu(file, &gameState->pauseMenu);
 	readDock(file, &gameState->dock);
+
+	gameState->collisionBoundsAlpha = readDouble(file);
 
 	initSpatialPartition(gameState);
 
@@ -986,6 +994,9 @@ void undoLastSaveGameFromArena(GameState* gameState) {
 		if(numSaveGames == 1) acceptableReference |= lastSaveReference->index == 0;
 
 		if(acceptableReference) {
+			freeRefNode(gameState->fadingOutConsoles, gameState);
+			gameState->fadingOutConsoles = NULL;
+
 			readGameFromArena(gameState, lastSaveReference->save);
 			*numSaveGamesPtr = *numSaveGamesPtr - 1;
 		}

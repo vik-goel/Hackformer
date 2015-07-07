@@ -183,6 +183,10 @@ bool isNonHeavyTile(Entity* entity) {
 	return result;
 }
 
+RefNode* refNode(GameState* gameState, s32 ref, RefNode* next = NULL);
+void removeFromRefNodeList(RefNode** list, s32 ref, GameState* gameState);
+void freeRefNode(RefNode* node, GameState* gameState);
+
 void freeWaypoints(Waypoint* waypoint, GameState* gameState);
 GetCollisionTimeResult getCollisionTime(Entity*, GameState*, V2, bool actuallyMoving, double maxCollisionTime = 1);
 

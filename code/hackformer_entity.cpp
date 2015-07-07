@@ -162,7 +162,7 @@ void setEntityFacingDirection(Entity* entity, bool32 facesLeft, GameState* gameS
 	}
 }
 
-RefNode* refNode(GameState* gameState, s32 ref, RefNode* next = NULL) {
+RefNode* refNode(GameState* gameState, s32 ref, RefNode* next) {
 	RefNode* result = NULL;
 
 	if (gameState->refNodeFreeList) {
@@ -419,6 +419,26 @@ bool refNodeListContainsRef(RefNode* list, s32 ref) {
 	}
 
 	return false;
+}
+
+void removeFromRefNodeList(RefNode** list, s32 ref, GameState* gameState) {
+	RefNode* node = *list;
+	RefNode* prevNode = NULL;
+
+	while(node) {
+		RefNode* next = node->next;
+
+		if(node->ref == ref) {
+			freeRefNode(node, gameState);
+
+			if(prevNode) prevNode->next = next;
+			else *list = next;
+		} else {
+			prevNode = node;
+		}
+
+		node = next;
+	}
 }
 
 void addGroundReference(Entity* top, Entity* ground, GameState* gameState, bool isLaserBaseToBeamReference = false) {
@@ -3414,8 +3434,11 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 	}
 }
 
-void drawCollisionBounds(Entity* entity, RenderGroup* renderGroup) {
+void drawCollisionBounds(Entity* entity, RenderGroup* renderGroup, double alpha) {
 	Hitbox* hitbox = entity->hitboxes;
+
+	u8 a = (u8)(255.5 * alpha);
+	Color color = createColor(255, 0, 0, a);
 
 	while (hitbox) {
 		V2 hitboxOffset = getHitboxCenter(hitbox, entity);
@@ -3431,7 +3454,7 @@ void drawCollisionBounds(Entity* entity, RenderGroup* renderGroup) {
 			V2 p1 = hitbox->rotatedCollisionPoints[pIndex] + hitboxOffset;
 			V2 p2 = hitbox->rotatedCollisionPoints[(pIndex + 1) % hitbox->collisionPointsCount] + hitboxOffset;
 
-			pushDashedLine(renderGroup, RED, p1, p2, 0.02, 0.05, 0.05, true);
+			pushDashedLine(renderGroup, color, p1, p2, 0.02, 0.05, 0.05, true);
 		}
 
 		hitbox = hitbox->next;
@@ -3444,6 +3467,17 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 	{
 		Entity* player = getEntityByRef(gameState, gameState->playerRef);
 		if(player && player->currentAnim == gameState->playerHack) hacking = true;
+	}
+
+	bool shouldDrawCollisionBounds = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
+
+	double collisionBoundsFadeTime = 0.25;
+	double collisionBoundsFadeAmt = dtForFrame / collisionBoundsFadeTime;
+
+	if(shouldDrawCollisionBounds) {
+		gameState->collisionBoundsAlpha = min(1, gameState->collisionBoundsAlpha + collisionBoundsFadeAmt);
+	} else {
+		gameState->collisionBoundsAlpha = max(0, gameState->collisionBoundsAlpha - collisionBoundsFadeAmt);
 	}
 
 	double dt = hacking ? 0 : dtForFrame;
@@ -4089,13 +4123,13 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				pushEntityTexture(gameState->renderGroup, shootTex, entity, false, DrawOrder_motherShip_5);
 			}
 
-			entity->rotation = entity->animTime;
+			entity->rotation = 0.5 * entity->animTime;
 			pushEntityTexture(gameState->renderGroup, images->rotators[0], entity, false, DrawOrder_motherShip_2);
 
-			entity->rotation = -0.7 * entity->animTime;
+			entity->rotation = -1 * entity->animTime;
 			pushEntityTexture(gameState->renderGroup, images->rotators[1], entity, false, DrawOrder_motherShip_3);
 
-			entity->rotation = 1.3 * entity->animTime;
+			entity->rotation = 1.5 * entity->animTime;
 			pushEntityTexture(gameState->renderGroup, images->rotators[2], entity, false, DrawOrder_motherShip_4);
 
 			entity->rotation = rotation;
@@ -4103,15 +4137,16 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		}
 		#endif
 
-		bool shouldDrawCollisionBounds = entity->type != EntityType_player &&
-										 getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
+		double collisionBoundsAlpha = gameState->collisionBoundsAlpha;
+		if(entity->type == EntityType_player) collisionBoundsAlpha = 0;
 
 		#if SHOW_COLLISION_BOUNDS
 			shouldDrawCollisionBounds = true;
+			collisionBoundsAlpha = 1;
 		#endif
 		
-		if(shouldDrawCollisionBounds) {
-			drawCollisionBounds(entity, gameState->renderGroup);
+		if(gameState->collisionBoundsAlpha > 0) {
+			drawCollisionBounds(entity, gameState->renderGroup, collisionBoundsAlpha);
 		}
 
 		#if SHOW_CLICK_BOUNDS

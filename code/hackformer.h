@@ -207,6 +207,7 @@ struct GameState {
 
 	RefNode* targetRefs;
 	s32 consoleEntityRef;
+	RefNode* fadingOutConsoles;
 	s32 playerRef;
 
 	bool32 loadNextLevel;
@@ -280,6 +281,8 @@ struct GameState {
 	Dock dock;
 
 	MusicState musicState;
+
+	double collisionBoundsAlpha;
 };
 
 

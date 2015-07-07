@@ -139,6 +139,7 @@ void freeLevel(GameState* gameState) {
 	gameState->refNodeFreeList = NULL;
 	gameState->messagesFreeList = NULL;
 	gameState->waypointFreeList = NULL;
+	gameState->fadingOutConsoles = NULL;
 	gameState->targetRefs = NULL;
 	gameState->swapField = NULL;
 
@@ -577,8 +578,8 @@ void loadImages(GameState* gameState) {
 	motherShip->emitter = loadPNGTexture(renderGroup, "mothership/emitter");
 	motherShip->base = loadPNGTexture(renderGroup, "mothership/base");
 	motherShip->rotators[0] = loadPNGTexture(renderGroup, "mothership/rotator_3");
-	motherShip->rotators[1] = loadPNGTexture(renderGroup, "mothership/rotator_2");
-	motherShip->rotators[2] = loadPNGTexture(renderGroup, "mothership/rotator_1");
+	motherShip->rotators[1] = loadPNGTexture(renderGroup, "mothership/rotator_1");
+	motherShip->rotators[2] = loadPNGTexture(renderGroup, "mothership/rotator_2");
 	motherShip->projectile = loadPNGTexture(renderGroup, "mothership/projectile");
 	motherShip->spawning = loadAnimation(renderGroup, "mothership/spawning", 512, 512, 0.04f, true);
 
@@ -794,6 +795,10 @@ int main(int argc, char* argv[]) {
 				if(cancelButtonClicked || acceptButtonClicked) {
 					gameState->camera.deferredMoveToTarget = true;
 					gameState->camera.moveToTarget = true;
+
+					Entity* consoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef);
+					fadeOutConsoles(consoleEntity, gameState);
+
 					gameState->consoleEntityRef = 0;
 
 					if(cancelButtonClicked) {

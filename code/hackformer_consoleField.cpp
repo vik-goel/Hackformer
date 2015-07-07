@@ -581,6 +581,8 @@ bool drawTileArrow(V2 p, V2 offset, ConsoleField* field, RenderGroup* group, Inp
 		}
 	}
 
+	color.a = (u8)(color.a * field->alpha);
+
 	pushTexture(group, spec->tileHackArrow, arrowBounds, false, DrawOrder_gui, false, orientation, color);	
 
 	return clickHandled;
@@ -630,19 +632,24 @@ bool drawValueArrow(V2 p, ConsoleField* field, RenderGroup* group, Input* input,
 		InvalidDefaultCase;
 	}
 
+	color.a = (u8)(color.a * field->alpha);
+
 	assert(tex);
 	pushTexture(group, tex, triangleBounds, facesRight, DrawOrder_gui, false, Orientation_0, color);
 
 	return clickHandled;
 }
 
-bool drawFields(GameState* gameState, Entity* entity, double dt, V2* fieldP, FieldSpec* spec);
+bool drawFields(GameState* gameState, Entity* entity, double dt, V2* fieldP, FieldSpec* spec, bool fadeOut);
 
 bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, FieldSpec* spec, bool drawValue, 
 						bool drawField, GameState* gameState) {
 	bool result = false;
 
 	char valueStr[200];
+
+	u8 alpha = (u8)(field->alpha * 255);
+	Color color = createColor(255, 255, 255, alpha);
 
 	if (!isSet(field, ConsoleFlag_remove)) {
 		bool hasValue = true;
@@ -702,10 +709,10 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 			if(hasValue) {
 				V2 valueP = fieldP + v2(0.1, (spec->valueSize.y + spec->fieldSize.y) * -0.5 + spec->valueBackgroundPenetration);
 				R2 valueBounds = rectCenterDiameter(valueP, spec->valueSize);
-				pushTexture(group, spec->valueBackground, valueBounds, false, DrawOrder_gui);
+				pushTexture(group, spec->valueBackground, valueBounds, false, DrawOrder_gui, false, Orientation_0, color);
 
 				V2 textP = valueP - v2(0, 0.225);
-				pushText(group, &spec->consoleFont, valueStr, textP, WHITE, TextAlignment_center);
+				pushText(group, &spec->consoleFont, valueStr, textP, color, TextAlignment_center);
 
 				V2 leftTriangleP = v2(valueP.x - spec->valueSize.x*0.5, fieldP.y - spec->valueBackgroundPenetration * 0.5);
 				V2 rightTriangleP = leftTriangleP + v2(spec->valueSize.x, 0);
@@ -724,16 +731,16 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 
 		if(drawField) {
 			Texture* fieldTex = hasValues(field) ? spec->attribute : spec->behaviour;
-			pushTexture(group, fieldTex, fieldBounds, false, DrawOrder_gui);
+			pushTexture(group, fieldTex, fieldBounds, false, DrawOrder_gui, false, Orientation_0, color);
 
 			V2 nameP = fieldP + v2(0.14, -0.04);
-			pushText(group, &spec->consoleFont, field->name, nameP, WHITE, TextAlignment_center);
+			pushText(group, &spec->consoleFont, field->name, nameP, color, TextAlignment_center);
 
 			char tweakCostStr[25];
 			sprintf(tweakCostStr, "%d", field->tweakCost);
 
 			V2 costP = fieldP + v2(-1.13, -0.05);
-			pushText(group, &spec->consoleFont, tweakCostStr, costP, WHITE, TextAlignment_center);
+			pushText(group, &spec->consoleFont, tweakCostStr, costP, color, TextAlignment_center);
 		}
 	}
 
@@ -799,12 +806,26 @@ bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsC
 	return result;
 }
 
+void fadeFieldAlpha(ConsoleField* field, double dt, bool fadeOut) {
+	double fadeTime = 0.2;
+	double fadeAmt = dt / fadeTime;
+
+	if(fadeOut) {
+		field->alpha = max(0, field->alpha - fadeAmt);
+	} else {
+		field->alpha = min(1, field->alpha + fadeAmt);
+	}
+}
+
 bool drawFieldsRaw(RenderGroup* group, Input* input, ConsoleField** fields, s32 fieldsCount, FieldSpec* spec, 
-					GameState* gameState, bool drawFieldSprite = true) {
+					GameState* gameState, double dt, bool drawFieldSprite, bool fadeOut = false) {
 	bool result = false;
 
 	for (s32 fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
 		ConsoleField* field = fields[fieldIndex];
+
+		fadeFieldAlpha(field, dt, fadeOut);
+
 		if (drawConsoleField(field, group, input, spec, true, drawFieldSprite, gameState)) result = true;
 
 		if (field->numChildren && field->childYOffs) {
@@ -815,7 +836,9 @@ bool drawFieldsRaw(RenderGroup* group, Input* input, ConsoleField** fields, s32 
 			pushClipRect(group, clipRect);
 
 			//pushFilledRect(group, clipRect, MAGENTA, false);
-			if (drawFieldsRaw(group, input, field->children, field->numChildren, spec, gameState)) result = true;
+			if (drawFieldsRaw(group, input, field->children, field->numChildren, spec, gameState, dt, drawFieldSprite, fadeOut)) {
+				result = true;
+			}
 
 			pushDefaultClipRect(group);
 		}
@@ -824,7 +847,7 @@ bool drawFieldsRaw(RenderGroup* group, Input* input, ConsoleField** fields, s32 
 	return result;
 }
 
-bool drawFields(GameState* gameState, Entity* entity, s32 fieldSkip, double dt, V2* fieldP, FieldSpec* spec) {
+bool drawFields(GameState* gameState, Entity* entity, s32 fieldSkip, double dt, V2* fieldP, FieldSpec* spec, bool fadeOut) {
 	bool result = false;
 
 	for(s32 fieldIndex = 0; fieldIndex < fieldSkip; fieldIndex++) {
@@ -838,7 +861,7 @@ bool drawFields(GameState* gameState, Entity* entity, s32 fieldSkip, double dt, 
 	}
 
 	if(drawFieldsRaw(gameState->renderGroup, &gameState->input, entity->fields + fieldSkip, 
-		entity->numFields - fieldSkip, spec, gameState)) {
+		entity->numFields - fieldSkip, spec, gameState, dt, true, fadeOut)) {
 		result = true;
 	}
 
@@ -851,7 +874,8 @@ void drawWaypointInformation(ConsoleField* field, RenderGroup* group, FieldSpec*
 			Waypoint* w = field->curWaypoint;
 			assert(w);
 
-			int alpha = (int)(field->childYOffs / getMaxChildYOffset(field, spec) * 255.0 + 0.5);
+			double alphaDouble = field->childYOffs / getMaxChildYOffset(field, spec) * field->alpha;
+			int alpha = (int)(alphaDouble * 255.0 + 0.5);
 
 			double waypointSize = 0.125;
 			double lineThickness = 0.025;
@@ -901,6 +925,166 @@ void drawWaypointInformation(ConsoleField* field, RenderGroup* group, FieldSpec*
 	}
 }
 
+bool drawTileFields(Entity* entity, FieldSpec* spec, GameState* gameState, double dt, 
+					V2* fieldP, bool fadeOut) {
+	assert(isTileType(entity));
+
+	bool clickHandled = false;
+
+	Input* input = &gameState->input;
+
+	//NOTE: This draws the first two fields of the tile, xOffset and yOffset,
+	//		differently
+	ConsoleField* xOffsetField = entity->fields[0];
+	ConsoleField* yOffsetField = entity->fields[1];
+
+	fadeFieldAlpha(xOffsetField, dt, fadeOut);
+	fadeFieldAlpha(yOffsetField, dt, fadeOut);
+
+	bool showArrows = (getMovementField(entity) == NULL);
+
+	bool moving = xOffsetField->selectedIndex != entity->tileXOffset ||
+				  yOffsetField->selectedIndex != entity->tileYOffset;
+
+	bool drawLeft = !moving || xOffsetField->selectedIndex < entity->tileXOffset;
+	bool drawRight = !moving || xOffsetField->selectedIndex > entity->tileXOffset;
+	bool drawTop = !moving || yOffsetField->selectedIndex < entity->tileYOffset;
+	bool drawBottom = !moving || yOffsetField->selectedIndex > entity->tileYOffset;
+
+	R2 renderBounds = getRenderBounds(entity, gameState);
+
+	if (showArrows) {
+		V2 clickBoxSize = getRectSize(entity->clickBox);
+		V2 clickBoxCenter = getRectCenter(entity->clickBox) + entity->p - gameState->camera.p;
+
+		u8 alpha = (u8)(255.5 * (xOffsetField->alpha + yOffsetField->alpha) * 0.5);
+		Color color = createColor(255, 255, 255, alpha);
+
+		R2 shieldBounds = scaleRect(renderBounds, v2(1, 1) * 1.15);
+		pushTexture(gameState->renderGroup, spec->tileHackShield, shieldBounds, entity->rotation, false, 
+					DrawOrder_gui, false, color);
+
+		V2 offset = clickBoxSize * 0.5 + spec->spacing;
+
+		if(drawLeft && drawTileArrow(clickBoxCenter, offset, xOffsetField, gameState->renderGroup, 
+			&gameState->input, spec, Orientation_180, moving, gameState)) {
+			clickHandled = true;
+		}
+
+		if(drawRight && drawTileArrow(clickBoxCenter, offset,xOffsetField, gameState->renderGroup,
+		 &gameState->input, spec, Orientation_0, moving, gameState)) {
+			clickHandled = true;
+		}
+
+		if(drawTop && drawTileArrow(clickBoxCenter, offset, yOffsetField, gameState->renderGroup, 
+			&gameState->input, spec, Orientation_90, moving, gameState)) {
+			clickHandled = true;
+		}
+
+		if(drawBottom && drawTileArrow(clickBoxCenter, offset, yOffsetField, gameState->renderGroup,
+		 &gameState->input, spec, Orientation_270, moving, gameState)) {
+			clickHandled = true;
+		}
+	}								   
+
+	fieldP->y += getTotalFieldHeight(spec, xOffsetField);
+	clickHandled |= drawFields(gameState, entity, 2, dt, fieldP, spec, fadeOut);
+
+	return clickHandled;
+}
+
+bool drawTextConsoleFields(Entity* entity, FieldSpec* spec, GameState* gameState, double dt, 
+						   V2* fieldP, bool fadeOut) {
+	bool clickHandled = false;
+
+	ConsoleField* selectedField = entity->fields[0];
+	fadeFieldAlpha(selectedField, dt, fadeOut);
+
+	R2 renderBounds = getRenderBounds(entity, gameState);
+
+	V2 offset = v2(getRectWidth(renderBounds) * 0.5, 0);
+	V2 center = getRectCenter(renderBounds);
+
+	bool drawRight = selectedField->selectedIndex > 0;
+	bool drawLeft = selectedField->selectedIndex < selectedField->numValues - 1;
+
+	if(drawLeft && drawTileArrow(center, offset, selectedField, gameState->renderGroup, &gameState->input, 
+		spec, Orientation_0, false, gameState)) {
+		clickHandled = true;
+	}
+
+	if(drawRight && drawTileArrow(center, offset, selectedField, gameState->renderGroup, &gameState->input, 
+		spec, Orientation_180, false, gameState)) {
+		clickHandled = true;
+	}
+
+	clickHandled |= drawFields(gameState, entity, 1, dt, fieldP, spec, fadeOut);
+
+	return clickHandled;
+}
+
+bool drawEntityConsoleFields(Entity* entity, FieldSpec* spec, GameState* gameState, double dt, bool fadeOut) {
+	bool clickHandled = false;
+
+	V2 fieldP = getBottomFieldP(entity, gameState, spec);
+
+	moveFieldChildren(entity->fields, entity->numFields, spec, dt);
+	double totalYOffs = getTotalYOffset(entity->fields, entity->numFields, spec, entity->type == EntityType_pickupField);
+	fieldP.y += totalYOffs;
+
+	if (isTileType(entity)) {
+		if( drawTileFields(entity, spec, gameState, dt, &fieldP, fadeOut)) clickHandled = true;
+	} 
+	else if (entity->type == EntityType_text) {
+		if( drawTextConsoleFields(entity, spec, gameState, dt, &fieldP, fadeOut)) clickHandled = true;
+	}
+	else if (entity->type == EntityType_pickupField) {
+		//NOTE: The 0th field of a pickupField is ensured to be all the end of its field list
+		//		so that it is rendered at the bottom. It is the actual field that would be 
+		//		picked up with this entity
+		ConsoleField* data = entity->fields[0];
+
+		for(s32 fieldIndex = 0; fieldIndex < entity->numFields - 1; fieldIndex++) {
+			entity->fields[fieldIndex] = entity->fields[fieldIndex + 1];
+		}
+
+		entity->fields[entity->numFields - 1] = data;
+
+		for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+			entity->fields[fieldIndex]->alpha = 1;
+		}
+
+
+		fieldP.x += spec->fieldSize.x * 0.5 + spec->triangleSize.x + spec->spacing.x * 3;
+		if (drawFields(gameState, entity, 0, dt, &fieldP, spec, fadeOut)) clickHandled = true;
+
+		for(s32 fieldIndex = entity->numFields - 1; fieldIndex >= 1; fieldIndex--) {
+			entity->fields[fieldIndex] = entity->fields[fieldIndex - 1];
+		}
+
+		entity->fields[0] = data;
+	}
+
+	else {
+		if (drawFields(gameState, entity, 0, dt, &fieldP, spec, fadeOut)) clickHandled = true;
+	}
+
+
+	//NOTE: Draw the waypoints
+	for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+		ConsoleField* field = entity->fields[fieldIndex];
+		drawWaypointInformation(field, gameState->renderGroup, spec);
+	}
+
+	return clickHandled;
+}
+
+void fadeOutConsoles(Entity* entity, GameState* gameState) {
+	if(entity) {
+		gameState->fadingOutConsoles = refNode(gameState, entity->ref, gameState->fadingOutConsoles); 
+	}
+}
+
 bool updateConsole(GameState* gameState, double dt) {
 	bool clickHandled = false;
 
@@ -910,7 +1094,7 @@ bool updateConsole(GameState* gameState, double dt) {
 	{ //NOTE: This draws the gravity field
 		ConsoleField* gravityField = gameState->gravityField;
 		assert(gravityField);
-		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gravityField, 1, spec, gameState, false)) 
+		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gravityField, 1, spec, gameState, dt, false)) 
 			clickHandled = true;
 
 		gameState->gravity = v2(0, gravityField->doubleValues[gravityField->selectedIndex]);
@@ -919,7 +1103,7 @@ bool updateConsole(GameState* gameState, double dt) {
 	{ //NOTE: This draws the time field
 		ConsoleField* timeField = gameState->timeField;
 		assert(timeField);
-		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &timeField, 1, spec, gameState, false))
+		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &timeField, 1, spec, gameState, dt, false))
 		 clickHandled = true;
 	}
 #endif
@@ -934,7 +1118,7 @@ bool updateConsole(GameState* gameState, double dt) {
 			clickHandled = true;
 
 		if (gameState->swapField) {
-			if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gameState->swapField, 1, spec, gameState))
+			if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gameState->swapField, 1, spec, gameState, dt, true))
 				clickHandled = true;
 		}
 	}  
@@ -943,143 +1127,48 @@ bool updateConsole(GameState* gameState, double dt) {
 	Entity* entity = getEntityByRef(gameState, gameState->consoleEntityRef);
 
 	if (entity) {
-		if(gameState->input.c.justPressed) {
-			entity->rotation += PI / 4.0;
-		}
+		if(drawEntityConsoleFields(entity, spec, gameState, dt, false)) clickHandled = true;
+	}
 
-		R2 renderBounds = getRenderBounds(entity, gameState);
-		
-		// if(entity->type != EntityType_player && 
-		//    !(isTileType(entity) && getMovementField(entity) == NULL) && 
-		//    entity->type != EntityType_pickupField) {
-		// 	pushOutlinedRect(gameState->renderGroup, renderBounds, 0.02, RED);
-		// }
-		
-		V2 fieldP = getBottomFieldP(entity, gameState, spec);
+	RefNode* fadingOut = gameState->fadingOutConsoles;
+	RefNode* prevFadingOut = NULL;
 
-		moveFieldChildren(entity->fields, entity->numFields, spec, dt);
-		double totalYOffs = getTotalYOffset(entity->fields, entity->numFields, spec, entity->type == EntityType_pickupField);
-		fieldP.y += totalYOffs;
+	while(fadingOut) {
+		RefNode* nextFadingOut = fadingOut->next;
 
+		Entity* entity = getEntityByRef(gameState, fadingOut->ref);
+		bool remove = true;
 
+		if(entity) {
+			if (drawEntityConsoleFields(entity, spec, gameState, dt, true)) clickHandled = true;
 
-		if (isTileType(entity)) {
-			//NOTE: This draws the first two fields of the tile, xOffset and yOffset,
-			//		differently
-			ConsoleField* xOffsetField = entity->fields[0];
-			ConsoleField* yOffsetField = entity->fields[1];
-
-			bool showArrows = (getMovementField(entity) == NULL);
-
-			bool moving = xOffsetField->selectedIndex != entity->tileXOffset ||
-						  yOffsetField->selectedIndex != entity->tileYOffset;
-
-			bool drawLeft = !moving || xOffsetField->selectedIndex < entity->tileXOffset;
-			bool drawRight = !moving || xOffsetField->selectedIndex > entity->tileXOffset;
-			bool drawTop = !moving || yOffsetField->selectedIndex < entity->tileYOffset;
-			bool drawBottom = !moving || yOffsetField->selectedIndex > entity->tileYOffset;
-
-			if (showArrows) {
-				V2 clickBoxSize = getRectSize(entity->clickBox);
-				V2 clickBoxCenter = getRectCenter(entity->clickBox) + entity->p - gameState->camera.p;
-
-				R2 shieldBounds = scaleRect(renderBounds, v2(1, 1) * 1.15);
-				pushTexture(gameState->renderGroup, spec->tileHackShield, shieldBounds, entity->rotation);
-
-				V2 offset = clickBoxSize * 0.5 + spec->spacing;
-
-				if(drawLeft && drawTileArrow(clickBoxCenter, offset, xOffsetField, gameState->renderGroup, 
-					&gameState->input, spec, Orientation_180, moving, gameState)) {
-					clickHandled = true;
-				}
-
-				if(drawRight && drawTileArrow(clickBoxCenter, offset,xOffsetField, gameState->renderGroup,
-				 &gameState->input, spec, Orientation_0, moving, gameState)) {
-					clickHandled = true;
-				}
-
-				if(drawTop && drawTileArrow(clickBoxCenter, offset, yOffsetField, gameState->renderGroup, 
-					&gameState->input, spec, Orientation_90, moving, gameState)) {
-					clickHandled = true;
-				}
-
-				if(drawBottom && drawTileArrow(clickBoxCenter, offset, yOffsetField, gameState->renderGroup,
-				 &gameState->input, spec, Orientation_270, moving, gameState)) {
-					clickHandled = true;
-				}
-			}								   
-
-			fieldP.y += getTotalFieldHeight(spec, xOffsetField);
-			clickHandled |= drawFields(gameState, entity, 2, dt, &fieldP, spec);
-		} 
-
-
-		else if (entity->type == EntityType_text) {
-			ConsoleField* selectedField = entity->fields[0];
-
-			V2 offset = v2(getRectWidth(renderBounds) * 0.5, 0);
-			V2 center = getRectCenter(renderBounds);
-
-			bool drawRight = selectedField->selectedIndex > 0;
-			bool drawLeft = selectedField->selectedIndex < selectedField->numValues - 1;
-
-			if(drawLeft && drawTileArrow(center, offset, selectedField, gameState->renderGroup, &gameState->input, 
-				spec, Orientation_0, false, gameState)) {
-				clickHandled = true;
+			for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+				remove &= entity->fields[fieldIndex]->alpha == 0;
 			}
-
-			if(drawRight && drawTileArrow(center, offset, selectedField, gameState->renderGroup, &gameState->input, 
-				spec, Orientation_180, false, gameState)) {
-				clickHandled = true;
-			}
-
-			clickHandled |= drawFields(gameState, entity, 1, dt, &fieldP, spec);
 		}
 
+		if(remove) {
+			freeRefNode(fadingOut, gameState);
 
-		
-		else if (entity->type == EntityType_pickupField) {
-			//NOTE: The 0th field of a pickupField is ensured to be all the end of its field list
-			//		so that it is rendered at the bottom. It is the actual field that would be 
-			//		picked up with this entity
-			ConsoleField* data = entity->fields[0];
-
-			for(s32 fieldIndex = 0; fieldIndex < entity->numFields - 1; fieldIndex++)
-				entity->fields[fieldIndex] = entity->fields[fieldIndex + 1];
-
-			entity->fields[entity->numFields - 1] = data;
-
-			fieldP.x += spec->fieldSize.x * 0.5 + spec->triangleSize.x + spec->spacing.x * 3;
-			clickHandled |= drawFields(gameState, entity, 0, dt, &fieldP, spec);
-
-			for(s32 fieldIndex = entity->numFields - 1; fieldIndex >= 1; fieldIndex--)
-				entity->fields[fieldIndex] = entity->fields[fieldIndex - 1];
-
-			entity->fields[0] = data;
+			if(prevFadingOut) prevFadingOut->next = nextFadingOut;
+			else gameState->fadingOutConsoles = nextFadingOut;
+		} else {
+			prevFadingOut = fadingOut;
 		}
 
-		else {
-			clickHandled |= drawFields(gameState, entity, 0, dt, &fieldP, spec);
-		}
-
-
-		//NOTE: Draw the waypoints
-		for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
-			ConsoleField* field = entity->fields[fieldIndex];
-			drawWaypointInformation(field, gameState->renderGroup, spec);
-		}	
+		fadingOut = nextFadingOut;
 	}
 
 	if(gameState->swapField) drawWaypointInformation(gameState->swapField, gameState->renderGroup, spec);
 
-	bool32 wasConsoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
+	Entity* prevConsoleEntity = getEntityByRef(gameState, gameState->consoleEntityRef);
 
 	//NOTE: This selects a new console entity if there isn't one and a click occurred
 	Entity* player = getEntityByRef(gameState, gameState->playerRef);
 	ConsoleField* playerMovementField = player ? getMovementField(player) : NULL;
 
 	 //Don't allow hacking while the player is mid-air (doesn't apply when the player is not being keyboard controlled)
-	bool playerCanHack = wasConsoleEntity || 
+	bool playerCanHack = prevConsoleEntity || 
 						 (player && isSet(player, EntityFlag_grounded)) || 
 						 (!playerMovementField || playerMovementField->type != ConsoleField_keyboardControlled);
 	bool newConsoleEntityRequested = !clickHandled && gameState->input.leftMouse.justPressed;
@@ -1098,13 +1187,15 @@ bool updateConsole(GameState* gameState, double dt) {
 				newConsoleEntity = testEntity;
 				clickHandled = true;
 
-				if(!wasConsoleEntity) {
+				if(!prevConsoleEntity) {
 					saveGameToArena(gameState);
 				}
 			}
 		}
 
 		if(newConsoleEntity) {
+			removeFromRefNodeList(&gameState->fadingOutConsoles, newConsoleEntity->ref, gameState);
+			fadeOutConsoles(prevConsoleEntity, gameState);
 			gameState->consoleEntityRef = newConsoleEntity->ref;
 		}
 	}

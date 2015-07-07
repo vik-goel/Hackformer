@@ -92,6 +92,7 @@ struct ConsoleField {
 	s32 numChildren;
 	ConsoleField* children[MAX_CONSOLE_FIELD_CHILDREN];
 	double childYOffs;
+	double alpha;
 };
 
 struct ConsoleFieldHackSave {
