@@ -72,6 +72,7 @@ void writeConsoleField(FILE* file, ConsoleField* field) {
 			writeS32(file, field->initialBob);
 		} else if(field->type == ConsoleField_shootsAtTarget) {
 			writeDouble(file, field->shootTimer);
+			writeS32(file, field->shootEntityType);
 		}
 
 		writeS32(file, field->selectedIndex);
@@ -337,6 +338,7 @@ ConsoleField* readConsoleField(FILE* file, GameState* gameState) {
 			field->initialBob = readS32(file);
 		} else if(field->type == ConsoleField_shootsAtTarget) {
 			field->shootTimer = readDouble(file);
+			field->shootEntityType = (EntityType)readS32(file);
 		}
 
 		field->selectedIndex = readS32(file);
@@ -675,6 +677,7 @@ void saveConsoleFieldToArena(MemoryArena* arena, ConsoleField* field) {
 			pushElem(arena, s32, field->initialBob);
 		} else if(save->type == ConsoleField_shootsAtTarget) {
 			pushElem(arena, double, field->shootTimer);
+			pushElem(arena, s32, field->shootEntityType);
 		}
 
 		for(s32 fieldIndex = 0; fieldIndex < field->numChildren; fieldIndex++) {
@@ -904,6 +907,7 @@ void readConsoleFieldFromArena(void** readPtr, ConsoleField** fieldPtr, GameStat
 			field->initialBob = readElem(*readPtr, s32);
 		} else if(field->type == ConsoleField_shootsAtTarget) {
 			field->shootTimer = readElem(*readPtr, double);
+			field->shootEntityType = (EntityType)readElem(*readPtr, s32);
 		}
 
 		clearFlags(field, ConsoleFlag_selected);

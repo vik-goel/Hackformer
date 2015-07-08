@@ -423,6 +423,7 @@ GameState* createGameState(s32 windowWidth, s32 windowHeight) {
 	gameState->texturesCount = 1; //NOTE: 0 is a null texture data
 	gameState->animNodesCount = 1; //NOTE: 0 is a null anim data
 	gameState->characterAnimsCount = 1; //NOTE: 0 is a null character data
+	gameState->glowingTexturesCount = 1; //NOTE: 0 is a null glowing texture
 
 	gameState->renderGroup = createRenderGroup(256 * 1024, &gameState->permanentStorage, gameState->pixelsPerMeter, 
 		gameState->windowWidth, gameState->windowHeight, &gameState->camera,
@@ -627,14 +628,23 @@ void loadImages(GameState* gameState) {
 		AnimNode* projectileDeath = createAnimNode(gameState, &trawler->projectileDeath->death);
 		projectileDeath->main = loadAnimation(renderGroup, "trawler/bolt_death", 128, 128, 0.05f, false);
 	}
+
 	gameState->tileAtlasCount = arrayCount(globalTileData);
-	gameState->tileAtlas = pushArray(&gameState->permanentStorage, Texture*, gameState->tileAtlasCount);
+	gameState->tileAtlas = gameState->glowingTextures + gameState->glowingTexturesCount;
 
 	for(s32 tileIndex = 0; tileIndex < gameState->tileAtlasCount; tileIndex++) {
+		GlowingTexture* tex = createGlowingTexture(gameState);
+
 		char fileName[2000];
-		sprintf(fileName, "tiles/%s", globalTileData[tileIndex].fileName);
-		gameState->tileAtlas[tileIndex] = loadPNGTexture(gameState->renderGroup, fileName);
+		sprintf(fileName, "tiles/%s_regular", globalTileData[tileIndex].fileName);
+		tex->regular = loadPNGTexture(renderGroup, fileName);
+		
+		sprintf(fileName, "tiles/%s_glowing", globalTileData[tileIndex].fileName);
+		tex->glowing = loadPNGTexture(renderGroup, fileName);
 	}
+
+	gameState->greenTile = loadPNGTexture(renderGroup, "tiles/corner_1_glowing");
+	gameState->greyTile = loadPNGTexture(renderGroup, "tiles/corner_1_regular");
 }
 
 

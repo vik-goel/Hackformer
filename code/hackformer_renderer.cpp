@@ -209,7 +209,7 @@ Texture* loadPNGTexture(RenderGroup* group, char* fileName, bool stencil) {
 	*result = createTexFromSurface(diffuse, group, stencil);
 
 	*group->texturesCount = *group->texturesCount + 1;
-	assert(*group->texturesCount < TEXTURE_DATA_COUNT);
+	assert(*group->texturesCount < MAX_TEXTURES);
 
 	return result;
 }
@@ -293,7 +293,7 @@ Texture* extractTextures(RenderGroup* group, char* fileName, s32 frameWidth, s32
 	}
 
 	*group->texturesCount = *group->texturesCount + *numFrames;
-	assert(*group->texturesCount < TEXTURE_DATA_COUNT);
+	assert(*group->texturesCount < MAX_TEXTURES);
 
 	return result;
 }
@@ -371,16 +371,22 @@ Animation createReversedAnimation(Animation* anim) {
 	return result;
 }
 
+GlowingTexture* createGlowingTexture(GameState* gameState) {
+	GlowingTexture* result = gameState->glowingTextures + gameState->glowingTexturesCount++;
+	assert(gameState->glowingTexturesCount < MAX_GLOWING_TEXTURES);
+	return result;
+}
+
 AnimNode* createAnimNode(GameState* gameState, AnimNode** anim = NULL) {
 	AnimNode* result = gameState->animNodes + gameState->animNodesCount++;
-	assert(gameState->animNodesCount < ANIM_NODE_DATA_COUNT);
+	assert(gameState->animNodesCount < MAX_ANIM_NODES);
 	if(anim) *anim = result;
 	return result;
 }
 
 CharacterAnim* createCharacterAnim(GameState* gameState, CharacterAnim** anim = NULL) {
 	CharacterAnim* data = gameState->characterAnims + gameState->characterAnimsCount++;
-	assert(gameState->characterAnimsCount < CHARACTER_ANIM_DATA_COUNT);
+	assert(gameState->characterAnimsCount < MAX_CHARACTER_ANIMS);
 	if(anim) *anim = data;
 	return data;
 }

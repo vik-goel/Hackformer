@@ -107,6 +107,7 @@ struct Entity {
 	AnimNode* nextAnim;
 
 	Texture* defaultTex;
+	GlowingTexture* glowingTex;
 	CharacterAnim* characterAnim;
 
 	V2 groundNormal;

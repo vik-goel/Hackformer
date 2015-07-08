@@ -280,18 +280,20 @@ struct GameState {
 	TrawlerImages trawlerImages;
 	TrojanImages trojanImages;
 
-	Texture* heavyTileTex;
 	s32 tileAtlasCount;
-	Texture** tileAtlas;
+	GlowingTexture* tileAtlas;
+
+	s32 glowingTexturesCount;
+	GlowingTexture glowingTextures[MAX_GLOWING_TEXTURES];
 
 	s32 texturesCount;
-	Texture textures[TEXTURE_DATA_COUNT];
+	Texture textures[MAX_TEXTURES];
 
 	s32 animNodesCount;
-	AnimNode animNodes[ANIM_NODE_DATA_COUNT];
+	AnimNode animNodes[MAX_ANIM_NODES];
 
 	s32 characterAnimsCount;
-	CharacterAnim characterAnims[CHARACTER_ANIM_DATA_COUNT];
+	CharacterAnim characterAnims[MAX_CHARACTER_ANIMS];
 
 	PauseMenu pauseMenu;
 	MainMenu mainMenu;
@@ -300,6 +302,9 @@ struct GameState {
 	MusicState musicState;
 
 	double collisionBoundsAlpha;
+
+	Texture* greenTile;
+	Texture* greyTile;
 };
 
 

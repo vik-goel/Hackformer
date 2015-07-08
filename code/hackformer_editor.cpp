@@ -169,7 +169,7 @@ int main(int argc, char* argv[]) {
 		ENTITY(flyingVirus, 0.75, 0.75, "virus2/full", 0, 0)
 		ENTITY(laserBase, 0.9, 0.65, "virus3/base_off", 0, 0)
 		ENTITY(hackEnergy, 0.7, 0.7, "energy_full", 0, 0)
-		ENTITY(endPortal, 1, 2, "end_portal", 0, 0)
+		ENTITY(endPortal, 2, 2, "end_portal", 0, 0)
 		ENTITY(trojan, 2, 2, "trojan/full", 0, 0)
 		ENTITY(motherShip, 6 * (264.0 / 512.0), 6 * (339.0 / 512.0), "mothership/full", 0, 0)
 		ENTITY(trawler, 1, 1, "trawler/full", 0, -2)

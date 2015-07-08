@@ -42,9 +42,10 @@ typedef int8_t bool8;
 #define TILE_FLIP_Y_FLAG (1 << 29)
 #define TILE_INDEX_MASK (0xFFFFFFFF ^ (TILE_FLIP_X_FLAG | TILE_FLIP_Y_FLAG))
 
-#define TEXTURE_DATA_COUNT 500
-#define ANIM_NODE_DATA_COUNT 20
-#define CHARACTER_ANIM_DATA_COUNT 10
+#define MAX_GLOWING_TEXTURES 20
+#define MAX_TEXTURES 500
+#define MAX_ANIM_NODES 20
+#define MAX_CHARACTER_ANIMS 10
 
 enum EntityType {
 	EntityType_background,

@@ -1,4 +1,7 @@
-
+struct GlowingTexture {
+	Texture* regular;
+	Texture* glowing;
+};
 
 struct Animation {
 	s32 numFrames;

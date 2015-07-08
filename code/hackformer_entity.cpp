@@ -1115,25 +1115,27 @@ Entity* addVirus(GameState* gameState, V2 p) {
 }
 
 Entity* addEndPortal(GameState* gameState, V2 p) {
-	Entity* result = addEntity(gameState, EntityType_endPortal, DrawOrder_endPortal, p, v2(1, 2));
-
-	// giveEntityRectangularCollisionBounds(result, gameState, 0, 0,
-	// 									 result->renderSize.x * 0.4f, result->renderSize.y * 0.95f);
+	Entity* result = addEntity(gameState, EntityType_endPortal, DrawOrder_endPortal, p, v2(2, 2));
 
 	double hitboxWidth = result->renderSize.x;
 	double hitboxHeight = result->renderSize.y;
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);
-	hitbox->collisionPointsCount = 7;
-	hitbox->originalCollisionPoints[0] = v2(-0.625000 * halfHitboxWidth, -0.950521 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[1] = v2(0.564236 * halfHitboxWidth, -0.963542 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[2] = v2(0.407986 * halfHitboxWidth, -0.789931 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[3] = v2(0.451389 * halfHitboxWidth, 0.577257 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[4] = v2(0.017361 * halfHitboxWidth, 0.807292 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[5] = v2(-0.460069 * halfHitboxWidth, 0.611979 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[6] = v2(-0.442708 * halfHitboxWidth, -0.759549 * halfHitboxHeight);
+	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	hitbox->collisionPointsCount = 12;
+	hitbox->originalCollisionPoints[0] = v2(-0.464410 * halfHitboxWidth, -0.937500 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[1] = v2(0.442708 * halfHitboxWidth, -0.937500 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[2] = v2(0.616319 * halfHitboxWidth, -0.694444 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[3] = v2(0.438368 * halfHitboxWidth, -0.394965 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[4] = v2(0.598958 * halfHitboxWidth, -0.073785 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[5] = v2(0.533854 * halfHitboxWidth, 0.282118 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[6] = v2(0.251736 * halfHitboxWidth, 0.538194 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[7] = v2(-0.130208 * halfHitboxWidth, 0.577257 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[8] = v2(-0.442708 * halfHitboxWidth, 0.394965 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[9] = v2(-0.603299 * halfHitboxWidth, -0.034722 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[10] = v2(-0.434028 * halfHitboxWidth, -0.399306 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[11] = v2(-0.594618 * halfHitboxWidth, -0.677083 * halfHitboxHeight);
 
 
 	result->defaultTex = gameState->endPortal;
@@ -1240,7 +1242,7 @@ void initTile(Entity* tile, GameState* gameState, s32 tileIndex, bool32 flipX, b
 		setFlags(tile, EntityFlag_flipY);
 	}
 
-	tile->defaultTex = gameState->tileAtlas[tileIndex];
+	tile->glowingTex = gameState->tileAtlas + tileIndex;
 
 	TileData* data = globalTileData + tileIndex;
 
@@ -1280,8 +1282,6 @@ Entity* addTile(GameState* gameState, V2 p, s32 tileIndex, bool32 flipX, bool32 
 	initTile(result, gameState, tileIndex, flipX, flipY);
 
 	setFlags(result, EntityFlag_noMovementByDefault|EntityFlag_removeWhenOutsideLevel);
-
-
 	return result;
 }
 
@@ -4495,10 +4495,26 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 					bool flipY = isSet(entity, EntityFlag_flipY) != 0;
 
+					if(!(entity->type == EntityType_tile && isSet(entity, EntityFlag_isCornerTile))) 
 					pushEntityTexture(gameState->renderGroup, texture, entity, drawLeft, flipY, drawOrder);
 					entity->alpha = alpha;
 				}
 			}
+		}
+
+		if(entity->glowingTex) {
+			bool drawLeft = isSet(entity, EntityFlag_facesLeft) != 0;
+			bool flipY = isSet(entity, EntityFlag_flipY) != 0;
+			DrawOrder drawOrder = entity->drawOrder;
+
+			float emissivity = entity->emissivity;
+
+			entity->emissivity = 0;
+			pushEntityTexture(gameState->renderGroup, entity->glowingTex->regular, entity, drawLeft, flipY, drawOrder);
+			entity->emissivity = 0.25;
+			pushEntityTexture(gameState->renderGroup, entity->glowingTex->glowing, entity, drawLeft, flipY, drawOrder);
+
+			entity->emissivity = emissivity;
 		}
 
 		if(entity->type == EntityType_motherShip) {
