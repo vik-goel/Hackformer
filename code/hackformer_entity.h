@@ -16,6 +16,7 @@ enum EntityFlag {
 	EntityFlag_wasSolid = 1 << 12, //Used by pickup fields
 	EntityFlag_cloaked = 1 << 13,
 	EntityFlag_togglingCloak = 1 << 14,
+	EntityFlag_flipY = 1 << 15,
 };
 
 struct RefNode {
@@ -32,7 +33,9 @@ struct Hitbox {
 	s32 collisionPointsCount;
 	V2 originalCollisionPoints[MAX_COLLISION_POINTS]; //Narrow phase
 
-	bool32 storedFlipped;
+	//TODO: These could be flags
+	bool32 storedFlippedX;
+	
 	double storedRotation;
 	V2 rotatedCollisionPoints[MAX_COLLISION_POINTS];
 

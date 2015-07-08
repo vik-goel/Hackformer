@@ -35,8 +35,12 @@ typedef int8_t bool8;
 
 #define TEMP_PIXELS_PER_METER 70.0f
 #define TILE_WIDTH_IN_METERS 0.9f
-#define TILE_HEIGHT_IN_METERS 1.035f
-#define TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS ((TILE_HEIGHT_IN_METERS) * (116.0 / 138.0))
+#define TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS TILE_WIDTH_IN_METERS
+#define TILE_HEIGHT_IN_METERS (TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS * (144.0 / 128.0))
+
+#define TILE_FLIP_X_FLAG (1 << 28)
+#define TILE_FLIP_Y_FLAG (1 << 29)
+#define TILE_INDEX_MASK (0xFFFFFFFF ^ (TILE_FLIP_X_FLAG | TILE_FLIP_Y_FLAG))
 
 #define TEXTURE_DATA_COUNT 500
 #define ANIM_NODE_DATA_COUNT 20
@@ -102,22 +106,32 @@ enum DrawOrder {
 };
 
 enum TileType {
-	Tile_basic1,
-	Tile_basic2,
-	Tile_basic3, 
-	Tile_delay,
 	Tile_disappear,
 	Tile_heavy,
+	Tile_corner,
+	Tile_middle,
+	Tile_top,
 };
 
-static char* globalTileFileNames[] = {
-	"basic_1",
-	"basic_2",
-	"basic_3",
-	"delay",
-	"disappear",
-	"heavy",
+struct TileData {
+	TileType type;
+	char* fileName;
+	bool32 tall;
 };
+
+
+#define TILE(type, filename, tall) {Tile_##type, filename, tall},
+
+static TileData globalTileData[] {
+	TILE(disappear, "disappear", false)
+	TILE(heavy, "heavy", false)
+	TILE(corner, "corner_1", true)
+	TILE(middle, "middle_1", false)
+	TILE(top, "top_1", true)
+	TILE(top, "top_2", true)
+};
+
+#undef TILE
 
 struct MemoryArena {
 	void* base;
@@ -170,7 +184,7 @@ struct Input {
 
 	union {
 		//NOTE: The number of keys in the array must always be equal to the number of keys in the struct below
-		Key keys[26];
+		Key keys[31];
 
 		//TODO: The members of this struct may not be packed such that they align perfectly with the array of keys
 		struct {
@@ -184,6 +198,11 @@ struct Input {
 			Key n;
 			Key m;
 			Key z;
+			Key f;
+			Key g;
+			Key h;
+			Key j;
+			Key k;
 			Key ctrl;
 			Key shift;
 			Key esc;
@@ -237,6 +256,11 @@ void initInputKeyCodes(Input* input) {
 	input->n.keyCode1 = SDLK_n;
 	input->m.keyCode1 = SDLK_m;
 	input->c.keyCode1 = SDLK_c;
+	input->f.keyCode1 = SDLK_f;
+	input->g.keyCode1 = SDLK_g;
+	input->h.keyCode1 = SDLK_h;
+	input->j.keyCode1 = SDLK_j;
+	input->k.keyCode1 = SDLK_k;
 
 	input->esc.keyCode1 = SDLK_ESCAPE;
 
@@ -663,7 +687,7 @@ Color createColor(u8 r, u8 g, u8 b, u8 a) {
 	return result;
 }
 
-void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, DrawOrder drawOrder, bool moveIntoCameraSpace = false,
+void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, bool flipY, DrawOrder drawOrder, bool moveIntoCameraSpace = false,
 	 		Orientation orientation = Orientation_0, Color color = WHITE, float emissivity = 0);
 
 void drawBackgroundTexture(BackgroundTexture* backgroundTexture, RenderGroup* group, Camera* camera, V2 windowSize, double mapWidth) {
@@ -686,6 +710,6 @@ void drawBackgroundTexture(BackgroundTexture* backgroundTexture, RenderGroup* gr
 	R2 bgBounds = r2(v2(bgX, 0), v2(bgWidth, bgHeight));
 	R2 mgBounds = r2(v2(0, 0), v2(mgWidth, bgHeight));
 
-	pushTexture(group, bg, translateRect(bgBounds, -camera->p), false, DrawOrder_background);
-	pushTexture(group, mg, translateRect(mgBounds, -camera->p), false, DrawOrder_middleground);
+	pushTexture(group, bg, translateRect(bgBounds, -camera->p), false, false, DrawOrder_background);
+	pushTexture(group, mg, translateRect(mgBounds, -camera->p), false, false, DrawOrder_middleground);
 }

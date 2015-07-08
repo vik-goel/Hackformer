@@ -37,18 +37,17 @@ void moveCamera(Input* input, Camera* camera, V2 gameWindowSize) {
 s32 loadTileAtlas(RenderGroup* group, Texture* textureData, s32* textureDataCount) {
 	Texture* tileAtlas = textureData + *textureDataCount;
 
-	for(s32 tileIndex = 0; tileIndex < arrayCount(globalTileFileNames); tileIndex++) {
-		char* fileName = globalTileFileNames[tileIndex];
+	for(s32 tileIndex = 0; tileIndex < arrayCount(globalTileData); tileIndex++) {
+		TileData* data = globalTileData + tileIndex;
 
 		char fileNameWithPrefix[150];
-		sprintf(fileNameWithPrefix, "tiles/%s", fileName);
+		sprintf(fileNameWithPrefix, "tiles/%s", data->fileName);
 
 		loadPNGTexture(group, fileNameWithPrefix, false);
 	}
 
-	*textureDataCount += arrayCount(globalTileFileNames);
 
-	return arrayCount(globalTileFileNames);
+	return arrayCount(globalTileData);
 }
 
 bool clickedInside(Input* input, R2 rect) {
@@ -76,21 +75,28 @@ void drawScaledLine(RenderGroup* group, Color lineColor, V2 lineStart, V2 lineEn
 	pushDashedLine(group, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, true);
 }
 
-void drawScaledTex(RenderGroup* group, Texture* tex, Camera* camera, V2 center, V2 size) {
+void drawScaledTex(RenderGroup* group, Texture* tex, Camera* camera, V2 center, V2 size, bool32 flipX, bool32 flipY) {
 	center = (center - camera->scaleCenter) * camera->scale + camera->scaleCenter;
 
 	R2 bounds = rectCenterDiameter(center, size);
-	pushTexture(group, tex, bounds, false, DrawOrder_gui, true);
+	pushTexture(group, tex, bounds, flipX != 0, flipY != 0, DrawOrder_gui, true);
 }
 
-void setTile(s32* tiles, s32 mapWidthInTiles, s32 mapHeightInTiles, Camera* camera, Input* input, V2 gridSize, s32 value) {
+void setTile(TileSpec* tiles, s32 mapWidthInTiles, s32 mapHeightInTiles, Camera* camera, Input* input, V2 gridSize, TileSpec* value) {
 	V2 mousePos = unprojectP(camera, input->mouseInWorld);
 
 	s32 tileX = (s32)(mousePos.x / gridSize.x);
 	s32 tileY = (s32)(mousePos.y / gridSize.y);
 
 	if(tileX >= 0 && tileY >= 0 && tileX < mapWidthInTiles && tileY < mapHeightInTiles) {
-		tiles[tileY * mapWidthInTiles + tileX] = value;
+		TileSpec* spec = tiles + (tileY * mapWidthInTiles + tileX);
+
+		if(value) {
+			*spec = *value;
+		} else {
+			spec->index = -1;
+			spec->flipX = spec->flipY = false;
+		}
 	}
 }
 
@@ -142,7 +148,8 @@ int main(int argc, char* argv[]) {
 	double dashSize = 0.1;
 	double spaceSize = 0.05;
 
-	V2 tileSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_IN_METERS);
+	V2 shortTileSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS);
+	V2 tallTileSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_IN_METERS);
 	V2 gridSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS);
 
 	double metersPerPixel = 1.0 / renderGroup->pixelsPerMeter;
@@ -151,7 +158,7 @@ int main(int argc, char* argv[]) {
 	R2 gameBounds = r2(v2(0, 0), gameWindowSize);
 	R2 panelBounds = r2(v2(gameBounds.max.x, 0), panelWindowMax);
 
-	s32 selectedTileIndex = -1;
+	TileSpec* selectedTileSpec = NULL;
 
 	CursorMode cursorMode = CursorMode_moveEntity;
 
@@ -189,7 +196,7 @@ int main(int argc, char* argv[]) {
 
 	s32 mapWidthInTiles = 0;
 	s32 mapHeightInTiles = 0;
-	s32* tiles = NULL;
+	TileSpec* tiles = NULL;
 
 	if(file) {
 		mapWidthInTiles = readS32(file);
@@ -197,11 +204,24 @@ int main(int argc, char* argv[]) {
 
 		setBackgroundTexture(&backgroundTextures, (BackgroundType)readS32(file), renderGroup);
 
-		tiles = pushArray(&arena, s32, mapHeightInTiles * mapWidthInTiles);
+		tiles = pushArray(&arena, TileSpec, mapHeightInTiles * mapWidthInTiles);
 
 		for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
 			for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
-				tiles[tileY * mapWidthInTiles + tileX] = readS32(file);
+				TileSpec* spec = tiles + (tileY * mapWidthInTiles + tileX);
+
+				s32 tile = readS32(file);
+
+				if(tile == -1) {
+					spec->index = -1;
+					spec->flipX = spec->flipY = false;
+					spec->tall = false;
+				} else {
+					spec->index = tile & TILE_INDEX_MASK;
+					spec->flipX = tile & TILE_FLIP_X_FLAG;
+					spec->flipY = tile & TILE_FLIP_Y_FLAG;
+					spec->tall = globalTileData[spec->index].tall;
+				}
 			}
 		}
 
@@ -252,11 +272,14 @@ int main(int argc, char* argv[]) {
 
 		setBackgroundTexture(&backgroundTextures, Background_marine, renderGroup);
 
-		tiles = pushArray(&arena, s32, mapHeightInTiles * mapWidthInTiles);
+		tiles = pushArray(&arena, TileSpec, mapHeightInTiles * mapWidthInTiles);
 
 		for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
 			for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
-				tiles[tileY * mapWidthInTiles + tileX] = -1;
+				TileSpec* spec = tiles + (tileY * mapWidthInTiles + tileX);
+				spec->index = -1;
+				spec->flipX = spec->flipY = false;
+				spec->tall = false;
 			}
 		}
 	}
@@ -279,7 +302,7 @@ int main(int argc, char* argv[]) {
 
 		if(camera.scale == 1) {
 			BackgroundTexture* backgroundTexture = getBackgroundTexture(&backgroundTextures);
-			drawBackgroundTexture(backgroundTexture, renderGroup, &camera, gameWindowSize, mapWidthInTiles * tileSize.x);
+			drawBackgroundTexture(backgroundTexture, renderGroup, &camera, gameWindowSize, mapWidthInTiles * TILE_WIDTH_IN_METERS);
 		}
 
 		if(gridVisible) {
@@ -320,15 +343,40 @@ int main(int argc, char* argv[]) {
 			}
 		}
 
+		if(selectedTileSpec) {
+			if(input.g.justPressed) {
+				selectedTileSpec->flipX = !selectedTileSpec->flipX;
+			}
+
+			if(input.h.justPressed) {
+				selectedTileSpec->flipY = !selectedTileSpec->flipY;
+			}
+		}
+
 
 		for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
 			for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
-				s32 tileIndex = tiles[tileY * mapWidthInTiles + tileX];
+				TileSpec* spec = tiles + (tileY * mapWidthInTiles + tileX);
 
-				if(tileIndex >= 0) {
-					Texture* tex = tileAtlas + tileIndex;
-					V2 tileCenter = hadamard(v2(tileX, tileY), gridSize) + tileSize * 0.5;
-					drawScaledTex(renderGroup, tex, &camera, tileCenter, tileSize);					
+				if(spec->index >= 0) {
+					Texture* tex = tileAtlas + spec->index;
+
+					V2 tileSize;
+
+					if(spec->tall) {
+						tileSize = tallTileSize;
+					} else {
+						tileSize = shortTileSize;
+					}
+
+					V2 tileOffset = v2(0, 0);
+
+					if(spec->tall && spec->flipY) {
+						tileOffset.y = (TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS - TILE_HEIGHT_IN_METERS);
+					}
+
+					V2 tileCenter = hadamard(v2(tileX, tileY), gridSize) + tileSize * 0.5 + tileOffset;
+					drawScaledTex(renderGroup, tex, &camera, tileCenter, tileSize, spec->flipX, spec->flipY);					
 				}
 			}
 		}
@@ -344,7 +392,7 @@ int main(int argc, char* argv[]) {
 
 			}
 
-			drawScaledTex(renderGroup, entity->tex, &camera, entityCenter, unscaledSize);	
+			drawScaledTex(renderGroup, entity->tex, &camera, entityCenter, unscaledSize, entity->flipX, entity->flipY);	
 		}
 
 		//NOTE: Draw the panel
@@ -354,7 +402,7 @@ int main(int argc, char* argv[]) {
 		pushFilledRect(renderGroup, renderGroup->windowBounds, createColor(255, 255, 255, 255));
 
 		if(clickedInside(&input, panelBounds)) {
-			selectedTileIndex = -1;
+			selectedTileSpec = NULL;
 			cursorMode = CursorMode_moveEntity;
 		}
 
@@ -363,18 +411,32 @@ int main(int argc, char* argv[]) {
 		for(s32 tileIndex = 0; tileIndex < tileAtlasCount; tileIndex++) {
 			V2 tileSpacing = v2(0.1, 0.1);
 
+			TileData* data = globalTileData + tileIndex;
+
+			V2 tileSize;
+
+			if(data->tall) {
+				tileSize = tallTileSize;
+			} else {
+				tileSize = shortTileSize;
+			}
+
 			V2 tileMin = tileSpacing + panelBounds.min + hadamard(tileSpacing + tileSize, v2(tileIndex % 3, tileIndex / 3));
 			R2 tileBounds = r2(tileMin, tileMin + tileSize);
 			maxTileY = tileBounds.max.y;
 
 			if(clickedInside(&input, tileBounds)) {
-				selectedTileIndex = tileIndex;
+				selectedTileSpec = pushStruct(&arena, TileSpec);
+				selectedTileSpec->index = tileIndex;
+				selectedTileSpec->flipX = false;
+				selectedTileSpec->flipY = false;
+				selectedTileSpec->tall = data->tall;
 				cursorMode = CursorMode_stampTile;
 			}
 
 			Texture* tex = tileAtlas + tileIndex;
 
-			pushTexture(renderGroup, tex, tileBounds, false, DrawOrder_gui);
+			pushTexture(renderGroup, tex, tileBounds, false, false, DrawOrder_gui);
 		}
 
 		s32 numEntitiesPerRow = 2;
@@ -405,7 +467,7 @@ int main(int argc, char* argv[]) {
 
 				Texture* tex = entityTextureAtlas + specIndex;
 
-				pushTexture(renderGroup, tex, specBounds, false, DrawOrder_gui);
+				pushTexture(renderGroup, tex, specBounds, false, false, DrawOrder_gui);
 			}
 
 			maxTileY = maxY;
@@ -419,16 +481,25 @@ int main(int argc, char* argv[]) {
 		bool mouseInGame = pointInsideRect(gameBounds, input.mouseInMeters);
 
 		if(cursorMode == CursorMode_stampTile) {
-			if(selectedTileIndex >= 0) {
+			if(selectedTileSpec) {
+				V2 tileSize;
+
+				if(selectedTileSpec->tall) {
+					tileSize = tallTileSize;
+				} else {
+					tileSize = shortTileSize;
+				}
+
 				R2 tileBounds = rectCenterDiameter(input.mouseInMeters, tileSize);
 
 				if(input.leftMouse.pressed && mouseInGame) {
-					setTile((s32*)tiles, mapWidthInTiles, mapHeightInTiles, &camera, &input, gridSize, selectedTileIndex);
+					setTile(tiles, mapWidthInTiles, mapHeightInTiles, &camera, &input, gridSize, selectedTileSpec);
 				}
 
 
-				Texture* tex = tileAtlas + selectedTileIndex;
-				pushTexture(renderGroup, tex, tileBounds, false, DrawOrder_gui);
+				Texture* tex = tileAtlas + selectedTileSpec->index;
+
+				pushTexture(renderGroup, tex, tileBounds, selectedTileSpec->flipX != 0, selectedTileSpec->flipY != 0, DrawOrder_gui);
 			}
 		}
 		else if(cursorMode == CursorMode_stampEntity) {
@@ -453,7 +524,7 @@ int main(int argc, char* argv[]) {
 					}
 				}
 				
-				pushTexture(renderGroup, tex, entityBounds, false, DrawOrder_gui);
+				pushTexture(renderGroup, tex, entityBounds, false, false, DrawOrder_gui);
 			}
 		} else if(cursorMode == CursorMode_editWaypoints) {
 			if(movingEntity) {
@@ -570,7 +641,7 @@ int main(int argc, char* argv[]) {
 				clickedEntity = NULL;
 				clickedEntityIndex = -1;
 			} else {
-				setTile((s32*)tiles, mapWidthInTiles, mapHeightInTiles, &camera, &input, gridSize, -1);
+				setTile(tiles, mapWidthInTiles, mapHeightInTiles, &camera, &input, gridSize, NULL);
 			}
 		}
 
@@ -631,7 +702,15 @@ int main(int argc, char* argv[]) {
 
 			for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
 				for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
-					writeS32(file, tiles[tileY * mapWidthInTiles + tileX]);
+					TileSpec* spec = tiles + (tileY * mapWidthInTiles + tileX);
+					s32 tile = spec->index;
+
+					if(spec->flipX) {
+						tile |= TILE_FLIP_X_FLAG;
+					}
+					if(spec->flipY) tile |= TILE_FLIP_Y_FLAG;
+
+					writeS32(file, tile);
 				}
 			}
 

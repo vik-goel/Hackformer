@@ -609,7 +609,7 @@ void setAmbient(RenderGroup* group, GLfloat ambient) {
 	glUniform3f(group->forwardShader.ambientUniform, ambient, ambient, ambient);
 }
 
-void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Orientation orientation, float emissivity, 
+void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, bool flipY, Orientation orientation, float emissivity, 
 				GLfloat ambient, Color color) {
 	if(emissivity) {
 		setAmbient(group, ambient + (1 - ambient) * emissivity);
@@ -624,6 +624,10 @@ void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Or
 
 	if (!flipX) {
 		swap(uvMin.x, uvMax.x);
+	}
+
+	if(flipY) {
+		swap(uvMin.y, uvMax.y);
 	}
 
 	glBegin(GL_QUADS);
@@ -645,7 +649,7 @@ void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Or
 	}
 }
 
-void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, double rot, Color color, bool flipX, float emissivity,
+void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, double rot, Color color, bool flipX, bool flipY, float emissivity,
 				 GLfloat ambient) {
 	if(emissivity) {
 		setAmbient(group, ambient + (1 - ambient) * emissivity);
@@ -659,6 +663,10 @@ void drawTexture(RenderGroup* group, Texture* texture, R2 bounds, double rot, Co
 
 	if (!flipX) {
 		swap(uvMin.x, uvMax.x);
+	}
+
+	if(flipY) {
+		swap(uvMin.y, uvMax.y);
 	}
 
 	V2 center = getRectCenter(bounds);
@@ -729,7 +737,7 @@ void drawText(RenderGroup* group, CachedFont* cachedFont, char* msg, V2 p, Color
 		V2 size = texture->size * invScaleFactor;
 		R2 bounds = r2(p, p + size);
 
-		drawTexture(group, texture, bounds, false, Orientation_0, 0, 1, color);
+		drawTexture(group, texture, bounds, false, false, Orientation_0, 0, 1, color);
 
 		p.x += size.x;
 		msg++;
@@ -907,7 +915,7 @@ void pushSortEnd(RenderGroup* group) {
 	group->sortAddressCutoff = group->allocated;
 }
 
-RenderTexture createRenderTexture(DrawOrder drawOrder, Texture* texture, bool flipX, 
+RenderTexture createRenderTexture(DrawOrder drawOrder, Texture* texture, bool flipX, bool flipY,
 								Orientation orientation, float emissivity, Color color) {
 	RenderTexture result = {};
 
@@ -916,6 +924,7 @@ RenderTexture createRenderTexture(DrawOrder drawOrder, Texture* texture, bool fl
 	result.drawOrder = drawOrder;
 	result.texture = texture;
 	result.flipX = flipX;
+	result.flipY = flipY;
 	result.orientation = orientation;
 	result.emissivity = emissivity;
 	result.color = color;
@@ -964,8 +973,8 @@ void pushFilledStencil(RenderGroup* group, Texture* stencil, R2 bounds, double w
 	}
 }
 
-void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, double rotation, bool flipX = false, DrawOrder drawOrder = DrawOrder_gui, 
-				 bool moveIntoCameraSpace = false, Color color = WHITE, float emissivity = 0) {
+void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, double rotation, bool flipX = false, bool flipY = false, 
+	DrawOrder drawOrder = DrawOrder_gui, bool moveIntoCameraSpace = false, Color color = WHITE, float emissivity = 0) {
 
 	assert(validTexture(texture));
 
@@ -985,16 +994,16 @@ void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, double rotatio
 	if(rectanglesOverlap(group->windowBounds, clipBounds)) {
 		if(group->rendering) {
 			if(rotation) {
-				drawTexture(group, texture, drawBounds, rotation, color, flipX, emissivity, group->ambient);
+				drawTexture(group, texture, drawBounds, rotation, color, flipX, flipY, emissivity, group->ambient);
 			} else {
-				drawTexture(group, texture, drawBounds, flipX, Orientation_0, emissivity, group->ambient, color);
+				drawTexture(group, texture, drawBounds, flipX, flipY, Orientation_0, emissivity, group->ambient, color);
 			}
 		} else {
 			if(rotation) {
 				RenderRotatedTexture* render = pushRenderElement(group, RenderRotatedTexture);
 
 				if (render) {
-					render->tex = createRenderTexture(drawOrder, texture, flipX, Orientation_0, emissivity, color);
+					render->tex = createRenderTexture(drawOrder, texture, flipX, flipY, Orientation_0, emissivity, color);
 					render->bounds = drawBounds;
 					render->rad = rotation;
 				}
@@ -1002,7 +1011,7 @@ void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, double rotatio
 				RenderBoundedTexture* render = pushRenderElement(group, RenderBoundedTexture);
 
 				if (render) {
-					render->tex = createRenderTexture(drawOrder, texture, flipX, Orientation_0, emissivity, color);
+					render->tex = createRenderTexture(drawOrder, texture, flipX, flipY, Orientation_0, emissivity, color);
 					render->bounds = drawBounds;
 				}
 			}
@@ -1010,7 +1019,7 @@ void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, double rotatio
 	}
 }
 
-void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, DrawOrder drawOrder, bool moveIntoCameraSpace,
+void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, bool flipY, DrawOrder drawOrder, bool moveIntoCameraSpace,
 	 		     Orientation orientation, Color color, float emissivity) {
 
 	assert(validTexture(texture));
@@ -1020,12 +1029,12 @@ void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, Dr
 
 	if(rectanglesOverlap(group->windowBounds, drawBounds)) {
 		if(group->rendering) {
-			drawTexture(group, texture, drawBounds, flipX, orientation, emissivity, group->ambient, color);
+			drawTexture(group, texture, drawBounds, flipX, flipY, orientation, emissivity, group->ambient, color);
 		} else {
 			RenderBoundedTexture* render = pushRenderElement(group, RenderBoundedTexture);
 
 			if (render) {
-				render->tex = createRenderTexture(drawOrder, texture, flipX, orientation, emissivity, color);
+				render->tex = createRenderTexture(drawOrder, texture, flipX, flipY, orientation, emissivity, color);
 				render->bounds = drawBounds;
 			}
 		}
@@ -1064,7 +1073,7 @@ void pushDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd, d
 }
 
 #ifdef HACKFORMER_GAME
-void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, bool flipX, DrawOrder drawOrder,
+void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, bool flipX, bool flipY, DrawOrder drawOrder,
 					Orientation orientation = Orientation_0, Color color = WHITE) {
 	assert(texture);
 
@@ -1087,15 +1096,15 @@ void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, boo
 	if(rectanglesOverlap(group->windowBounds, clipBounds)) {
 		if(group->rendering) {
 			if(rotation) {
-				drawTexture(group, texture, drawBounds, rotation, color, flipX, entity->emissivity, group->ambient);
+				drawTexture(group, texture, drawBounds, rotation, color, flipX, flipY, entity->emissivity, group->ambient);
 			} else {
-				drawTexture(group, texture, drawBounds, flipX, orientation, entity->emissivity, group->ambient, color);
+				drawTexture(group, texture, drawBounds, flipX, flipY, orientation, entity->emissivity, group->ambient, color);
 			}
 		} else {
 			RenderEntityTexture* render = pushRenderElement(group, RenderEntityTexture);
 
 			if (render) {
-				render->tex = createRenderTexture(drawOrder, texture, flipX, orientation, entity->emissivity, color);
+				render->tex = createRenderTexture(drawOrder, texture, flipX, flipY, orientation, entity->emissivity, color);
 				render->p = &entity->p;
 				render->renderSize = &entity->renderSize;
 				render->rotation = rotation;
@@ -1272,8 +1281,8 @@ size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, G
 	switch(getRenderHeaderType(header)) {
 
 		START_CASE(RenderBoundedTexture);
-			drawTexture(group, render->tex.texture, render->bounds, render->tex.flipX != 0, render->tex.orientation, 
-						render->tex.emissivity, ambient, render->tex.color);
+			drawTexture(group, render->tex.texture, render->bounds, render->tex.flipX != 0, render->tex.flipY != 0, 
+						render->tex.orientation, render->tex.emissivity, ambient, render->tex.color);
 		END_CASE;
 
 		START_CASE(RenderEntityTexture);
@@ -1281,10 +1290,10 @@ size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, G
 
 			if(render->rotation) {
 				drawTexture(group, render->tex.texture, bounds, render->rotation, render->tex.color, render->tex.flipX != 0, 
-							render->tex.emissivity, group->ambient);
+							render->tex.flipY != 0, render->tex.emissivity, group->ambient);
 			} else {
-				drawTexture(group, render->tex.texture, bounds, render->tex.flipX != 0, render->tex.orientation,
-						 render->tex.emissivity, ambient, render->tex.color);
+				drawTexture(group, render->tex.texture, bounds, render->tex.flipX != 0, render->tex.flipY != 0,
+							render->tex.orientation, render->tex.emissivity, ambient, render->tex.color);
 			}
 		END_CASE;
 
@@ -1311,7 +1320,8 @@ size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, G
 		END_CASE;
 
 		START_CASE(RenderRotatedTexture);
-			drawTexture(group, render->tex.texture, render->bounds, render->rad, render->tex.color, render->tex.flipX != 0, render->tex.emissivity, group->ambient);
+			drawTexture(group, render->tex.texture, render->bounds, render->rad, render->tex.color,
+					    render->tex.flipX != 0, false, render->tex.emissivity, group->ambient);
 		END_CASE;
 
 		START_CASE(RenderFilledStencil);

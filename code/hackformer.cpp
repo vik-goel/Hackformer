@@ -53,22 +53,32 @@ void loadHackMap(GameState* gameState, char* fileName) {
 
 	for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
 		for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
-			s32 tileIndex = readS32(file);
+			s32 tile = readS32(file);
 
-			if(tileIndex >= 0) {
-				V2 tileP = hadamard(v2(tileX + 0.5, tileY + 0.5), tileSize);
+			if(tile >= 0) {
+				s32 tileIndex = tile & TILE_INDEX_MASK;
+				bool32 flipX = tile & TILE_FLIP_X_FLAG;
+				bool32 flipY = tile & TILE_FLIP_Y_FLAG;
+
+				V2 tileP = hadamard(v2(tileX, tileY), tileSize);
+
+				if(globalTileData[tileIndex].tall) {
+					tileP += 0.5 * v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_IN_METERS);
+				} else {
+					tileP += 0.5 * tileSize;
+				}
 
 				if(tileIndex == Tile_heavy) {
-					addHeavyTile(gameState, tileP + v2(0, 0.0001));
+					addHeavyTile(gameState, tileP + v2(0, 0.0001), flipX, flipY);
 				} 
 				else if(tileIndex == Tile_disappear) {
-					addDisappearingTile(gameState, tileP);
+					addDisappearingTile(gameState, tileP, flipX, flipY);
 				}
-				else if(tileIndex == Tile_delay) {
-					addDroppingTile(gameState, tileP);
-				} 
+				// else if(tileIndex == Tile_delay) {
+				// 	addDroppingTile(gameState, tileP);
+				// } 
 				else {
-					addTile(gameState, tileP, gameState->tileAtlas[tileIndex]);
+					addTile(gameState, tileP, tileIndex, flipX, flipY);
 				}
 			}
 		}
@@ -303,7 +313,7 @@ bool updateAndDrawButton(Button* button, RenderGroup* group, Input* input, doubl
 	if(!validTexture(tex)) tex = button->defaultTex;
 
 	assert(validTexture(tex));
-	pushTexture(group, tex, scaledRenderBounds, false, DrawOrder_gui);
+	pushTexture(group, tex, scaledRenderBounds, false, false, DrawOrder_gui);
 
 	return clicked;
 }
@@ -330,9 +340,9 @@ void drawAnimatedBackground(GameState* gameState, Texture* background, Animation
 	Color frame1Color = createColor(255, 255, 255, frame1Alpha);
 	Color frame2Color = createColor(255, 255, 255, frame2Alpha);
 
-	pushTexture(gameState->renderGroup, background, windowBounds, false, DrawOrder_gui, false);
-	pushTexture(gameState->renderGroup, frame1, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame1Color);
-	pushTexture(gameState->renderGroup, frame2, windowBounds, false, DrawOrder_gui, false, Orientation_0, frame2Color);
+	pushTexture(gameState->renderGroup, background, windowBounds, false, false, DrawOrder_gui, false);
+	pushTexture(gameState->renderGroup, frame1, windowBounds, false, false, DrawOrder_gui, false, Orientation_0, frame1Color);
+	pushTexture(gameState->renderGroup, frame2, windowBounds, false, false, DrawOrder_gui, false, Orientation_0, frame2Color);
 }
 
 void clearInput(Input* input) {
@@ -596,14 +606,12 @@ void loadImages(GameState* gameState) {
 	trawler->shoot = loadAnimation(renderGroup, "trawler/shoot", 128, 128, 0.04f, true);
 	trawler->bootUp = loadAnimation(renderGroup, "trawler/boot_up", 128, 128, 0.1f, false);
 
-	gameState->tileAtlasCount = arrayCount(globalTileFileNames);
+	gameState->tileAtlasCount = arrayCount(globalTileData);
 	gameState->tileAtlas = pushArray(&gameState->permanentStorage, Texture*, gameState->tileAtlasCount);
 
 	for(s32 tileIndex = 0; tileIndex < gameState->tileAtlasCount; tileIndex++) {
 		char fileName[2000];
-		sprintf(fileName, "tiles/%s", globalTileFileNames[tileIndex]);
-
-		//TODO: No need to put these textures in the textures array
+		sprintf(fileName, "tiles/%s", globalTileData[tileIndex].fileName);
 		gameState->tileAtlas[tileIndex] = loadPNGTexture(gameState->renderGroup, fileName);
 	}
 }
@@ -761,7 +769,7 @@ int main(int argc, char* argv[]) {
 					cancelButtonClicked = true;
 				}
 
-				pushTexture(renderGroup, dock->subDockTex, subDockBounds, false, DrawOrder_gui, false);
+				pushTexture(renderGroup, dock->subDockTex, subDockBounds, false, false, DrawOrder_gui, false);
 
 				if (updateAndDrawButton(&dock->acceptButton, renderGroup, input, unpausedDtForFrame)) {
 					acceptButtonClicked = true;
@@ -779,7 +787,7 @@ int main(int argc, char* argv[]) {
 				pushDefaultClipRect(renderGroup);
 			}
 
-			pushTexture(renderGroup, dock->dockTex, dockBounds, false, DrawOrder_gui, false);
+			pushTexture(renderGroup, dock->dockTex, dockBounds, false, false, DrawOrder_gui, false);
 
 			s32 maxEnergy = 100;
 			if(gameState->fieldSpec.hackEnergy > maxEnergy) gameState->fieldSpec.hackEnergy = maxEnergy;
@@ -833,8 +841,8 @@ int main(int argc, char* argv[]) {
 			V2 timeP = gameState->timeField->p + v2(0.3, 0.36);
 			R2 timeBounds = rectCenterDiameter(timeP, topFieldSize);
 
-			pushTexture(renderGroup, dock->gravityTex, gravityBounds, false, DrawOrder_gui, false);
-			pushTexture(renderGroup, dock->timeTex, timeBounds, false, DrawOrder_gui, false);
+			pushTexture(renderGroup, dock->gravityTex, gravityBounds, false, false, DrawOrder_gui, false);
+			pushTexture(renderGroup, dock->timeTex, timeBounds, false, false, DrawOrder_gui, false);
 
 			Color barColor = createColor(191, 16, 16, 255);
 
@@ -847,11 +855,13 @@ int main(int argc, char* argv[]) {
 				V2 gravityBarP = gravityP + v2(-0.9, -0.3);
 				V2 gravityLeftCircleP = gravityBarP + v2(-0.02, 0.035);
 
-				pushTexture(renderGroup, dock->barCircleTex, rectCenterDiameter(gravityLeftCircleP, circleSize), false, DrawOrder_gui, false);
+				pushTexture(renderGroup, dock->barCircleTex, rectCenterDiameter(gravityLeftCircleP, circleSize), 
+							false, false, DrawOrder_gui, false);
 				
 				if(gravityBarLength == maxGravityBarLength) {
 					V2 gravityRightCircleP = gravityLeftCircleP + v2(gravityBarLength + 0.03, 0);
-					pushTexture(renderGroup, dock->barCircleTex, rectCenterDiameter(gravityRightCircleP, circleSize), false, DrawOrder_gui, false);
+					pushTexture(renderGroup, dock->barCircleTex, rectCenterDiameter(gravityRightCircleP, circleSize), 
+								false, false, DrawOrder_gui, false);
 				}
 
 				pushFilledRect(renderGroup, r2(gravityBarP, gravityBarP + gravityBarSize), barColor);
@@ -868,7 +878,8 @@ int main(int argc, char* argv[]) {
 
 				V2 timeCircleP = timeBarP - v2(0.015, -0.035);
 				circleSize *= 0.9;
-				pushTexture(renderGroup, dock->barCircleTex, rectCenterDiameter(timeCircleP, circleSize), false, DrawOrder_gui, false);
+				pushTexture(renderGroup, dock->barCircleTex, rectCenterDiameter(timeCircleP, circleSize), 
+							false, false, DrawOrder_gui, false);
 			}
 		#endif
 

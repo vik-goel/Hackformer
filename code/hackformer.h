@@ -77,7 +77,7 @@ struct Input;
 #include "hackformer_entity.h"
 #include "hackformer_save.h"
 
-#define SHOW_COLLISION_BOUNDS 0
+#define SHOW_COLLISION_BOUNDS 1
 #define SHOW_CLICK_BOUNDS 0
 #define DRAW_ENTITIES 1
 #define PLAY_MUSIC 0

@@ -13,6 +13,13 @@ struct EntitySpec {
 	V2 editorOffset;
 };
 
+struct TileSpec {
+	s32 index;
+	bool32 flipX;
+	bool32 flipY;
+	bool32 tall;
+};
+
 struct Waypoint {
 	V2 p;
 	Waypoint* next;
@@ -24,6 +31,8 @@ struct Entity {
 	R2 bounds;
 	Texture* tex;
 	Waypoint* waypoints;
+	bool32 flipX;
+	bool32 flipY;
 };
 
 enum CursorMode {

@@ -66,6 +66,7 @@ void setHitboxSize(Hitbox* hitbox, double width, double height) {
 V2 getHitboxCenter(Hitbox* hitbox, Entity* entity) {
 	V2 offset =  hitbox->collisionOffset;
 	if(isSet(entity, EntityFlag_facesLeft)) offset.x *= -1;
+	if(isSet(entity, EntityFlag_flipY)) offset.y *= -1;
 
 	V2 result = entity->p + offset;
 	return result;
@@ -121,9 +122,11 @@ void updateHitboxRotatedPoints(Hitbox* hitbox, Entity* entity) {
 		facesLeft = false;
 	}
 
+	bool32 flipY = isSet(entity, EntityFlag_flipY);
+
 	if(hitbox->storedRotation == INVALID_STORED_HITBOX_ROTATION || 
 	   hitbox->storedRotation != rotation ||
-	   hitbox->storedFlipped != facesLeft) {
+	   hitbox->storedFlippedX != facesLeft) {
 		double cosRot = cos(rotation);
 		double sinRot = sin(rotation);
 
@@ -131,13 +134,14 @@ void updateHitboxRotatedPoints(Hitbox* hitbox, Entity* entity) {
 			V2 original = hitbox->originalCollisionPoints[pIndex];
 
 			if(facesLeft) original.x *= -1;
+			if(flipY) original.y *= -1;
 
 			hitbox->rotatedCollisionPoints[pIndex] = v2(original.x * cosRot - original.y * sinRot, 
 														original.x * sinRot + original.y * cosRot);
 		}
 
 		hitbox->storedRotation = rotation;
-		hitbox->storedFlipped = facesLeft;
+		hitbox->storedFlippedX = facesLeft;
 	}
 }
 
@@ -1003,7 +1007,7 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);
+	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
 	hitbox->collisionPointsCount = 13;
 	hitbox->originalCollisionPoints[0] = v2(-0.221354 * halfHitboxWidth, -0.959201 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[1] = v2(0.256076 * halfHitboxWidth, -0.959201 * halfHitboxHeight);
@@ -1202,72 +1206,97 @@ Hitbox getTileHitboxWithoutOverhang() {
 	return result;
 }
 
-void initTile(Entity* tile, GameState* gameState, Texture* texture) {
-	tile->renderSize = gameState->tileSize;
-
-	double collisionHeight = tile->renderSize.y * 0.9;
-
-	giveEntityRectangularCollisionBounds(tile, gameState, 0, (collisionHeight - tile->renderSize.y) / 2, 
-										 tile->renderSize.x, collisionHeight);
-
-	tile->clickBox = rectCenterDiameter(v2(0, 0), tile->renderSize);
-
+void initTile(Entity* tile, GameState* gameState, s32 tileIndex, bool32 flipX, bool32 flipY) {
 	setFlags(tile, EntityFlag_hackable);
 
 	addField(tile, createUnlimitedIntField(gameState, "x_offset", 0, 1));
 	addField(tile, createUnlimitedIntField(gameState, "y_offset", 0, 1));
+
+	if(flipX) {
+		setFlags(tile, EntityFlag_facesLeft);
+	}
+
+	if(flipY) {
+		setFlags(tile, EntityFlag_flipY);
+	}
+
+	tile->defaultTex = gameState->tileAtlas[tileIndex];
+
+	TileData* data = globalTileData + tileIndex;
+
+	if(data->type == Tile_corner) {
+		tile->renderSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_IN_METERS);
+
+		double hitboxWidth = tile->renderSize.x;
+		double hitboxHeight = tile->renderSize.y;
+		double halfHitboxWidth = hitboxWidth * 0.5;
+		double halfHitboxHeight = hitboxHeight * 0.5;
+		Hitbox* hitbox = addHitbox(tile, gameState);
+		setHitboxSize(hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);
+		hitbox->collisionPointsCount = 5;
+		hitbox->originalCollisionPoints[0] = v2(-1.003689 * halfHitboxWidth, -0.993924 * halfHitboxHeight);
+		hitbox->originalCollisionPoints[1] = v2(0.998264 * halfHitboxWidth, -1.002604 * halfHitboxHeight);
+		hitbox->originalCollisionPoints[2] = v2(0.998264 * halfHitboxWidth, 1.002604 * halfHitboxHeight);
+		hitbox->originalCollisionPoints[3] = v2(0.954319 * halfHitboxWidth, 1.006944 * halfHitboxHeight);
+		hitbox->originalCollisionPoints[4] = v2(-1.008572 * halfHitboxWidth, -0.729167 * halfHitboxHeight);
+	}
+	else if(data->tall) {
+		tile->renderSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_IN_METERS);
+
+		giveEntityRectangularCollisionBounds(tile, gameState, 0, 0, 
+											 tile->renderSize.x,  tile->renderSize.y);
+	} else {
+		tile->renderSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS);
+
+		giveEntityRectangularCollisionBounds(tile, gameState, 0, 0, 
+											 tile->renderSize.x,  tile->renderSize.y);
+	}
+
+	tile->clickBox = rectCenterDiameter(v2(0, 0), tile->renderSize);
 }
 
-Entity* addTile(GameState* gameState, V2 p, Texture* texture) {
+Entity* addTile(GameState* gameState, V2 p, s32 tileIndex, bool32 flipX, bool32 flipY) {
 	Entity* result = addEntity(gameState, EntityType_tile, DrawOrder_tile, 
 								p, v2(0, 0));
-	initTile(result, gameState, texture);
+	initTile(result, gameState, tileIndex, flipX, flipY);
 
 	setFlags(result, EntityFlag_noMovementByDefault|EntityFlag_removeWhenOutsideLevel);
 
-	result->defaultTex = texture;
 
 	return result;
 }
 
-Entity* addHeavyTile(GameState* gameState, V2 p) {
+Entity* addHeavyTile(GameState* gameState, V2 p, bool32 flipX, bool32 flipY) {
 	Entity* result = addEntity(gameState, EntityType_heavyTile, DrawOrder_heavyTile, 
 								p, v2(0, 0));
 
-	Texture* texture = gameState->tileAtlas[Tile_heavy];
-
-	initTile(result, gameState, texture);
-	result->defaultTex = texture;
+	initTile(result, gameState, Tile_heavy, flipX, flipY);
 	addCrushesEntitiesField(result, gameState);
 
 	return result;
 }
 
-Entity* addDisappearingTile(GameState* gameState, V2 p) {
+Entity* addDisappearingTile(GameState* gameState, V2 p, bool32 flipX, bool32 flipY) {
 	Entity* result = addEntity(gameState, EntityType_disappearingTile, DrawOrder_disappearingTile, 
 								p, v2(0, 0));
 
-	Texture* texture = gameState->tileAtlas[Tile_disappear];
-
 	setFlags(result, EntityFlag_noMovementByDefault|EntityFlag_removeWhenOutsideLevel);
 
-	initTile(result, gameState, texture);
-	result->defaultTex = texture;
+	initTile(result, gameState, Tile_disappear, flipX, flipY);
 	addDisappearsField(result, gameState);
 
 	return result;
 }
 
-Entity* addDroppingTile(GameState* gameState, V2 p) {
+Entity* addDroppingTile(GameState* gameState, V2 p, bool32 flipX, bool32 flipY) {
+	InvalidCodePath;
+
 	Entity* result = addEntity(gameState, EntityType_droppingTile, DrawOrder_droppingTile, 
 								p, v2(0, 0));
 
-	Texture* texture = gameState->tileAtlas[Tile_delay];
-
 	setFlags(result, EntityFlag_noMovementByDefault|EntityFlag_removeWhenOutsideLevel);
 
-	initTile(result, gameState, texture);
-	result->defaultTex = texture;
+	initTile(result, gameState, Tile_middle, flipX, flipY);
 	addDroppingField(result, gameState);
 
 	return result;
@@ -2319,18 +2348,18 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 						if (collider && collider != entity && collidesWith(entity, collider, gameState)) {
 							bool solidCollision = isSolidCollision(entity, collider, gameState, actuallyMoving);
 
-							if (isTileType(collider) && isTileType(entity)) {
-								Hitbox tileHitbox1 = getTileHitboxWithoutOverhang();
-								Hitbox tileHitbox2 = getTileHitboxWithoutOverhang();
+							// if (isTileType(collider) && isTileType(entity)) {
+							// 	Hitbox tileHitbox1 = getTileHitboxWithoutOverhang();
+							// 	Hitbox tileHitbox2 = getTileHitboxWithoutOverhang();
 
-								R2 bounds1 = getBoundingBox(entity, &tileHitbox1);
-								R2 bounds2 = addRadiusTo(getBoundingBox(collider, &tileHitbox2), v2(abs(delta.x), abs(delta.y)));
+							// 	R2 bounds1 = getBoundingBox(entity, &tileHitbox1);
+							// 	R2 bounds2 = addRadiusTo(getBoundingBox(collider, &tileHitbox2), v2(abs(delta.x), abs(delta.y)));
 
-								if(rectanglesOverlap(bounds1, bounds2)) {
-									getPolygonCollisionTime(&tileHitbox1, &tileHitbox2, entity, collider, &result,
-																 delta, solidCollision);
-								}
-							} else {
+							// 	if(rectanglesOverlap(bounds1, bounds2)) {
+							// 		getPolygonCollisionTime(&tileHitbox1, &tileHitbox2, entity, collider, &result,
+							// 									 delta, solidCollision);
+							// 	}
+							// } else {
 								Hitbox* colliderHitboxList = collider->hitboxes;
 
 								while(colliderHitboxList) {
@@ -2357,7 +2386,7 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 									colliderHitboxList = colliderHitboxList->next;
 								}
 							}
-						}
+						//}
 					}
 					chunk = chunk->next;
 				}
@@ -2548,11 +2577,13 @@ bool moveTowardsTargetParabolic(Entity* entity, GameState* gameState, double dt,
 	V2 change = moveRaw(entity, gameState, movement);
 	//}
 
-	if(change.x < 0) {
-		setEntityFacingDirection(entity, true, gameState);
-	} 
-	else if (change.x > 0) {
-		setEntityFacingDirection(entity, false, gameState);
+	if(!isTileType(entity)) {
+		if(change.x < 0) {
+			setEntityFacingDirection(entity, true, gameState);
+		} 
+		else if (change.x > 0) {
+			setEntityFacingDirection(entity, false, gameState);
+		}
 	}
 
 	return entity->p == target;
@@ -2575,11 +2606,13 @@ bool moveTowardsWaypoint(Entity* entity, GameState* gameState, double dt, V2 tar
 			move(entity, dt, gameState, ddP);
 		}		
 
-		if(delta.x < 0) {
-			setEntityFacingDirection(entity, true, gameState);
-		} 
-		else if (delta.x > 0) {
-			setEntityFacingDirection(entity, false, gameState);
+		if(!isTileType(entity)) {
+			if(delta.x < 0) {
+				setEntityFacingDirection(entity, true, gameState);
+			} 
+			else if (delta.x > 0) {
+				setEntityFacingDirection(entity, false, gameState);
+			}
 		}
 
 		return false;
@@ -3929,8 +3962,10 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				//NOTE: entity->hitboxes->collisionOffset is the height of the laser entity
 				R2 topBounds = translateRect(baseBounds, entity->hitboxes->collisionOffset);
 
-				pushTexture(gameState->renderGroup, topTexture, topBounds, false, entity->drawOrder, true, Orientation_0, createColor(255, 255, 255, 255), entity->emissivity);
-				pushTexture(gameState->renderGroup, baseTexture, baseBounds, false, entity->drawOrder, true, Orientation_0, createColor(255, 255, 255, 255), entity->emissivity);
+				pushTexture(gameState->renderGroup, topTexture, topBounds, false, false, entity->drawOrder, 
+							true, Orientation_0, createColor(255, 255, 255, 255), entity->emissivity);
+				pushTexture(gameState->renderGroup, baseTexture, baseBounds, false, false, entity->drawOrder,
+							 true, Orientation_0, createColor(255, 255, 255, 255), entity->emissivity);
 
 				//pushFilledRect(gameState->renderGroup, topBounds, createColor(255, 0, 0, 100), true);
 				//pushFilledRect(gameState->renderGroup, baseBounds, createColor(255, 0, 0, 100), true);
@@ -3985,8 +4020,6 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 					entity->alpha = 0;
 					setFlags(entity, EntityFlag_remove);
 				}
-			} else {
-				//entity->alpha = min(1, entity->alpha + rate);
 			}
 		}
 
@@ -4275,7 +4308,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						entity->alpha = max(0, entity->alpha - entity->cloakFactor);
 					}
 
-					pushEntityTexture(gameState->renderGroup, texture, entity, drawLeft, drawOrder);
+					bool flipY = isSet(entity, EntityFlag_flipY) != 0;
+
+					pushEntityTexture(gameState->renderGroup, texture, entity, drawLeft, flipY, drawOrder);
 					entity->alpha = alpha;
 				}
 			}
@@ -4296,8 +4331,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 			MotherShipImages* images = &gameState->motherShipImages;
 
-			pushEntityTexture(gameState->renderGroup, images->emitter, entity, false, DrawOrder_motherShip_0);
-			pushEntityTexture(gameState->renderGroup, images->base, entity, false, DrawOrder_motherShip_1);
+			pushEntityTexture(gameState->renderGroup, images->emitter, entity, false, false, DrawOrder_motherShip_0);
+			pushEntityTexture(gameState->renderGroup, images->base, entity, false, false, DrawOrder_motherShip_1);
 
 			if(shootingState) {
 				Animation* shootAnim = &images->spawning;
@@ -4305,17 +4340,17 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				double animTime = duration * shootField->shootTimer;
 
 				Texture* shootTex = getAnimationFrame(shootAnim, animTime);
-				pushEntityTexture(gameState->renderGroup, shootTex, entity, false, DrawOrder_motherShip_5);
+				pushEntityTexture(gameState->renderGroup, shootTex, entity, false, false, DrawOrder_motherShip_5);
 			}
 
 			entity->rotation = 0.5 * entity->animTime;
-			pushEntityTexture(gameState->renderGroup, images->rotators[0], entity, false, DrawOrder_motherShip_2);
+			pushEntityTexture(gameState->renderGroup, images->rotators[0], entity, false, false, DrawOrder_motherShip_2);
 
 			entity->rotation = -1 * entity->animTime;
-			pushEntityTexture(gameState->renderGroup, images->rotators[1], entity, false, DrawOrder_motherShip_3);
+			pushEntityTexture(gameState->renderGroup, images->rotators[1], entity, false, false, DrawOrder_motherShip_3);
 
 			entity->rotation = 1.5 * entity->animTime;
-			pushEntityTexture(gameState->renderGroup, images->rotators[2], entity, false, DrawOrder_motherShip_4);
+			pushEntityTexture(gameState->renderGroup, images->rotators[2], entity, false,  false,DrawOrder_motherShip_4);
 
 			entity->rotation = rotation;
 			entity->alpha = alpha;
@@ -4331,8 +4366,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 			TrawlerImages* images = &gameState->trawlerImages;
 
-			pushEntityTexture(gameState->renderGroup, images->frame, entity, false, DrawOrder_trawler_0);
-			pushEntityTexture(gameState->renderGroup, images->body, entity, false, DrawOrder_trawler_2);
+			pushEntityTexture(gameState->renderGroup, images->frame, entity, false, false, DrawOrder_trawler_0);
+			pushEntityTexture(gameState->renderGroup, images->body, entity, false, false, DrawOrder_trawler_2);
 
 			if(shootingState) {
 				Animation* shootAnim = &images->shoot;
@@ -4340,11 +4375,11 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				double animTime = duration * shootField->shootTimer;
 
 				Texture* shootTex = getAnimationFrame(shootAnim, animTime);
-				pushEntityTexture(gameState->renderGroup, shootTex, entity, false, DrawOrder_trawler_3);
+				pushEntityTexture(gameState->renderGroup, shootTex, entity, false, false, DrawOrder_trawler_3);
 			}
 
 			entity->rotation = -6 * entity->animTime;
-			pushEntityTexture(gameState->renderGroup, images->wheel, entity, false, DrawOrder_trawler_1);
+			pushEntityTexture(gameState->renderGroup, images->wheel, entity, false, false, DrawOrder_trawler_1);
 
 			entity->rotation = rotation;
 			entity->alpha = alpha;

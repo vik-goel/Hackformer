@@ -119,6 +119,7 @@ struct RenderTexture {
 	DrawOrder drawOrder;
 	Texture* texture;
 	bool8 flipX;
+	bool8 flipY;
 	Orientation orientation;
 	float emissivity;
 	Color color;
