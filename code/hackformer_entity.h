@@ -35,7 +35,6 @@ struct Hitbox {
 	s32 collisionPointsCount;
 	V2 originalCollisionPoints[MAX_COLLISION_POINTS]; //Narrow phase
 
-	//TODO: These could be flags
 	bool32 storedFlippedX;
 
 	double storedRotation;

@@ -1494,7 +1494,7 @@ void drawRenderGroup(RenderGroup* group, FieldSpec* fieldSpec) {
 	PointLight light1 = {v3(15 + tempXOffset, 7, 0), v3(1, 0.3, 0.3), 6};
 	pushPointLight(group, &light1, true);
 
-	group->ambient = (GLfloat)0.43;
+	group->ambient = (GLfloat)0.35;//0.43;
 #else
 	group->ambient = (GLfloat)1;
 #endif

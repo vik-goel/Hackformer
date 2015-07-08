@@ -1624,7 +1624,7 @@ Entity* addTrojan(GameState* gameState, V2 p) {
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), 0.7 * result->renderSize);
 
-	addCloaksField(result, gameState);
+	//addCloaksField(result, gameState);
 	addShootField(result, gameState);
 	addSpotlightField(result, gameState);
 
@@ -2698,6 +2698,7 @@ bool moveTowardsTargetParabolic(Entity* entity, GameState* gameState, double dt,
 	double dstToTarget = length(delta);
 
 	double percentageToTarget = (initialDstToTarget - dstToTarget) / initialDstToTarget;
+	if(initialDstToTarget == 0) percentageToTarget = 0;
 
 	double initialTime = 0.1;
 	double speedEquationCoefficient = maxSpeed / ((0.5 + initialTime) * (-0.5 - initialTime));
@@ -2711,18 +2712,16 @@ bool moveTowardsTargetParabolic(Entity* entity, GameState* gameState, double dt,
 		movement = speed * normalize(delta);
 	}
 
-	// if(entity->type == EntityType_tile) {
-	// 	moveTile(entity, gameState, movement);
-	// } else {
-	V2 change = moveRaw(entity, gameState, movement, NULL);
-	//}
+	if(dstToTarget) {
+		V2 change = moveRaw(entity, gameState, movement, NULL);
 
-	if(!isTileType(entity)) {
-		if(change.x < 0) {
-			setEntityFacingDirection(entity, true, gameState);
-		} 
-		else if (change.x > 0) {
-			setEntityFacingDirection(entity, false, gameState);
+		if(!isTileType(entity)) {
+			if(change.x < 0) {
+				setEntityFacingDirection(entity, true, gameState);
+			} 
+			else if (change.x > 0) {
+				setEntityFacingDirection(entity, false, gameState);
+			}
 		}
 	}
 
@@ -3199,7 +3198,7 @@ Entity* getClosestTarget(Entity* entity, GameState* gameState, double* targetDst
 	while(node) {
 		Entity* testTarget = getEntityByRef(gameState, node->ref);
 
-		if(testTarget && testTarget != entity) {
+		if(testTarget && testTarget != entity && testTarget->cloakFactor != 1) {
 			double testDstSq = dstSq(entity->p, testTarget->p);
 
 			if(testDstSq < minDstSq) {
@@ -3243,7 +3242,7 @@ Entity* getClosestTargetInSight(Entity* entity, GameState* gameState, double sig
 		if(targetNode->ref != entity->ref) {
 			Entity* testEntity = getEntityByRef(gameState, targetNode->ref);
 
-			if(testEntity) {
+			if(testEntity && testEntity->cloakFactor != 1) {
 				V2 toTestEntity = testEntity->p - entity->p;
 				double dstToEntity = length(toTestEntity);
 
@@ -3318,7 +3317,10 @@ Entity* updateSpotlightBasedOnSpotlightField(Entity* entity, GameState* gameStat
 
 	double lightAngle = getSpotLightAngle(entity);
 
-	SpotLight spotLight = createSpotLight(entity->p, v3(1, 1, .9), sightRadius, lightAngle, fov);
+	V3 color = v3(1, 1, .9);
+	color *= (1 - entity->cloakFactor);
+
+	SpotLight spotLight = createSpotLight(entity->p, color, sightRadius, lightAngle, fov);
 	pushSpotLight(gameState->renderGroup, &spotLight, true);
 
 	Entity* target = getClosestTargetInSight(entity, gameState, sightRadius, fov); 
@@ -3484,11 +3486,51 @@ bool tryPatrolMove(Entity* entity, GameState* gameState, double xMoveAcceleratio
 	return shouldChangeDirection;
 }
 
+void drawCollisionBounds(Entity* entity, RenderGroup* renderGroup, double alpha) {
+	Hitbox* hitbox = entity->hitboxes;
+
+	u8 a = (u8)(255.5 * alpha);
+	Color color = createColor(255, 0, 0, a);
+
+	while (hitbox) {
+		V2 hitboxOffset = getHitboxCenter(hitbox, entity);
+
+		updateHitboxRotatedPoints(hitbox, entity);
+
+		#if 0
+		pushOutlinedRect(gameState->renderGroup, getBoundingBox(entity, hitbox),
+						 0.02f, createColor(255, 127, 255, 255), true);
+		#endif
+
+		assert(hitbox->collisionPointsCount > 0 && hitbox->collisionPointsCount < MAX_COLLISION_POINTS);
+
+		for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
+			V2 p1 = hitbox->rotatedCollisionPoints[pIndex] + hitboxOffset;
+			V2 p2 = hitbox->rotatedCollisionPoints[(pIndex + 1) % hitbox->collisionPointsCount] + hitboxOffset;
+
+			if(p1.x > 10000 || p1.y > 10000 || p1.x < -10000 || p1.y < -10000) {
+				s32 breakHere = 5;
+			}
+
+			if(p1.x > 10000 && p1.x < 10000) {
+				s32 breakHere = 5;
+			}
+
+			pushDashedLine(renderGroup, color, p1, p2, 0.02, 0.05, 0.05, true);
+			// pushSortEnd(renderGroup);
+
+			// drawRenderGroup(renderGroup, NULL);
+		}
+
+		hitbox = hitbox->next;
+	}
+}
+
 void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double dt, double groundFriction, bool doingOtherAction) {
 	//NOTE: This is a hack to make the gravity feel better. There is more gravity when an object
 	//		like the player is falling to make the gravity seem less 'floaty'.
 	V2 gravity = gameState->gravity;
-	if (entity->dP.y < 0) gravity *= 2;		
+	if (entity->dP.y < 0 && isSet(entity, EntityFlag_jumped)) gravity *= 2;		
 	V2 ddP;	
 
 
@@ -3497,7 +3539,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 	if(affectedByGravity(entity, movementField)) {
 		ddP = gravity;
 	} else {
-		ddP = {};
+		ddP = v2(0, 0);
 	}
 
 
@@ -3653,7 +3695,8 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 					if(canMove) {
 						if(moveTowardsTargetParabolic(entity, gameState, dt, cur->p, initialDstToWaypoint, xMoveAcceleration)) {
 							movementField->curWaypoint = cur->next;
-							movementField->waypointDelay += dt;
+							if (dt > 0) movementField->waypointDelay += dt;
+							else movementField->waypointDelay += 0.0001;
 						}
 					} else {
 						defaultMove = true;
@@ -3730,35 +3773,6 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 
 	if(getField(entity, ConsoleField_cameraFollows) && gameState->screenType == ScreenType_game && !getEntityByRef(gameState, gameState->consoleEntityRef)) {
 		centerCameraAround(entity, gameState);
-	}
-}
-
-void drawCollisionBounds(Entity* entity, RenderGroup* renderGroup, double alpha) {
-	Hitbox* hitbox = entity->hitboxes;
-
-	u8 a = (u8)(255.5 * alpha);
-	Color color = createColor(255, 0, 0, a);
-
-	while (hitbox) {
-		V2 hitboxOffset = getHitboxCenter(hitbox, entity);
-
-		updateHitboxRotatedPoints(hitbox, entity);
-
-		#if 0
-		pushOutlinedRect(gameState->renderGroup, getBoundingBox(entity, hitbox),
-						 0.02f, createColor(255, 127, 255, 255), true);
-		#endif
-
-		assert(hitbox->collisionPointsCount > 0 && hitbox->collisionPointsCount < MAX_COLLISION_POINTS);
-
-		for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
-			V2 p1 = hitbox->rotatedCollisionPoints[pIndex] + hitboxOffset;
-			V2 p2 = hitbox->rotatedCollisionPoints[(pIndex + 1) % hitbox->collisionPointsCount] + hitboxOffset;
-
-			pushDashedLine(renderGroup, color, p1, p2, 0.02, 0.05, 0.05, true);
-		}
-
-		hitbox = hitbox->next;
 	}
 }
 
@@ -4227,7 +4241,11 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 				Animation* deathAnim = &deathAnimNode->main;
 
-				if(entity->animTime > getAnimationDuration(deathAnim)) {
+				double duration = getAnimationDuration(deathAnim);
+
+				if(entity->animTime > duration) {
+					entity->animTime = duration - deathAnim->secondsPerFrame / 2;
+
 					setFlags(entity, EntityFlag_remove);
 
 					if(entity->drawOrder == DrawOrder_player) {
@@ -4511,7 +4529,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 			entity->emissivity = 0;
 			pushEntityTexture(gameState->renderGroup, entity->glowingTex->regular, entity, drawLeft, flipY, drawOrder);
-			entity->emissivity = 0.25;
+			entity->emissivity = (float)((sin(entity->animTime) + 1.0) * 0.5);
 			pushEntityTexture(gameState->renderGroup, entity->glowingTex->glowing, entity, drawLeft, flipY, drawOrder);
 
 			entity->emissivity = emissivity;
@@ -4589,7 +4607,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		#endif
 
 		double collisionBoundsAlpha = gameState->collisionBoundsAlpha;
-		if(entity->type == EntityType_player) collisionBoundsAlpha = 0;
+		if(entity->type == EntityType_player || entity->ref != gameState->consoleEntityRef) collisionBoundsAlpha = 0;
 
 		#if SHOW_COLLISION_BOUNDS
 			shouldDrawCollisionBounds = true;

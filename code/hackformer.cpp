@@ -444,8 +444,14 @@ void initFieldSpec(GameState* gameState) {
 	spec->leftButtonDefault = loadPNGTexture(gameState->renderGroup, "attributes/left_button", false);
 	spec->leftButtonClicked = loadPNGTexture(gameState->renderGroup, "attributes/left_button_clicked", false);
 	spec->leftButtonUnavailable = loadPNGTexture(gameState->renderGroup, "attributes/left_button_unavailable", false);
-	spec->waypoint = loadPNGTexture(gameState->renderGroup, "waypoint", false);
-	spec->waypointArrow = loadPNGTexture(gameState->renderGroup, "waypoint_arrow", false);
+	spec->defaultWaypoint = loadPNGTexture(gameState->renderGroup, "waypoints/default_waypoint", false);
+	spec->selectedWaypoint = loadPNGTexture(gameState->renderGroup, "waypoints/selected_waypoint", false);
+	spec->currentWaypoint = loadPNGTexture(gameState->renderGroup, "waypoints/current_waypoint", false);
+	spec->movedWaypoint = loadPNGTexture(gameState->renderGroup, "waypoints/moved_waypoint", false);
+	spec->defaultWaypointLine = loadPNGTexture(gameState->renderGroup, "waypoints/default_waypoint_line", false);
+	spec->currentWaypointLine = loadPNGTexture(gameState->renderGroup, "waypoints/current_waypoint_line", false);
+	spec->movedWaypointLine = loadPNGTexture(gameState->renderGroup, "waypoints/moved_waypoint_line", false);
+	spec->waypointArrow = loadPNGTexture(gameState->renderGroup, "waypoints/waypoint_arrow", false);
 	spec->tileHackShield = loadPNGTexture(gameState->renderGroup, "tile_hacking/tile_hack_shield", false);
 	spec->cornerTileHackShield = loadPNGTexture(gameState->renderGroup, "tile_hacking/corner_tile_hack_shield", false);
 	spec->tileHackArrow = loadPNGTexture(gameState->renderGroup, "tile_hacking/right_button", false);
@@ -677,6 +683,7 @@ int main(int argc, char* argv[]) {
 	initMainMenu(gameState);
 
 	char* mapFileNames[] = {
+		//"level_1.hack",
 		"edit.hack",
 	};
 
@@ -809,9 +816,9 @@ int main(int argc, char* argv[]) {
 				translateButton(&dock->cancelButton, -buttonTranslation);
 				translateButton(&dock->acceptButton, -buttonTranslation);
 
-				s32 energyLoss = getEnergyLoss(gameState);
+				double energyLoss = getEnergyLoss(gameState);
 				char energyLossStr[25];
-				sprintf(energyLossStr, "%d", energyLoss);
+				sprintf(energyLossStr, "%.2f", energyLoss);
 				V2 energyLossTextP = dockCenter + v2(4.19, (minSubDockYOffs - dock->subDockYOffs)-0.11);
 				pushText(renderGroup, font, energyLossStr, energyLossTextP, WHITE, TextAlignment_center);
 
@@ -824,10 +831,10 @@ int main(int argc, char* argv[]) {
 			if(gameState->fieldSpec.hackEnergy > maxEnergy) gameState->fieldSpec.hackEnergy = maxEnergy;
 			else if(gameState->fieldSpec.hackEnergy < 0) gameState->fieldSpec.hackEnergy = 0;
 
-			int energy = gameState->fieldSpec.hackEnergy;
+			double energy = gameState->fieldSpec.hackEnergy;
 
 			char energyStr[25];
-			sprintf(energyStr, "%d", energy);
+			sprintf(energyStr, "%.2f", energy);
 
 			V2 textP = dockCenter + v2(4.19, -0.74);
 			pushText(renderGroup, font, energyStr, textP, WHITE, TextAlignment_center);

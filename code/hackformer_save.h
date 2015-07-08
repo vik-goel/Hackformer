@@ -17,4 +17,4 @@ void saveGameToArena(GameState* gameState);
 void loadGameFromArena(GameState* gameState);
 void updateSaveGameToArena(GameState* gameState);
 void undoLastSaveGameFromArena(GameState* gameState);
-s32 getEnergyLoss(GameState* gameState);
+double getEnergyLoss(GameState* gameState);

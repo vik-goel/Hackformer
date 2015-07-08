@@ -46,6 +46,8 @@ enum Alertness {
 
 struct Waypoint {
 	V2 p;
+	bool32 moved;
+	bool32 selected;
 	Waypoint* next;
 };
 
@@ -145,7 +147,7 @@ struct FieldSpec {
 
 	V2 mouseOffset;
 
-	int hackEnergy;
+	double hackEnergy;
 
 	Texture* attribute;
 	Texture* behaviour;
@@ -154,7 +156,13 @@ struct FieldSpec {
 	Texture* leftButtonUnavailable;
 	Texture* leftButtonDefault;
 
-	Texture* waypoint;
+	Texture* defaultWaypoint;
+	Texture* currentWaypoint;
+	Texture* movedWaypoint;
+	Texture* selectedWaypoint;
+	Texture* defaultWaypointLine;
+	Texture* currentWaypointLine;
+	Texture* movedWaypointLine;
 	Texture* waypointArrow;
 
 	Texture* cornerTileHackShield;

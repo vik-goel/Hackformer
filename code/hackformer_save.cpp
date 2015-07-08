@@ -182,7 +182,7 @@ void writeEntity(FILE* file, Entity* entity, GameState* gameState) {
 
 void writeFieldSpec(FILE* file, FieldSpec* spec) {
 	writeV2(file, spec->mouseOffset);
-	writeS32(file, spec->hackEnergy);
+	writeDouble(file, spec->hackEnergy);
 }
 
 void writeAnimation(FILE* file, Animation* anim) {
@@ -594,7 +594,7 @@ void loadGame(GameState* gameState, char* fileName) {
 	gameState->swapField = readConsoleField(file, gameState);
 	gameState->swapFieldP = readV2(file);
 	gameState->fieldSpec.mouseOffset = readV2(file);
-	gameState->fieldSpec.hackEnergy = readS32(file);
+	gameState->fieldSpec.hackEnergy = readDouble(file);
 
 	gameState->mapSize = readV2(file);
 	gameState->worldSize = readV2(file);
@@ -768,7 +768,7 @@ void updateSaveGameToArena(GameState* gameState) {
 	saveGameReference->save = (char*)arena->base + arena->allocated;
 	saveGameReference->index = numSaveGames;
 
-	pushElem(arena, s32, gameState->fieldSpec.hackEnergy);
+	pushElem(arena, double, gameState->fieldSpec.hackEnergy);
 	pushElem(arena, V2, gameState->gravity);
 
 	pushElem(arena, s32, gameState->timeField->selectedIndex);
@@ -954,7 +954,7 @@ void readEntityFromArena(void** readPtr, Entity* entity, GameState* gameState) {
 }
 
 void readGameFromArena(GameState* gameState, void* readPtr) {
-	gameState->fieldSpec.hackEnergy = readElem(readPtr, s32);
+	gameState->fieldSpec.hackEnergy = readElem(readPtr, double);
 	gameState->gravity = readElem(readPtr, V2);
 
 	gameState->timeField->selectedIndex = readElem(readPtr, s32); 
@@ -1013,15 +1013,15 @@ void undoLastSaveGameFromArena(GameState* gameState) {
 	}
 }
 
-s32 getEnergyLoss(GameState* gameState) {
-	s32 result = 0;
+double getEnergyLoss(GameState* gameState) {
+	double result = 0;
 
 	if(getEntityByRef(gameState, gameState->consoleEntityRef)) {
 		MemoryArena* arena = &gameState->hackSaveStorage;
 		assert(arena->allocated);
 
-		s32 oldEnergy = *((s32*)getSaveReference(arena, 0)->save);
-		s32 newEnergy = gameState->fieldSpec.hackEnergy;
+		double oldEnergy = *((s32*)getSaveReference(arena, 0)->save);
+		double newEnergy = gameState->fieldSpec.hackEnergy;
 		result = oldEnergy - newEnergy;
 	}
 

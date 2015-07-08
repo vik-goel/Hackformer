@@ -57,7 +57,7 @@ enum DrawType {
 	DrawType_RenderFillRect,
 	DrawType_RenderOutlinedRect,
 	DrawType_RenderConsoleField,
-	DrawType_RenderDashedLine,
+	DrawType_RenderDashedLine,	
 	DrawType_RenderRotatedTexture,
 	DrawType_RenderFilledStencil,
 };
