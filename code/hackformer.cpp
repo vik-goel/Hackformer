@@ -129,7 +129,12 @@ void loadHackMap(GameState* gameState, char* fileName) {
 			} break;
 
 			case EntityType_trawler: {
-				Entity* entity = addTrawlerBootup(gameState, p);
+				Entity* entity = addTrawlerBootUp(gameState, p);
+				loadWaypoints(file, entity, gameState);
+			} break;
+		
+			case EntityType_shrike: {
+				Entity* entity = addShrikeBootUp(gameState, p);
 				loadWaypoints(file, entity, gameState);
 			} break;
 
@@ -598,11 +603,23 @@ void loadImages(GameState* gameState) {
 
 		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
 		shoot->main = loadAnimation(renderGroup, "virus1/shoot", 145, 170, 0.04f, true);
-		gameState->shootDelay = getAnimationDuration(&shoot->main);
-		//TODO: Make shoot animation time per frame be set by the shootDelay
 
 		AnimNode* stand = createAnimNode(gameState, &character->stand);
 		stand->main = createAnimation(loadPNGTexture(renderGroup, "virus1/stand"));
+	}
+
+	{
+		CharacterAnim* character = createCharacterAnim(gameState, &gameState->shrikeAnim);
+
+		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
+		shoot->main = loadAnimation(renderGroup, "shrike/shoot", 256, 256, 0.04f, true);
+		gameState->shootDelay = getAnimationDuration(&shoot->main);
+		//TODO: Make shoot animation time per frame be set by the shootDelay
+
+		//AnimNode* stand = createAnimNode(gameState, &character->stand);
+		gameState->shrikeStand = loadAnimation(renderGroup, "shrike/jet_burn", 256, 256, 0.07f, true);
+
+		gameState->shrikeBootUp = loadAnimation(renderGroup, "shrike/boot_up", 256, 256, 0.04f, false);
 	}
 
 	{

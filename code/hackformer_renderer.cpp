@@ -1082,16 +1082,30 @@ void pushDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd, d
 }
 
 #ifdef HACKFORMER_GAME
-void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, bool flipX, bool flipY, DrawOrder drawOrder,
-					Orientation orientation = Orientation_0, Color color = WHITE) {
+void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, DrawOrder drawOrder, 
+					bool fadeAlphaFromDisappearing,  Color color = WHITE) {
 	assert(texture);
+
+	if (entity->type == EntityType_laserBeam && isSet(entity, EntityFlag_laserOn)) return;
+	bool32 cloaked = isSet(entity, EntityFlag_cloaked) && !isSet(entity, EntityFlag_togglingCloak);
+	if(cloaked) return;
 
 	R2 drawBounds = translateRect(rectCenterDiameter(entity->p, entity->renderSize), -group->camera->p);
 	drawBounds = scaleRect(drawBounds, v2(1, 1) * group->camera->scale);
 
 	R2 clipBounds = scaleRect(drawBounds, v2(1, 1) * 1.05);
 
-	color.a = (u8)(color.a * entity->alpha);
+	double alpha = entity->alpha;
+
+	//TODO: This won't properly blend the alpha
+	//		The mothership would have to rendered at full alpha into an intermidiate texture
+	//		And then that texture would be rendered with less alpha to the screen
+	//		Otherwise, parts of lower layers that shouldn't be visible will become visible 
+	if(fadeAlphaFromDisappearing) {
+		alpha = max(0, alpha - entity->cloakFactor);
+	}
+
+	color.a = (u8)(color.a * alpha);
 
 	double rotation = entity->rotation;
 
@@ -1102,18 +1116,24 @@ void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, boo
 		clipBounds = rectCenterDiameter(getRectCenter(clipBounds), v2(size, size));
 	}
 
+	bool flipX = isSet(entity, EntityFlag_facesLeft) != 0;
+	if (entity->type == EntityType_laserBase) flipX = false;
+	bool flipY = isSet(entity, EntityFlag_flipY) != 0;
+
 	if(rectanglesOverlap(group->windowBounds, clipBounds)) {
+		if(isTileType(entity) && getMovementField(entity) != NULL) drawOrder = DrawOrder_movingTile;
+
 		if(group->rendering) {
 			if(rotation) {
 				drawTexture(group, texture, drawBounds, rotation, color, flipX, flipY, entity->emissivity, group->ambient);
 			} else {
-				drawTexture(group, texture, drawBounds, flipX, flipY, orientation, entity->emissivity, group->ambient, color);
+				drawTexture(group, texture, drawBounds, flipX, flipY, Orientation_0, entity->emissivity, group->ambient, color);
 			}
 		} else {
 			RenderEntityTexture* render = pushRenderElement(group, RenderEntityTexture);
 
 			if (render) {
-				render->tex = createRenderTexture(drawOrder, texture, flipX, flipY, orientation, entity->emissivity, color);
+				render->tex = createRenderTexture(drawOrder, texture, flipX, flipY, Orientation_0, entity->emissivity, color);
 				render->p = &entity->p;
 				render->renderSize = &entity->renderSize;
 				render->rotation = rotation;

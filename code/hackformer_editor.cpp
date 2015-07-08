@@ -103,7 +103,8 @@ void setTile(TileSpec* tiles, s32 mapWidthInTiles, s32 mapHeightInTiles, Camera*
 bool entityGetsWaypoints(Entity* entity) {
 	bool result = entity->type == EntityType_trojan ||
 				  entity->type == EntityType_motherShip ||
-				  entity->type == EntityType_trawler;
+				  entity->type == EntityType_trawler ||
+				  entity->type == EntityType_shrike;
 	return result;
 }
 
@@ -162,17 +163,18 @@ int main(int argc, char* argv[]) {
 
 	CursorMode cursorMode = CursorMode_moveEntity;
 
-	#define ENTITY(type, width, height, fileName, offsetX, offsetY) {EntityType_##type, DrawOrder_##type, v2(width, height), fileName, v2(offsetX, offsetY)},
+	#define ENTITY(type, width, height, fileName, panelX, panelY, panelScale) {EntityType_##type, DrawOrder_##type, v2(width, height), fileName, v2(panelX, panelY), panelScale},
 	EntitySpec entitySpecs[] {
-		ENTITY(player, 1.75, 1.75, "player/full", 0, 0)
-		ENTITY(lamp_0, 1, 0.5, "light_0", 0, 0)
-		ENTITY(lamp_1, 350.0/109.0*0.4, 0.4, "light_1", 0, 0)
-		ENTITY(laserBase, 0.9, 0.65, "virus3/base_off", 0, 0)
-		ENTITY(hackEnergy, 0.7, 0.7, "energy_full", 0, 0)
-		ENTITY(endPortal, 2, 2, "end_portal", 0, 0)
-		ENTITY(trojan, 2, 2, "trojan/full", 0, 0)
-		ENTITY(motherShip, 6 * (264.0 / 512.0), 6 * (339.0 / 512.0), "mothership/full", 0, 0)
-		ENTITY(trawler, 1, 1, "trawler/full", 0, -2)
+		ENTITY(player, 1.75, 1.75, "player/full", 0, 6, 1)
+		ENTITY(lamp_0, 1, 0.5, "light_0", 0, 5, 1)
+		ENTITY(lamp_1, 350.0/109.0*0.4, 0.4, "light_1", 1.5, 5, 1)
+		ENTITY(laserBase, 0.9, 0.65, "virus3/base_off", 1.5, 6, 1)
+		ENTITY(hackEnergy, 0.7, 0.7, "energy_full", 0.5, 0.5, 1)
+		ENTITY(endPortal, 2, 2, "end_portal", 0, 3, 1)
+		ENTITY(trojan, 2, 2, "trojan/full", 0, 1, 1)
+		ENTITY(motherShip, 6 * (264.0 / 512.0), 6 * (339.0 / 512.0), "mothership/full", 2, 3, 0.5)
+		ENTITY(trawler, 1, 1, "trawler/full", 2, 2, 1)
+		ENTITY(shrike, 1.5, 1.5, "shrike/full", 1.75, 0, 1)
 	};
 	#undef ENTITY
 
@@ -353,7 +355,6 @@ int main(int argc, char* argv[]) {
 			}
 		}
 
-
 		for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
 			for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
 				TileSpec* spec = tiles + (tileY * mapWidthInTiles + tileX);
@@ -376,6 +377,7 @@ int main(int argc, char* argv[]) {
 					}
 
 					V2 tileCenter = hadamard(v2(tileX, tileY), gridSize) + tileSize * 0.5 + tileOffset;
+
 					drawScaledTex(renderGroup, tex, &camera, tileCenter, tileSize, spec->flipX, spec->flipY);					
 				}
 			}
@@ -406,6 +408,7 @@ int main(int argc, char* argv[]) {
 			cursorMode = CursorMode_moveEntity;
 		}
 
+
 		double maxTileY = 0;
 
 		for(s32 tileIndex = 0; tileIndex < tileAtlasCount; tileIndex++) {
@@ -423,7 +426,8 @@ int main(int argc, char* argv[]) {
 
 			V2 tileMin = tileSpacing + panelBounds.min + hadamard(tileSpacing + tileSize, v2(tileIndex % 3, tileIndex / 3));
 			R2 tileBounds = r2(tileMin, tileMin + tileSize);
-			maxTileY = tileBounds.max.y;
+
+			if(tileBounds.max.y > maxTileY) maxTileY = tileBounds.max.y;
 
 			if(clickedInside(&input, tileBounds)) {
 				selectedTileSpec = pushStruct(&arena, TileSpec);
@@ -439,38 +443,20 @@ int main(int argc, char* argv[]) {
 			pushTexture(renderGroup, tex, tileBounds, false, false, DrawOrder_gui);
 		}
 
-		s32 numEntitiesPerRow = 2;
-		for(s32 specIndexIter = 0; specIndexIter < arrayCount(entitySpecs); specIndexIter += numEntitiesPerRow) {
-			double minX = panelBounds.min.x;
-			double maxY = 0;
+		for(s32 specIndex = 0; specIndex < arrayCount(entitySpecs); specIndex++) {
+			EntitySpec* spec = entitySpecs + specIndex;
 
-			for(s32 specOffset = 0; specOffset < numEntitiesPerRow; specOffset++) {
-				s32 specIndex = specIndexIter + specOffset;
+			V2 specMin = spec->panelP + panelBounds.min + v2(0, maxTileY);
+			R2 specBounds = r2(specMin, specMin + spec->size * spec->panelScale);
 
-				if(specIndex >= arrayCount(entitySpecs)) break;
-
-				EntitySpec* spec = entitySpecs + specIndex;
-				V2 specSpacing = v2(0.1, 0.1);
-
-				V2 specMin = v2(minX, maxTileY);
-
-				R2 specBounds = r2(specMin, specMin + spec->size);
-				specBounds = translateRect(specBounds, spec->editorOffset);
-
-				minX = specBounds.max.x;
-				maxY = max(maxY, specBounds.max.y);
-
-				if(clickedInside(&input, specBounds)) {
-					selectedEntitySpecIndex = specIndex;
-					cursorMode = CursorMode_stampEntity;
-				}
-
-				Texture* tex = entityTextureAtlas + specIndex;
-
-				pushTexture(renderGroup, tex, specBounds, false, false, DrawOrder_gui);
+			if(clickedInside(&input, specBounds)) {
+				selectedEntitySpecIndex = specIndex;
+				cursorMode = CursorMode_stampEntity;
 			}
 
-			maxTileY = maxY;
+			Texture* tex = entityTextureAtlas + specIndex;
+
+			pushTexture(renderGroup, tex, specBounds, false, false, DrawOrder_gui);
 		}
 
 

@@ -960,7 +960,7 @@ void addSpawnsTrawlersField(Entity* entity, GameState* gameState) {
 	addField(entity, result);
 }
 
-void addShootField(Entity* entity, GameState* gameState, double speedModifier = 1) {
+void addShootField(Entity* entity, GameState* gameState, double speedModifier, EntityType type) {
 	ConsoleField* result = createConsoleField(gameState, "shoots", ConsoleField_shootsAtTarget, 4);
 
 	double bulletSpeedFieldValues[] = {2, 4, 6, 8, 10}; 
@@ -976,7 +976,7 @@ void addShootField(Entity* entity, GameState* gameState, double speedModifier = 
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "detect_radius", sightRadii, 
 													    arrayCount(sightRadii), 2, 1));
 
-	result->shootEntityType = entity->type;
+	result->shootEntityType = type;
 
 	addField(entity, result);
 }
@@ -1119,7 +1119,7 @@ Entity* addVirus(GameState* gameState, V2 p) {
 					 EntityFlag_hackable);
 
 	addPatrolField(result, gameState);
-	addShootField(result, gameState);
+	addShootField(result, gameState, 1, EntityType_virus);
 	addSpotlightField(result, gameState);
 
 	result->characterAnim = gameState->virus1Anim;
@@ -1597,7 +1597,7 @@ Entity* addFlyingVirus(GameState* gameState, V2 p) {
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
 
-	addShootField(result, gameState);
+	addShootField(result, gameState, 1, EntityType_flyingVirus);
 	addSpotlightField(result, gameState);
 
 	result->spotLightAngle = 210;
@@ -1638,7 +1638,7 @@ Entity* addTrojan(GameState* gameState, V2 p) {
 	result->clickBox = rectCenterDiameter(v2(0, 0), 0.7 * result->renderSize);
 
 	addCloaksField(result, gameState);
-	addShootField(result, gameState);
+	addShootField(result, gameState, 1, EntityType_trojan);
 	addSpotlightField(result, gameState);
 
 	return result;
@@ -1685,7 +1685,7 @@ Entity* addMotherShip(GameState* gameState, V2 p) {
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), 0.7 * result->renderSize);
 
-	addShootField(result, gameState, 0.5);
+	addShootField(result, gameState, 0.5, EntityType_motherShip);
 	addSpotlightField(result, gameState);
 	addSpawnsTrawlersField(result, gameState);
 
@@ -1694,11 +1694,16 @@ Entity* addMotherShip(GameState* gameState, V2 p) {
 
 #define TRAWLER_SIZE (v2(1, 1) * 1)
 
-Entity* addTrawlerBootup(GameState* gameState, V2 p) {
-	Entity* result = addEntity(gameState, EntityType_trawlerBootUp, DrawOrder_trawler, p, TRAWLER_SIZE);
+Entity* addBootUp(GameState* gameState, V2 p, DrawOrder drawOrder, V2 size) {
+	Entity* result = addEntity(gameState, EntityType_bootUp, drawOrder, p, size);
 
 	setFlags(result, EntityFlag_noMovementByDefault);
 
+	return result;
+}
+
+Entity* addTrawlerBootUp(GameState* gameState, V2 p) {
+	Entity* result = addBootUp(gameState, p, DrawOrder_trawler, TRAWLER_SIZE);
 	return result;
 }
 
@@ -1730,7 +1735,81 @@ Entity* addTrawler(GameState* gameState, V2 p) {
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), 0.7 * result->renderSize);
 
-	addShootField(result, gameState, 0.5);
+	addShootField(result, gameState, 0.5, EntityType_trawler);
+	addSpotlightField(result, gameState);
+
+	ignoreAllPenetratingEntities(result, gameState);
+
+	return result;
+}
+
+#define SHRIKE_SIZE (v2(1, 1) * 1.5)
+
+Entity* addShrikeBootUp(GameState* gameState, V2 p) {
+	Entity* result = addBootUp(gameState, p, DrawOrder_shrike, SHRIKE_SIZE);
+	return result;
+}
+
+Entity* addShrike(GameState* gameState, V2 p) {
+	Entity* result = addEntity(gameState, EntityType_shrike, DrawOrder_shrike, p, SHRIKE_SIZE);
+
+	setFlags(result, EntityFlag_hackable|
+					 EntityFlag_noMovementByDefault);
+
+	double hitboxWidth = result->renderSize.x;
+	double hitboxHeight = result->renderSize.y;
+	double halfHitboxWidth = hitboxWidth * 0.5;
+	double halfHitboxHeight = hitboxHeight * 0.5;
+	Hitbox* hitbox = addHitbox(result, gameState);
+	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	hitbox->collisionPointsCount = 42;
+	hitbox->originalCollisionPoints[0] = v2(-0.815972 * halfHitboxWidth, -0.533854 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[1] = v2(-0.703125 * halfHitboxWidth, -0.533854 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[2] = v2(-0.577257 * halfHitboxWidth, -0.442708 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[3] = v2(-0.559896 * halfHitboxWidth, -0.190972 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[4] = v2(-0.190972 * halfHitboxWidth, -0.099826 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[5] = v2(-0.091146 * halfHitboxWidth, -0.212674 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[6] = v2(0.091146 * halfHitboxWidth, -0.212674 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[7] = v2(0.186632 * halfHitboxWidth, -0.104167 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[8] = v2(0.555556 * halfHitboxWidth, -0.190972 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[9] = v2(0.564236 * halfHitboxWidth, -0.407986 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[10] = v2(0.694444 * halfHitboxWidth, -0.529514 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[11] = v2(0.815972 * halfHitboxWidth, -0.529514 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[12] = v2(0.933160 * halfHitboxWidth, -0.425347 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[13] = v2(0.933160 * halfHitboxWidth, -0.086806 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[14] = v2(0.846354 * halfHitboxWidth, 0.047743 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[15] = v2(0.677083 * halfHitboxWidth, 0.047743 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[16] = v2(0.577257 * halfHitboxWidth, -0.026042 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[17] = v2(0.295139 * halfHitboxWidth, 0.043403 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[18] = v2(0.360243 * halfHitboxWidth, 0.195312 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[19] = v2(0.499132 * halfHitboxWidth, 0.143229 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[20] = v2(0.594618 * halfHitboxWidth, 0.208333 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[21] = v2(0.585937 * halfHitboxWidth, 0.316840 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[22] = v2(0.490451 * halfHitboxWidth, 0.347222 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[23] = v2(0.360243 * halfHitboxWidth, 0.316840 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[24] = v2(0.299479 * halfHitboxWidth, 0.447049 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[25] = v2(0.199653 * halfHitboxWidth, 0.559896 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[26] = v2(0.082465 * halfHitboxWidth, 0.698785 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[27] = v2(-0.073785 * halfHitboxWidth, 0.694444 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[28] = v2(-0.186632 * halfHitboxWidth, 0.559896 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[29] = v2(-0.308160 * halfHitboxWidth, 0.451389 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[30] = v2(-0.355903 * halfHitboxWidth, 0.303819 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[31] = v2(-0.512153 * halfHitboxWidth, 0.347222 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[32] = v2(-0.585938 * halfHitboxWidth, 0.290799 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[33] = v2(-0.585938 * halfHitboxWidth, 0.208333 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[34] = v2(-0.503472 * halfHitboxWidth, 0.164931 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[35] = v2(-0.364583 * halfHitboxWidth, 0.199653 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[36] = v2(-0.290799 * halfHitboxWidth, 0.047743 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[37] = v2(-0.585938 * halfHitboxWidth, -0.030382 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[38] = v2(-0.672743 * halfHitboxWidth, 0.056424 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[39] = v2(-0.837674 * halfHitboxWidth, 0.052083 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[40] = v2(-0.928819 * halfHitboxWidth, -0.065104 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[41] = v2(-0.933160 * halfHitboxWidth, -0.416667 * halfHitboxHeight);
+
+	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
+	result->characterAnim = gameState->shrikeAnim;
+
+	addShootField(result, gameState, 0.5, EntityType_trawler);
 	addSpotlightField(result, gameState);
 
 	ignoreAllPenetratingEntities(result, gameState);
@@ -1799,7 +1878,7 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 
 	switch(a->type) {
 		case EntityType_motherShipProjectileDeath:
-		case EntityType_trawlerBootUp:
+		case EntityType_bootUp:
 		case EntityType_death:
 		case EntityType_background: {
 			result = false;
@@ -1818,13 +1897,7 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 		} break;
 
 		case EntityType_hackEnergy: {
-			if (b->type == EntityType_virus ||
-				b->type == EntityType_flyingVirus ||
-				b->type == EntityType_trojan ||
-				b->type == EntityType_motherShip ||
-				b->type == EntityType_trawler ||
-				isProjectile(b) ||
-				b->type == EntityType_pickupField) result = false;
+			if (b->type != EntityType_player) result = false;
 		} break;
 
 		case EntityType_endPortal: {
@@ -3918,7 +3991,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 					ConsoleField* radiusField = field->children[0];
 					double radius = getDoubleValue(radiusField);
 
-					PointLight light = createPointLight(v3(entity->p, 0), field->lightColor * entity->cloakFactor, radius);
+					PointLight light = createPointLight(v3(entity->p, 0), field->lightColor * (1 - entity->cloakFactor), radius);
 					pushPointLight(gameState->renderGroup, &light, true);
 				} break;
 			}
@@ -4024,7 +4097,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				if(numSpawned < maxSpawned) {
 					spawnField->spawnTimer = 0;
 
-					Entity* trawlerBootUp = addTrawlerBootup(gameState, entity->p);
+					Entity* trawlerBootUp = addTrawlerBootUp(gameState, entity->p);
 					trawlerBootUp->spawnerRef = entity->ref;
 
 					spawnField->spawnedEntities = refNode(gameState, trawlerBootUp->ref, spawnField->spawnedEntities);
@@ -4033,17 +4106,6 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		}
 
 		moveEntityBasedOnMovementField(entity, gameState, dt, groundFriction, doingOtherAction);
-
-		ConsoleField* keyboardField = getField(entity, ConsoleField_keyboardControlled);
-
-		if(keyboardField) {
-			V3 lightP = v3(entity->p, 1);
-			V3 lightColor = v3(1, 1, 1) * 0.8;
-			double lightRange = 1.8;
-
-			PointLight pl = createPointLight(lightP, lightColor, lightRange);
-			pushPointLight(gameState->renderGroup, &pl, true);
-		}
 
 		bool insideLevel = false;
 
@@ -4288,7 +4350,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			entity->animTime += dt;
 		}
 
-		bool32 fadeAlphaFromDisappearing = isSet(entity, EntityFlag_togglingCloak) && 
+		bool fadeAlphaFromDisappearing = isSet(entity, EntityFlag_togglingCloak) && 
 										   (!characterAnim || !characterAnim->disappear);
 
 		if(characterAnim) {
@@ -4502,8 +4564,19 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		else if(entity->type == EntityType_motherShipProjectileDeath) {
 			texture = getAnimationFrame(&gameState->motherShipImages.projectileMoving, entity->animTime);
 		}
-		else if(entity->type == EntityType_trawlerBootUp) {
-			Animation* anim = &gameState->trawlerImages.bootUp;
+		else if(entity->type == EntityType_bootUp) {
+			Animation* anim = NULL;
+
+			if(entity->drawOrder == DrawOrder_trawler) {
+				anim = &gameState->trawlerImages.bootUp;
+			}
+			else if(entity->drawOrder == DrawOrder_shrike) {
+				anim = &gameState->shrikeBootUp;
+			} 
+			else {
+				InvalidCodePath;
+			}
+
 			double duration = getAnimationDuration(anim);
 
 			if(gameState->doingInitialSim) {
@@ -4513,10 +4586,20 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				texture = getAnimationFrame(anim, entity->animTime);
 			} 
 			else if (!isSet(entity, EntityFlag_remove)) {
-				Entity* trawler = addTrawler(gameState, entity->p);
+				Entity* spawn = NULL;
+
+				if(entity->drawOrder == DrawOrder_trawler) {
+					spawn = addTrawler(gameState, entity->p);
+				}
+				else if(entity->drawOrder == DrawOrder_shrike) {
+					spawn = addShrike(gameState, entity->p);
+				} 
+				else {
+					InvalidCodePath;
+				}
 
 				for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
-					addField(trawler, entity->fields[fieldIndex]);
+					addField(spawn, entity->fields[fieldIndex]);
 					entity->fields[fieldIndex] = NULL;
 				}
 
@@ -4525,7 +4608,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				Entity* spawner = getEntityByRef(gameState, entity->spawnerRef);
 
 				if(spawner) {
-					trawler->spawnerRef = entity->spawnerRef;
+					spawn->spawnerRef = entity->spawnerRef;
 					
 					ConsoleField* spawnerField = getField(spawner, ConsoleField_spawnsTrawlers);
 					assert(spawnerField);
@@ -4535,7 +4618,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 					while(node) {
 						if(node->ref == entity->ref) {
-							node->ref = trawler->ref;
+							node->ref = spawn->ref;
 							updatedNode = true;
 							break;
 						}						
@@ -4551,67 +4634,38 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		}
 
 		#if DRAW_ENTITIES
+
+		if(entity->type == EntityType_shrike) {
+			Texture* tex = getAnimationFrame(&gameState->shrikeStand, entity->animTime);
+			pushEntityTexture(gameState->renderGroup, tex, entity, entity->drawOrder, fadeAlphaFromDisappearing);
+		}
+
 		if (texture != NULL) {
-			bool32 cloaked = isSet(entity, EntityFlag_cloaked) && !isSet(entity, EntityFlag_togglingCloak);
-
-			if(!cloaked) {
-				assert(texture->texId);
-
-				bool drawLeft = isSet(entity, EntityFlag_facesLeft) != 0;
-				if (entity->type == EntityType_laserBase) drawLeft = false;
-
-				 if (entity->type != EntityType_laserBeam || isSet(entity, EntityFlag_laserOn)) {
-					DrawOrder drawOrder = entity->drawOrder;
-
-					if(isTileType(entity) && getMovementField(entity) != NULL) drawOrder = DrawOrder_movingTile;
-
-					double alpha = entity->alpha;
-
-					if(fadeAlphaFromDisappearing) {
-						entity->alpha = max(0, entity->alpha - entity->cloakFactor);
-					}
-
-					bool flipY = isSet(entity, EntityFlag_flipY) != 0;
-
-					if(!(entity->type == EntityType_tile && isSet(entity, EntityFlag_isCornerTile))) 
-					pushEntityTexture(gameState->renderGroup, texture, entity, drawLeft, flipY, drawOrder);
-					entity->alpha = alpha;
-				}
-			}
+			assert(texture->texId);
+			pushEntityTexture(gameState->renderGroup, texture, entity, entity->drawOrder, fadeAlphaFromDisappearing);
 		}
 
 		if(entity->glowingTex) {
-			bool drawLeft = isSet(entity, EntityFlag_facesLeft) != 0;
-			bool flipY = isSet(entity, EntityFlag_flipY) != 0;
 			DrawOrder drawOrder = entity->drawOrder;
+
 
 			float emissivity = entity->emissivity;
 
 			entity->emissivity = 0;
-			pushEntityTexture(gameState->renderGroup, entity->glowingTex->regular, entity, drawLeft, flipY, drawOrder);
+			pushEntityTexture(gameState->renderGroup, entity->glowingTex->regular, entity, drawOrder, fadeAlphaFromDisappearing);
 			entity->emissivity = (float)((sin(entity->animTime) + 1.0) * 0.5);
-			pushEntityTexture(gameState->renderGroup, entity->glowingTex->glowing, entity, drawLeft, flipY, drawOrder);
+			pushEntityTexture(gameState->renderGroup, entity->glowingTex->glowing, entity, drawOrder, fadeAlphaFromDisappearing);
 
 			entity->emissivity = emissivity;
 		}
 
 		if(entity->type == EntityType_motherShip) {
-			double alpha = entity->alpha;
-
-			//TODO: This won't properly blend the alpha
-			//		The mothership would have to rendered at full alpha into an intermidiate texture
-			//		And then that texture would be rendered with less alpha to the screen
-			//		Otherwise, parts of lower layers that shouldn't be visible will become visible 
-			if(fadeAlphaFromDisappearing) {
-				entity->alpha = max(0, entity->alpha - entity->cloakFactor);
-			}
-
 			double rotation = entity->rotation;
 
 			MotherShipImages* images = &gameState->motherShipImages;
 
-			pushEntityTexture(gameState->renderGroup, images->emitter, entity, false, false, DrawOrder_motherShip_0);
-			pushEntityTexture(gameState->renderGroup, images->base, entity, false, false, DrawOrder_motherShip_1);
+			pushEntityTexture(gameState->renderGroup, images->emitter, entity, DrawOrder_motherShip_0, fadeAlphaFromDisappearing);
+			pushEntityTexture(gameState->renderGroup, images->base, entity, DrawOrder_motherShip_1, fadeAlphaFromDisappearing);
 
 			if(shootingState) {
 				Animation* shootAnim = &images->spawning;
@@ -4619,34 +4673,27 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				double animTime = duration * shootField->shootTimer;
 
 				Texture* shootTex = getAnimationFrame(shootAnim, animTime);
-				pushEntityTexture(gameState->renderGroup, shootTex, entity, false, false, DrawOrder_motherShip_5);
+				pushEntityTexture(gameState->renderGroup, shootTex, entity, DrawOrder_motherShip_5, fadeAlphaFromDisappearing);
 			}
 
 			entity->rotation = 0.5 * entity->animTime;
-			pushEntityTexture(gameState->renderGroup, images->rotators[0], entity, false, false, DrawOrder_motherShip_2);
+			pushEntityTexture(gameState->renderGroup, images->rotators[0], entity, DrawOrder_motherShip_2, fadeAlphaFromDisappearing);
 
 			entity->rotation = -1 * entity->animTime;
-			pushEntityTexture(gameState->renderGroup, images->rotators[1], entity, false, false, DrawOrder_motherShip_3);
+			pushEntityTexture(gameState->renderGroup, images->rotators[1], entity, DrawOrder_motherShip_3, fadeAlphaFromDisappearing);
 
 			entity->rotation = 1.5 * entity->animTime;
-			pushEntityTexture(gameState->renderGroup, images->rotators[2], entity, false,  false,DrawOrder_motherShip_4);
+			pushEntityTexture(gameState->renderGroup, images->rotators[2], entity, DrawOrder_motherShip_4, fadeAlphaFromDisappearing);
 
 			entity->rotation = rotation;
-			entity->alpha = alpha;
 		}
 		else if(entity->type == EntityType_trawler) {
-			double alpha = entity->alpha;
-
-			if(fadeAlphaFromDisappearing) {
-				entity->alpha = max(0, entity->alpha - entity->cloakFactor);
-			}
-
 			double rotation = entity->rotation;
 
 			TrawlerImages* images = &gameState->trawlerImages;
 
-			pushEntityTexture(gameState->renderGroup, images->frame, entity, false, false, DrawOrder_trawler_0);
-			pushEntityTexture(gameState->renderGroup, images->body, entity, false, false, DrawOrder_trawler_2);
+			pushEntityTexture(gameState->renderGroup, images->frame, entity, DrawOrder_trawler_0, fadeAlphaFromDisappearing);
+			pushEntityTexture(gameState->renderGroup, images->body, entity, DrawOrder_trawler_2, fadeAlphaFromDisappearing);
 
 			if(shootingState) {
 				Animation* shootAnim = &images->shoot;
@@ -4654,20 +4701,21 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				double animTime = duration * shootField->shootTimer;
 
 				Texture* shootTex = getAnimationFrame(shootAnim, animTime);
-				pushEntityTexture(gameState->renderGroup, shootTex, entity, false, false, DrawOrder_trawler_3);
+				pushEntityTexture(gameState->renderGroup, shootTex, entity, DrawOrder_trawler_3, fadeAlphaFromDisappearing);
 			}
 
 			entity->rotation = -6 * entity->animTime;
-			pushEntityTexture(gameState->renderGroup, images->wheel, entity, false, false, DrawOrder_trawler_1);
+			pushEntityTexture(gameState->renderGroup, images->wheel, entity, DrawOrder_trawler_1, fadeAlphaFromDisappearing);
 
 			entity->rotation = rotation;
-			entity->alpha = alpha;
 		}
 
 		#endif
 
 		double collisionBoundsAlpha = gameState->collisionBoundsAlpha;
-		if(entity->type == EntityType_player || entity->ref != gameState->consoleEntityRef) collisionBoundsAlpha = 0;
+		if((isTileType(entity) && getMovementField(entity) == NULL) 
+			|| entity->type == EntityType_player || 
+			entity->ref != gameState->consoleEntityRef) collisionBoundsAlpha = 0;
 
 		#if SHOW_COLLISION_BOUNDS
 			shouldDrawCollisionBounds = true;

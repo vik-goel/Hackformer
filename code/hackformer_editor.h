@@ -10,7 +10,8 @@ struct EntitySpec {
 	DrawOrder drawOrder;
 	V2 size;
 	char* fileName;
-	V2 editorOffset;
+	V2 panelP;
+	double panelScale;
 };
 
 struct TileSpec {

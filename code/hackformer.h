@@ -276,6 +276,10 @@ struct GameState {
 	CharacterAnim* virus1Anim;
 	CharacterAnim* flyingVirusAnim;
 
+	CharacterAnim* shrikeAnim;
+	Animation shrikeBootUp;
+	Animation shrikeStand;
+
 	BackgroundTextures backgroundTextures;
 
 	Animation hackEnergyAnim;
