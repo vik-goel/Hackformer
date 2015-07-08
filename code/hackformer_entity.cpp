@@ -1624,7 +1624,7 @@ Entity* addTrojan(GameState* gameState, V2 p) {
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), 0.7 * result->renderSize);
 
-	//addCloaksField(result, gameState);
+	addCloaksField(result, gameState);
 	addShootField(result, gameState);
 	addSpotlightField(result, gameState);
 

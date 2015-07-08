@@ -1020,7 +1020,7 @@ double getEnergyLoss(GameState* gameState) {
 		MemoryArena* arena = &gameState->hackSaveStorage;
 		assert(arena->allocated);
 
-		double oldEnergy = *((s32*)getSaveReference(arena, 0)->save);
+		double oldEnergy = *((double*)getSaveReference(arena, 0)->save);
 		double newEnergy = gameState->fieldSpec.hackEnergy;
 		result = oldEnergy - newEnergy;
 	}

@@ -919,6 +919,7 @@ bool drawWaypointInformation(ConsoleField* field, RenderGroup* group, FieldSpec*
 						updateSaveGameToArena(gameState);
 					} else {
 						w->selected = false;
+						w->moved = false;
 					}
 				}
 				else if(input->leftMouse.pressed && w->selected) {
@@ -933,8 +934,11 @@ bool drawWaypointInformation(ConsoleField* field, RenderGroup* group, FieldSpec*
 
 					w->p += movement;
 					spec->hackEnergy -= costPerMeter * len;
+
+					if(len > 0) w->moved = true;
 				} else {
 					w->selected = false;
+					w->moved = false;
 				}
 
 				Texture* waypointTex = spec->defaultWaypoint;

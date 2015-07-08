@@ -635,6 +635,13 @@ void loadImages(GameState* gameState) {
 		projectileDeath->main = loadAnimation(renderGroup, "trawler/bolt_death", 128, 128, 0.05f, false);
 	}
 
+	{
+		CursorImages* cursor = &gameState->cursorImages;
+
+		cursor->regular = loadPNGTexture(renderGroup, "cursor_default");
+		cursor->hacking = loadAnimation(renderGroup, "cursor_hacking", 64, 64, 0.04f, true);
+	}
+
 	gameState->tileAtlasCount = arrayCount(globalTileData);
 	gameState->tileAtlas = gameState->glowingTextures + gameState->glowingTexturesCount;
 
@@ -657,6 +664,7 @@ void loadImages(GameState* gameState) {
 int main(int argc, char* argv[]) {
 	s32 windowWidth = 1280, windowHeight = 720;
 	SDL_Window* window = createWindow(windowWidth, windowHeight);
+	SDL_ShowCursor(0);
 	GameState* gameState = createGameState(windowWidth, windowHeight);
 	MusicState* musicState = &gameState->musicState;
 
@@ -961,6 +969,44 @@ int main(int argc, char* argv[]) {
 			if (updateAndDrawButton(&mainMenu->settings, renderGroup, input, dtForFrame)) {
 				//TODO: Implement settings
 			}
+		}
+
+		{
+			V2 mouseP = input->mouseInMeters;
+			if(gameState->screenType == ScreenType_pause) mouseP = oldInput.mouseInMeters; 
+			R2 cursorBounds = rectCenterDiameter(mouseP, v2(1, 1) * 0.5);
+
+			CursorImages* cursorImages = &gameState->cursorImages;
+			Texture* cursorImage = NULL;
+
+			if(gameState->screenType == ScreenType_game && getEntityByRef(gameState, gameState->consoleEntityRef)) {
+				if(input->leftMouse.justPressed) {
+					cursorImages->playAnim = true;
+					cursorImages->animTime = 0;
+				}
+
+				if(cursorImages->playAnim) {
+					double duration = getAnimationDuration(&cursorImages->hacking);
+					duration += (duration - cursorImages->hacking.secondsPerFrame);
+
+					cursorImages->animTime += dtForFrame;
+
+					if(cursorImages->animTime > duration) {
+						cursorImages->animTime = duration - cursorImages->hacking.secondsPerFrame * 0.5;
+						cursorImages->playAnim = false;
+					}
+
+					cursorImage = getAnimationFrame(&cursorImages->hacking, cursorImages->animTime);
+				} else {
+					cursorImage = cursorImages->regular;
+				}
+			} else {
+				cursorImage = cursorImages->regular;
+				cursorImages->animTime = 0;
+				cursorImages->playAnim = false;
+			}
+
+			pushTexture(renderGroup, cursorImage, cursorBounds, false, false, DrawOrder_gui);
 		}
 		
 		drawRenderGroup(renderGroup, &gameState->fieldSpec);

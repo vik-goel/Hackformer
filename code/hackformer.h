@@ -200,6 +200,13 @@ struct TrojanImages {
 	CharacterAnim* trojanAnim;
 };
 
+struct CursorImages {
+	Texture* regular;
+	Animation hacking;
+	double animTime;
+	bool32 playAnim;
+};
+
 struct GameState {
 	s32 numEntities;
 	Entity entities[1000];
@@ -279,6 +286,7 @@ struct GameState {
 	MotherShipImages motherShipImages;
 	TrawlerImages trawlerImages;
 	TrojanImages trojanImages;
+	CursorImages cursorImages;
 
 	s32 tileAtlasCount;
 	GlowingTexture* tileAtlas;
