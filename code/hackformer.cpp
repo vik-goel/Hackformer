@@ -44,7 +44,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 	setBackgroundTexture(&gameState->backgroundTextures, bgType, gameState->renderGroup);
 	addBackground(gameState);
 
-	V2 tileSize = v2(gameState->tileSize.x, TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS);
+	V2 tileSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS);
 
 	gameState->mapSize = hadamard(v2(mapWidthInTiles, mapHeightInTiles), tileSize);
 	gameState->worldSize = maxComponents(gameState->mapSize, gameState->windowSize);
@@ -418,7 +418,6 @@ GameState* createGameState(s32 windowWidth, s32 windowHeight) {
 
 	gameState->gravity = v2(0, -9.81f);
 	gameState->solidGridSquareSize = 0.1;
-	gameState->tileSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_IN_METERS); 
 	gameState->chunkSize = v2(6, 6);
 
 	gameState->texturesCount = 1; //NOTE: 0 is a null texture data
@@ -447,6 +446,7 @@ void initFieldSpec(GameState* gameState) {
 	spec->waypoint = loadPNGTexture(gameState->renderGroup, "waypoint", false);
 	spec->waypointArrow = loadPNGTexture(gameState->renderGroup, "waypoint_arrow", false);
 	spec->tileHackShield = loadPNGTexture(gameState->renderGroup, "tile_hacking/tile_hack_shield", false);
+	spec->cornerTileHackShield = loadPNGTexture(gameState->renderGroup, "tile_hacking/corner_tile_hack_shield", false);
 	spec->tileHackArrow = loadPNGTexture(gameState->renderGroup, "tile_hacking/right_button", false);
 	spec->tileArrowSize = getDrawSize(spec->tileHackArrow, 0.5);
 
@@ -580,32 +580,41 @@ void loadImages(GameState* gameState) {
 	gameState->laserBolt = loadPNGTexture(renderGroup, "virus1/laser_bolt");
 	gameState->endPortal = loadPNGTexture(renderGroup, "end_portal");
 
-	LaserImages* laser = &gameState->laserImages;
+	{
+		LaserImages* laser = &gameState->laserImages;
 
-	laser->baseOff = loadPNGTexture(renderGroup, "virus3/base_off");
-	laser->baseOn = loadPNGTexture(renderGroup, "virus3/base_on");
-	laser->topOff = loadPNGTexture(renderGroup, "virus3/top_off");
-	laser->topOn = loadPNGTexture(renderGroup, "virus3/top_on");
-	laser->beam = loadPNGTexture(renderGroup, "virus3/laser_beam");
+		laser->baseOff = loadPNGTexture(renderGroup, "virus3/base_off");
+		laser->baseOn = loadPNGTexture(renderGroup, "virus3/base_on");
+		laser->topOff = loadPNGTexture(renderGroup, "virus3/top_off");
+		laser->topOn = loadPNGTexture(renderGroup, "virus3/top_on");
+		laser->beam = loadPNGTexture(renderGroup, "virus3/laser_beam");
+	}
 
-	MotherShipImages* motherShip = &gameState->motherShipImages;
+	{
+		MotherShipImages* motherShip = &gameState->motherShipImages;
 
-	motherShip->emitter = loadPNGTexture(renderGroup, "mothership/emitter");
-	motherShip->base = loadPNGTexture(renderGroup, "mothership/base");
-	motherShip->rotators[0] = loadPNGTexture(renderGroup, "mothership/rotator_3");
-	motherShip->rotators[1] = loadPNGTexture(renderGroup, "mothership/rotator_1");
-	motherShip->rotators[2] = loadPNGTexture(renderGroup, "mothership/rotator_2");
-	motherShip->projectile = loadPNGTexture(renderGroup, "mothership/projectile");
-	motherShip->spawning = loadAnimation(renderGroup, "mothership/spawning", 512, 512, 0.04f, true);
+		motherShip->emitter = loadPNGTexture(renderGroup, "mothership/emitter");
+		motherShip->base = loadPNGTexture(renderGroup, "mothership/base");
+		motherShip->rotators[0] = loadPNGTexture(renderGroup, "mothership/rotator_3");
+		motherShip->rotators[1] = loadPNGTexture(renderGroup, "mothership/rotator_1");
+		motherShip->rotators[2] = loadPNGTexture(renderGroup, "mothership/rotator_2");
+		motherShip->projectileMoving = loadAnimation(renderGroup, "mothership/projectile_smoking", 120, 120, 0.04f, true);
+		motherShip->spawning = loadAnimation(renderGroup, "mothership/spawning", 512, 512, 0.04f, true);
 
-	TrawlerImages* trawler = &gameState->trawlerImages;
+		createCharacterAnim(gameState, &motherShip->projectileDeath);
+		AnimNode* projectileDeath = createAnimNode(gameState, &motherShip->projectileDeath->death);
+		projectileDeath->main = loadAnimation(renderGroup, "mothership/projectile_death", 120, 120, 0.04f, false);
+	}
 
-	trawler->frame = loadPNGTexture(renderGroup, "trawler/right_frame");
-	trawler->body = loadPNGTexture(renderGroup, "trawler/body");
-	trawler->wheel = loadPNGTexture(renderGroup, "trawler/wheel");
-	trawler->shoot = loadAnimation(renderGroup, "trawler/shoot", 128, 128, 0.04f, true);
-	trawler->bootUp = loadAnimation(renderGroup, "trawler/boot_up", 128, 128, 0.1f, false);
+	{
+		TrawlerImages* trawler = &gameState->trawlerImages;
 
+		trawler->frame = loadPNGTexture(renderGroup, "trawler/right_frame");
+		trawler->body = loadPNGTexture(renderGroup, "trawler/body");
+		trawler->wheel = loadPNGTexture(renderGroup, "trawler/wheel");
+		trawler->shoot = loadAnimation(renderGroup, "trawler/shoot", 128, 128, 0.04f, true);
+		trawler->bootUp = loadAnimation(renderGroup, "trawler/boot_up", 128, 128, 0.1f, false);
+	}
 	gameState->tileAtlasCount = arrayCount(globalTileData);
 	gameState->tileAtlas = pushArray(&gameState->permanentStorage, Texture*, gameState->tileAtlasCount);
 

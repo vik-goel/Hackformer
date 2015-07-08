@@ -156,6 +156,7 @@ struct FieldSpec {
 	Texture* waypoint;
 	Texture* waypointArrow;
 
+	Texture* cornerTileHackShield;
 	Texture* tileHackShield;
 	Texture* tileHackArrow;
 

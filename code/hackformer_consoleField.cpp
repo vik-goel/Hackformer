@@ -977,8 +977,17 @@ bool drawTileFields(Entity* entity, FieldSpec* spec, GameState* gameState, doubl
 		Color color = createColor(255, 255, 255, alpha);
 
 		R2 shieldBounds = scaleRect(renderBounds, v2(1, 1) * 1.15);
-		// pushTexture(gameState->renderGroup, spec->tileHackShield, shieldBounds, entity->rotation, false, false,
-		// 			DrawOrder_gui, false, color);
+
+		if(isSet(entity, EntityFlag_isCornerTile)) {
+			bool flipX = isSet(entity, EntityFlag_facesLeft) != 0;
+			bool flipY = isSet(entity, EntityFlag_flipY) != 0;
+
+			 pushTexture(gameState->renderGroup, spec->cornerTileHackShield, shieldBounds, entity->rotation, flipX, flipY,
+			 			DrawOrder_gui, false, color);
+		} else {
+ 			pushTexture(gameState->renderGroup, spec->tileHackShield, shieldBounds, entity->rotation, false, false,
+		 			DrawOrder_gui, false, color);
+		}
 
 		V2 offset = clickBoxSize * 0.5 + spec->spacing;
 

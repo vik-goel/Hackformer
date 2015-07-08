@@ -17,6 +17,8 @@ enum EntityFlag {
 	EntityFlag_cloaked = 1 << 13,
 	EntityFlag_togglingCloak = 1 << 14,
 	EntityFlag_flipY = 1 << 15,
+	EntityFlag_isCornerTile = 1 << 16,
+	EntityFlag_jumped = 1 << 17,
 };
 
 struct RefNode {
@@ -35,7 +37,7 @@ struct Hitbox {
 
 	//TODO: These could be flags
 	bool32 storedFlippedX;
-	
+
 	double storedRotation;
 	V2 rotatedCollisionPoints[MAX_COLLISION_POINTS];
 
@@ -106,6 +108,8 @@ struct Entity {
 
 	Texture* defaultTex;
 	CharacterAnim* characterAnim;
+
+	V2 groundNormal;
 };
 
 struct EntityHackSave {

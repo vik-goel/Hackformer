@@ -77,7 +77,7 @@ struct Input;
 #include "hackformer_entity.h"
 #include "hackformer_save.h"
 
-#define SHOW_COLLISION_BOUNDS 1
+#define SHOW_COLLISION_BOUNDS 0
 #define SHOW_CLICK_BOUNDS 0
 #define DRAW_ENTITIES 1
 #define PLAY_MUSIC 0
@@ -180,7 +180,8 @@ struct MotherShipImages {
 	Texture* base;
 	Texture* rotators[3];
 	Animation spawning;
-	Texture* projectile;
+	Animation projectileMoving;
+	CharacterAnim* projectileDeath;
 };
 
 struct TrawlerImages {
@@ -246,7 +247,6 @@ struct GameState {
 	V2 chunkSize;
 
 	double shootDelay;
-	V2 tileSize;
 	V2 mapSize;
 	V2 worldSize;
 

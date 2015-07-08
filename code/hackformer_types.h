@@ -66,8 +66,11 @@ enum EntityType {
 	EntityType_droppingTile,
 	EntityType_motherShip,
 	EntityType_motherShipProjectile,
+	EntityType_motherShipProjectileDeath,
 	EntityType_trawler,
 	EntityType_trawlerBootUp,
+	EntityType_trawlerBolt,
+	EntityType_trojanBolt,
 };
 
 enum DrawOrder {
@@ -84,6 +87,7 @@ enum DrawOrder {
 	DrawOrder_virus,
 	DrawOrder_flyingVirus,
 	DrawOrder_trojan,
+	DrawOrder_trojanBolt,
 	DrawOrder_motherShip,
 	DrawOrder_motherShip_0,
 	DrawOrder_motherShip_1,
@@ -96,6 +100,7 @@ enum DrawOrder {
 	DrawOrder_trawler_1,
 	DrawOrder_trawler_2,
 	DrawOrder_trawler_3,
+	DrawOrder_trawlerBolt,
 	DrawOrder_disappearingTile,
 	DrawOrder_droppingTile,
 	DrawOrder_heavyTile,
