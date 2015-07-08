@@ -415,6 +415,15 @@ bool removeFromSpatialPartition(Entity* entity, GameState* gameState) {
 	return removed;
 }
 
+bool isProjectile(Entity* entity) {
+	bool result = entity->type == EntityType_laserBolt ||
+				  entity->type == EntityType_motherShipProjectile ||
+				  entity->type == EntityType_trawlerBolt ||
+				  entity->type == EntityType_trojanBolt;
+
+	return result;
+}
+
 void attemptToRemovePenetrationReferences(Entity*, GameState*);
 
 void setEntityP(Entity* entity, V2 newP, GameState* gameState) {
@@ -967,6 +976,8 @@ void addShootField(Entity* entity, GameState* gameState, double speedModifier = 
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "detect_radius", sightRadii, 
 													    arrayCount(sightRadii), 2, 1));
 
+	result->shootEntityType = entity->type;
+
 	addField(entity, result);
 }
 
@@ -1352,6 +1363,11 @@ void initProjectile(Entity* entity, V2 target, s32 shooterRef, double speed, Tex
 	entity->dP = normalize(target - entity->p) * speed;
 	entity->spawnerRef = shooterRef;
 
+	if(entity->type == EntityType_trojanBolt ||
+	   entity->type == EntityType_trawlerBolt) {
+		entity->rotation = getRad(entity->dP) + PI;
+	}
+
 	setFlags(entity, EntityFlag_removeWhenOutsideLevel|
 					 EntityFlag_hackable);
 
@@ -1383,6 +1399,60 @@ Entity* addLaserBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, doub
 	initProjectile(result, target, shooterRef, speed, gameState->laserBolt, gameState);
 
 	result->emissivity = 1;
+					 
+	return result;
+}
+
+Entity* addTrojanBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, double speed) {
+	Entity* result = addEntity(gameState, EntityType_trojanBolt, DrawOrder_trojanBolt, p, v2(1, 1) * 0.3);
+
+	double hitboxWidth = result->renderSize.x;
+	double hitboxHeight = result->renderSize.y;
+	double halfHitboxWidth = hitboxWidth * 0.5;
+	double halfHitboxHeight = hitboxHeight * 0.5;
+	Hitbox* hitbox = addHitbox(result, gameState);
+	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	hitbox->collisionPointsCount = 8;
+	hitbox->originalCollisionPoints[0] = v2(-0.516493 * halfHitboxWidth, -0.290799 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[1] = v2(0.503472 * halfHitboxWidth, -0.277778 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[2] = v2(0.711806 * halfHitboxWidth, -0.138889 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[3] = v2(0.707465 * halfHitboxWidth, 0.117187 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[4] = v2(0.499132 * halfHitboxWidth, 0.277778 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[5] = v2(-0.507813 * halfHitboxWidth, 0.286458 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[6] = v2(-0.737847 * halfHitboxWidth, 0.112847 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[7] = v2(-0.733507 * halfHitboxWidth, -0.147569 * halfHitboxHeight);
+
+	initProjectile(result, target, shooterRef, speed, gameState->trojanImages.projectile, gameState);
+
+	result->emissivity = 1;
+	result->characterAnim = gameState->trojanImages.projectileDeath;
+					 
+	return result;
+}
+
+Entity* addTrawlerBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, double speed) {
+	Entity* result = addEntity(gameState, EntityType_trawlerBolt, DrawOrder_trawlerBolt, p, v2(1, 1) * 0.3);
+
+	double hitboxWidth = result->renderSize.x;
+	double hitboxHeight = result->renderSize.y;
+	double halfHitboxWidth = hitboxWidth * 0.5;
+	double halfHitboxHeight = hitboxHeight * 0.5;
+	Hitbox* hitbox = addHitbox(result, gameState);
+	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	hitbox->collisionPointsCount = 8;
+	hitbox->originalCollisionPoints[0] = v2(-0.499132 * halfHitboxWidth, -0.173611 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[1] = v2(0.516493 * halfHitboxWidth, -0.169271 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[2] = v2(0.668403 * halfHitboxWidth, -0.078125 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[3] = v2(0.668403 * halfHitboxWidth, 0.060764 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[4] = v2(0.512153 * halfHitboxWidth, 0.160590 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[5] = v2(-0.512153 * halfHitboxWidth, 0.186632 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[6] = v2(-0.655382 * halfHitboxWidth, 0.060764 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[7] = v2(-0.655382 * halfHitboxWidth, -0.108507 * halfHitboxHeight);
+
+	initProjectile(result, target, shooterRef, speed, gameState->trawlerImages.projectile, gameState);
+
+	result->emissivity = 1;
+	result->characterAnim = gameState->trawlerImages.projectileDeath;
 					 
 	return result;
 }
@@ -1527,7 +1597,7 @@ Entity* addTrojan(GameState* gameState, V2 p) {
 	V2 size = v2(2, 2);
 	Entity* result = addEntity(gameState, EntityType_trojan, DrawOrder_trojan, p, size);
 
-	result->characterAnim = gameState->trojanAnim;
+	result->characterAnim = gameState->trojanImages.trojanAnim;
 
 	setFlags(result, EntityFlag_hackable|
 					 EntityFlag_noMovementByDefault);
@@ -1720,26 +1790,13 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 				b->type == EntityType_trawler) result = false;
 		} break;
 
-		case EntityType_motherShipProjectile:
-		case EntityType_laserBolt: {
-			if (b->ref == a->spawnerRef) result = false;
-			else {
-				//NOTE: If a bullet is shot from a laser base/top, it should not collide with the laser beam
-				//		This requires the base, top, and beam to all be added in a specific order to work
-				Entity* shooter = getEntityByRef(gameState, a->spawnerRef);
-				if(shooter && shooter->type == EntityType_laserBase && shooter->ref + 1 == b->ref)
-				    result = false;
-			}
-		} break;
-
 		case EntityType_hackEnergy: {
 			if (b->type == EntityType_virus ||
 				b->type == EntityType_flyingVirus ||
 				b->type == EntityType_trojan ||
 				b->type == EntityType_motherShip ||
 				b->type == EntityType_trawler ||
-				b->type == EntityType_laserBolt || 
-				b->type == EntityType_motherShipProjectile || 
+				isProjectile(b) ||
 				b->type == EntityType_pickupField) result = false;
 		} break;
 
@@ -1770,10 +1827,25 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 			  (isNonHeavyTile(b) && getMovementField(b) == NULL)) result = true;
 
 			if( b->type == EntityType_laserBeam || 
-				b->type == EntityType_laserBolt || 
-				b->type == EntityType_motherShipProjectile) result = false;
+				isProjectile(b
+					)) result = false;
 		} break;
+
+		default:
+			if(isProjectile(a)) {
+				if (b->ref == a->spawnerRef) result = false;
+				else {
+					//NOTE: If a bullet is shot from a laser base/top, it should not collide with the laser beam
+					//		This requires the base, top, and beam to all be added in a specific order to work
+					Entity* shooter = getEntityByRef(gameState, a->spawnerRef);
+					if(shooter && shooter->type == EntityType_laserBase && shooter->ref + 1 == b->ref)
+					    result = false;
+				}
+			}
+		break;
 	}
+
+	
 
 	return result;
 }
@@ -1828,8 +1900,6 @@ bool isSolidCollisionRaw(Entity* a, Entity* b, GameState* gameState, bool actual
 	bool result = true;
 
 	switch(a->type) {
-		case EntityType_motherShipProjectile:
-		case EntityType_laserBolt: 
 		case EntityType_laserBeam: {
 			result = false;
 		} break;
@@ -1841,6 +1911,12 @@ bool isSolidCollisionRaw(Entity* a, Entity* b, GameState* gameState, bool actual
 
 		case EntityType_pickupField: {
 			result = !canPickupField(a, b, gameState);
+		} break;
+
+		default: {
+			if(isProjectile(a)) {
+				result = false;
+			}
 		} break;
 	}
 
@@ -2033,6 +2109,9 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 			hitEntity->type == EntityType_virus
 		   || hitEntity->type == EntityType_text
 		   || hitEntity->type == EntityType_flyingVirus 
+		   || hitEntity->type == EntityType_trawler
+		   || hitEntity->type == EntityType_trojan
+		   || hitEntity->type == EntityType_motherShip
 		   //|| hitEntity->type == EntityType_player
 		 ) {
 		 	killed = true;
@@ -2070,15 +2149,14 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 		} break;
 
 
-		case EntityType_motherShipProjectile:
-		case EntityType_laserBolt: {
-			setFlags(entity, EntityFlag_remove);
-		} break;
-
-
-
 		case EntityType_laserBeam: {
 			setFlags(hitEntity, EntityFlag_remove);
+		} break;
+
+		default: {
+			if(isProjectile(entity)) {
+				setFlags(entity, EntityFlag_remove);
+			}
 		} break;
 
 	}
@@ -3325,9 +3403,17 @@ bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt, 
 						ConsoleField* bulletSpeedField = shootField->children[0];
 						double bulletSpeed = bulletSpeedField->doubleValues[bulletSpeedField->selectedIndex];
 
-						if(entity->type == EntityType_motherShip) {
+						if(shootField->shootEntityType == EntityType_motherShip) {
 							addMotherShipProjectile(gameState, entity->p + spawnOffset, target->p, entity->ref, bulletSpeed);
-						} else {
+						} 
+						else if(shootField->shootEntityType == EntityType_trojan) {
+							addTrojanBolt(gameState, entity->p + spawnOffset, target->p, entity->ref, bulletSpeed);
+						}
+						else if(shootField->shootEntityType == EntityType_trawler) {
+							addTrawlerBolt(gameState, entity->p + spawnOffset, target->p, entity->ref, bulletSpeed);
+						}
+						else {
+							InvalidCodePath;
 							addLaserBolt(gameState, entity->p + spawnOffset, target->p, entity->ref, bulletSpeed);
 						}
 					}
@@ -3415,7 +3501,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 	}
 
 
-	if (entity->type != EntityType_laserBolt && entity->type != EntityType_motherShipProjectile) {
+	if (!isProjectile(entity)) {
 		entity->dP.x *= groundFriction;
 
 		bool airFriction = (movementField && movementField->type == ConsoleField_seeksTarget);
@@ -3628,7 +3714,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 	} 
 
 	if(defaultMove) {
-		if(entity->type == EntityType_laserBolt || entity->type == EntityType_motherShipProjectile ||
+		if(isProjectile(entity) ||
 		   entity->type == EntityType_heavyTile && entity->startPos != entity->p) {
 			ddP.y = 0;
 		} 
@@ -3662,6 +3748,8 @@ void drawCollisionBounds(Entity* entity, RenderGroup* renderGroup, double alpha)
 		pushOutlinedRect(gameState->renderGroup, getBoundingBox(entity, hitbox),
 						 0.02f, createColor(255, 127, 255, 255), true);
 		#endif
+
+		assert(hitbox->collisionPointsCount > 0 && hitbox->collisionPointsCount < MAX_COLLISION_POINTS);
 
 		for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
 			V2 p1 = hitbox->rotatedCollisionPoints[pIndex] + hitboxOffset;
@@ -3809,7 +3897,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 			if(togglingCloak || cloaked) {
 				shootField = NULL;
-				cloakField = NULL;
+				spawnField = NULL;
 
 				if(togglingCloak && !gameState->doingInitialSim) {
 					doingOtherAction = true;

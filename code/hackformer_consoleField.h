@@ -77,6 +77,7 @@ struct ConsoleField {
 
 		struct {
 			double shootTimer;
+			EntityType shootEntityType;
 		};
 
 		struct {

@@ -564,7 +564,9 @@ void loadImages(GameState* gameState) {
 	}
 
 	{
-		CharacterAnim* character = createCharacterAnim(gameState, &gameState->trojanAnim);
+		TrojanImages* trojan = &gameState->trojanImages;
+
+		CharacterAnim* character = createCharacterAnim(gameState, &trojan->trojanAnim);
 
 		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
 		shoot->main = loadAnimation(renderGroup, "trojan/shoot", 256, 256, 0.04f, true);
@@ -574,6 +576,11 @@ void loadImages(GameState* gameState) {
 
 		AnimNode* stand = createAnimNode(gameState, &character->stand);
 		stand->main = createAnimation(loadPNGTexture(renderGroup, "trojan/full"));
+
+		trojan->projectile = loadPNGTexture(renderGroup, "trojan/bolt");
+		createCharacterAnim(gameState, &trojan->projectileDeath);
+		AnimNode* projectileDeath = createAnimNode(gameState, &trojan->projectileDeath->death);
+		projectileDeath->main = loadAnimation(renderGroup, "trojan/bolt_death", 128, 128, 0.05f, false);
 	}
 	
 	gameState->hackEnergyAnim = loadAnimation(renderGroup, "energy_animation", 173, 172, 0.08f, true);
@@ -614,6 +621,11 @@ void loadImages(GameState* gameState) {
 		trawler->wheel = loadPNGTexture(renderGroup, "trawler/wheel");
 		trawler->shoot = loadAnimation(renderGroup, "trawler/shoot", 128, 128, 0.04f, true);
 		trawler->bootUp = loadAnimation(renderGroup, "trawler/boot_up", 128, 128, 0.1f, false);
+
+		trawler->projectile = loadPNGTexture(renderGroup, "trawler/bolt");
+		createCharacterAnim(gameState, &trawler->projectileDeath);
+		AnimNode* projectileDeath = createAnimNode(gameState, &trawler->projectileDeath->death);
+		projectileDeath->main = loadAnimation(renderGroup, "trawler/bolt_death", 128, 128, 0.05f, false);
 	}
 	gameState->tileAtlasCount = arrayCount(globalTileData);
 	gameState->tileAtlas = pushArray(&gameState->permanentStorage, Texture*, gameState->tileAtlasCount);

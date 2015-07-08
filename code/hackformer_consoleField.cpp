@@ -1105,7 +1105,7 @@ bool drawEntityConsoleFields(Entity* entity, FieldSpec* spec, GameState* gameSta
 }
 
 void fadeOutConsoles(Entity* entity, GameState* gameState) {
-	if(entity) {
+	if(entity && entity->type != EntityType_pickupField) {
 		gameState->fadingOutConsoles = refNode(gameState, entity->ref, gameState->fadingOutConsoles); 
 	}
 }

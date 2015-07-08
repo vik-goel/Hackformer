@@ -852,7 +852,10 @@ void drawDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd,
 #ifdef HACKFORMER_GAME
 void renderDrawConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field) {
 	field->p -= group->camera->p;
+	double alpha = field->alpha;
+	field->alpha = 1;
 	drawConsoleField(field, group, NULL, fieldSpec, false, true, NULL);
+	field->alpha = alpha;
 	field->p += group->camera->p;
 }
 #endif

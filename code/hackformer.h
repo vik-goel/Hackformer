@@ -188,8 +188,16 @@ struct TrawlerImages {
 	Texture* frame;
 	Texture* wheel;
 	Texture* body;
+	Texture* projectile;
+	CharacterAnim* projectileDeath;
 	Animation shoot;
 	Animation bootUp;
+};
+
+struct TrojanImages {
+	Texture* projectile;
+	CharacterAnim* projectileDeath;
+	CharacterAnim* trojanAnim;
 };
 
 struct GameState {
@@ -260,7 +268,6 @@ struct GameState {
 	CharacterAnim* playerAnim;
 	CharacterAnim* virus1Anim;
 	CharacterAnim* flyingVirusAnim;
-	CharacterAnim* trojanAnim;
 
 	BackgroundTextures backgroundTextures;
 
@@ -271,6 +278,7 @@ struct GameState {
 	LaserImages laserImages;
 	MotherShipImages motherShipImages;
 	TrawlerImages trawlerImages;
+	TrojanImages trojanImages;
 
 	Texture* heavyTileTex;
 	s32 tileAtlasCount;
