@@ -73,6 +73,11 @@ void writeConsoleField(FILE* file, ConsoleField* field) {
 		} else if(field->type == ConsoleField_shootsAtTarget) {
 			writeDouble(file, field->shootTimer);
 			writeS32(file, field->shootEntityType);
+		} else if(field->type == ConsoleField_spawnsTrawlers) {
+			writeDouble(file, field->spawnTimer);
+			writeRefNode(file, field->spawnedEntities);
+		} else if(field->type == ConsoleField_light) {
+			writeV3(file, field->lightColor);
 		}
 
 		writeS32(file, field->selectedIndex);
@@ -110,6 +115,17 @@ void writeTexture(FILE* file, Texture* texture, GameState* gameState) {
 	if(texture) {
 		s32 dataIndex = ((size_t)texture - (size_t)gameState->textures) / sizeof(Texture);
 		assert(dataIndex >= 0 && dataIndex < gameState->texturesCount);
+
+		writeS32(file, dataIndex);
+	} else {
+		writeS32(file, -1);
+	}
+}
+
+void writeGlowingTexture(FILE* file, GlowingTexture* texture, GameState* gameState) {
+	if(texture) {
+		s32 dataIndex = ((size_t)texture - (size_t)gameState->glowingTextures) / sizeof(GlowingTexture);
+		assert(dataIndex >= 0 && dataIndex < gameState->glowingTexturesCount);
 
 		writeS32(file, dataIndex);
 	} else {
@@ -177,6 +193,7 @@ void writeEntity(FILE* file, Entity* entity, GameState* gameState) {
 	writeAnimNode(file, entity->currentAnim, gameState);
 	writeAnimNode(file, entity->nextAnim, gameState);
 	writeTexture(file, entity->defaultTex, gameState);
+	writeGlowingTexture(file, entity->glowingTex, gameState);
 	writeCharacterAnim(file, entity->characterAnim, gameState);
 }
 
@@ -292,6 +309,22 @@ void saveGame(GameState* gameState, char* fileName) {
 	fclose(file);
 }
 
+RefNode* readRefNode(FILE* file, GameState* gameState) {
+	RefNode* result = NULL;
+
+	s32 numNodes = readS32(file);
+
+	for(s32 nodeIndex = 0; nodeIndex < numNodes; nodeIndex++) {
+		s32 ref = readS32(file);
+		RefNode* node = refNode(gameState, ref);
+
+		node->next = result;
+		result = node;
+	}
+
+	return result;
+}
+
 ConsoleField* readConsoleField(FILE* file, GameState* gameState) {
 	ConsoleField* field = NULL;
 	s32 type = readS32(file);
@@ -339,6 +372,11 @@ ConsoleField* readConsoleField(FILE* file, GameState* gameState) {
 		} else if(field->type == ConsoleField_shootsAtTarget) {
 			field->shootTimer = readDouble(file);
 			field->shootEntityType = (EntityType)readS32(file);
+		} else if(field->type == ConsoleField_spawnsTrawlers) {
+			field->spawnTimer = readDouble(file);
+			field->spawnedEntities = readRefNode(file, gameState);
+		} else if(field->type == ConsoleField_light) {
+			field->lightColor = readV3(file);
 		}
 
 		field->selectedIndex = readS32(file);
@@ -361,22 +399,6 @@ ConsoleField* readConsoleField(FILE* file, GameState* gameState) {
 	}
 
 	return field;
-}
-
-RefNode* readRefNode(FILE* file, GameState* gameState) {
-	RefNode* result = NULL;
-
-	s32 numNodes = readS32(file);
-
-	for(s32 nodeIndex = 0; nodeIndex < numNodes; nodeIndex++) {
-		s32 ref = readS32(file);
-		RefNode* node = refNode(gameState, ref);
-
-		node->next = result;
-		result = node;
-	}
-
-	return result;
 }
 
 Messages* readMessages(FILE* file, GameState* gameState) {
@@ -406,6 +428,19 @@ Texture* readTexture(FILE* file, GameState* gameState) {
 	if(dataIndex >= 0) {
 		assert(dataIndex < gameState->texturesCount);
 		result = gameState->textures + dataIndex;
+	}
+
+	return result;
+}
+
+GlowingTexture* readGlowingTexture(FILE* file, GameState* gameState) {
+	GlowingTexture* result = NULL;
+
+	s32 dataIndex = readS32(file);
+
+	if(dataIndex >= 0) {
+		assert(dataIndex < gameState->texturesCount);
+		result = gameState->glowingTextures + dataIndex;
 	}
 
 	return result;
@@ -499,6 +534,7 @@ void readEntity(FILE* file, GameState* gameState, s32 entityIndex) {
 	entity->currentAnim = readAnimNode(file, gameState);
 	entity->nextAnim = readAnimNode(file, gameState);
 	entity->defaultTex = readTexture(file, gameState);
+	entity->glowingTex = readGlowingTexture(file, gameState);
 	entity->characterAnim = readCharacterAnim(file, gameState);
 
 	addToSpatialPartition(entity, gameState);
@@ -675,9 +711,26 @@ void saveConsoleFieldToArena(MemoryArena* arena, ConsoleField* field) {
 			pushElem(arena, double, field->bobHeight);
 			pushElem(arena, s32, field->bobbingUp);
 			pushElem(arena, s32, field->initialBob);
-		} else if(save->type == ConsoleField_shootsAtTarget) {
+		}
+		else if(save->type == ConsoleField_shootsAtTarget) {
 			pushElem(arena, double, field->shootTimer);
 			pushElem(arena, s32, field->shootEntityType);
+		}
+		else if(save->type == ConsoleField_spawnsTrawlers) {
+			pushElem(arena, double, field->spawnTimer);
+			s32 nodeCount = 0;
+
+			for (RefNode* node = field->spawnedEntities; node; node = node->next) {
+				nodeCount++;
+			}
+
+			pushElem(arena, s32, nodeCount);
+
+			for (RefNode* node = field->spawnedEntities; node; node = node->next) {
+				pushElem(arena, s32, node->ref);
+			}
+		} else if(save->type == ConsoleField_light) {
+			pushElem(arena, V3, field->lightColor);
 		}
 
 		for(s32 fieldIndex = 0; fieldIndex < field->numChildren; fieldIndex++) {
@@ -847,6 +900,10 @@ void readConsoleFieldFromArena(void** readPtr, ConsoleField** fieldPtr, GameStat
 			freeWaypoints(field->curWaypoint, gameState);
 			field->curWaypoint = NULL;
 		}
+		else if(field->type == ConsoleField_spawnsTrawlers) {
+			freeRefNode(field->spawnedEntities, gameState);
+			field->spawnedEntities = NULL;
+		}
 
 		ConsoleFieldHackSave* save = readElemPtr(*readPtr, ConsoleFieldHackSave);
 
@@ -905,9 +962,23 @@ void readConsoleFieldFromArena(void** readPtr, ConsoleField** fieldPtr, GameStat
 			field->bobHeight = readElem(*readPtr, double);
 			field->bobbingUp = readElem(*readPtr, s32);
 			field->initialBob = readElem(*readPtr, s32);
-		} else if(field->type == ConsoleField_shootsAtTarget) {
+		}
+		else if(field->type == ConsoleField_shootsAtTarget) {
 			field->shootTimer = readElem(*readPtr, double);
 			field->shootEntityType = (EntityType)readElem(*readPtr, s32);
+		}
+		else if(field->type == ConsoleField_spawnsTrawlers) {
+			field->spawnTimer = readElem(*readPtr, double);
+
+			s32 nodeCount = readElem(*readPtr, s32);
+
+			for(s32 nodeIndex = 0; nodeIndex < nodeCount; nodeIndex++) {
+				s32 ref = readElem(*readPtr, s32);
+				field->spawnedEntities = refNode(gameState, ref, field->spawnedEntities);
+			}
+		}
+		else if(field->type == ConsoleField_light) {
+			field->lightColor = readElem(*readPtr, V3);
 		}
 
 		clearFlags(field, ConsoleFlag_selected);

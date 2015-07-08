@@ -214,21 +214,6 @@ Texture* loadPNGTexture(RenderGroup* group, char* fileName, bool stencil) {
 	return result;
 }
 
-double getAspectRatio(Texture* texture) {
-	double result = texture->size.x / texture->size.y;
-	return result;
-}
-
-V2 getDrawSize(Texture* texture, double height) {
-	V2 result = {};
-
-	double aspectRatio = getAspectRatio(texture);
-	result.x = height * aspectRatio;
-	result.y = height;
-
-	return result;
-}
-
 TTF_Font* loadFont(char* fileName, s32 fontSize) {
 	TTF_Font *font = TTF_OpenFont(fileName, fontSize);
 

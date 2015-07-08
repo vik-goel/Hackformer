@@ -1004,6 +1004,8 @@ void addLightField(Entity* entity, GameState* gameState, V3 color) {
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "radius", radii, 
 													    arrayCount(radii), 2, 2));
 
+	addChildToConsoleField(result, createBoolField(gameState, "enabled", true, 4));
+
 	addField(entity, result);
 }
 
@@ -1893,7 +1895,8 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 				b->type == EntityType_flyingVirus ||
 				b->type == EntityType_trojan ||
 				b->type == EntityType_motherShip ||
-				b->type == EntityType_trawler) result = false;
+				b->type == EntityType_trawler ||
+				b->type == EntityType_shrike) result = false;
 		} break;
 
 		case EntityType_hackEnergy: {
@@ -3988,11 +3991,15 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				} break;
 
 				case ConsoleField_light: {
-					ConsoleField* radiusField = field->children[0];
-					double radius = getDoubleValue(radiusField);
+					ConsoleField* enabledField = field->children[1];
 
-					PointLight light = createPointLight(v3(entity->p, 0), field->lightColor * (1 - entity->cloakFactor), radius);
-					pushPointLight(gameState->renderGroup, &light, true);
+					if(enabledField->selectedIndex) {
+						ConsoleField* radiusField = field->children[0];
+						double radius = getDoubleValue(radiusField);
+
+						PointLight light = createPointLight(v3(entity->p, 0), field->lightColor * (1 - entity->cloakFactor), radius);
+						pushPointLight(gameState->renderGroup, &light, true);
+					}
 				} break;
 			}
 		}

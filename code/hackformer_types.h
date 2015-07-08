@@ -438,6 +438,12 @@ void writeV2(FILE* file, V2 value) {
 	writeDouble(file, value.y);
 }
 
+void writeV3(FILE* file, V3 value) {
+	writeDouble(file, value.x);
+	writeDouble(file, value.y);
+	writeDouble(file, value.z);
+}
+
 void writeR2(FILE* file, R2 value) {
 	writeV2(file, value.min);
 	writeV2(file, value.max);
@@ -532,6 +538,14 @@ V2 readV2(FILE* file) {
 	V2 result = {};
 	result.x = readDouble(file);
 	result.y = readDouble(file);
+	return result;
+}
+
+V3 readV3(FILE* file) {
+	V3 result = {};
+	result.x = readDouble(file);
+	result.y = readDouble(file);
+	result.z = readDouble(file);
 	return result;
 }
 
@@ -701,6 +715,21 @@ Color createColor(u8 r, u8 g, u8 b, u8 a) {
 	return result;
 }
 
+double getAspectRatio(Texture* texture) {
+	double result = texture->size.x / texture->size.y;
+	return result;
+}
+
+V2 getDrawSize(Texture* texture, double height) {
+	V2 result = {};
+
+	double aspectRatio = getAspectRatio(texture);
+	result.x = height * aspectRatio;
+	result.y = height;
+
+	return result;
+}
+
 void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, bool flipY, DrawOrder drawOrder, bool moveIntoCameraSpace = false,
 	 		Orientation orientation = Orientation_0, Color color = WHITE, float emissivity = 0);
 
@@ -715,9 +744,11 @@ void drawBackgroundTexture(BackgroundTexture* backgroundTexture, RenderGroup* gr
 	double bgScrollRate = bgTexWidth / mgTexWidth;
 
 	double bgHeight = windowSize.y;
-	double mgWidth = max(mapWidth, mgTexWidth);
-					
-	double bgWidth = mgWidth / bgScrollRate - 1;
+	double bgWidth = getDrawSize(bg, bgHeight).x;
+	double mgWidth = getDrawSize(mg, bgHeight).x;
+
+	//double mgWidth = max(mapWidth, mgTexWidth);
+	//double bgWidth = mgWidth / bgScrollRate - 1;
 
 	double bgX = max(0, camera->p.x) * (1 -  bgScrollRate);
 
