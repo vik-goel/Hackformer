@@ -994,6 +994,19 @@ void addSpotlightField(Entity* entity, GameState* gameState) {
 	addField(entity, result);
 }
 
+void addLightField(Entity* entity, GameState* gameState, V3 color) {
+	ConsoleField* result = createConsoleField(gameState, "light", ConsoleField_light, 3);
+
+	result->lightColor = color;
+
+	double radii[] = {2, 4, 6, 8, 10};
+	
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "radius", radii, 
+													    arrayCount(radii), 2, 2));
+
+	addField(entity, result);
+}
+
 void addIsTargetField(Entity* entity, GameState* gameState) {
 	ConsoleField* field = createConsoleField(gameState, "is_target", ConsoleField_isShootTarget, 10);
 
@@ -1627,6 +1640,20 @@ Entity* addTrojan(GameState* gameState, V2 p) {
 	addCloaksField(result, gameState);
 	addShootField(result, gameState);
 	addSpotlightField(result, gameState);
+
+	return result;
+}
+
+Entity* addLamp(GameState* gameState, V2 p, double height, Texture* texture, V3 color) {
+	Entity* result = addEntity(gameState, EntityType_lamp, DrawOrder_lamp, p, getDrawSize(texture, height));
+
+	setFlags(result, EntityFlag_hackable);
+
+	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
+	result->defaultTex = texture;
+
+	addLightField(result, gameState, color);
+
 
 	return result;
 }
@@ -3859,11 +3886,44 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 		removeFieldsIfSet(entity->fields, &entity->numFields);
 
-		//TODO: All of these getField checks could be done in one big loop
-		ConsoleField* spotLightField = getField(entity, ConsoleField_spotlight);
-		ConsoleField* shootField = getField(entity, ConsoleField_shootsAtTarget);
-		ConsoleField* cloakField = getField(entity, ConsoleField_cloaks);
-		ConsoleField* spawnField = getField(entity, ConsoleField_spawnsTrawlers);
+		ConsoleField* spotLightField = NULL;
+		ConsoleField* shootField = NULL;
+		ConsoleField* cloakField = NULL;
+		ConsoleField* spawnField = NULL;
+
+		s32 fieldIndexStart = 0;
+		if(entity->type == EntityType_pickupField) fieldIndexStart = 1;
+
+		for(s32 fieldIndex = fieldIndexStart; fieldIndex < entity->numFields; fieldIndex++) {
+			ConsoleField* field = entity->fields[fieldIndex];
+
+			switch(field->type) {
+				case ConsoleField_spotlight: {
+					spotLightField = field;
+				} break;
+
+				case ConsoleField_shootsAtTarget: {
+					shootField = field;
+				} break;
+
+				case ConsoleField_cloaks: {
+					cloakField = field;
+				} break;
+
+				case ConsoleField_spawnsTrawlers: {
+					spawnField = field;
+				} break;
+
+				case ConsoleField_light: {
+					ConsoleField* radiusField = field->children[0];
+					double radius = getDoubleValue(radiusField);
+
+					PointLight light = createPointLight(v3(entity->p, 0), field->lightColor * entity->cloakFactor, radius);
+					pushPointLight(gameState->renderGroup, &light, true);
+				} break;
+			}
+		}
+
 		
 		Entity* target = NULL;
 

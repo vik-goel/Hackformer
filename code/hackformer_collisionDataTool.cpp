@@ -67,12 +67,19 @@ int main(int argc, char* argv[]) {
 		if(input.c.justPressed) drawBothFlips = !drawBothFlips;
 
 		double bgHeight = windowHeight / TEMP_PIXELS_PER_METER;
-		R2 bgBounds = r2(v2(0, 0), getDrawSize(tex, bgHeight));
+		V2 bgSize = getDrawSize(tex, bgHeight);
+
+		if(bgSize.x > bgHeight) {
+			bgSize.y = (bgHeight / bgSize.x) * bgHeight;
+			bgSize.x = bgHeight;
+		}
+
+		R2 bgBounds = r2(v2(0, 0), bgSize);
 		bgBounds = scaleRect(bgBounds, v2(1, 1) * 0.9);
 
 		pushFilledRect(renderGroup, bgBounds, createColor(255, 255, 255, 50));
-		pushTexture(renderGroup, tex, bgBounds, flipX, DrawOrder_gui, false, Orientation_0, WHITE, 1);
-		if (drawBothFlips) pushTexture(renderGroup, tex, bgBounds, !flipX, DrawOrder_gui, false, Orientation_0, WHITE, 1);
+		pushTexture(renderGroup, tex, bgBounds, flipX, false, DrawOrder_gui, false, Orientation_0, WHITE, 1);
+		if (drawBothFlips) pushTexture(renderGroup, tex, bgBounds, !flipX, false, DrawOrder_gui, false, Orientation_0, WHITE, 1);
 
 		for(s32 pIndex = 0; pIndex < pointsCount; pIndex++) {
 			R2 rect = rectCenterRadius(points[pIndex], v2(1, 1) * pointThickness);

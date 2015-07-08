@@ -72,6 +72,9 @@ enum EntityType {
 	EntityType_trawlerBootUp,
 	EntityType_trawlerBolt,
 	EntityType_trojanBolt,
+	EntityType_lamp,
+	EntityType_lamp_0,
+	EntityType_lamp_1,
 };
 
 enum DrawOrder {
@@ -80,6 +83,9 @@ enum DrawOrder {
 	DrawOrder_text,
 	DrawOrder_tile,
 	DrawOrder_pickupField,
+	DrawOrder_lamp,
+	DrawOrder_lamp_0,
+	DrawOrder_lamp_1,
 	DrawOrder_movingTile,
 	DrawOrder_endPortal,
 	DrawOrder_hackEnergy,

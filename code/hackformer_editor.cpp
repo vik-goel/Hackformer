@@ -128,7 +128,7 @@ int main(int argc, char* argv[]) {
 	initCamera(&camera);
 	double oldScale = camera.scale;
 
-	Texture* textures = pushArray(&arena, Texture, TEXTURE_DATA_COUNT);
+	Texture* textures = pushArray(&arena, Texture, MAX_TEXTURES);
 	s32 texturesCount = 1;
 
 	RenderGroup* renderGroup  = createRenderGroup(8 * 1024 * 1024, &arena, TEMP_PIXELS_PER_METER, windowWidth, windowHeight, 
@@ -165,8 +165,8 @@ int main(int argc, char* argv[]) {
 	#define ENTITY(type, width, height, fileName, offsetX, offsetY) {EntityType_##type, DrawOrder_##type, v2(width, height), fileName, v2(offsetX, offsetY)},
 	EntitySpec entitySpecs[] {
 		ENTITY(player, 1.75, 1.75, "player/full", 0, 0)
-		ENTITY(virus, 1.6, 1.6, "virus1/stand", 0, 0)
-		ENTITY(flyingVirus, 0.75, 0.75, "virus2/full", 0, 0)
+		ENTITY(lamp_0, 1, 0.5, "light_0", 0, 0)
+		ENTITY(lamp_1, 350.0/109.0*0.4, 0.4, "light_1", 0, 0)
 		ENTITY(laserBase, 0.9, 0.65, "virus3/base_off", 0, 0)
 		ENTITY(hackEnergy, 0.7, 0.7, "energy_full", 0, 0)
 		ENTITY(endPortal, 2, 2, "end_portal", 0, 0)
@@ -192,7 +192,7 @@ int main(int argc, char* argv[]) {
 
 	char* saveFileName = "maps/edit.hack";
 
-	FILE* file = fopen(saveFileName, "r");
+	FILE* file = fopen(saveFileName, "rb");
 
 	s32 mapWidthInTiles = 0;
 	s32 mapHeightInTiles = 0;
@@ -692,7 +692,7 @@ int main(int argc, char* argv[]) {
 				entities[entityCount] = {};
 			}
 
-			FILE* file = fopen(saveFileName, "w");
+			FILE* file = fopen(saveFileName, "wb");
 			assert(file);
 
 			writeS32(file, mapWidthInTiles);

@@ -311,8 +311,7 @@ struct GameState {
 
 	double collisionBoundsAlpha;
 
-	Texture* greenTile;
-	Texture* greyTile;
+	Texture* lights[2];
 };
 
 

@@ -19,6 +19,7 @@ enum ConsoleFieldType {
 	ConsoleField_cloaks,
 	ConsoleField_dropsOnHit,
 	ConsoleField_spawnsTrawlers,
+	ConsoleField_light,
 
 	ConsoleField_double,
 	ConsoleField_unlimitedInt,
@@ -86,7 +87,11 @@ struct ConsoleField {
 			double spawnTimer;
 			struct RefNode* spawnedEntities;
 		};
-	};	
+
+		struct {
+			V3 lightColor;
+		};
+	};		
 	
 	s32 selectedIndex;
 	s32 initialIndex;

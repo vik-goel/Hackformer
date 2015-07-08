@@ -34,7 +34,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 	assert(strlen(fileName) < arrayCount(filePath) - 100);
 	sprintf(filePath, "maps/%s", fileName);
 
-	FILE* file = fopen(filePath, "r");
+	FILE* file = fopen(filePath, "rb");
 	assert(file);
 
 	s32 mapWidthInTiles = readS32(file);
@@ -131,6 +131,51 @@ void loadHackMap(GameState* gameState, char* fileName) {
 			case EntityType_trawler: {
 				Entity* entity = addTrawlerBootup(gameState, p);
 				loadWaypoints(file, entity, gameState);
+			} break;
+
+			case EntityType_lamp_0: {
+				Entity* entity = addLamp(gameState, p, 0.5, gameState->lights[0], v3(1, 1, 1));
+
+				double hitboxWidth = entity->renderSize.x;
+				double hitboxHeight = entity->renderSize.y;
+				double halfHitboxWidth = hitboxWidth * 0.5;
+				double halfHitboxHeight = hitboxHeight * 0.5;
+				Hitbox* hitbox = addHitbox(entity, gameState);
+				setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+				hitbox->collisionPointsCount = 9;
+				hitbox->originalCollisionPoints[0] = v2(-0.998264 * halfHitboxWidth, -0.989583 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[1] = v2(1 * halfHitboxWidth, -0.989583 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[2] = v2(0.928819 * halfHitboxWidth, -0.190972 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[3] = v2(0.698785 * halfHitboxWidth, 0.486111 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[4] = v2(0.312500 * halfHitboxWidth, 0.911458 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[5] = v2(-0.030382 * halfHitboxWidth, 1.006944 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[6] = v2(-0.438368 * halfHitboxWidth, 0.833333 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[7] = v2(-0.750868 * halfHitboxWidth, 0.373264 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[8] = v2(-0.950521 * halfHitboxWidth, -0.269097 * halfHitboxHeight);
+			} break;
+
+			case EntityType_lamp_1: {
+				Entity* entity = addLamp(gameState, p, 0.4, gameState->lights[1], v3(1, 0, 0));
+
+				double hitboxWidth = entity->renderSize.x;
+				double hitboxHeight = entity->renderSize.y;
+				double halfHitboxWidth = hitboxWidth * 0.5;
+				double halfHitboxHeight = hitboxHeight * 0.5;
+				Hitbox* hitbox = addHitbox(entity, gameState);
+				setHitboxSize(hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);
+				hitbox->collisionPointsCount = 12;
+				hitbox->originalCollisionPoints[0] = v2(-0.815972 * halfHitboxWidth, -0.985681 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[1] = v2(0.811632 * halfHitboxWidth, -0.999618 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[2] = v2(0.820312 * halfHitboxWidth, -0.693011 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[3] = v2(0.963542 * halfHitboxWidth, -0.330657 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[4] = v2(0.993924 * halfHitboxWidth, 0.157126 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[5] = v2(0.950521 * halfHitboxWidth, 0.617036 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[6] = v2(0.785590 * halfHitboxWidth, 0.979390 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[7] = v2(-0.772569 * halfHitboxWidth, 0.993326 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[8] = v2(-0.941840 * halfHitboxWidth, 0.700656 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[9] = v2(-1.011285 * halfHitboxWidth, 0.143189 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[10] = v2(-0.946181 * halfHitboxWidth, -0.400341 * halfHitboxHeight);
+				hitbox->originalCollisionPoints[11] = v2(-0.820313 * halfHitboxWidth, -0.651201 * halfHitboxHeight);
 			} break;
 
 
@@ -656,8 +701,8 @@ void loadImages(GameState* gameState) {
 		tex->glowing = loadPNGTexture(renderGroup, fileName);
 	}
 
-	gameState->greenTile = loadPNGTexture(renderGroup, "tiles/corner_1_glowing");
-	gameState->greyTile = loadPNGTexture(renderGroup, "tiles/corner_1_regular");
+	gameState->lights[0] = loadPNGTexture(renderGroup, "light_0");
+	gameState->lights[1] = loadPNGTexture(renderGroup, "light_1");
 }
 
 
@@ -758,6 +803,7 @@ int main(int argc, char* argv[]) {
 		}
 
 		Input oldInput;
+		bool clickHandled = false;
 
 		if(gameState->screenType == ScreenType_pause) {
 			gameState->pauseMenu.animCounter += unpausedDtForFrame;
@@ -856,7 +902,7 @@ int main(int argc, char* argv[]) {
 			double energyBarPercentage = (double)energy / (double)maxEnergy;
 			pushFilledStencil(renderGroup, dock->energyBarStencil, energyBarBounds, energyBarPercentage, energyColor);
 
-			bool clickHandled = updateConsole(gameState, dtForFrame);
+			clickHandled = updateConsole(gameState, dtForFrame);
 
 			if(!clickHandled) {
 				if(cancelButtonClicked || acceptButtonClicked) {
@@ -978,32 +1024,26 @@ int main(int argc, char* argv[]) {
 
 			CursorImages* cursorImages = &gameState->cursorImages;
 			Texture* cursorImage = NULL;
+		
+			if(clickHandled) {
+				cursorImages->playAnim = true;
+				cursorImages->animTime = 0;
+			}
 
-			if(gameState->screenType == ScreenType_game && getEntityByRef(gameState, gameState->consoleEntityRef)) {
-				if(input->leftMouse.justPressed) {
-					cursorImages->playAnim = true;
-					cursorImages->animTime = 0;
+			if(cursorImages->playAnim) {
+				double duration = getAnimationDuration(&cursorImages->hacking);
+				duration += (duration - cursorImages->hacking.secondsPerFrame);
+
+				cursorImages->animTime += dtForFrame;
+
+				if(cursorImages->animTime > duration) {
+					cursorImages->animTime = duration - cursorImages->hacking.secondsPerFrame * 0.5;
+					cursorImages->playAnim = false;
 				}
 
-				if(cursorImages->playAnim) {
-					double duration = getAnimationDuration(&cursorImages->hacking);
-					duration += (duration - cursorImages->hacking.secondsPerFrame);
-
-					cursorImages->animTime += dtForFrame;
-
-					if(cursorImages->animTime > duration) {
-						cursorImages->animTime = duration - cursorImages->hacking.secondsPerFrame * 0.5;
-						cursorImages->playAnim = false;
-					}
-
-					cursorImage = getAnimationFrame(&cursorImages->hacking, cursorImages->animTime);
-				} else {
-					cursorImage = cursorImages->regular;
-				}
+				cursorImage = getAnimationFrame(&cursorImages->hacking, cursorImages->animTime);
 			} else {
 				cursorImage = cursorImages->regular;
-				cursorImages->animTime = 0;
-				cursorImages->playAnim = false;
 			}
 
 			pushTexture(renderGroup, cursorImage, cursorBounds, false, false, DrawOrder_gui);
