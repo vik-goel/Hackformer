@@ -130,7 +130,6 @@ void loadHackMap(GameState* gameState, char* fileName) {
 
 			case EntityType_trawler: {
 				Entity* entity = addTrawlerBootUp(gameState, p);
-				loadWaypoints(file, entity, gameState);
 			} break;
 		
 			case EntityType_shrike: {
@@ -688,13 +687,13 @@ void loadImages(GameState* gameState) {
 		trawler->frame = loadPNGTexture(renderGroup, "trawler/right_frame");
 		trawler->body = loadPNGTexture(renderGroup, "trawler/body");
 		trawler->wheel = loadPNGTexture(renderGroup, "trawler/wheel");
-		trawler->shoot = loadAnimation(renderGroup, "trawler/shoot", 128, 128, 0.04f, true);
-		trawler->bootUp = loadAnimation(renderGroup, "trawler/boot_up", 128, 128, 0.1f, false);
+		trawler->shoot = loadAnimation(renderGroup, "trawler/shoot", 256, 256, 0.04f, true);
+		trawler->bootUp = loadAnimation(renderGroup, "trawler/boot_up", 256, 256, 0.1f, false);
 
 		trawler->projectile = loadPNGTexture(renderGroup, "trawler/bolt");
 		createCharacterAnim(gameState, &trawler->projectileDeath);
 		AnimNode* projectileDeath = createAnimNode(gameState, &trawler->projectileDeath->death);
-		projectileDeath->main = loadAnimation(renderGroup, "trawler/bolt_death", 128, 128, 0.05f, false);
+		projectileDeath->main = loadAnimation(renderGroup, "trawler/bolt_death", 128, 128, 0.02f, false);
 	}
 
 	{

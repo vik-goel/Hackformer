@@ -108,15 +108,18 @@ bool canEntityBeFlipped(Entity* entity) {
 	bool result = true;
 
 	if(entity->type == EntityType_motherShip ||
-	   entity->type == EntityType_trawler ||
 	   entity->type == EntityType_trojan) result = false;
 
 	return result;
 }
 
 void updateHitboxRotatedPoints(Hitbox* hitbox, Entity* entity) {
-	bool32 facesLeft = isSet(entity, EntityFlag_facesLeft);
+	bool32 facesLeft = isSet(entity, EntityFlag_flipX);
 	double rotation = entity->rotation;
+
+	if(entity->type == EntityType_trawler) {
+		rotation = 0;
+	}
 
 	if(!canEntityBeFlipped(entity)) {
 		facesLeft = false;
@@ -150,28 +153,29 @@ bool toggleEntityFacingDirection(Entity* entity, GameState* gameState) {
 
 	toggleFlags(entity, EntityFlag_facesLeft);
 
-	for(Hitbox* hitbox = entity->hitboxes; hitbox; hitbox = hitbox->next) {
-		updateHitboxRotatedPoints(hitbox, entity);
-	}
+	// V2 delta = v2(0.0025, 0);
+	// GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, delta, false);
 
-	V2 delta = v2(0.00000001, 0);
-	GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, delta, false);
+	// if(collisionResult.solidEntity) {
+	// 	toggleFlags(entity, EntityFlag_facesLeft);
+	// 	return false;
+	// }
 
-	if(collisionResult.solidEntity) {
-		toggleFlags(entity, EntityFlag_facesLeft);
+	// delta = v2(0, -0.0025);
+	// collisionResult = getCollisionTime(entity, gameState, delta, false);
 
-		for(Hitbox* hitbox = entity->hitboxes; hitbox; hitbox = hitbox->next) {
-			updateHitboxRotatedPoints(hitbox, entity);
-		}
-
-		return false;
-	}
+	// if(collisionResult.solidEntity) {
+	// 	toggleFlags(entity, EntityFlag_facesLeft);
+	// 	return false;
+	// }
 
 	return true;
 }
 
-void setEntityFacingDirection(Entity* entity, bool32 facesLeft, GameState* gameState) {
-	if(facesLeft != isSet(entity, EntityFlag_facesLeft)) {
+void setEntityFacingDirection(Entity* entity, bool facesLeft, GameState* gameState) {
+	bool currentlyFacingLeft = isSet(entity, EntityFlag_facesLeft) != 0;
+
+	if(facesLeft != currentlyFacingLeft) {
 		toggleEntityFacingDirection(entity, gameState);
 	}
 }
@@ -439,25 +443,29 @@ bool affectedByGravity(Entity* entity, ConsoleField* movementField) {
 
 	bool32 noMovementByDefault = isSet(entity, EntityFlag_noMovementByDefault);
 
-	if(movementField) {
-		switch(movementField->type) {
-			case ConsoleField_keyboardControlled: {
-				result = true;
-			} break;
-			case ConsoleField_movesBackAndForth: {
-				return !noMovementByDefault;
-			} break;
-			case ConsoleField_bobsVertically:
-			case ConsoleField_followsWaypoints:
-			case ConsoleField_seeksTarget: {
-				result = false;
-			} break;
-
-			InvalidDefaultCase;
-		}
-	} else {
-		result = !noMovementByDefault;
+	if(noMovementByDefault) {
+		result = false;
 	}
+
+	// if(movementField) {
+	// 	switch(movementField->type) {
+	// 		case ConsoleField_keyboardControlled: {
+	// 			result = true;
+	// 		} break;
+	// 		case ConsoleField_movesBackAndForth: {
+	// 			return !noMovementByDefault;
+	// 		} break;
+	// 		case ConsoleField_bobsVertically:
+	// 		case ConsoleField_followsWaypoints:
+	// 		case ConsoleField_seeksTarget: {
+	// 			result = false;
+	// 		} break;
+
+	// 		InvalidDefaultCase;
+	// 	}
+	// } else {
+	// 	result = !noMovementByDefault;
+	// }
 
 	return result;
 }
@@ -805,6 +813,30 @@ void addField(Entity* entity, ConsoleField* field) {
 	assert(arrayCount(entity->fields) > entity->numFields);
 }
 
+void addDeferredField(Entity* entity, ConsoleField* field, GameState* gameState) {
+	bool add = true;
+	s32 fieldIndex = 0;
+
+
+	if(isConsoleFieldMovementType(field)) {
+		if(getMovementField(entity, &fieldIndex) != NULL) {
+			add = false;
+		}
+	}
+	else if(canOnlyHaveOneFieldOfType(field->type)) {
+		if(getField(entity, field->type, &fieldIndex) != NULL) {
+			add = false;
+		}
+	}
+
+	if(add) {
+		addField(entity, field);
+	} else {
+		freeConsoleField(entity->fields[fieldIndex], gameState);
+		entity->fields[fieldIndex] = field;
+	}
+}
+
 void addChildToConsoleField(ConsoleField* parent, ConsoleField* child) {
 	parent->children[parent->numChildren] = child;
 	parent->numChildren++;
@@ -1037,26 +1069,37 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 	assert(!getUnremovedEntityByRef(gameState, gameState->playerRef));
 	gameState->playerRef = result->ref;
 
+	// double hitboxWidth = result->renderSize.x;
+	// double hitboxHeight = result->renderSize.y;
+	// double halfHitboxWidth = hitboxWidth * 0.5;
+	// double halfHitboxHeight = hitboxHeight * 0.5;
+	// Hitbox* hitbox = addHitbox(result, gameState);
+	// setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	// hitbox->collisionPointsCount = 8;
+	// hitbox->originalCollisionPoints[0] = v2(-0.230035 * halfHitboxWidth, -0.959201 * halfHitboxHeight);
+	// hitbox->originalCollisionPoints[1] = v2(0.256076 * halfHitboxWidth, -0.9509201 * halfHitboxHeight);
+	// hitbox->originalCollisionPoints[2] = v2(0.256076 * halfHitboxWidth, 0.516493 * halfHitboxHeight);
+	// hitbox->originalCollisionPoints[3] = v2(0.138889 * halfHitboxWidth, 0.598958 * halfHitboxHeight);
+	// hitbox->originalCollisionPoints[4] = v2(0.217014 * halfHitboxWidth, 0.776910 * halfHitboxHeight);
+	// hitbox->originalCollisionPoints[5] = v2(0.034722 * halfHitboxWidth, 0.928819 * halfHitboxHeight);
+	// hitbox->originalCollisionPoints[6] = v2(-0.117188 * halfHitboxWidth, 0.820312 * halfHitboxHeight);
+	// hitbox->originalCollisionPoints[7] = v2(-0.230035 * halfHitboxWidth, 0.538194 * halfHitboxHeight);
+
 	double hitboxWidth = result->renderSize.x;
 	double hitboxHeight = result->renderSize.y;
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
 	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
-	hitbox->collisionPointsCount = 13;
-	hitbox->originalCollisionPoints[0] = v2(-0.221354 * halfHitboxWidth, -0.959201 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[1] = v2(0.256076 * halfHitboxWidth, -0.959201 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[2] = v2(0.303819 * halfHitboxWidth, -0.490451 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[3] = v2(0.390625 * halfHitboxWidth, -0.108507 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[4] = v2(0.355903 * halfHitboxWidth, 0.182292 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[5] = v2(0.203993 * halfHitboxWidth, 0.538194 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[6] = v2(0.212674 * halfHitboxWidth, 0.815972 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[7] = v2(0.056424 * halfHitboxWidth, 0.924479 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[8] = v2(-0.086806 * halfHitboxWidth, 0.881076 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[9] = v2(-0.203993 * halfHitboxWidth, 0.677083 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[10] = v2(-0.295139 * halfHitboxWidth, 0.264757 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[11] = v2(-0.325521 * halfHitboxWidth, -0.186632 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[12] = v2(-0.256076 * halfHitboxWidth, -0.486111 * halfHitboxHeight);
+	hitbox->collisionPointsCount = 8;
+	hitbox->originalCollisionPoints[0] = v2(-0.164931 * halfHitboxWidth, -0.950521 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[1] = v2(0.186632 * halfHitboxWidth, -0.950521 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[2] = v2(0.243056 * halfHitboxWidth, -0.850694 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[3] = v2(0.243056 * halfHitboxWidth, 0.438368 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[4] = v2(0.147569 * halfHitboxWidth, 0.863715 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[5] = v2(-0.143229 * halfHitboxWidth, 0.863715 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[6] = v2(-0.240000 * halfHitboxWidth, 0.438368 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[7] = v2(-0.240000 * halfHitboxWidth, -0.850694 * halfHitboxHeight);
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), v2(result->renderSize.x * 0.4, result->renderSize.y));
 
@@ -1250,7 +1293,7 @@ void initTile(Entity* tile, GameState* gameState, s32 tileIndex, bool32 flipX, b
 	addField(tile, createUnlimitedIntField(gameState, "y_offset", 0, 1));
 
 	if(flipX) {
-		setFlags(tile, EntityFlag_facesLeft);
+		setFlags(tile, EntityFlag_facesLeft|EntityFlag_flipX);
 	}
 
 	if(flipY) {
@@ -1445,8 +1488,8 @@ Entity* addTrojanBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, dou
 	return result;
 }
 
-Entity* addTrawlerBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, double speed) {
-	Entity* result = addEntity(gameState, EntityType_trawlerBolt, DrawOrder_trawlerBolt, p, v2(1, 1) * 0.3);
+Entity* addTrawlerBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, double speed, double size) {
+	Entity* result = addEntity(gameState, EntityType_trawlerBolt, DrawOrder_trawlerBolt, p, v2(1, 1) * size);
 
 	double hitboxWidth = result->renderSize.x;
 	double hitboxHeight = result->renderSize.y;
@@ -1656,6 +1699,7 @@ Entity* addLamp(GameState* gameState, V2 p, double height, Texture* texture, V3 
 
 	addLightField(result, gameState, color);
 
+	result->emissivity = 1;
 
 	return result;
 }
@@ -1694,32 +1738,23 @@ Entity* addMotherShip(GameState* gameState, V2 p) {
 	return result;
 }
 
-#define TRAWLER_SIZE (v2(1, 1) * 1)
+#define TRAWLER_SIZE (v2(1, 1) * 2)
 
 Entity* addBootUp(GameState* gameState, V2 p, DrawOrder drawOrder, V2 size) {
 	Entity* result = addEntity(gameState, EntityType_bootUp, drawOrder, p, size);
 
-	setFlags(result, EntityFlag_noMovementByDefault);
+	setFlags(result, EntityFlag_noMovementByDefault|EntityFlag_hackable);
+	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
 
 	return result;
 }
 
-Entity* addTrawlerBootUp(GameState* gameState, V2 p) {
-	Entity* result = addBootUp(gameState, p, DrawOrder_trawler, TRAWLER_SIZE);
-	return result;
-}
-
-Entity* addTrawler(GameState* gameState, V2 p) {
-	Entity* result = addEntity(gameState, EntityType_trawler, DrawOrder_trawler, p, TRAWLER_SIZE);
-
-	setFlags(result, EntityFlag_hackable|
-					 EntityFlag_noMovementByDefault);
-
-	double hitboxWidth = result->renderSize.x;
-	double hitboxHeight = result->renderSize.y;
+void addTrawlerHitbox(Entity* entity, GameState* gameState) {
+	double hitboxWidth = entity->renderSize.x;
+	double hitboxHeight = entity->renderSize.y;
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
-	Hitbox* hitbox = addHitbox(result, gameState);
+	Hitbox* hitbox = addHitbox(entity, gameState);
 	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
 	hitbox->collisionPointsCount = 12;
 	hitbox->originalCollisionPoints[0] = v2(-0.000000 * halfHitboxWidth, -0.776910 * halfHitboxHeight);
@@ -1734,11 +1769,26 @@ Entity* addTrawler(GameState* gameState, V2 p) {
 	hitbox->originalCollisionPoints[9] = v2(-0.794271 * halfHitboxWidth, -0.008681 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[10] = v2(-0.681424 * halfHitboxWidth, -0.412326 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[11] = v2(-0.386285 * halfHitboxWidth, -0.698785 * halfHitboxHeight);
+}
 
-	result->clickBox = rectCenterDiameter(v2(0, 0), 0.7 * result->renderSize);
+Entity* addTrawlerBootUp(GameState* gameState, V2 p) {
+	Entity* result = addBootUp(gameState, p, DrawOrder_trawler, TRAWLER_SIZE);
+	addTrawlerHitbox(result, gameState);
+	return result;
+}
 
-	addShootField(result, gameState, 0.5, EntityType_trawler);
+Entity* addTrawler(GameState* gameState, V2 p) {
+	Entity* result = addEntity(gameState, EntityType_trawler, DrawOrder_trawler, p, TRAWLER_SIZE);
+
+	setFlags(result, EntityFlag_hackable);
+
+	addTrawlerHitbox(result, gameState);
+
+	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
+
+	addShootField(result, gameState, 1, EntityType_trawler);
 	addSpotlightField(result, gameState);
+	addPatrolField(result, gameState);
 
 	ignoreAllPenetratingEntities(result, gameState);
 
@@ -1747,22 +1797,12 @@ Entity* addTrawler(GameState* gameState, V2 p) {
 
 #define SHRIKE_SIZE (v2(1, 1) * 1.5)
 
-Entity* addShrikeBootUp(GameState* gameState, V2 p) {
-	Entity* result = addBootUp(gameState, p, DrawOrder_shrike, SHRIKE_SIZE);
-	return result;
-}
-
-Entity* addShrike(GameState* gameState, V2 p) {
-	Entity* result = addEntity(gameState, EntityType_shrike, DrawOrder_shrike, p, SHRIKE_SIZE);
-
-	setFlags(result, EntityFlag_hackable|
-					 EntityFlag_noMovementByDefault);
-
-	double hitboxWidth = result->renderSize.x;
-	double hitboxHeight = result->renderSize.y;
+void addShrikeHitbox(Entity* entity, GameState* gameState) {
+	double hitboxWidth = entity->renderSize.x;
+	double hitboxHeight = entity->renderSize.y;
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
-	Hitbox* hitbox = addHitbox(result, gameState);
+	Hitbox* hitbox = addHitbox(entity, gameState);
 	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
 	hitbox->collisionPointsCount = 42;
 	hitbox->originalCollisionPoints[0] = v2(-0.815972 * halfHitboxWidth, -0.533854 * halfHitboxHeight);
@@ -1807,11 +1847,26 @@ Entity* addShrike(GameState* gameState, V2 p) {
 	hitbox->originalCollisionPoints[39] = v2(-0.837674 * halfHitboxWidth, 0.052083 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[40] = v2(-0.928819 * halfHitboxWidth, -0.065104 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[41] = v2(-0.933160 * halfHitboxWidth, -0.416667 * halfHitboxHeight);
+}
+
+Entity* addShrikeBootUp(GameState* gameState, V2 p) {
+	Entity* result = addBootUp(gameState, p, DrawOrder_shrike, SHRIKE_SIZE);
+	addShrikeHitbox(result, gameState);
+	return result;
+}
+
+Entity* addShrike(GameState* gameState, V2 p) {
+	Entity* result = addEntity(gameState, EntityType_shrike, DrawOrder_shrike, p, SHRIKE_SIZE);
+
+	setFlags(result, EntityFlag_hackable|
+					 EntityFlag_noMovementByDefault);
+
+	addShrikeHitbox(result, gameState);
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
 	result->characterAnim = gameState->shrikeAnim;
 
-	addShootField(result, gameState, 0.5, EntityType_trawler);
+	addShootField(result, gameState, 0.5, EntityType_shrike);
 	addSpotlightField(result, gameState);
 
 	ignoreAllPenetratingEntities(result, gameState);
@@ -1819,7 +1874,7 @@ Entity* addShrike(GameState* gameState, V2 p) {
 	return result;
 }
 
-ConsoleField* getMovementField(Entity* entity) {
+ConsoleField* getMovementField(Entity* entity, s32* index) {
 	ConsoleField* result = NULL;
 
 	if(!isSet(entity, EntityFlag_remove)) {
@@ -1828,6 +1883,7 @@ ConsoleField* getMovementField(Entity* entity) {
 			ConsoleField* testField = entity->fields[fieldIndex];
 			if (isConsoleFieldMovementType(testField)) {
 				result = testField;
+				if(index) *index = fieldIndex;
 				break;
 			}
 		}
@@ -2183,7 +2239,8 @@ void tryKeyboardJump(Entity* entity, GameState* gameState, ConsoleField* keyboar
 
 	bool canJump = entity->jumpCount == 0 && 
 				   entity->timeSinceLastOnGround < KEYBOARD_JUMP_AIR_TOLERANCE_TIME && 
-				   gameState->input.up.pressed;
+				   gameState->input.up.pressed &&
+				   affectedByGravity(entity, keyboardField);
 
 	bool attemptingDoubleJump = false;
 	
@@ -2214,6 +2271,7 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 		   || hitEntity->type == EntityType_flyingVirus 
 		   || hitEntity->type == EntityType_trawler
 		   || hitEntity->type == EntityType_trojan
+		   || hitEntity->type == EntityType_shrike
 		   || hitEntity->type == EntityType_motherShip
 		   //|| hitEntity->type == EntityType_player
 		 ) {
@@ -2451,7 +2509,7 @@ void projectPointOntoHitbox(V2 point, Hitbox* hitbox, V2 hitboxOffset, V2 direct
 
 	ProjectPointResult originalResult = *result;
 
-	bool insideHitbox = true;//dot(point - hitboxOffset, direction) > 0;
+	//bool insideHitbox = true;
 
 	for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
 		V2 p1 = hitbox->rotatedCollisionPoints[pIndex];
@@ -2489,15 +2547,15 @@ void projectPointOntoHitbox(V2 point, Hitbox* hitbox, V2 hitboxOffset, V2 direct
 			//TODO: can still collide with the line if we are already on it
 		}
 
-		if(insideHitbox) {
-			V2 lineCenterToPoint = 0.5 * line + relativeOffset;
-			insideHitbox = dot(lineCenterToPoint, lineNormal) < 0;
-		}
+		// if(insideHitbox) {
+		// 	V2 lineCenterToPoint = 0.5 * line + relativeOffset;
+		// 	insideHitbox = dot(lineCenterToPoint, lineNormal) < 0;
+		// }
 	}
 
-	if(insideHitbox) {
-		*result = originalResult;
-	}
+	// if(insideHitbox) {
+	// 	*result = originalResult;
+	// }
 } 
 
 void getPolygonCollisionTime(Hitbox* moving, Hitbox* fixed, Entity* movingEntity, Entity* fixedEntity, 
@@ -2663,12 +2721,15 @@ void adjustVelocitiesFromHit(V2 normal, V2* delta, V2* dP, V2* ddP) {
 		//normalizing twice is necessary because of precision errors
 		normal = normalize(normalize(-normal));
 
-		*delta -= vectorProjection(*delta, normal);
+		V2 deltaProjection = vectorProjection(*delta, normal);
+		*delta -= deltaProjection;
 
-		*dP -= vectorProjection(*dP, normal);
+		V2 dPProjection = vectorProjection(*dP, normal);
+		*dP -= dPProjection;
 
 		if(ddP) {
-			*ddP -= vectorProjection(*ddP, normal);
+			V2 ddPProjection = vectorProjection(*ddP, normal);
+			*ddP -= ddPProjection;
 		}
 	}
 }
@@ -2693,6 +2754,7 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP, double rotat
 	double remainingCollisionTime = 1;
 
 	for (s32 moveIteration = 0; moveIteration < 4 && remainingCollisionTime > 0; moveIteration++) {
+		if(delta == v2(0, 0)) break;
 		V2 loopStartP = entity->p;
 
 		GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, delta, true, remainingCollisionTime);
@@ -2732,7 +2794,7 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP, double rotat
 			double collisionTime = collisionResult.collisionTime;
 			remainingCollisionTime -= collisionTime;
 
-			double epsilon = 0.001;
+			double epsilon = 0.005;
 			collisionTime = max(0, collisionTime - epsilon);
 
 			V2 movement = collisionTime * delta;
@@ -2764,8 +2826,9 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP, double rotat
 	RefNode* nextTopEntity = entity->groundReferenceList;
 
 	V2 totalMovement = entity->p - startP;
+	double totalMovementLenSq = lengthSq(totalMovement); 
 
-	if (lengthSq(totalMovement) > 0) {
+	if (totalMovementLenSq > 0) {
 		while (nextTopEntity) {
 			Entity* top = getEntityByRef(gameState, nextTopEntity->ref);
 			if (top && !isSet(top, EntityFlag_movedByGround)) {
@@ -2774,8 +2837,22 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP, double rotat
 			}
 			nextTopEntity = nextTopEntity->next;
 		}
+
+		if(entity->type == EntityType_trawler) {
+			double totalMovementLen = sqrt(totalMovementLenSq);
+
+			double diameter = (entity->renderSize.x + entity->renderSize.y) * 0.5;
+			double circumference = PI * diameter;
+
+			double rotationFudge = 25;
+
+			double rot = totalMovementLen / circumference * rotationFudge;
+			if(totalMovement.x > 0) rot *= -1;
+
+			entity->wheelRotation += rot;
+		}
 	}
-	
+
 	return totalMovement;
 }
 
@@ -2865,8 +2942,7 @@ bool moveTowardsWaypoint(Entity* entity, GameState* gameState, double dt, V2 tar
 
 bool entityRotatesToFaceForwards(Entity* entity) {
 	bool result = entity->type == EntityType_trojan ||
-				  entity->type == EntityType_motherShip ||
-				  entity->type == EntityType_trawler;
+				  entity->type == EntityType_motherShip;
 
 	return result;				  
 }
@@ -2894,12 +2970,13 @@ void changeSpotLightAngle(Entity* entity, double wantedSpotLightAngle, double dt
 	}
 }
 
-ConsoleField* getField(ConsoleField** fields, int numFields, ConsoleFieldType type) {
+ConsoleField* getField(ConsoleField** fields, int numFields, ConsoleFieldType type, s32* index = NULL) {
 	ConsoleField* result = NULL;
 
 	for (s32 fieldIndex = 0; fieldIndex < numFields; fieldIndex++) {
 		if (fields[fieldIndex]->type == type) {
 			result = fields[fieldIndex];
+			if(index) *index = fieldIndex;
 			break;
 		}
 	}
@@ -2907,12 +2984,12 @@ ConsoleField* getField(ConsoleField** fields, int numFields, ConsoleFieldType ty
 	return result;
 }
 
-ConsoleField* getField(Entity* entity, ConsoleFieldType type) {
+ConsoleField* getField(Entity* entity, ConsoleFieldType type, s32* index) {
 	ConsoleField* result = NULL;
 
 	if(!isSet(entity, EntityFlag_remove)) {
 		s32 firstFieldIndex = entity->type == EntityType_pickupField ? 1 : 0;
-		result = getField(entity->fields + firstFieldIndex, entity->numFields - firstFieldIndex, type);
+		result = getField(entity->fields + firstFieldIndex, entity->numFields - firstFieldIndex, type, index);
 	}
 
 	return result;
@@ -3504,22 +3581,27 @@ bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt, 
 
 					spawnOffset = rotate(spawnOffset, entity->rotation);
 					
+					V2 spawnP = entity->p + spawnOffset;
+
 					if(target) {
 						ConsoleField* bulletSpeedField = shootField->children[0];
 						double bulletSpeed = bulletSpeedField->doubleValues[bulletSpeedField->selectedIndex];
 
 						if(shootField->shootEntityType == EntityType_motherShip) {
-							addMotherShipProjectile(gameState, entity->p + spawnOffset, target->p, entity->ref, bulletSpeed);
+							addMotherShipProjectile(gameState, spawnP, target->p, entity->ref, bulletSpeed);
 						} 
 						else if(shootField->shootEntityType == EntityType_trojan) {
-							addTrojanBolt(gameState, entity->p + spawnOffset, target->p, entity->ref, bulletSpeed);
+							addTrojanBolt(gameState, spawnP, target->p, entity->ref, bulletSpeed);
 						}
 						else if(shootField->shootEntityType == EntityType_trawler) {
-							addTrawlerBolt(gameState, entity->p + spawnOffset, target->p, entity->ref, bulletSpeed);
+							addTrawlerBolt(gameState, spawnP, target->p, entity->ref, bulletSpeed, 0.8);
+						}
+						else if(shootField->shootEntityType == EntityType_shrike) {
+							addTrawlerBolt(gameState, spawnP, target->p, entity->ref, bulletSpeed, 0.4);
 						}
 						else {
 							InvalidCodePath;
-							addLaserBolt(gameState, entity->p + spawnOffset, target->p, entity->ref, bulletSpeed);
+							addLaserBolt(gameState, spawnP, target->p, entity->ref, bulletSpeed);
 						}
 					}
 				}
@@ -3610,14 +3692,6 @@ void drawCollisionBounds(Entity* entity, RenderGroup* renderGroup, double alpha)
 		for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
 			V2 p1 = hitbox->rotatedCollisionPoints[pIndex] + hitboxOffset;
 			V2 p2 = hitbox->rotatedCollisionPoints[(pIndex + 1) % hitbox->collisionPointsCount] + hitboxOffset;
-
-			if(p1.x > 10000 || p1.y > 10000 || p1.x < -10000 || p1.y < -10000) {
-				s32 breakHere = 5;
-			}
-
-			if(p1.x > 10000 && p1.x < 10000) {
-				s32 breakHere = 5;
-			}
 
 			pushDashedLine(renderGroup, color, p1, p2, 0.02, 0.05, 0.05, true);
 			// pushSortEnd(renderGroup);
@@ -4306,7 +4380,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			} break;
 
 			case EntityType_trawler: {
-				entity->rotation = entity->spotLightAngle + PI;
+				//entity->rotation = entity->spotLightAngle + PI;
 			} break;
 
 			case EntityType_motherShip: {
@@ -4606,7 +4680,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				}
 
 				for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
-					addField(spawn, entity->fields[fieldIndex]);
+					addDeferredField(spawn, entity->fields[fieldIndex], gameState);
 					entity->fields[fieldIndex] = NULL;
 				}
 
@@ -4711,7 +4785,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				pushEntityTexture(gameState->renderGroup, shootTex, entity, DrawOrder_trawler_3, fadeAlphaFromDisappearing);
 			}
 
-			entity->rotation = -6 * entity->animTime;
+			entity->rotation = entity->wheelRotation;
 			pushEntityTexture(gameState->renderGroup, images->wheel, entity, DrawOrder_trawler_1, fadeAlphaFromDisappearing);
 
 			entity->rotation = rotation;

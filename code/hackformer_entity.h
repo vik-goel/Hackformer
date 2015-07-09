@@ -16,9 +16,10 @@ enum EntityFlag {
 	EntityFlag_wasSolid = 1 << 12, //Used by pickup fields
 	EntityFlag_cloaked = 1 << 13,
 	EntityFlag_togglingCloak = 1 << 14,
-	EntityFlag_flipY = 1 << 15,
-	EntityFlag_isCornerTile = 1 << 16,
-	EntityFlag_jumped = 1 << 17,
+	EntityFlag_flipX = 1 << 15,
+	EntityFlag_flipY = 1 << 16,
+	EntityFlag_isCornerTile = 1 << 17,
+	EntityFlag_jumped = 1 << 18,
 };
 
 struct RefNode {
@@ -26,7 +27,7 @@ struct RefNode {
 	RefNode* next;
 };
 
-#define MAX_COLLISION_POINTS 43
+#define MAX_COLLISION_POINTS 50
 #define INVALID_STORED_HITBOX_ROTATION -9999999999.0
 
 struct Hitbox {
@@ -63,6 +64,9 @@ struct Entity {
 	V2 p;
 	V2 dP;
 	double rotation;
+
+	//Used by trawler
+	double wheelRotation;
 
 	V2 renderSize;
 	DrawOrder drawOrder;
@@ -196,8 +200,8 @@ void freeWaypoints(Waypoint* waypoint, GameState* gameState);
 GetCollisionTimeResult getCollisionTime(Entity*, GameState*, V2, bool actuallyMoving, double maxCollisionTime = 1);
 
 Entity* getEntityByRef(GameState*, s32 ref);
-ConsoleField* getMovementField(Entity* entity);
-ConsoleField* getField(Entity* entity, ConsoleFieldType type);
+ConsoleField* getMovementField(Entity* entity, s32* = NULL);
+ConsoleField* getField(Entity* entity, ConsoleFieldType type, s32* = NULL);
 bool isMouseInside(Entity* entity, Input* input);
 void removeTargetRef(int, GameState*);
 void addTargetRef(int, GameState*);

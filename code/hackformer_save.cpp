@@ -162,6 +162,7 @@ void writeEntity(FILE* file, Entity* entity, GameState* gameState) {
 	writeV2(file, entity->p);
 	writeV2(file, entity->dP);
 	writeDouble(file, entity->rotation);
+	writeDouble(file, entity->wheelRotation);
 	writeV2(file, entity->renderSize);
 	writeS32(file, entity->drawOrder);
 	writeHitboxes(file, entity->hitboxes);
@@ -481,6 +482,7 @@ void readEntity(FILE* file, GameState* gameState, s32 entityIndex) {
 	entity->p = readV2(file);
 	entity->dP = readV2(file);
 	entity->rotation = readDouble(file);
+	entity->wheelRotation = readDouble(file);
 	entity->renderSize = readV2(file);
 	entity->drawOrder = (DrawOrder)readS32(file);
 

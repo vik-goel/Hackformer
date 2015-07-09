@@ -103,7 +103,6 @@ void setTile(TileSpec* tiles, s32 mapWidthInTiles, s32 mapHeightInTiles, Camera*
 bool entityGetsWaypoints(Entity* entity) {
 	bool result = entity->type == EntityType_trojan ||
 				  entity->type == EntityType_motherShip ||
-				  entity->type == EntityType_trawler ||
 				  entity->type == EntityType_shrike;
 	return result;
 }
@@ -166,14 +165,14 @@ int main(int argc, char* argv[]) {
 	#define ENTITY(type, width, height, fileName, panelX, panelY, panelScale) {EntityType_##type, DrawOrder_##type, v2(width, height), fileName, v2(panelX, panelY), panelScale},
 	EntitySpec entitySpecs[] {
 		ENTITY(player, 1.75, 1.75, "player/full", 0, 6, 1)
-		ENTITY(lamp_0, 1, 0.5, "light_0", 0, 5, 1)
+		ENTITY(lamp_0, 1, 0.5, "light_0", 0.1, 5, 1)
 		ENTITY(lamp_1, 350.0/109.0*0.4, 0.4, "light_1", 1.5, 5, 1)
 		ENTITY(laserBase, 0.9, 0.65, "virus3/base_off", 1.5, 6, 1)
 		ENTITY(hackEnergy, 0.7, 0.7, "energy_full", 0.5, 0.5, 1)
 		ENTITY(endPortal, 2, 2, "end_portal", 0, 3, 1)
 		ENTITY(trojan, 2, 2, "trojan/full", 0, 1, 1)
 		ENTITY(motherShip, 6 * (264.0 / 512.0), 6 * (339.0 / 512.0), "mothership/full", 2, 3, 0.5)
-		ENTITY(trawler, 1, 1, "trawler/full", 2, 2, 1)
+		ENTITY(trawler, 2, 2, "trawler/full", 1.8, 1.2, 1)
 		ENTITY(shrike, 1.5, 1.5, "shrike/full", 1.75, 0, 1)
 	};
 	#undef ENTITY
