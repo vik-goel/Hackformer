@@ -224,7 +224,8 @@ s32 countValidRefNodes(RefNode** nodePtr, GameState* gameState) {
 		if(entity) {
 			prev = node;
 			result++;
-		} else {
+		}
+		else {
 			node->next = NULL;
 			freeRefNode(node, gameState);
 			if(prev) prev->next = next;
@@ -445,6 +446,20 @@ bool affectedByGravity(Entity* entity, ConsoleField* movementField) {
 
 	if(noMovementByDefault) {
 		result = false;
+
+		if(movementField && entity->type != EntityType_bootUp) {
+			if(movementField->type == ConsoleField_keyboardControlled) {
+				result = true;
+			}
+		}
+	} else {
+		if(movementField && entity->type != EntityType_bootUp) {
+			if(movementField->type == ConsoleField_bobsVertically ||
+			   movementField->type == ConsoleField_followsWaypoints ||
+			   movementField->type == ConsoleField_seeksTarget) {
+				result = false;
+			}
+		}
 	}
 
 	// if(movementField) {
@@ -557,7 +572,7 @@ void freeEntityAtLevelEnd(Entity* entity, GameState* gameState) {
 	}
 }
 
-void freeEntityDuringLevel(Entity* entity, GameState* gameState) {
+void freeEntityDuringLevel(Entity* entity, GameState* gameState, bool createdThisFrame = false) {
 	Messages* messages = entity->messages;
 	if(messages) {
 		for (s32 messageIndex = 0; messageIndex < messages->count; messageIndex++) {
@@ -569,16 +584,18 @@ void freeEntityDuringLevel(Entity* entity, GameState* gameState) {
 
 	//NOTE: At the end of the level no pickup fields should be created and no memory needs to be free
 	//		because the level storage will just be reset. 
-	s32 startFieldIndex = entity->type == EntityType_pickupField ? 1 : 0;
-	for(s32 fieldIndex = startFieldIndex; fieldIndex < entity->numFields; fieldIndex++) {
-		ConsoleField* field = entity->fields[fieldIndex];
+	if(!createdThisFrame) {
+		s32 startFieldIndex = entity->type == EntityType_pickupField ? 1 : 0;
+		for(s32 fieldIndex = startFieldIndex; fieldIndex < entity->numFields; fieldIndex++) {
+			ConsoleField* field = entity->fields[fieldIndex];
 
-		if(field->type == ConsoleField_givesEnergy) {
-			gameState->fieldSpec.hackEnergy += field->children[0]->selectedIndex;
+			if(field->type == ConsoleField_givesEnergy) {
+				gameState->fieldSpec.hackEnergy += field->children[0]->selectedIndex;
+			}
 		}
 	}
 
-	if(createsPickupFieldsOnDeath(entity)) {
+	if(createsPickupFieldsOnDeath(entity) && !createdThisFrame) {
 		for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
 			ConsoleField* field = entity->fields[fieldIndex];
 
@@ -634,22 +651,24 @@ void freeEntityDuringLevel(Entity* entity, GameState* gameState) {
 
 	entity->numFields = 0;
 
-	if(entity->type == EntityType_death) {
-		if(entity->drawOrder == DrawOrder_player) {
-			gameState->reloadCurrentLevel = true;
+	if(!createdThisFrame) {
+		if(entity->type == EntityType_death) {
+			if(entity->drawOrder == DrawOrder_player) {
+				gameState->reloadCurrentLevel = true;
+			}
 		}
-	}
-	else if(entity->type == EntityType_motherShipProjectile) {
-		addMotherShipProjectileDeath(gameState, entity);
-	} 
-	else {
-		CharacterAnim* charAnim = entity->characterAnim;
+		else if(entity->type == EntityType_motherShipProjectile) {
+			addMotherShipProjectileDeath(gameState, entity);
+		} 
+		else {
+			CharacterAnim* charAnim = entity->characterAnim;
 
-		if(charAnim) {
-			AnimNode* deathAnim = charAnim->death;
+			if(charAnim) {
+				AnimNode* deathAnim = charAnim->death;
 
-			if(deathAnim) {
-				addDeath(gameState, entity->p, entity->renderSize, entity->drawOrder, entity->rotation, entity->characterAnim);
+				if(deathAnim) {
+					addDeath(gameState, entity->p, entity->renderSize, entity->drawOrder, entity->rotation, entity->characterAnim);
+				}
 			}
 		}
 	}
@@ -916,7 +935,7 @@ void addBobsVerticallyField(Entity* entity, GameState* gameState) {
 void addPatrolField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "patrols", ConsoleField_movesBackAndForth, 3);
 
-	double patrolSpeedFieldValues[] = {0, 10, 20, 30, 40}; 
+	double patrolSpeedFieldValues[] = {0, 20, 40, 60, 80}; 
 	
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", patrolSpeedFieldValues, 
 	 											   arrayCount(patrolSpeedFieldValues), 2, 1));
@@ -979,6 +998,21 @@ void addGivesEnergyField(Entity* entity, GameState* gameState) {
 
 void addSpawnsTrawlersField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "spawns_trawlers", ConsoleField_spawnsTrawlers, 20);
+
+	double spawnDelays[] = {1, 5, 2, 15, 20};
+	s32 spawnLimits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "spawn_delay", spawnDelays, 
+ 												    arrayCount(spawnDelays), 2, 4));
+
+	addChildToConsoleField(result, createPrimitiveField(s32, gameState, "spawn_limit", spawnLimits, 
+												    arrayCount(spawnLimits), 3, 4));
+
+	addField(entity, result);
+}
+
+void addSpawnsShrikesField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "spawns_shrikes", ConsoleField_spawnsShrikes, 20);
 
 	double spawnDelays[] = {1, 5, 10, 15, 20};
 	s32 spawnLimits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
@@ -1734,6 +1768,7 @@ Entity* addMotherShip(GameState* gameState, V2 p) {
 	addShootField(result, gameState, 0.5, EntityType_motherShip);
 	addSpotlightField(result, gameState);
 	addSpawnsTrawlersField(result, gameState);
+	addSpawnsShrikesField(result, gameState);
 
 	return result;
 }
@@ -1777,12 +1812,21 @@ Entity* addTrawlerBootUp(GameState* gameState, V2 p) {
 	return result;
 }
 
+void initTrawler(GameState* gameState, Entity* entity, V2 p) {
+	entity->type = EntityType_trawler;
+	entity->drawOrder = DrawOrder_trawler;
+	setEntityP(entity, p, gameState);
+	entity->renderSize = TRAWLER_SIZE;
+
+	addTrawlerHitbox(entity, gameState);
+}
+
 Entity* addTrawler(GameState* gameState, V2 p) {
 	Entity* result = addEntity(gameState, EntityType_trawler, DrawOrder_trawler, p, TRAWLER_SIZE);
 
-	setFlags(result, EntityFlag_hackable);
-
 	addTrawlerHitbox(result, gameState);
+
+	setFlags(result, EntityFlag_hackable);
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
 
@@ -1935,6 +1979,7 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 	bool result = true;
 
 	switch(a->type) {
+		case EntityType_test:
 		case EntityType_motherShipProjectileDeath:
 		case EntityType_bootUp:
 		case EntityType_death:
@@ -2239,8 +2284,8 @@ void tryKeyboardJump(Entity* entity, GameState* gameState, ConsoleField* keyboar
 
 	bool canJump = entity->jumpCount == 0 && 
 				   entity->timeSinceLastOnGround < KEYBOARD_JUMP_AIR_TOLERANCE_TIME && 
-				   gameState->input.up.pressed &&
-				   affectedByGravity(entity, keyboardField);
+				   gameState->input.up.pressed 
+				   ;//&& affectedByGravity(entity, keyboardField);
 
 	bool attemptingDoubleJump = false;
 	
@@ -2314,6 +2359,11 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 			setFlags(hitEntity, EntityFlag_remove);
 		} break;
 
+
+		case EntityType_trawler: {
+			s32 breakHere = 5;
+		} break;
+
 		default: {
 			if(isProjectile(entity)) {
 				setFlags(entity, EntityFlag_remove);
@@ -2382,49 +2432,28 @@ R2 getMaxCollisionExtents(Entity* entity) {
 	return result;
 }
 
-bool isEntityInside(Entity* entity, Entity* collider)  {
-	Hitbox* colliderHitboxList = collider->hitboxes;
+bool isEntityInsideBroadPhase(Entity* entity, Entity* collider) {
+	Hitbox* entityHitbox = entity->hitboxes;
 
-	while(colliderHitboxList) {
-		R2 colliderHitbox = getBoundingBox(collider, colliderHitboxList);
-		V2 colliderHitboxCenter = getHitboxCenter(colliderHitboxList, collider);
+	while(entityHitbox) {
+		R2 entityBounds = getBoundingBox(entity, entityHitbox);
 
-		updateHitboxRotatedPoints(colliderHitboxList, collider);
+		Hitbox* colliderHitbox = collider->hitboxes;
 
-		Hitbox* entityHitboxList = entity->hitboxes;
+		while(colliderHitbox) {
+			R2 colliderBounds = getBoundingBox(collider, colliderHitbox);
 
-		while (entityHitboxList) {
-			R2 entityHitbox = getBoundingBox(entity, entityHitboxList);
-			V2 entityHitboxCenter = getHitboxCenter(entityHitboxList, entity);
-
-			updateHitboxRotatedPoints(entityHitboxList, entity);
-
-			if(rectanglesOverlap(colliderHitbox, entityHitbox)) {
-				for(s32 entityPointIndex = 0; entityPointIndex < entityHitboxList->collisionPointsCount; entityPointIndex++) {
-					V2 hitP = entityHitboxList->rotatedCollisionPoints[entityPointIndex] + entityHitboxCenter;
-
-					for(s32 colliderPointIndex = 0; colliderPointIndex < colliderHitboxList->collisionPointsCount; colliderPointIndex++) {
-						V2 p1 = colliderHitboxList->rotatedCollisionPoints[colliderPointIndex];
-						V2 p2 = colliderHitboxList->rotatedCollisionPoints[(colliderPointIndex + 1) % colliderHitboxList->collisionPointsCount];
-					
-						V2 line = p2 - p1;
-						V2 normal = -perp(line);
-
-						V2 lineCenter = (p1 + p2) * 0.5 + colliderHitboxCenter;
-						V2 hitPToCenter = lineCenter - hitP;
-
-						if(dot(normal, hitPToCenter) < 0) return false;
-					}
-				}
+			if(rectanglesOverlap(entityBounds, colliderBounds)) {
+				return true;
 			}
 
-			entityHitboxList = entityHitboxList->next;
+			colliderHitbox = colliderHitbox->next;
 		}
 
-		colliderHitboxList = colliderHitboxList->next;
+		entityHitbox = entityHitbox->next;
 	}
 
-	return true;
+	return false;
 }
 
 void attemptToRemovePenetrationReferences(Entity* entity, GameState* gameState) {
@@ -2435,7 +2464,7 @@ void attemptToRemovePenetrationReferences(Entity* entity, GameState* gameState) 
 		Entity* collider = getEntityByRef(gameState, node->ref);
 		bool removeRef = true;
 
-		if(collider && isEntityInside(entity, collider)) {
+		if(collider && isEntityInsideBroadPhase(entity, collider)) {
 			removeRef = false;
 		}
 
@@ -2463,41 +2492,49 @@ void ignoreAllPenetratingEntities(Entity* entity, GameState* gameState) {
 		entity->ignorePenetrationList = NULL;
 	}
 
-	//NOTE: Most of this code is pasted from getCollisionTime
-	s32 partitionCenterX = (s32)(entity->p.x / gameState->chunkSize.x);
-	s32 partitionCenterY = (s32)(entity->p.y / gameState->chunkSize.y);
+	V2 delta = v2(0.001, -0.001);
 
-	for (s32 partitionXOffs = -1; partitionXOffs <= 1; partitionXOffs++) {
-		for (s32 partitionYOffs = -1; partitionYOffs <= 1; partitionYOffs++) {
-			s32 partitionX = partitionCenterX + partitionXOffs;
-			s32 partitionY = partitionCenterY + partitionYOffs;
+	getCollisionTime(entity, gameState, delta, false, 1, true);
 
-			if (partitionX >= 0 && 
-				partitionY >= 0 && 
-				partitionX < gameState->chunksWidth && 
-				partitionY < gameState->chunksHeight) {
+	RefNode* ref = entity->ignorePenetrationList;
+	s32 breakHere = 5;
 
-				EntityChunk* chunk = gameState->chunks + partitionY * gameState->chunksWidth + partitionX;
+	// NOTE: Most of this code is pasted from getCollisionTime
+	// s32 partitionCenterX = (s32)(entity->p.x / gameState->chunkSize.x);
+	// s32 partitionCenterY = (s32)(entity->p.y / gameState->chunkSize.y);
 
-				while(chunk) {
-					for (s32 colliderIndex = 0; colliderIndex < chunk->numRefs; colliderIndex++) {
-						Entity* collider = getEntityByRef(gameState, chunk->entityRefs[colliderIndex]);
+	// for (s32 partitionXOffs = -1; partitionXOffs <= 1; partitionXOffs++) {
+	// 	for (s32 partitionYOffs = -1; partitionYOffs <= 1; partitionYOffs++) {
+	// 		s32 partitionX = partitionCenterX + partitionXOffs;
+	// 		s32 partitionY = partitionCenterY + partitionYOffs;
 
-						if (collider && collider != entity &&
-							collidesWith(entity, collider, gameState)) {
+	// 		if (partitionX >= 0 && 
+	// 			partitionY >= 0 && 
+	// 			partitionX < gameState->chunksWidth && 
+	// 			partitionY < gameState->chunksHeight) {
 
-							if(isEntityInside(entity, collider)) {
-								RefNode* node = refNode(gameState, collider->ref, entity->ignorePenetrationList);
-								entity->ignorePenetrationList = node;
-							}
+	// 			EntityChunk* chunk = gameState->chunks + partitionY * gameState->chunksWidth + partitionX;
+
+	// 			while(chunk) {
+	// 				for (s32 colliderIndex = 0; colliderIndex < chunk->numRefs; colliderIndex++) {
+	// 					Entity* collider = getEntityByRef(gameState, chunk->entityRefs[colliderIndex]);
+
+
+	// 					if (collider && collider != entity &&
+	// 						collidesWith(entity, collider, gameState)) {
+
+	// 						// if(isEntityInside(entity, collider)) {
+	// 						// 	RefNode* node = refNode(gameState, collider->ref, entity->ignorePenetrationList);
+	// 						// 	entity->ignorePenetrationList = node;
+	// 						// }
 									
-						}
-					}
-					chunk = chunk->next;
-				}
-			}
-		}
-	}
+	// 					}
+	// 				}
+	// 				chunk = chunk->next;
+	// 			}
+	// 		}
+	// 	}
+	// }
 }
 
 void projectPointOntoHitbox(V2 point, Hitbox* hitbox, V2 hitboxOffset, V2 direction, ProjectPointResult* result, 
@@ -2558,7 +2595,7 @@ void projectPointOntoHitbox(V2 point, Hitbox* hitbox, V2 hitboxOffset, V2 direct
 	// }
 } 
 
-void getPolygonCollisionTime(Hitbox* moving, Hitbox* fixed, Entity* movingEntity, Entity* fixedEntity, 
+void getPolygonCollisionTime(Hitbox* moving, Hitbox* fixed, Entity* movingEntity, Entity* fixedEntity, GameState* gameState,
 							 GetCollisionTimeResult* result, V2 delta, bool solidCollision) {
 
 	V2 movingOffset = getHitboxCenter(moving, movingEntity);
@@ -2597,7 +2634,8 @@ void getPolygonCollisionTime(Hitbox* moving, Hitbox* fixed, Entity* movingEntity
 	}
 }
 
-GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2 delta, bool actuallyMoving, double maxCollisionTime) {
+GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2 delta, bool actuallyMoving, 
+										double maxCollisionTime, bool ignorePenetratingEntities) {
 	GetCollisionTimeResult result = {};
 	result.collisionTime = maxCollisionTime;
 	result.solidCollisionTime = maxCollisionTime;
@@ -2626,45 +2664,37 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 						if (collider && collider != entity && collidesWith(entity, collider, gameState)) {
 							bool solidCollision = isSolidCollision(entity, collider, gameState, actuallyMoving);
 
-							// if (isTileType(collider) && isTileType(entity)) {
-							// 	Hitbox tileHitbox1 = getTileHitboxWithoutOverhang();
-							// 	Hitbox tileHitbox2 = getTileHitboxWithoutOverhang();
+							Hitbox* colliderHitboxList = collider->hitboxes;
 
-							// 	R2 bounds1 = getBoundingBox(entity, &tileHitbox1);
-							// 	R2 bounds2 = addRadiusTo(getBoundingBox(collider, &tileHitbox2), v2(abs(delta.x), abs(delta.y)));
+							while(colliderHitboxList) {
+								R2 colliderHitbox = getBoundingBox(collider, colliderHitboxList);
+								R2 paddedColliderHitbox = addRadiusTo(colliderHitbox, v2(abs(delta.x), abs(delta.y)));
 
-							// 	if(rectanglesOverlap(bounds1, bounds2)) {
-							// 		getPolygonCollisionTime(&tileHitbox1, &tileHitbox2, entity, collider, &result,
-							// 									 delta, solidCollision);
-							// 	}
-							// } else {
-								Hitbox* colliderHitboxList = collider->hitboxes;
+								Hitbox* entityHitboxList = entity->hitboxes;
 
-								while(colliderHitboxList) {
-									R2 colliderHitbox = getBoundingBox(collider, colliderHitboxList);
-									R2 paddedColliderHitbox = addRadiusTo(colliderHitbox, v2(abs(delta.x), abs(delta.y)));
-
-									Hitbox* entityHitboxList = entity->hitboxes;
-
-									while (entityHitboxList) {
-										R2 entityHitbox = getBoundingBox(entity, entityHitboxList);
-									
-										//Broad phase
-										if(rectanglesOverlap(paddedColliderHitbox, entityHitbox)) {
-
-											//Narrow phase
-											getPolygonCollisionTime(entityHitboxList, colliderHitboxList, entity, collider, &result,
-																	 delta, solidCollision);
-										}
-											
-										entityHitboxList = entityHitboxList->next;
-									}
+								while (entityHitboxList) {
+									R2 entityHitbox = getBoundingBox(entity, entityHitboxList);
 								
+									//Broad phase
+									if(rectanglesOverlap(paddedColliderHitbox, entityHitbox)) {
+										if(ignorePenetratingEntities) {
+											entity->ignorePenetrationList = refNode(gameState, collider->ref, entity->ignorePenetrationList);
+										} else {
+											//Narrow phase
+											getPolygonCollisionTime(entityHitboxList, colliderHitboxList, entity, collider, 
+																	gameState, &result, delta, solidCollision);
+										}
 
-									colliderHitboxList = colliderHitboxList->next;
+								
+									}
+										
+									entityHitboxList = entityHitboxList->next;
 								}
+							
+
+								colliderHitboxList = colliderHitboxList->next;
 							}
-						//}
+						}
 					}
 					chunk = chunk->next;
 				}
@@ -2738,6 +2768,8 @@ void adjustVelocitiesFromHit(V2 normal, V2* delta, V2* dP, V2* ddP) {
 V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP, double rotation) {
 	V2 startP = entity->p;
 
+	double epsilon = 0.005;
+
 	if(rotation != entity->rotation) {
 		double oldRotation = entity->rotation;
 
@@ -2794,7 +2826,6 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP, double rotat
 			double collisionTime = collisionResult.collisionTime;
 			remainingCollisionTime -= collisionTime;
 
-			double epsilon = 0.005;
 			collisionTime = max(0, collisionTime - epsilon);
 
 			V2 movement = collisionTime * delta;
@@ -2825,7 +2856,7 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP, double rotat
 	//NOTE: This moves all of the entities which are supported by this one (as the ground)
 	RefNode* nextTopEntity = entity->groundReferenceList;
 
-	V2 totalMovement = entity->p - startP;
+	V2 totalMovement = (entity->p - startP) * (1 + epsilon);
 	double totalMovementLenSq = lengthSq(totalMovement); 
 
 	if (totalMovementLenSq > 0) {
@@ -2844,7 +2875,7 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP, double rotat
 			double diameter = (entity->renderSize.x + entity->renderSize.y) * 0.5;
 			double circumference = PI * diameter;
 
-			double rotationFudge = 25;
+			double rotationFudge = 20;
 
 			double rot = totalMovementLen / circumference * rotationFudge;
 			if(totalMovement.x > 0) rot *= -1;
@@ -3621,21 +3652,43 @@ bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt, 
 	return shootingState;
 }
 
+V2 accelerateEntity(Entity* entity, double xMoveAcceleration) {
+	V2 result = {};
+
+	if(entity->groundNormal == v2(0, 0)) {
+		result.x = xMoveAcceleration;
+	} else {
+		V2 groundDir = normalize(normalize(-perp(entity->groundNormal))) * xMoveAcceleration;
+
+		if((groundDir.x < 0 && xMoveAcceleration > 0) || (groundDir.x > 0 && xMoveAcceleration < 0)) {
+			groundDir *= -1;
+		}
+
+		result += groundDir;
+	}
+
+	return result;
+}
+
 bool tryPatrolMove(Entity* entity, GameState* gameState, double xMoveAcceleration, double dt, V2 ddP) {
 	V2 oldP = entity->p;
+	double oldWheelRotation = entity->wheelRotation;
 
 	bool32 movingLeft = isSet(entity, EntityFlag_facesLeft);
-	if (movingLeft) xMoveAcceleration *= -1;
+	if (movingLeft) {
+		xMoveAcceleration *= -1;
+	}
 
-	ddP.x = xMoveAcceleration;
+	ddP.x += xMoveAcceleration;
+	//ddP += accelerateEntity(entity, xMoveAcceleration);
+
 	V2 movement = move(entity, dt, gameState, ddP);
 
 	bool shouldChangeDirection = (movement.x == 0);
 
 	if(!shouldChangeDirection && !isSet(entity, EntityFlag_noMovementByDefault)) {
 		Hitbox* hitbox = entity->hitboxes;
-		V2 rightPoint = entity->p;
-		V2 leftPoint = entity->p;
+		R2 bounds = r2(entity->p, entity->p);
 
 		while(hitbox) {
 			V2 offset = getHitboxCenter(hitbox, entity);
@@ -3645,25 +3698,40 @@ bool tryPatrolMove(Entity* entity, GameState* gameState, double xMoveAcceleratio
 			for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
 				V2 hitP = hitbox->rotatedCollisionPoints[pIndex] + offset;
 
-				if(hitP.x > rightPoint.x) rightPoint = hitP;
-				if(hitP.x < leftPoint.x) leftPoint = hitP;
+				if(hitP.x > bounds.max.x) bounds.max.x = hitP.x;
+				else if(hitP.x < bounds.min.x) bounds.min.x = hitP.x;
+				if(hitP.y < bounds.min.y) bounds.min.y = hitP.y;
+				else if(hitP.y > bounds.max.y) bounds.max.y = hitP.y;
 			}
 
 			hitbox = hitbox->next;
 		}
 
-		double span = rightPoint.x - leftPoint.x;
-		V2 translation = v2(span, 0);
-		if(movingLeft) translation *= -1;
+		V2 dP = v2(0, - getRectHeight(bounds));
+		V2 ddP = v2(0, 0);
+		bool offOfGround = onGround(entity, gameState, 1, dP, ddP).solidEntity == NULL;
 
-		setEntityP(entity, entity->p + translation, gameState);
-		bool offOfGround = onGround(entity, gameState).solidEntity == NULL;
+		if (!offOfGround) {
+			V2 entityP = entity->p;
 
-		if (offOfGround) {
-			setEntityP(entity, oldP, gameState);
-		} else {
-			setEntityP(entity, entity->p - translation, gameState);
-		}
+			double width = getRectWidth(bounds);
+			if(movingLeft) width *= -1;
+			V2 translation = v2(width, 0);
+			setEntityP(entity, entityP + translation, gameState);
+
+			double height = getRectHeight(bounds);
+			V2 delta = v2(0, -height * 2);
+
+			GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, delta, false, 1); 
+			offOfGround = !collisionResult.solidEntity;
+
+			if(offOfGround) {
+				setEntityP(entity, oldP, gameState);
+				entity->wheelRotation = oldWheelRotation;
+			} else {
+				setEntityP(entity, entityP, gameState);
+			}
+		} 
 
 		shouldChangeDirection = offOfGround;
 	}
@@ -3683,7 +3751,7 @@ void drawCollisionBounds(Entity* entity, RenderGroup* renderGroup, double alpha)
 		updateHitboxRotatedPoints(hitbox, entity);
 
 		#if 0
-		pushOutlinedRect(gameState->renderGroup, getBoundingBox(entity, hitbox),
+		pushOutlinedRect(renderGroup, getBoundingBox(entity, hitbox),
 						 0.02f, createColor(255, 127, 255, 255), true);
 		#endif
 
@@ -3756,18 +3824,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 					if (gameState->input.right.pressed) xMove += xMoveAcceleration;
 					if (gameState->input.left.pressed) xMove -= xMoveAcceleration;
 
-					if(entity->groundNormal == v2(0, 0)) {
-						ddP.x += xMove;
-					} else {
-						V2 groundDir = normalize(normalize(-perp(entity->groundNormal))) * xMove;
-
-						if((groundDir.x < 0 && xMove > 0) || (groundDir.x > 0 && xMove < 0)) {
-							groundDir *= -1;
-						}
-
-						ddP += groundDir;
-					}
-
+					ddP += accelerateEntity(entity, xMove);
 
 					if (xMove > 0) {
 						setEntityFacingDirection(entity, false, gameState);
@@ -3953,6 +4010,37 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 	}
 }
 
+s32 isSpawnPossible(ConsoleField* field, Entity* entity, GameState* gameState, bool trawler) {
+	s32 numSpawned = countValidRefNodes(&field->spawnedEntities, gameState);
+	ConsoleField* maxSpawnField = field->children[1];
+	s32 maxSpawned = getS32Value(maxSpawnField);
+
+	if(numSpawned >= maxSpawned) {
+		return 0;
+	}
+
+	if(trawler) {
+		Entity* testEntity = getEntityByRef(gameState, gameState->testEntityRef);
+		assert(testEntity);
+
+		freeEntityDuringLevel(testEntity, gameState, true);
+
+		testEntity->flags = 0;
+		initTrawler(gameState, testEntity, entity->p);
+		V2 delta = v2(0, -gameState->mapSize.y * 2);
+
+		GetCollisionTimeResult collisionResult = getCollisionTime(testEntity, gameState, delta, false);
+		testEntity->type = EntityType_test;
+		setFlags(testEntity, EntityFlag_noMovementByDefault);
+
+		if(!collisionResult.solidEntity) {
+			return 0;
+		}
+	}
+
+	return maxSpawned - numSpawned;
+}
+
 void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 	bool hacking = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
 
@@ -4039,7 +4127,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		ConsoleField* spotLightField = NULL;
 		ConsoleField* shootField = NULL;
 		ConsoleField* cloakField = NULL;
-		ConsoleField* spawnField = NULL;
+		ConsoleField* spawnTrawlersField = NULL;
+		ConsoleField* spawnShrikesField = NULL;
 
 		s32 fieldIndexStart = 0;
 		if(entity->type == EntityType_pickupField) fieldIndexStart = 1;
@@ -4061,7 +4150,11 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				} break;
 
 				case ConsoleField_spawnsTrawlers: {
-					spawnField = field;
+					spawnTrawlersField = field;
+				} break;
+
+				case ConsoleField_spawnsShrikes: {
+					spawnShrikesField = field;
 				} break;
 
 				case ConsoleField_light: {
@@ -4106,8 +4199,21 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		bool shootingState = false;
 		bool doingOtherAction = false;
 
+		s32 remainingTrawlers = 0;
+		s32 remainingShrikes = 0;
+
+		if(!gameState->doingInitialSim) {
+			if(spawnTrawlersField) {
+				remainingTrawlers = isSpawnPossible(spawnTrawlersField, entity, gameState, true);
+			}
+
+			if(spawnShrikesField) {
+				remainingShrikes = isSpawnPossible(spawnShrikesField, entity, gameState, false);
+			}
+		}	
+
 		if(cloakField) {
-			bool wantsToDoOtherAction = target || spawnField;
+			bool wantsToDoOtherAction = target || remainingTrawlers || remainingShrikes;
 
 			if(wantsToDoOtherAction) {
 				if(isSet(entity, EntityFlag_cloaked)) {
@@ -4125,7 +4231,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 			if(togglingCloak || cloaked) {
 				shootField = NULL;
-				spawnField = NULL;
+				spawnTrawlersField = NULL;
+				spawnShrikesField = NULL;
 
 				if(togglingCloak && !gameState->doingInitialSim) {
 					doingOtherAction = true;
@@ -4158,31 +4265,57 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			entity->cloakFactor = 0;
 		}
 
-		if(shootField) {
-			shootingState = shootBasedOnShootingField(entity, gameState, dt, shootField);
-			doingOtherAction |= shootingState;
-		}
+		// if(shootField) {
+		// 	shootingState = shootBasedOnShootingField(entity, gameState, dt, shootField);
+		// 	doingOtherAction |= shootingState;
+		// }
 
-		if(!doingOtherAction && spawnField) {
-			ConsoleField* spawnDelayField = spawnField->children[0];
-			double spawnDelay = getDoubleValue(spawnDelayField);
+		if(!doingOtherAction) {
+			if(remainingTrawlers && remainingShrikes) {
+				if(remainingTrawlers >= remainingShrikes) {
+					remainingShrikes = 0;
+				} else {
+					remainingTrawlers = 0;
+				}
+			}
 
-			spawnField->spawnTimer += dt;
+			ConsoleField* spawnField = NULL;
 
-			if(spawnField->spawnTimer >= spawnDelay) {
-				s32 numSpawned = countValidRefNodes(&spawnField->spawnedEntities, gameState);
-				
-				ConsoleField* maxSpawnField = spawnField->children[1];
-				s32 maxSpawned = getS32Value(maxSpawnField);
+			if(remainingTrawlers) {
+				spawnField = spawnTrawlersField;
+			}
+			else if(remainingShrikes) {
+				spawnField = spawnShrikesField;
+			}
 
-				if(numSpawned < maxSpawned) {
+			if(spawnField) {
+				ConsoleField* spawnDelayField = spawnField->children[0];
+				double spawnDelay = getDoubleValue(spawnDelayField);
+
+				spawnField->spawnTimer += dt;
+
+				if(spawnField->spawnTimer >= spawnDelay) {
 					spawnField->spawnTimer = 0;
 
-					Entity* trawlerBootUp = addTrawlerBootUp(gameState, entity->p);
-					trawlerBootUp->spawnerRef = entity->ref;
+					Entity* spawn = NULL;
 
-					spawnField->spawnedEntities = refNode(gameState, trawlerBootUp->ref, spawnField->spawnedEntities);
-				}				
+					if(remainingTrawlers) {
+						assert(spawnField->type == ConsoleField_spawnsTrawlers);
+						spawn = addTrawlerBootUp(gameState, entity->p);
+					}
+					else if(remainingShrikes) {
+						assert(spawnField->type == ConsoleField_spawnsShrikes);
+						spawn = addShrikeBootUp(gameState, entity->p);
+					}
+					else {
+						InvalidCodePath;
+					}
+
+					spawn->spawnerRef = entity->ref;
+					spawnField->spawnedEntities = refNode(gameState, spawn->ref, spawnField->spawnedEntities);
+				}
+
+				doingOtherAction = true;
 			}
 		}
 
@@ -4691,7 +4824,18 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				if(spawner) {
 					spawn->spawnerRef = entity->spawnerRef;
 					
-					ConsoleField* spawnerField = getField(spawner, ConsoleField_spawnsTrawlers);
+					ConsoleField* spawnerField = NULL;
+
+					if(spawn->type == EntityType_trawler) {
+						spawnerField = getField(spawner, ConsoleField_spawnsTrawlers);
+					}
+					else if(spawn->type == EntityType_shrike) {
+						spawnerField = getField(spawner, ConsoleField_spawnsShrikes);
+					}
+					else {
+						InvalidCodePath;
+					}
+					
 					assert(spawnerField);
 
 					RefNode* node = spawnerField->spawnedEntities;

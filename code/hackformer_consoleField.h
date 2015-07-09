@@ -19,6 +19,7 @@ enum ConsoleFieldType {
 	ConsoleField_cloaks,
 	ConsoleField_dropsOnHit,
 	ConsoleField_spawnsTrawlers,
+	ConsoleField_spawnsShrikes,
 	ConsoleField_light,
 
 	ConsoleField_double,
@@ -197,7 +198,8 @@ bool canOnlyHaveOneFieldOfType(ConsoleFieldType type) {
 				  type == ConsoleField_disappearsOnHit ||
 				  type == ConsoleField_crushesEntities ||
 				  type == ConsoleField_Alertness ||
-				  type == ConsoleField_spawnsTrawlers;
+				  type == ConsoleField_spawnsTrawlers ||
+				  type == ConsoleField_spawnsShrikes;
 
  	return result;
 }

@@ -51,6 +51,10 @@ void loadHackMap(GameState* gameState, char* fileName) {
 
 	initSpatialPartition(gameState);
 
+	Entity* testEntity = addEntity(gameState, EntityType_test, DrawOrder_test, v2(0, 0), v2(0, 0));
+	setFlags(testEntity, EntityFlag_noMovementByDefault);
+	gameState->testEntityRef = testEntity->ref;
+
 	for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
 		for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
 			s32 tile = readS32(file);
@@ -245,11 +249,11 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 
 	loadHackMap(gameState, maps[*mapFileIndex]);
 
-	char textValues[10][100];
-	sprintf(textValues[0], "Batman!");
-	sprintf(textValues[1], "NANANANANA");
-	sprintf(textValues[2], "batman");
-	addText(gameState, v2(4, 5), textValues, 3, 1);
+	// char textValues[10][100];
+	// sprintf(textValues[0], "Batman!");
+	// sprintf(textValues[1], "NANANANANA");
+	// sprintf(textValues[2], "batman");
+	// addText(gameState, v2(4, 5), textValues, 3, 1);
 
 	gameState->doingInitialSim = true;
 	gameState->renderGroup->enabled = false;
