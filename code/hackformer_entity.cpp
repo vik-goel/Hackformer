@@ -58,9 +58,23 @@ Hitbox* addHitbox(Entity* entity, GameState* gameState) {
 	return hitbox;
 }
 
-void setHitboxSize(Hitbox* hitbox, double width, double height) {
-	double size = length(v2(width, height) * 0.5) * 2;
-	hitbox->collisionSize = v2(size, size);
+bool canEntityRotate(Entity* entity) {
+	bool result = entity->type == EntityType_trojan ||
+				  entity->type == EntityType_motherShip ||
+				  entity->type == EntityType_trawlerBolt || 
+				  entity->type == EntityType_trojanBolt ||
+				  entity->type == EntityType_motherShipProjectile;
+
+	return result;				  
+}
+
+void setHitboxSize(Entity* entity, Hitbox* hitbox, double width, double height) {
+	if(canEntityRotate(entity)) {
+		double size = length(v2(width, height) * 0.5) * 2;
+		hitbox->collisionSize = v2(size, size);
+	} else {
+		hitbox->collisionSize = v2(width, height);
+	}
 }
 
 V2 getHitboxCenter(Hitbox* hitbox, Entity* entity) {
@@ -85,8 +99,7 @@ void giveEntityRectangularCollisionBounds(Entity* entity, GameState* gameState,
 										  double xOffset, double yOffset, double width, double height) {
 	Hitbox* hitbox = createUnzeroedHitbox(gameState);
 
-	double size = length(v2(width, height) * 0.5) * 2;
-	hitbox->collisionSize = v2(size, size);
+	setHitboxSize(entity, hitbox, width, height);
 	hitbox->collisionOffset = v2(xOffset, yOffset);
 
 	double halfWidth = width / 2.0;
@@ -636,18 +649,17 @@ void freeEntityDuringLevel(Entity* entity, GameState* gameState, bool createdThi
 	}
 
 	Hitbox* box = entity->hitboxes;
-	Hitbox* secondBox = NULL;
 
-	while(box) {
-		secondBox = box;
-		box = box->next;
+	if(box) {
+		while(box->next) {
+			box = box->next;
+		}
+
+		box->next = gameState->hitboxFreeList;
+		gameState->hitboxFreeList = box;
 	}
 
-	if(secondBox) {
-		assert(!secondBox->next);
-		secondBox->next = gameState->hitboxFreeList;
-		gameState->hitboxFreeList = secondBox->next;
-	}
+	entity->hitboxes = NULL;
 
 	entity->numFields = 0;
 
@@ -999,7 +1011,7 @@ void addGivesEnergyField(Entity* entity, GameState* gameState) {
 void addSpawnsTrawlersField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "spawns_trawlers", ConsoleField_spawnsTrawlers, 20);
 
-	double spawnDelays[] = {1, 5, 2, 15, 20};
+	double spawnDelays[] = {2, 5, 10, 15, 20};
 	s32 spawnLimits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "spawn_delay", spawnDelays, 
@@ -1124,7 +1136,7 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	setHitboxSize(result, hitbox, hitboxWidth * 1, hitboxHeight * 1);
 	hitbox->collisionPointsCount = 8;
 	hitbox->originalCollisionPoints[0] = v2(-0.164931 * halfHitboxWidth, -0.950521 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[1] = v2(0.186632 * halfHitboxWidth, -0.950521 * halfHitboxHeight);
@@ -1173,7 +1185,7 @@ Entity* addVirus(GameState* gameState, V2 p) {
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(hitbox, hitboxWidth, hitboxHeight);
+	setHitboxSize(result, hitbox, hitboxWidth, hitboxHeight);
 	hitbox->collisionPointsCount = 12;
 	hitbox->originalCollisionPoints[0] = v2(-0.929457 * halfHitboxWidth, -1 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[1] = v2(1 * halfHitboxWidth, -1 * halfHitboxHeight);
@@ -1214,7 +1226,7 @@ Entity* addEndPortal(GameState* gameState, V2 p) {
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	setHitboxSize(result, hitbox, hitboxWidth * 1, hitboxHeight * 1);
 	hitbox->collisionPointsCount = 12;
 	hitbox->originalCollisionPoints[0] = v2(-0.464410 * halfHitboxWidth, -0.937500 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[1] = v2(0.442708 * halfHitboxWidth, -0.937500 * halfHitboxHeight);
@@ -1263,7 +1275,7 @@ Entity* addHackEnergy(GameState* gameState, V2 p) {
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);
+	setHitboxSize(result, hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);
 	hitbox->collisionPointsCount = 8;
 	hitbox->originalCollisionPoints[0] = v2(-0.004340 * halfHitboxWidth, -1.046007 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[1] = v2(0.763889 * halfHitboxWidth, -0.815972 * halfHitboxHeight);
@@ -1298,14 +1310,14 @@ Entity* addBackground(GameState* gameState) {
 	return result;
 }
 
-Hitbox getTileHitboxWithoutOverhang() {
+Hitbox getTileHitboxWithoutOverhang(Entity* entity) {
 	Hitbox result = {};
 
 	double offset = (TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS - TILE_HEIGHT_IN_METERS) * 0.5;
 	result.collisionOffset = v2(0, offset);
 
 	V2 tileSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS);
-	setHitboxSize(&result, tileSize.x, tileSize.y);
+	setHitboxSize(entity, &result, tileSize.x, tileSize.y);
 
 	result.collisionPointsCount = 4;
 	result.storedRotation = INVALID_STORED_HITBOX_ROTATION;
@@ -1346,7 +1358,7 @@ void initTile(Entity* tile, GameState* gameState, s32 tileIndex, bool32 flipX, b
 		double halfHitboxWidth = hitboxWidth * 0.5;
 		double halfHitboxHeight = hitboxHeight * 0.5;
 		Hitbox* hitbox = addHitbox(tile, gameState);
-		setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+		setHitboxSize(tile, hitbox, hitboxWidth * 1, hitboxHeight * 1);
 		hitbox->collisionPointsCount = 4;
 		hitbox->originalCollisionPoints[0] = v2(-1 * halfHitboxWidth, -1 * halfHitboxHeight);
 		hitbox->originalCollisionPoints[1] = v2(1 * halfHitboxWidth, -1 * halfHitboxHeight);
@@ -1388,7 +1400,7 @@ Entity* addHeavyTile(GameState* gameState, V2 p, bool32 flipX, bool32 flipY) {
 }
 
 Entity* addDisappearingTile(GameState* gameState, V2 p, bool32 flipX, bool32 flipY) {
-	Entity* result = addEntity(gameState, EntityType_disappearingTile, DrawOrder_disappearingTile, 
+	Entity* result = addEntity(gameState, EntityType_disappearingTile, DrawOrder_tile, 
 								p, v2(0, 0));
 
 	setFlags(result, EntityFlag_noMovementByDefault|EntityFlag_removeWhenOutsideLevel);
@@ -1402,7 +1414,7 @@ Entity* addDisappearingTile(GameState* gameState, V2 p, bool32 flipX, bool32 fli
 Entity* addDroppingTile(GameState* gameState, V2 p, bool32 flipX, bool32 flipY) {
 	InvalidCodePath;
 
-	Entity* result = addEntity(gameState, EntityType_droppingTile, DrawOrder_droppingTile, 
+	Entity* result = addEntity(gameState, EntityType_droppingTile, DrawOrder_tile, 
 								p, v2(0, 0));
 
 	setFlags(result, EntityFlag_noMovementByDefault|EntityFlag_removeWhenOutsideLevel);
@@ -1477,7 +1489,7 @@ Entity* addLaserBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, doub
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	setHitboxSize(result, hitbox, hitboxWidth * 1, hitboxHeight * 1);
 	hitbox->collisionPointsCount = 8;
 	hitbox->originalCollisionPoints[0] = v2(-0.013021 * halfHitboxWidth, -0.989583 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[1] = v2(0.651042 * halfHitboxWidth, -0.763889 * halfHitboxHeight);
@@ -1503,7 +1515,7 @@ Entity* addTrojanBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, dou
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	setHitboxSize(result, hitbox, hitboxWidth * 1, hitboxHeight * 1);
 	hitbox->collisionPointsCount = 8;
 	hitbox->originalCollisionPoints[0] = v2(-0.516493 * halfHitboxWidth, -0.290799 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[1] = v2(0.503472 * halfHitboxWidth, -0.277778 * halfHitboxHeight);
@@ -1530,7 +1542,7 @@ Entity* addTrawlerBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, do
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	setHitboxSize(result, hitbox, hitboxWidth * 1, hitboxHeight * 1);
 	hitbox->collisionPointsCount = 8;
 	hitbox->originalCollisionPoints[0] = v2(-0.499132 * halfHitboxWidth, -0.173611 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[1] = v2(0.516493 * halfHitboxWidth, -0.169271 * halfHitboxHeight);
@@ -1559,7 +1571,7 @@ Entity* addMotherShipProjectile(GameState* gameState, V2 p, V2 target, s32 shoot
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	setHitboxSize(result, hitbox, hitboxWidth * 1, hitboxHeight * 1);
 	hitbox->collisionPointsCount = 9;
 	hitbox->originalCollisionPoints[0] = v2(-0.117188 * halfHitboxWidth, -0.486111 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[1] = v2(0.199653 * halfHitboxWidth, -0.447049 * halfHitboxHeight);
@@ -1699,7 +1711,7 @@ Entity* addTrojan(GameState* gameState, V2 p) {
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	setHitboxSize(result, hitbox, hitboxWidth * 1, hitboxHeight * 1);
 	hitbox->collisionPointsCount = 12;
 	hitbox->originalCollisionPoints[0] = v2(-0.091146 * halfHitboxWidth, -0.707465 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[1] = v2(0.073785 * halfHitboxWidth, -0.707465 * halfHitboxHeight);
@@ -1750,7 +1762,7 @@ Entity* addMotherShip(GameState* gameState, V2 p) {
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	setHitboxSize(result, hitbox, hitboxWidth * 1, hitboxHeight * 1);
 	hitbox->collisionPointsCount = 10;
 	hitbox->originalCollisionPoints[0] = v2(-0.056424 * halfHitboxWidth, -0.798611 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[1] = v2(0.047743 * halfHitboxWidth, -0.798611 * halfHitboxHeight);
@@ -1790,7 +1802,7 @@ void addTrawlerHitbox(Entity* entity, GameState* gameState) {
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(entity, gameState);
-	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	setHitboxSize(entity, hitbox, hitboxWidth * 1, hitboxHeight * 1);
 	hitbox->collisionPointsCount = 12;
 	hitbox->originalCollisionPoints[0] = v2(-0.000000 * halfHitboxWidth, -0.776910 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[1] = v2(0.368924 * halfHitboxWidth, -0.694444 * halfHitboxHeight);
@@ -1819,6 +1831,7 @@ void initTrawler(GameState* gameState, Entity* entity, V2 p) {
 	entity->renderSize = TRAWLER_SIZE;
 
 	addTrawlerHitbox(entity, gameState);
+	ignoreAllPenetratingEntities(entity, gameState);
 }
 
 Entity* addTrawler(GameState* gameState, V2 p) {
@@ -1847,7 +1860,7 @@ void addShrikeHitbox(Entity* entity, GameState* gameState) {
 	double halfHitboxWidth = hitboxWidth * 0.5;
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(entity, gameState);
-	setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	setHitboxSize(entity, hitbox, hitboxWidth * 1, hitboxHeight * 1);
 	hitbox->collisionPointsCount = 42;
 	hitbox->originalCollisionPoints[0] = v2(-0.815972 * halfHitboxWidth, -0.533854 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[1] = v2(-0.703125 * halfHitboxWidth, -0.533854 * halfHitboxHeight);
@@ -2359,10 +2372,6 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 			setFlags(hitEntity, EntityFlag_remove);
 		} break;
 
-
-		case EntityType_trawler: {
-			s32 breakHere = 5;
-		} break;
 
 		default: {
 			if(isProjectile(entity)) {
@@ -2971,15 +2980,8 @@ bool moveTowardsWaypoint(Entity* entity, GameState* gameState, double dt, V2 tar
 	return true;
 }
 
-bool entityRotatesToFaceForwards(Entity* entity) {
-	bool result = entity->type == EntityType_trojan ||
-				  entity->type == EntityType_motherShip;
-
-	return result;				  
-}
-
 void changeSpotLightAngle(Entity* entity, double wantedSpotLightAngle, double dt) {
-	if(entityRotatesToFaceForwards(entity)) {
+	if(canEntityRotate(entity)) {
 		wantedSpotLightAngle = angleIn0Tau(wantedSpotLightAngle);
 	} else {
 		wantedSpotLightAngle = angleIn0Tau(wantedSpotLightAngle - entity->rotation);
@@ -3429,7 +3431,7 @@ Entity* getClosestTarget(Entity* entity, GameState* gameState, double* targetDst
 double getSpotLightAngle(Entity* entity) {
 	double lightAngle;
 
-	if(entityRotatesToFaceForwards(entity)) {
+	if(canEntityRotate(entity)) {
 		lightAngle = entity->spotLightAngle;
 	} else {
 		lightAngle = entity->rotation + entity->spotLightAngle;
@@ -3439,6 +3441,7 @@ double getSpotLightAngle(Entity* entity) {
 }
 
 Entity* getClosestTargetInSight(Entity* entity, GameState* gameState, double sightRadius, double fov) {
+	fov = toRadians(fov);
 	double halfFov = fov * 0.5;
 
 	double lightAngle = getSpotLightAngle(entity);
@@ -3557,11 +3560,12 @@ bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt, 
 			if (shootField->shootTimer <= 0) {
 				shootField->shootTimer = 0;
 				clearFlags(entity, EntityFlag_unchargingAfterShooting);
-			} 
-
-			Entity* target = getEntityByRef(gameState, entity->targetRef); 
-			if(target) {
-				changeSpotLightAngle(entity, getRad(target->p - entity->p), dt);
+				shootingState = false;
+			} else {
+				Entity* target = getEntityByRef(gameState, entity->targetRef); 
+				if(target) {
+					changeSpotLightAngle(entity, getRad(target->p - entity->p), dt);
+				}
 			}
 		} else {
 			assert(entity->targetRef != entity->ref);
@@ -3809,6 +3813,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 		defaultMove = false;
 
 		double wantedSpotLightAngle = entity->spotLightAngle;
+		bool canChangeSpotLightAngle = true;
 
 		switch(movementField->type) {
 
@@ -3861,6 +3866,25 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 					}
 				} else {
 					defaultMove = true;
+
+					if(entity->groundNormal.x && entity->groundNormal.y) {
+						V2 ground = normalize(normalize(perp(entity->groundNormal)));
+						V2 velocity = hadamard(getVelocity(dt, entity->dP, ddP), ground);
+
+						//if(velocity.y < 0) velocity *= -1;
+
+						velocity *= (2.0 / (dt * dt));
+
+						double velLength = length(velocity);
+
+						if(velLength > xMoveAcceleration) {
+							velocity = normalize(velocity) * velLength;
+						}
+
+						ddP += velocity;
+
+						canChangeSpotLightAngle = false;
+					}
 				}
 			} break;
 
@@ -3986,7 +4010,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 				wantedSpotLightAngle = getDegrees(entity->dP);
 			}
 
-			if (!doingOtherAction) changeSpotLightAngle(entity, wantedSpotLightAngle, dt);
+			if (!doingOtherAction && canChangeSpotLightAngle) changeSpotLightAngle(entity, wantedSpotLightAngle, dt);
 		}
 	} 
 
@@ -4265,10 +4289,10 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			entity->cloakFactor = 0;
 		}
 
-		// if(shootField) {
-		// 	shootingState = shootBasedOnShootingField(entity, gameState, dt, shootField);
-		// 	doingOtherAction |= shootingState;
-		// }
+		if(shootField) {
+			shootingState = shootBasedOnShootingField(entity, gameState, dt, shootField);
+			doingOtherAction |= shootingState;
+		}
 
 		if(!doingOtherAction) {
 			if(remainingTrawlers && remainingShrikes) {
@@ -4510,10 +4534,6 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 			case EntityType_trojan: {
 				entity->rotation = entity->spotLightAngle - PI / 2.0;
-			} break;
-
-			case EntityType_trawler: {
-				//entity->rotation = entity->spotLightAngle + PI;
 			} break;
 
 			case EntityType_motherShip: {

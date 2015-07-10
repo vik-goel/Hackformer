@@ -149,7 +149,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 				double halfHitboxWidth = hitboxWidth * 0.5;
 				double halfHitboxHeight = hitboxHeight * 0.5;
 				Hitbox* hitbox = addHitbox(entity, gameState);
-				setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
+				setHitboxSize(entity, hitbox, hitboxWidth * 1, hitboxHeight * 1);
 				hitbox->collisionPointsCount = 9;
 				hitbox->originalCollisionPoints[0] = v2(-0.998264 * halfHitboxWidth, -0.989583 * halfHitboxHeight);
 				hitbox->originalCollisionPoints[1] = v2(1 * halfHitboxWidth, -0.989583 * halfHitboxHeight);
@@ -170,7 +170,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 				double halfHitboxWidth = hitboxWidth * 0.5;
 				double halfHitboxHeight = hitboxHeight * 0.5;
 				Hitbox* hitbox = addHitbox(entity, gameState);
-				setHitboxSize(hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);
+				setHitboxSize(entity, hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);
 				hitbox->collisionPointsCount = 12;
 				hitbox->originalCollisionPoints[0] = v2(-0.815972 * halfHitboxWidth, -0.985681 * halfHitboxHeight);
 				hitbox->originalCollisionPoints[1] = v2(0.811632 * halfHitboxWidth, -0.999618 * halfHitboxHeight);
@@ -793,7 +793,7 @@ int main(int argc, char* argv[]) {
 
 		#if 0
 		if(SDL_GetTicks() - fpsTimer >= 1000) {
-			fpsTimer += 1000;
+			fpsTimer = SDL_GetTicks();
 			gameState->fieldSpec.hackEnergy = (frameTime / fps);
 			fps = 0;
 			frameTime = 0;

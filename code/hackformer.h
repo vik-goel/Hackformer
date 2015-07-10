@@ -80,9 +80,9 @@ struct Input;
 #define SHOW_COLLISION_BOUNDS 0
 #define SHOW_CLICK_BOUNDS 0
 #define DRAW_ENTITIES 1
-#define PLAY_MUSIC 0
+#define PLAY_MUSIC 1
 #define SHOW_MAIN_MENU 0
-#define ENABLE_LIGHTING 0
+#define ENABLE_LIGHTING 1
 #define DRAW_BACKGROUND 1
 #define DRAW_DOCK 1
 
@@ -210,7 +210,6 @@ struct CursorImages {
 struct GameState {
 	s32 numEntities;
 	Entity entities[1000];
-	s32 testEntityRef;
 
 	//NOTE: 0 is the null reference
 	EntityReference entityRefs_[500];
@@ -234,6 +233,7 @@ struct GameState {
 	s32 consoleEntityRef;
 	RefNode* fadingOutConsoles;
 	s32 playerRef;
+	s32 testEntityRef;
 
 	bool32 loadNextLevel;
 	bool32 reloadCurrentLevel;

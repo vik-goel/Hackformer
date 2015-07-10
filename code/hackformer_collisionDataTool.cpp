@@ -140,7 +140,7 @@ int main(int argc, char* argv[]) {
 			writeStr(file, "double halfHitboxWidth = hitboxWidth * 0.5;\n");
 			writeStr(file, "double halfHitboxHeight = hitboxHeight * 0.5;\n");
 			writeStr(file, "Hitbox* hitbox = addHitbox(result, gameState);\n");
-			writeStr(file, "setHitboxSize(hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);\n");
+			writeStr(file, "setHitboxSize(result, hitbox, hitboxWidth * 1.2, hitboxHeight * 1.2);\n");
 
 			char buffer[1000];
 

@@ -275,6 +275,7 @@ void saveGame(GameState* gameState, char* fileName) {
 	writeS32(file, gameState->consoleEntityRef);
 	writeRefNode(file, gameState->fadingOutConsoles);
 	writeS32(file, gameState->playerRef);
+	writeS32(file, gameState->testEntityRef);
 	writeS32(file, gameState->loadNextLevel);
 	writeS32(file, gameState->reloadCurrentLevel);
 	writeS32(file, gameState->doingInitialSim);
@@ -622,6 +623,7 @@ void loadGame(GameState* gameState, char* fileName) {
 	gameState->consoleEntityRef = readS32(file);
 	gameState->fadingOutConsoles = readRefNode(file, gameState);
 	gameState->playerRef = readS32(file);
+	gameState->testEntityRef = readS32(file);
 
 	gameState->loadNextLevel = readS32(file);
 	gameState->reloadCurrentLevel = readS32(file);
