@@ -78,6 +78,9 @@ void writeConsoleField(FILE* file, ConsoleField* field) {
 			writeRefNode(file, field->spawnedEntities);
 		} else if(field->type == ConsoleField_light) {
 			writeV3(file, field->lightColor);
+		} else if(field->type == ConsoleField_scansForTargets) {
+			writeDouble(file, field->scanStart);
+			writeS32(file, field->decreasingScanAngle);
 		}
 
 		writeS32(file, field->selectedIndex);
@@ -379,6 +382,9 @@ ConsoleField* readConsoleField(FILE* file, GameState* gameState) {
 			field->spawnedEntities = readRefNode(file, gameState);
 		} else if(field->type == ConsoleField_light) {
 			field->lightColor = readV3(file);
+		} else if(field->type == ConsoleField_scansForTargets) {
+			field->scanStart = readDouble(file);
+			field->decreasingScanAngle = readS32(file);
 		}
 
 		field->selectedIndex = readS32(file);
@@ -735,6 +741,9 @@ void saveConsoleFieldToArena(MemoryArena* arena, ConsoleField* field) {
 			}
 		} else if(save->type == ConsoleField_light) {
 			pushElem(arena, V3, field->lightColor);
+		} else if(save->type == ConsoleField_scansForTargets) {
+			pushElem(arena, double, field->scanStart);
+			pushElem(arena, s32, field->decreasingScanAngle);
 		}
 
 		for(s32 fieldIndex = 0; fieldIndex < field->numChildren; fieldIndex++) {
@@ -983,6 +992,10 @@ void readConsoleFieldFromArena(void** readPtr, ConsoleField** fieldPtr, GameStat
 		}
 		else if(field->type == ConsoleField_light) {
 			field->lightColor = readElem(*readPtr, V3);
+		} 
+		else if(field->type == ConsoleField_scansForTargets) {
+			field->scanStart = readElem(*readPtr, double);
+			field->decreasingScanAngle = readElem(*readPtr, s32);
 		}
 
 		clearFlags(field, ConsoleFlag_selected);

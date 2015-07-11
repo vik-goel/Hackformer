@@ -33,11 +33,17 @@ double square(double a) {
 	return a * a;
 }
 
-double clamp(double value, double min, double max) {
+double clamp(double value, double min, double max, bool* changed = NULL) {
 	double result = value;
 
-	if (value < min) result = min;
-	else if (value > max) result = max;
+	if (value < min) {
+		result = min;
+		if(changed)*changed = true;
+	}
+	else if (value > max) {
+		result = max;
+		if(changed)*changed = true;
+	}
 
 	return result;
 }
@@ -88,10 +94,67 @@ double yReflectRad(double angle) {
 	return result;
 }
 
+double clampPeriodicBetween(double value, double minValue, double maxValue, bool* changed = NULL) {
+	if(maxValue >= minValue) {
+		value = clamp(value, minValue, maxValue, changed);
+	}
+	else if(value < minValue && value > maxValue) {
+		double minDst = abs(value - minValue);
+		double maxDst = abs(value - maxValue);
+
+		if(minDst < maxDst) {
+			value = minValue;
+			if(changed)*changed = true;
+		}
+		else {
+			value = maxValue;
+			if(changed)*changed = true;
+		}
+	}
+
+	return value;
+}
+
+double clampRadiansBetween(double angle, double minAngle, double maxAngle, bool* changed = NULL) {
+	angle = angleIn0Tau(angle);
+	minAngle = angleIn0Tau(minAngle);
+	maxAngle = angleIn0Tau(maxAngle);
+
+	angle = clampPeriodicBetween(angle, minAngle, maxAngle, changed);
+
+	return angle;
+}
+
+double clampDegreesBetween(double angle, double minAngle, double maxAngle, bool* changed = NULL) {
+	angle = angleIn0360(angle);
+	minAngle = angleIn0360(minAngle);
+	maxAngle = angleIn0360(maxAngle);
+
+	angle = clampPeriodicBetween(angle, minAngle, maxAngle, changed);
+
+	return angle;
+}
+
 bool isDegreesBetween(double testAngle, double minAngle, double maxAngle) {
 	testAngle = angleIn0360(testAngle);
 	minAngle = angleIn0360(minAngle);
 	maxAngle = angleIn0360(maxAngle);
+
+	bool result;
+
+	if(minAngle > maxAngle) {
+		result = (testAngle > minAngle || testAngle < maxAngle);
+	} else {
+		result = (testAngle >= minAngle && testAngle <= maxAngle);
+	}
+
+	return result;
+}
+
+bool isRadiansBetween(double testAngle, double minAngle, double maxAngle) {
+	testAngle = angleIn0Tau(testAngle);
+	minAngle = angleIn0Tau(minAngle);
+	maxAngle = angleIn0Tau(maxAngle);
 
 	bool result;
 

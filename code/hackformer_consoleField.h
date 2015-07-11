@@ -21,6 +21,8 @@ enum ConsoleFieldType {
 	ConsoleField_spawnsTrawlers,
 	ConsoleField_spawnsShrikes,
 	ConsoleField_light,
+	ConsoleField_scansForTargets,
+	ConsoleField_guarded,
 
 	ConsoleField_double,
 	ConsoleField_unlimitedInt,
@@ -91,6 +93,11 @@ struct ConsoleField {
 
 		struct {
 			V3 lightColor;
+		};
+
+		struct {
+			double scanStart;
+			bool32 decreasingScanAngle;
 		};
 	};		
 	

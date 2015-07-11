@@ -207,25 +207,7 @@ R2 getRenderBounds(Entity* entity, GameState* gameState) {
 V2 getBottomFieldP(Entity* entity, GameState* gameState, FieldSpec* spec) {
 	R2 renderBounds = getRenderBounds(entity, gameState);
 
-	V2 entityScreenP = (entity->p - gameState->camera.p) * gameState->pixelsPerMeter;
-	bool onScreenRight = entityScreenP.x >= gameState->windowWidth / 2;
-
-	bool isPickupField = entity->type == EntityType_pickupField;
-	if(isPickupField) onScreenRight = true;
-
-	//TODO: Get better values for these
-	V2 fieldOffset;
-	if (isPickupField) {
-		fieldOffset = v2(spec->fieldSize.x * -0.75, 0);
-	} else {
-		fieldOffset = v2(spec->fieldSize.x * 0.75, 0);
-	}
-
-
-
-	if(entity->type == EntityType_player && !onScreenRight && !isSet(entity, EntityFlag_facesLeft)) {
-		fieldOffset.x += getRectWidth(renderBounds) * 1.5;
-	}
+	V2 fieldOffset = v2(spec->fieldSize.x * 0.75, 0);
 
 	V2 result = fieldOffset + getRectCenter(renderBounds);
 	return result;

@@ -102,7 +102,6 @@ void setTile(TileSpec* tiles, s32 mapWidthInTiles, s32 mapHeightInTiles, Camera*
 
 bool entityGetsWaypoints(Entity* entity) {
 	bool result = entity->type == EntityType_trojan ||
-				  entity->type == EntityType_motherShip ||
 				  entity->type == EntityType_shrike;
 	return result;
 }

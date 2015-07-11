@@ -232,6 +232,7 @@ struct Input {
 
 struct Camera {
 	V2 p;
+	V2 dP;
 	V2 newP;
 	bool32 moveToTarget;
 	bool32 deferredMoveToTarget;

@@ -128,8 +128,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 			} break;
 
 			case EntityType_motherShip: {
-				Entity* entity = addMotherShip(gameState, p);
-				loadWaypoints(file, entity, gameState);
+				addMotherShip(gameState, p);
 			} break;
 
 			case EntityType_trawler: {
@@ -1074,23 +1073,49 @@ int main(int argc, char* argv[]) {
 
 		{ //NOTE: This updates the camera position
 			if(getEntityByRef(gameState, gameState->consoleEntityRef)) {
-				V2 movement = {};
+				V2 ddP = {};
 
-				if(input->up.pressed) movement.y++;
-				if(input->down.pressed) movement.y--;
-				if(input->right.pressed) movement.x++;
-				if(input->left.pressed) movement.x--;
+				if(input->up.pressed) ddP.y++;
+				if(input->down.pressed) ddP.y--;
+				if(input->right.pressed) ddP.x++;
+				if(input->left.pressed) ddP.x--;
+
+				camera->dP *= pow(E, -18 * dtForFrame);
 				
-				if(movement.x || movement.y) {
-					double movementSpeed = 25 * dtForFrame;
-
-					V2 minCameraP = -gameState->windowSize;
-					V2 maxCameraP = maxComponents(gameState->mapSize, gameState->windowSize);
-
-					V2 delta = normalize(movement) * movementSpeed;
-					camera->newP = clampToRect(camera->p + delta, r2(minCameraP, maxCameraP));
-					camera->moveToTarget = false;
+				if(ddP.x || ddP.y) {
+					double acceleration = 250;
+					ddP = normalize(ddP) * acceleration;
 				}
+
+				V2 velocity = getVelocity(dtForFrame, camera->dP, ddP);
+				camera->dP += ddP * dtForFrame;
+				camera->newP = camera->p + velocity;
+
+				V2 minCameraP = -gameState->windowSize;
+				V2 maxCameraP = maxComponents(gameState->mapSize, gameState->windowSize);
+
+				if(camera->newP.x < minCameraP.x) {
+					camera->newP.x = minCameraP.x;
+					camera->dP.x = 0;
+				}
+				else if(camera->newP.x > maxCameraP.x) {
+					camera->newP.x = maxCameraP.x;					
+					camera->dP.x = 0;
+				}
+
+				if(camera->p.y < minCameraP.y) {
+					camera->newP.y = minCameraP.y;
+					camera->dP.y = 0;
+				}
+				else if(camera->p.y > maxCameraP.y) {
+					camera->newP.y = maxCameraP.y;					
+					camera->dP.y = 0;
+				}
+
+				camera->moveToTarget = false;
+				
+			} else {
+				camera->dP = v2(0, 0);
 			}
 
 			if(camera->moveToTarget || camera->deferredMoveToTarget) {

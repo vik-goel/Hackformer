@@ -386,16 +386,14 @@ EntityChunk* getSpatialChunk(V2 p, GameState* gameState) {
 		x < gameState->chunksWidth &&
 		y < gameState->chunksHeight) {
 		
-		result = gameState->chunks + y * gameState->chunksWidth + x;
+		result = gameState->chunks + (y * gameState->chunksWidth + x);
 	}
 
 	return result;
 }
 
 void addToSpatialPartition(Entity* entity, GameState* gameState) {
-	EntityChunk* chunk = getSpatialChunk(entity->p, gameState);
-
-	while(chunk) {
+	for(EntityChunk* chunk = getSpatialChunk(entity->p, gameState); chunk; chunk = chunk->next) {
 		if (chunk->numRefs < arrayCount(chunk->entityRefs)) {
 			chunk->entityRefs[chunk->numRefs++] = entity->ref;
 			break;
@@ -405,32 +403,20 @@ void addToSpatialPartition(Entity* entity, GameState* gameState) {
 			chunk->next = pushStruct(&gameState->levelStorage, EntityChunk);
 			*chunk->next = {};
 		}
-
-		chunk = chunk->next;
 	}
 }
 
 bool removeFromSpatialPartition(Entity* entity, GameState* gameState) {
-	EntityChunk* chunk = getSpatialChunk(entity->p, gameState);
-
-	bool removed = false;
-
-	while(chunk) {
+	for(EntityChunk* chunk = getSpatialChunk(entity->p, gameState); chunk; chunk = chunk->next) {
 		for (s32 refIndex = 0; refIndex < chunk->numRefs; refIndex++) {
 			if (chunk->entityRefs[refIndex] == entity->ref) {
-				chunk->numRefs--;
-				chunk->entityRefs[refIndex] = chunk->entityRefs[chunk->numRefs];
-				removed = true;
-				break;
+				chunk->entityRefs[refIndex] = chunk->entityRefs[--chunk->numRefs];
+				return true;
 			}
 		}
-
-		if (removed) break;
-
-		chunk = chunk->next;
 	}
 
-	return removed;
+	return false;
 }
 
 bool isProjectile(Entity* entity) {
@@ -656,10 +642,9 @@ void freeEntityDuringLevel(Entity* entity, GameState* gameState, bool createdThi
 		}
 
 		box->next = gameState->hitboxFreeList;
-		gameState->hitboxFreeList = box;
+		gameState->hitboxFreeList = entity->hitboxes;
+		entity->hitboxes = NULL;
 	}
-
-	entity->hitboxes = NULL;
 
 	entity->numFields = 0;
 
@@ -957,6 +942,29 @@ void addPatrolField(Entity* entity, GameState* gameState) {
 	addField(entity, result);
 }
 
+void addScansForTargetsField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "scans_for_targets", ConsoleField_scansForTargets, 10);
+
+	double scanSpeed[] = {0, 45, 90, 135, 180};
+	s32 scanFOV[] = {0, 45, 90, 135, 180, 225, 270, 315, 360}; 
+	
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "scan_speed", scanSpeed, 
+	 											   arrayCount(scanSpeed), 2, 1));
+
+	addChildToConsoleField(result, createPrimitiveField(s32, gameState, "swivel_extent", scanFOV, 
+ 											   arrayCount(scanFOV), 3, 1));
+
+	result->scanStart = entity->spotLightAngle;
+
+	addField(entity, result);
+}
+
+void addGuardTargetField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "guarded", ConsoleField_guarded, 30);
+
+	addField(entity, result);
+}
+
 void addSeekTargetField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "seeks_target", ConsoleField_seeksTarget, 3);
 
@@ -1011,7 +1019,7 @@ void addGivesEnergyField(Entity* entity, GameState* gameState) {
 void addSpawnsTrawlersField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "spawns_trawlers", ConsoleField_spawnsTrawlers, 20);
 
-	double spawnDelays[] = {2, 5, 10, 15, 20};
+	double spawnDelays[] = {1, 2, 3, 4, 5};
 	s32 spawnLimits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "spawn_delay", spawnDelays, 
@@ -1019,6 +1027,8 @@ void addSpawnsTrawlersField(Entity* entity, GameState* gameState) {
 
 	addChildToConsoleField(result, createPrimitiveField(s32, gameState, "spawn_limit", spawnLimits, 
 												    arrayCount(spawnLimits), 3, 4));
+
+	result->spawnTimer = getDoubleValue(result->children[0]);
 
 	addField(entity, result);
 }
@@ -1026,7 +1036,7 @@ void addSpawnsTrawlersField(Entity* entity, GameState* gameState) {
 void addSpawnsShrikesField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "spawns_shrikes", ConsoleField_spawnsShrikes, 20);
 
-	double spawnDelays[] = {1, 5, 10, 15, 20};
+	double spawnDelays[] = {1, 2, 3, 4, 5};
 	s32 spawnLimits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "spawn_delay", spawnDelays, 
@@ -1034,6 +1044,8 @@ void addSpawnsShrikesField(Entity* entity, GameState* gameState) {
 
 	addChildToConsoleField(result, createPrimitiveField(s32, gameState, "spawn_limit", spawnLimits, 
 												    arrayCount(spawnLimits), 3, 4));
+
+	result->spawnTimer = getDoubleValue(result->children[0]);
 
 	addField(entity, result);
 }
@@ -1042,7 +1054,7 @@ void addShootField(Entity* entity, GameState* gameState, double speedModifier, E
 	ConsoleField* result = createConsoleField(gameState, "shoots", ConsoleField_shootsAtTarget, 4);
 
 	double bulletSpeedFieldValues[] = {2, 4, 6, 8, 10}; 
-	double sightRadii[] = {2, 4, 6, 8, 10};
+	double sightRadii[] = {1, 2, 3, 4, 5};
 
 	for(s32 i = 0; i < arrayCount(bulletSpeedFieldValues); i++) {
 		bulletSpeedFieldValues[i] *= speedModifier;
@@ -1088,7 +1100,7 @@ void addLightField(Entity* entity, GameState* gameState, V3 color) {
 }
 
 void addIsTargetField(Entity* entity, GameState* gameState) {
-	ConsoleField* field = createConsoleField(gameState, "is_target", ConsoleField_isShootTarget, 10);
+	ConsoleField* field = createConsoleField(gameState, "is_target", ConsoleField_isShootTarget, 60);
 
 	addField(entity, field);
 	addTargetRef(entity->ref, gameState);
@@ -1114,22 +1126,6 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 
 	assert(!getUnremovedEntityByRef(gameState, gameState->playerRef));
 	gameState->playerRef = result->ref;
-
-	// double hitboxWidth = result->renderSize.x;
-	// double hitboxHeight = result->renderSize.y;
-	// double halfHitboxWidth = hitboxWidth * 0.5;
-	// double halfHitboxHeight = hitboxHeight * 0.5;
-	// Hitbox* hitbox = addHitbox(result, gameState);
-	// setHitboxSize(hitbox, hitboxWidth * 1, hitboxHeight * 1);
-	// hitbox->collisionPointsCount = 8;
-	// hitbox->originalCollisionPoints[0] = v2(-0.230035 * halfHitboxWidth, -0.959201 * halfHitboxHeight);
-	// hitbox->originalCollisionPoints[1] = v2(0.256076 * halfHitboxWidth, -0.9509201 * halfHitboxHeight);
-	// hitbox->originalCollisionPoints[2] = v2(0.256076 * halfHitboxWidth, 0.516493 * halfHitboxHeight);
-	// hitbox->originalCollisionPoints[3] = v2(0.138889 * halfHitboxWidth, 0.598958 * halfHitboxHeight);
-	// hitbox->originalCollisionPoints[4] = v2(0.217014 * halfHitboxWidth, 0.776910 * halfHitboxHeight);
-	// hitbox->originalCollisionPoints[5] = v2(0.034722 * halfHitboxWidth, 0.928819 * halfHitboxHeight);
-	// hitbox->originalCollisionPoints[6] = v2(-0.117188 * halfHitboxWidth, 0.820312 * halfHitboxHeight);
-	// hitbox->originalCollisionPoints[7] = v2(-0.230035 * halfHitboxWidth, 0.538194 * halfHitboxHeight);
 
 	double hitboxWidth = result->renderSize.x;
 	double hitboxHeight = result->renderSize.y;
@@ -1777,8 +1773,11 @@ Entity* addMotherShip(GameState* gameState, V2 p) {
 
 	result->clickBox = rectCenterDiameter(v2(0, 0), 0.7 * result->renderSize);
 
+	result->spotLightAngle = -PI * 0.5;
+
 	addShootField(result, gameState, 0.5, EntityType_motherShip);
 	addSpotlightField(result, gameState);
+	addScansForTargetsField(result, gameState);
 	addSpawnsTrawlersField(result, gameState);
 	addSpawnsShrikesField(result, gameState);
 
@@ -2168,7 +2167,7 @@ V2 getCollisionSize(Entity* entity) {
 
 	updateHitboxRotatedPoints(hitbox, entity);
 
-	while(hitbox) {
+	while(hitbox) {	
 		V2 center = getHitboxCenter(hitbox, entity);
 
 		for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
@@ -2987,8 +2986,6 @@ void changeSpotLightAngle(Entity* entity, double wantedSpotLightAngle, double dt
 		wantedSpotLightAngle = angleIn0Tau(wantedSpotLightAngle - entity->rotation);
 	}
 
-	
-			
 	double spotlightAngleMoveSpeed = PI * dt;
 
 	double clockwise = angleIn0Tau(wantedSpotLightAngle - entity->spotLightAngle);
@@ -3431,7 +3428,7 @@ Entity* getClosestTarget(Entity* entity, GameState* gameState, double* targetDst
 double getSpotLightAngle(Entity* entity) {
 	double lightAngle;
 
-	if(canEntityRotate(entity)) {
+	if(entity->type == EntityType_trojan) {
 		lightAngle = entity->spotLightAngle;
 	} else {
 		lightAngle = entity->rotation + entity->spotLightAngle;
@@ -3461,8 +3458,8 @@ Entity* getClosestTargetInSight(Entity* entity, GameState* gameState, double sig
 				double dstToEntity = length(toTestEntity);
 
 				if(dstToEntity <= sightRadius) {
-					double dir = getDegrees(toTestEntity);
-					bool canSee = isDegreesBetween(dir, minSightAngle, maxSightAngle);
+					double dir = getRad(toTestEntity);
+					bool canSee = isRadiansBetween(dir, minSightAngle, maxSightAngle);
 
 					Hitbox* hitboxes = testEntity->hitboxes;
 
@@ -3474,7 +3471,7 @@ Entity* getClosestTargetInSight(Entity* entity, GameState* gameState, double sig
 
 						for(s32 pIndex = 0; pIndex < hitboxes->collisionPointsCount; pIndex++) {
 							toTestEntity = hitboxes->rotatedCollisionPoints[pIndex] + hitboxCenter;
-							if (isDegreesBetween(getDegrees(toTestEntity), minSightAngle, maxSightAngle)) {
+							if (isRadiansBetween(getRad(toTestEntity), minSightAngle, maxSightAngle)) {
 								canSee = true;
 								break;
 							}
@@ -3629,7 +3626,7 @@ bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt, 
 							addTrojanBolt(gameState, spawnP, target->p, entity->ref, bulletSpeed);
 						}
 						else if(shootField->shootEntityType == EntityType_trawler) {
-							addTrawlerBolt(gameState, spawnP, target->p, entity->ref, bulletSpeed, 0.8);
+							addTrawlerBolt(gameState, spawnP, target->p, entity->ref, bulletSpeed, 0.6);
 						}
 						else if(shootField->shootEntityType == EntityType_shrike) {
 							addTrawlerBolt(gameState, spawnP, target->p, entity->ref, bulletSpeed, 0.4);
@@ -3775,7 +3772,8 @@ void drawCollisionBounds(Entity* entity, RenderGroup* renderGroup, double alpha)
 	}
 }
 
-void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double dt, double groundFriction, bool doingOtherAction) {
+void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double dt, double groundFriction, 
+									bool doingOtherAction, bool canMoveSpotLight) {
 	//NOTE: This is a hack to make the gravity feel better. There is more gravity when an object
 	//		like the player is falling to make the gravity seem less 'floaty'.
 	V2 gravity = gameState->gravity;
@@ -3813,7 +3811,6 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 		defaultMove = false;
 
 		double wantedSpotLightAngle = entity->spotLightAngle;
-		bool canChangeSpotLightAngle = true;
 
 		switch(movementField->type) {
 
@@ -3883,7 +3880,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 
 						ddP += velocity;
 
-						canChangeSpotLightAngle = false;
+						canMoveSpotLight = false;
 					}
 				}
 			} break;
@@ -4010,7 +4007,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 				wantedSpotLightAngle = getDegrees(entity->dP);
 			}
 
-			if (!doingOtherAction && canChangeSpotLightAngle) changeSpotLightAngle(entity, wantedSpotLightAngle, dt);
+			if (!doingOtherAction && canMoveSpotLight) changeSpotLightAngle(entity, wantedSpotLightAngle, dt);
 		}
 	} 
 
@@ -4149,6 +4146,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		removeFieldsIfSet(entity->fields, &entity->numFields);
 
 		ConsoleField* spotLightField = NULL;
+		ConsoleField* scanField = NULL;
 		ConsoleField* shootField = NULL;
 		ConsoleField* cloakField = NULL;
 		ConsoleField* spawnTrawlersField = NULL;
@@ -4163,6 +4161,10 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			switch(field->type) {
 				case ConsoleField_spotlight: {
 					spotLightField = field;
+				} break;
+
+				case ConsoleField_scansForTargets: {
+					scanField = field;
 				} break;
 
 				case ConsoleField_shootsAtTarget: {
@@ -4204,6 +4206,34 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			entity->targetRef = 0;
 		}
 
+		bool canMoveSpotLight = true;
+
+		if(scanField && !target) {
+			ConsoleField* scanSpeedField = scanField->children[0];
+			double scanSpeed = toRadians(getDoubleValue(scanSpeedField)) * dt;
+
+			if(scanField->decreasingScanAngle) scanSpeed *= -1;
+
+			ConsoleField* scanFOV = scanField->children[1];
+			double fov = toRadians(getS32Value(scanFOV));
+			double halfFOV = fov * 0.5;
+
+			double minAngle = scanField->scanStart - halfFOV;
+			double maxAngle = scanField->scanStart + halfFOV;
+
+			double curAngle = entity->spotLightAngle + scanSpeed;
+
+			bool changed = false;
+			curAngle = clampRadiansBetween(curAngle, minAngle, maxAngle, &changed);
+
+			entity->spotLightAngle = curAngle;
+			if(changed) {
+				scanField->decreasingScanAngle = !scanField->decreasingScanAngle;
+			}
+
+			canMoveSpotLight = false;
+		}
+
 		if(!target) {
 			if(shootField) {
 				double targetDst;
@@ -4226,7 +4256,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		s32 remainingTrawlers = 0;
 		s32 remainingShrikes = 0;
 
-		if(!gameState->doingInitialSim) {
+		if(!gameState->doingInitialSim && target) {
 			if(spawnTrawlersField) {
 				remainingTrawlers = isSpawnPossible(spawnTrawlersField, entity, gameState, true);
 			}
@@ -4289,61 +4319,64 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			entity->cloakFactor = 0;
 		}
 
-		if(shootField) {
-			shootingState = shootBasedOnShootingField(entity, gameState, dt, shootField);
-			doingOtherAction |= shootingState;
+		if(remainingTrawlers && remainingShrikes) {
+			if(remainingTrawlers >= remainingShrikes) {
+				remainingShrikes = 0;
+			} else {
+				remainingTrawlers = 0;
+			}
 		}
 
-		if(!doingOtherAction) {
-			if(remainingTrawlers && remainingShrikes) {
-				if(remainingTrawlers >= remainingShrikes) {
-					remainingShrikes = 0;
-				} else {
-					remainingTrawlers = 0;
+		ConsoleField* spawnField = NULL;
+
+		if(remainingTrawlers) {
+			spawnField = spawnTrawlersField;
+		}
+		else if(remainingShrikes) {
+			spawnField = spawnShrikesField;
+		}
+
+		if(spawnField) {
+			ConsoleField* spawnDelayField = spawnField->children[0];
+			double spawnDelay = getDoubleValue(spawnDelayField);
+
+			spawnField->spawnTimer += dt;
+
+			if(spawnField->spawnTimer >= spawnDelay) {
+				if(spawnTrawlersField) spawnTrawlersField->spawnTimer = 0;
+				if(spawnShrikesField) spawnShrikesField->spawnTimer = 0;
+
+				Entity* spawn = NULL;
+
+				if(remainingTrawlers) {
+					assert(spawnField->type == ConsoleField_spawnsTrawlers);
+					spawn = addTrawlerBootUp(gameState, entity->p);
 				}
-			}
-
-			ConsoleField* spawnField = NULL;
-
-			if(remainingTrawlers) {
-				spawnField = spawnTrawlersField;
-			}
-			else if(remainingShrikes) {
-				spawnField = spawnShrikesField;
-			}
-
-			if(spawnField) {
-				ConsoleField* spawnDelayField = spawnField->children[0];
-				double spawnDelay = getDoubleValue(spawnDelayField);
-
-				spawnField->spawnTimer += dt;
-
-				if(spawnField->spawnTimer >= spawnDelay) {
-					spawnField->spawnTimer = 0;
-
-					Entity* spawn = NULL;
-
-					if(remainingTrawlers) {
-						assert(spawnField->type == ConsoleField_spawnsTrawlers);
-						spawn = addTrawlerBootUp(gameState, entity->p);
-					}
-					else if(remainingShrikes) {
-						assert(spawnField->type == ConsoleField_spawnsShrikes);
-						spawn = addShrikeBootUp(gameState, entity->p);
-					}
-					else {
-						InvalidCodePath;
-					}
-
-					spawn->spawnerRef = entity->ref;
-					spawnField->spawnedEntities = refNode(gameState, spawn->ref, spawnField->spawnedEntities);
+				else if(remainingShrikes) {
+					assert(spawnField->type == ConsoleField_spawnsShrikes);
+					spawn = addShrikeBootUp(gameState, entity->p);
+				}
+				else {
+					InvalidCodePath;
 				}
 
+				spawn->spawnerRef = entity->ref;
+				spawnField->spawnedEntities = refNode(gameState, spawn->ref, spawnField->spawnedEntities);
+			}
+
+			doingOtherAction = true;
+		}
+
+		if(shootField && !doingOtherAction) {
+			shootingState = shootBasedOnShootingField(entity, gameState, dt, shootField);
+
+			if(shootingState) {
+				canMoveSpotLight = false;
 				doingOtherAction = true;
 			}
 		}
 
-		moveEntityBasedOnMovementField(entity, gameState, dt, groundFriction, doingOtherAction);
+		moveEntityBasedOnMovementField(entity, gameState, dt, groundFriction, doingOtherAction, canMoveSpotLight);
 
 		bool insideLevel = false;
 
@@ -4536,9 +4569,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 				entity->rotation = entity->spotLightAngle - PI / 2.0;
 			} break;
 
-			case EntityType_motherShip: {
-				entity->rotation = entity->spotLightAngle + PI / 2.0;
-			} break;
+			// case EntityType_motherShip: {
+			// 	entity->rotation = entity->spotLightAngle + PI / 2.0;
+			// } break;
 
 		} //End of switch statement on entity type
 
