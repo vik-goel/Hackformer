@@ -284,34 +284,12 @@ void freeMessages(Messages* messages, GameState* gameState) {
 	gameState->messagesFreeList = messages;
 }
 
-void removeTargetRef(s32 ref, GameState* gameState) {
-	RefNode* node = gameState->targetRefs;
-	RefNode* prevNode = NULL;
-
-	bool removed = false;
-
-	while(node) {
-		if(node->ref == ref) {
-			if(prevNode) prevNode->next = node->next;
-			else gameState->targetRefs = node->next;
-
-			node->next = NULL;
-			freeRefNode(node, gameState);
-
-			removed = true;
-			break;
-		}
-
-		prevNode = node;
-		node = node->next;
-	}
-
-	assert(removed);
+void addTargetRef(s32 ref, GameState* gameState) {
+	gameState->targetRefs = refNode(gameState, ref, gameState->targetRefs);
 }
 
-void addTargetRef(s32 ref, GameState* gameState) {
-	RefNode* node = refNode(gameState, ref, gameState->targetRefs);
-	gameState->targetRefs = node;
+void addGuardedTargetRef(s32 ref, GameState* gameState) {
+	gameState->guardTargetRefs = refNode(gameState, ref, gameState->guardTargetRefs);
 }
 
 EntityReference* getEntityReferenceBucket(GameState* gameState, s32 ref) {
@@ -514,6 +492,14 @@ void removeFromRefNodeList(RefNode** list, s32 ref, GameState* gameState) {
 
 		node = next;
 	}
+}
+
+void removeTargetRef(s32 ref, GameState* gameState) {
+	removeFromRefNodeList(&gameState->targetRefs, ref, gameState);
+}
+
+void removeGuardedTargetRef(s32 ref, GameState* gameState) {
+	removeFromRefNodeList(&gameState->guardTargetRefs, ref, gameState);
 }
 
 void addGroundReference(Entity* top, Entity* ground, GameState* gameState, bool isLaserBaseToBeamReference = false) {
@@ -859,7 +845,6 @@ void addChildToConsoleField(ConsoleField* parent, ConsoleField* child) {
 	assert(parent->numChildren <= arrayCount(parent->children));
 }
 
-//TODO: Tweak speed and jump height values
 void addKeyboardField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "keyboard_controlled", ConsoleField_keyboardControlled, 5);
 
@@ -871,6 +856,19 @@ void addKeyboardField(Entity* entity, GameState* gameState) {
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "jump_height", keyboardJumpHeightFieldValues, 
 													    arrayCount(keyboardJumpHeightFieldValues), 2, 1));
 	addChildToConsoleField(result, createBoolField(gameState, "double_jump", false, 3));
+
+	addField(entity, result);
+}
+
+void addBodyguardField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "bodyguard", ConsoleField_bodyguard, 10);
+
+	double speedFieldValues[] = {0, 2, 4, 6, 8}; 
+
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", speedFieldValues, 
+												   arrayCount(speedFieldValues), 2, 1));
+
+	entity->startPos = INVALID_START_POS;
 
 	addField(entity, result);
 }
@@ -955,12 +953,6 @@ void addScansForTargetsField(Entity* entity, GameState* gameState) {
  											   arrayCount(scanFOV), 3, 1));
 
 	result->scanStart = entity->spotLightAngle;
-
-	addField(entity, result);
-}
-
-void addGuardTargetField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "guarded", ConsoleField_guarded, 30);
 
 	addField(entity, result);
 }
@@ -1106,6 +1098,12 @@ void addIsTargetField(Entity* entity, GameState* gameState) {
 	addTargetRef(entity->ref, gameState);
 }
 
+void addGuardTargetField(Entity* entity, GameState* gameState) {
+	ConsoleField* result = createConsoleField(gameState, "guarded", ConsoleField_guarded, 30);
+
+	addField(entity, result);
+	addGuardedTargetRef(entity->ref, gameState);
+}
 
 Entity* addDeath(GameState* gameState, V2 p, V2 renderSize, DrawOrder drawOrder, double rotation, CharacterAnim* anim) {
 	Entity* result = addEntity(gameState, EntityType_death, drawOrder, p, renderSize);
@@ -1780,6 +1778,7 @@ Entity* addMotherShip(GameState* gameState, V2 p) {
 	addScansForTargetsField(result, gameState);
 	addSpawnsTrawlersField(result, gameState);
 	addSpawnsShrikesField(result, gameState);
+	addGuardTargetField(result, gameState);
 
 	return result;
 }
@@ -1924,6 +1923,7 @@ Entity* addShrike(GameState* gameState, V2 p) {
 
 	addShootField(result, gameState, 0.5, EntityType_shrike);
 	addSpotlightField(result, gameState);
+	addBodyguardField(result, gameState);
 
 	ignoreAllPenetratingEntities(result, gameState);
 
@@ -2912,7 +2912,8 @@ V2 move(Entity* entity, double dt, GameState* gameState, V2 ddP) {
 	return result;
 }
 
-bool moveTowardsTargetParabolic(Entity* entity, GameState* gameState, double dt, V2 target, double initialDstToTarget, double maxSpeed) {
+bool moveTowardsTargetParabolic(Entity* entity, GameState* gameState, double dt, V2 target, double initialDstToTarget, 
+								double maxSpeed) {
 	V2 delta = target - entity->p;
 	double dstToTarget = length(delta);
 
@@ -3399,6 +3400,26 @@ bool isTarget(Entity* entity, GameState* gameState) {
 	return result;
 }
 
+bool isValidTarget(Entity* shooter, Entity* target, GameState* gameState) {
+	bool valid = false;
+
+	if(target && target->ref != shooter->ref && target->cloakFactor != 1) {
+		ConsoleField* guardedField = getField(target, ConsoleField_guarded);
+
+		if(guardedField) {
+			ConsoleField* bodyguardField = getField(shooter, ConsoleField_bodyguard);
+
+			if(!bodyguardField) {
+				valid = true;
+			}
+		} else {
+			valid = true;
+		}
+	}
+
+	return valid;
+}
+
 Entity* getClosestTarget(Entity* entity, GameState* gameState, double* targetDst) {
 	Entity* result = NULL;
 	double minDstSq = 99999999999;
@@ -3408,7 +3429,33 @@ Entity* getClosestTarget(Entity* entity, GameState* gameState, double* targetDst
 	while(node) {
 		Entity* testTarget = getEntityByRef(gameState, node->ref);
 
-		if(testTarget && testTarget != entity && testTarget->cloakFactor != 1) {
+		if(isValidTarget(entity, testTarget, gameState)) {
+			double testDstSq = dstSq(entity->p, testTarget->p);
+
+			if(testDstSq < minDstSq) {
+				minDstSq = testDstSq;
+				result = testTarget;
+			}
+		}
+
+		node = node->next;
+	}
+
+	*targetDst = minDstSq;
+
+	return result;
+}
+
+Entity* getClosestGuardTarget(Entity* entity, GameState* gameState, double* targetDst) {
+	Entity* result = NULL;
+	double minDstSq = 99999999999;
+
+	RefNode* node = gameState->guardTargetRefs;
+
+	while(node) {
+		Entity* testTarget = getEntityByRef(gameState, node->ref);
+
+		if(testTarget && testTarget->ref != entity->ref && testTarget->cloakFactor != 1) {
 			double testDstSq = dstSq(entity->p, testTarget->p);
 
 			if(testDstSq < minDstSq) {
@@ -3450,64 +3497,62 @@ Entity* getClosestTargetInSight(Entity* entity, GameState* gameState, double sig
 	double targetDst;
 
 	while(targetNode) {
-		if(targetNode->ref != entity->ref) {
-			Entity* testEntity = getEntityByRef(gameState, targetNode->ref);
+		Entity* testEntity = getEntityByRef(gameState, targetNode->ref);
 
-			if(testEntity && testEntity->cloakFactor != 1) {
-				V2 toTestEntity = testEntity->p - entity->p;
-				double dstToEntity = length(toTestEntity);
+		if(isValidTarget(entity, testEntity, gameState)) {
+			V2 toTestEntity = testEntity->p - entity->p;
+			double dstToEntity = length(toTestEntity);
 
-				if(dstToEntity <= sightRadius) {
-					double dir = getRad(toTestEntity);
-					bool canSee = isRadiansBetween(dir, minSightAngle, maxSightAngle);
+			if(dstToEntity <= sightRadius) {
+				double dir = getRad(toTestEntity);
+				bool canSee = isRadiansBetween(dir, minSightAngle, maxSightAngle);
 
-					Hitbox* hitboxes = testEntity->hitboxes;
+				Hitbox* hitboxes = testEntity->hitboxes;
 
-					//TODO: Find a more robust way of determining if the entity is inside of the view arc
-					while(hitboxes && !canSee) {
-						V2 hitboxCenter = getHitboxCenter(hitboxes, testEntity) - entity->p;
+				//TODO: Find a more robust way of determining if the entity is inside of the view arc
+				while(hitboxes && !canSee) {
+					V2 hitboxCenter = getHitboxCenter(hitboxes, testEntity) - entity->p;
 
-						updateHitboxRotatedPoints(hitboxes, testEntity);
+					updateHitboxRotatedPoints(hitboxes, testEntity);
 
-						for(s32 pIndex = 0; pIndex < hitboxes->collisionPointsCount; pIndex++) {
-							toTestEntity = hitboxes->rotatedCollisionPoints[pIndex] + hitboxCenter;
-							if (isRadiansBetween(getRad(toTestEntity), minSightAngle, maxSightAngle)) {
-								canSee = true;
-								break;
-							}
-						}
-
-						hitboxes = hitboxes->next;
-					}
-
-					if(canSee) {
-						#if 1
-						Hitbox* entityHitboxes = entity->hitboxes;
-
-						//TODO: Use the hitbox of a projectile to do the raycast
-						Hitbox raycastOrigin = {};
-						raycastOrigin.collisionPointsCount = 1;
-						raycastOrigin.storedRotation = entity->rotation;
-						entity->hitboxes = &raycastOrigin;
-
-						GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, toTestEntity, false);
-
-						entity->hitboxes = entityHitboxes;
-
-						bool occluded = (collisionResult.hitEntity && collisionResult.hitEntity != testEntity);
-
-						#else				
-						bool occluded = false;
-						#endif
-		
-						if(!occluded) {
-							if(!target || dstToEntity < targetDst) {
-								targetDst = dstToEntity;
-								target = testEntity;
-							}
+					for(s32 pIndex = 0; pIndex < hitboxes->collisionPointsCount; pIndex++) {
+						toTestEntity = hitboxes->rotatedCollisionPoints[pIndex] + hitboxCenter;
+						if (isRadiansBetween(getRad(toTestEntity), minSightAngle, maxSightAngle)) {
+							canSee = true;
+							break;
 						}
 					}
-				} 
+
+					hitboxes = hitboxes->next;
+				}
+
+				if(canSee) {
+					#if 1
+					Hitbox* entityHitboxes = entity->hitboxes;
+
+					//TODO: Use the hitbox of a projectile to do the raycast
+					Hitbox raycastOrigin = {};
+					raycastOrigin.collisionPointsCount = 1;
+					raycastOrigin.storedRotation = entity->rotation;
+					entity->hitboxes = &raycastOrigin;
+
+					GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, toTestEntity, false);
+
+					entity->hitboxes = entityHitboxes;
+
+					bool occluded = (collisionResult.hitEntity && collisionResult.hitEntity != testEntity);
+
+					#else				
+					bool occluded = false;
+					#endif
+	
+					if(!occluded) {
+						if(!target || dstToEntity < targetDst) {
+							targetDst = dstToEntity;
+							target = testEntity;
+						}
+					}
+				}
 			}
 		}
 
@@ -3793,7 +3838,10 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 	if (!isProjectile(entity)) {
 		entity->dP.x *= groundFriction;
 
-		bool airFriction = (movementField && movementField->type == ConsoleField_seeksTarget);
+		bool airFriction = (movementField && 
+						   (movementField->type == ConsoleField_seeksTarget ||
+						   	movementField->type == ConsoleField_bodyguard ||
+						   	movementField->type == ConsoleField_followsWaypoints));
 
 		if (airFriction) {
 			entity->dP.y *= groundFriction;
@@ -3801,7 +3849,6 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 	}
 
 	bool defaultMove = true;
-
 
 	//NOTE: This handles moving the entity
 	if (movementField) {
@@ -3999,6 +4046,60 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 				}
 			} break;
 
+
+
+			case ConsoleField_bodyguard: {
+				bool setStartPos = false;
+
+				double targetDst;
+				Entity* target = getClosestGuardTarget(entity, gameState, &targetDst);
+
+				double transitionDst = 2;
+				double maxDst = 3;
+
+				if(target && targetDst > maxDst) {
+					//go to target
+					double initialDstToTarget = targetDst;
+
+					if(!epsilonEquals(entity->startPos, INVALID_START_POS, 0.001)) {
+						double dst = length(entity->startPos - target->p);
+						if(dst > initialDstToTarget) {
+							initialDstToTarget = dst;
+						}
+					} else {
+						setStartPos = true;
+					}
+
+					moveTowardsTargetParabolic(entity, gameState, dt, target->p, initialDstToTarget, xMoveAcceleration);
+				} else {
+					//wander
+					setStartPos = true;
+
+					double circleRadius = 0.7;
+
+					V2 toCircleCenter = normalize(entity->dP);
+					V2 toCircleEdge = randomUnitV2(&gameState->random) * circleRadius;
+
+					V2 movement = toCircleCenter + toCircleEdge;
+				
+					if(target && targetDst > transitionDst) {
+						V2 toTarget = (target->p - entity->p) * (targetDst - transitionDst);
+						movement += toTarget;
+					}
+
+					ddP = normalize(movement) * xMoveAcceleration;
+
+					move(entity, dt, gameState, ddP);
+				}
+
+				if(setStartPos) {
+					entity->startPos = entity->p;
+				}
+			} break;
+
+
+
+			InvalidDefaultCase;
 		} //end of movement field switch 
 
 		if(gameState->screenType != ScreenType_pause && !defaultMove) {

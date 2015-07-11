@@ -23,6 +23,7 @@ enum ConsoleFieldType {
 	ConsoleField_light,
 	ConsoleField_scansForTargets,
 	ConsoleField_guarded,
+	ConsoleField_bodyguard,
 
 	ConsoleField_double,
 	ConsoleField_unlimitedInt,
@@ -190,7 +191,8 @@ bool isConsoleFieldMovementType(ConsoleField* field) {
 				  field->type == ConsoleField_movesBackAndForth ||
 				  field->type == ConsoleField_seeksTarget ||
 				  field->type == ConsoleField_followsWaypoints ||
-				  field->type == ConsoleField_bobsVertically;
+				  field->type == ConsoleField_bobsVertically ||
+				  field->type == ConsoleField_bodyguard;
 	return result;
 }
 
@@ -206,7 +208,9 @@ bool canOnlyHaveOneFieldOfType(ConsoleFieldType type) {
 				  type == ConsoleField_crushesEntities ||
 				  type == ConsoleField_Alertness ||
 				  type == ConsoleField_spawnsTrawlers ||
-				  type == ConsoleField_spawnsShrikes;
+				  type == ConsoleField_spawnsShrikes ||
+				  type == ConsoleField_guarded ||
+				  type == ConsoleField_bodyguard;
 
  	return result;
 }

@@ -229,11 +229,14 @@ struct GameState {
 	Input input;
 	Camera camera;
 
+	Random random;
+
 	RefNode* targetRefs;
 	s32 consoleEntityRef;
 	RefNode* fadingOutConsoles;
 	s32 playerRef;
 	s32 testEntityRef;
+	RefNode* guardTargetRefs;
 
 	bool32 loadNextLevel;
 	bool32 reloadCurrentLevel;

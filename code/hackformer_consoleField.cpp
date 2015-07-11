@@ -239,7 +239,11 @@ void onAddConsoleFieldToEntity(Entity* entity, ConsoleField* field, bool exchang
 					spawned->spawnerRef = entity->ref;
 				}
 			}
-		};
+		} break;
+
+		case ConsoleField_bodyguard: {
+			entity->startPos = INVALID_START_POS;
+		} break;
 	}
 }
 
@@ -368,6 +372,10 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 					if (field->type == ConsoleField_isShootTarget) {
 						if (removeFromParent) removeTargetRef(gameState->consoleEntityRef, gameState);
 						else if (addToParent) addTargetRef(gameState->consoleEntityRef, gameState);
+					}
+					else if (field->type == ConsoleField_guarded) {
+						if (removeFromParent) removeGuardedTargetRef(gameState->consoleEntityRef, gameState);
+						else if (addToParent) addGuardedTargetRef(gameState->consoleEntityRef, gameState);
 					}
 
 					if(exchangeFields) {

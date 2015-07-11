@@ -360,6 +360,53 @@ V2 swapComponents(V2 a) {
 	return result;
 }
 
+//NOTE: Random operations here
+
+#define RANDOM_MAX (0x7FFFFFFF)
+
+struct Random {
+	u32 seed;
+};
+
+Random createRandom(u32 seed) {
+	Random result = {};
+	result.seed = seed;
+	return result;
+}
+
+u32 nextRandom(Random* random) {
+	random->seed = (214013 * random->seed + 2531011) % RANDOM_MAX;
+	return random->seed;
+}
+
+double randomBetween(Random* random, double min, double max) {
+	double range = max - min;
+
+	u32 value = nextRandom(random);
+
+	double result = value * (range / RANDOM_MAX) + min;
+	return result;
+}
+
+double randomRadian(Random* random) {
+	double result = randomBetween(random, 0, TAU);
+	return result;
+}
+
+V2 randomUnitV2(Random* random) {
+	V2 result;
+	#if 0
+	result.x = randomBetween(random, -1, 1);
+	result.y = randomBetween(random, -1, 1);
+	result = normalize(result);
+	#endif
+
+	double rad = randomRadian(random);
+	result = v2(cos(rad), sin(rad));
+
+	return result;
+}
+
 //NOTE: V3 operations here
 
 V3 v3(double x, double y, double z) {

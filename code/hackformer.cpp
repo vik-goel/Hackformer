@@ -208,6 +208,7 @@ void freeLevel(GameState* gameState) {
 	gameState->waypointFreeList = NULL;
 	gameState->fadingOutConsoles = NULL;
 	gameState->targetRefs = NULL;
+	gameState->guardTargetRefs = NULL;
 	gameState->swapField = NULL;
 
 	gameState->consoleEntityRef = 0;
@@ -223,6 +224,8 @@ void freeLevel(GameState* gameState) {
 
 void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex, bool firstLevelLoad) {
 	freeLevel(gameState);
+
+	gameState->random = createRandom(RANDOM_MAX / 2);
 
 	if (gameState->loadNextLevel) {
 		firstLevelLoad = true;

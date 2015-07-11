@@ -1,4 +1,5 @@
 #define KEYBOARD_JUMP_AIR_TOLERANCE_TIME 0.15
+#define INVALID_START_POS (v2(1, 1) * -9999999999)
 
 enum EntityFlag {
 	EntityFlag_facesLeft = 1 << 0,
@@ -91,7 +92,7 @@ struct Entity {
 	//Used by projectiles, spawned entities
 	s32 spawnerRef;
 
-	//Used by tiles
+	//Used by tiles and bodyguards
 	V2 startPos;
 
 	//Used by tiles
@@ -195,6 +196,9 @@ bool isNonHeavyTile(Entity* entity) {
 RefNode* refNode(GameState* gameState, s32 ref, RefNode* next = NULL);
 void removeFromRefNodeList(RefNode** list, s32 ref, GameState* gameState);
 void freeRefNode(RefNode* node, GameState* gameState);
+
+void addGuardedTargetRef(s32 ref, GameState* gameState);
+void removeGuardedTargetRef(s32 ref, GameState* gameState);
 
 void freeWaypoints(Waypoint* waypoint, GameState* gameState);
 GetCollisionTimeResult getCollisionTime(Entity*, GameState*, V2, bool actuallyMoving, double maxCollisionTime = 1, bool ignorePenetrationEntities = false);
