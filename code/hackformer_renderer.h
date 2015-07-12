@@ -11,7 +11,7 @@ struct Animation {
 	bool32 reverse;
 	s32 frameWidth;
 	s32 frameHeight;
-	char fileName[100];
+	AssetId assetId;
 };
 
 struct AnimNode {
@@ -219,4 +219,7 @@ struct RenderGroup {
 
 	Texture* textures;
 	s32* texturesCount;
+
+	struct Assets* assets;
 };
+

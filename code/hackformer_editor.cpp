@@ -40,8 +40,8 @@ s32 loadTileAtlas(RenderGroup* group, Texture* textureData, s32* textureDataCoun
 	for(s32 tileIndex = 0; tileIndex < arrayCount(globalTileData); tileIndex++) {
 		TileData* data = globalTileData + tileIndex;
 
-		char fileNameWithPrefix[150];
-		sprintf(fileNameWithPrefix, "tiles/%s", data->fileName);
+		char fileNameWithPrefix[2000];
+		sprintf(fileNameWithPrefix, "editor_res/tiles/%s.png", data->fileName);
 
 		loadPNGTexture(group, fileNameWithPrefix, false);
 	}
@@ -130,8 +130,11 @@ int main(int argc, char* argv[]) {
 	Texture* textures = pushArray(&arena, Texture, MAX_TEXTURES);
 	s32 texturesCount = 1;
 
+	Assets assets = {};
+	initAssets(&assets);
+
 	RenderGroup* renderGroup  = createRenderGroup(8 * 1024 * 1024, &arena, TEMP_PIXELS_PER_METER, windowWidth, windowHeight, 
-													&camera, textures, &texturesCount);
+													&camera, textures, &texturesCount, &assets);
 	renderGroup->enabled = true;
 
 	bool running = true;
@@ -163,24 +166,27 @@ int main(int argc, char* argv[]) {
 
 	#define ENTITY(type, width, height, fileName, panelX, panelY, panelScale) {EntityType_##type, DrawOrder_##type, v2(width, height), fileName, v2(panelX, panelY), panelScale},
 	EntitySpec entitySpecs[] {
-		ENTITY(player, 1.75, 1.75, "player/full", 0, 6, 1)
+		ENTITY(player, 1.75, 1.75, "player", 0, 6, 1)
 		ENTITY(lamp_0, 1, 0.5, "light_0", 0.1, 5, 1)
 		ENTITY(lamp_1, 350.0/109.0*0.4, 0.4, "light_1", 1.5, 5, 1)
-		ENTITY(laserBase, 0.9, 0.65, "virus3/base_off", 1.5, 6, 1)
-		ENTITY(hackEnergy, 0.7, 0.7, "energy_full", 0.5, 0.5, 1)
+		ENTITY(laserBase, 0.9, 0.65, "virus3", 1.5, 6, 1)
+		ENTITY(hackEnergy, 0.7, 0.7, "energy", 0.5, 0.5, 1)
 		ENTITY(endPortal, 2, 2, "end_portal", 0, 3, 1)
-		ENTITY(trojan, 2, 2, "trojan/full", 0, 1, 1)
-		ENTITY(motherShip, 6 * (264.0 / 512.0), 6 * (339.0 / 512.0), "mothership/full", 2, 3, 0.5)
-		ENTITY(trawler, 2, 2, "trawler/full", 1.8, 1.2, 1)
-		ENTITY(shrike, 1.5, 1.5, "shrike/full", 1.75, 0, 1)
+		ENTITY(trojan, 2, 2, "trojan", 0, 1, 1)
+		ENTITY(motherShip, 6 * (264.0 / 512.0), 6 * (339.0 / 512.0), "mothership", 2, 3, 0.5)
+		ENTITY(trawler, 2, 2, "trawler", 1.8, 1.2, 1)
+		ENTITY(shrike, 1.5, 1.5, "shrike", 1.75, 0, 1)
 	};
 	#undef ENTITY
+
+	char buffer[2000];
 
 	Texture* entityTextureAtlas = textures + texturesCount;
 	for(s32 specIndex = 0; specIndex < arrayCount(entitySpecs); specIndex++) {
 		EntitySpec* spec = entitySpecs + specIndex;
 		char* fileName = spec->fileName;
-		loadPNGTexture(renderGroup, fileName, false);
+		sprintf(buffer, "editor_res/%s.png", fileName);
+		loadPNGTexture(renderGroup, buffer, false);
 	}
 
 	s32 selectedEntitySpecIndex = 0;

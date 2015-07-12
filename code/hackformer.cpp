@@ -285,10 +285,10 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 	}
 }
 
-Button createButton(GameState* gameState, char* defaultTextureFilePath, V2 p, double buttonHeight) {
+Button createButton(GameState* gameState, AssetId defaultId, V2 p, double buttonHeight) {
 	Button result = {};
 
-	result.defaultTex = loadPNGTexture(gameState->renderGroup, defaultTextureFilePath, false);
+	result.defaultTex = loadPNGTexture(gameState->renderGroup, defaultId, false);
 
 	double buttonWidth = getAspectRatio(result.defaultTex) * buttonHeight;
 
@@ -301,24 +301,17 @@ Button createButton(GameState* gameState, char* defaultTextureFilePath, V2 p, do
 	return result;
 }
 
-Button createDockButton(GameState* gameState, char* textureFileName, V2 p, double buttonHeight) {
-	char pathBuffer[100];
-	assert(strlen(textureFileName) - 10 < arrayCount(pathBuffer));
+Button createDockButton(GameState* gameState, AssetId defaultId, AssetId clickedId, AssetId hoverId, V2 p, double buttonHeight) {
+	Button result = createButton(gameState, defaultId, p, buttonHeight);
 
-	sprintf(pathBuffer, "%s_default", textureFileName);
-	Button result = createButton(gameState, pathBuffer, p, buttonHeight);
-
-	sprintf(pathBuffer, "%s_clicked", textureFileName);
-	result.clickedTex = loadPNGTexture(gameState->renderGroup, pathBuffer, false);
-
-	sprintf(pathBuffer, "%s_hover", textureFileName);
-	result.hoverTex = loadPNGTexture(gameState->renderGroup, pathBuffer, false);
+	result.clickedTex = loadPNGTexture(gameState->renderGroup, clickedId, false);
+	result.hoverTex = loadPNGTexture(gameState->renderGroup, hoverId, false);
 
 	return result;
 }
 
-Button createPauseMenuButton(GameState* gameState, char* textureFilePath, V2 p, double buttonHeight) {
-	Button result = createButton(gameState, textureFilePath, p, buttonHeight);
+Button createPauseMenuButton(GameState* gameState, AssetId defaultId, V2 p, double buttonHeight) {
+	Button result = createButton(gameState, defaultId, p, buttonHeight);
 	result.shouldScale = true;
 
 	return result;
@@ -413,12 +406,10 @@ void clearInput(Input* input) {
 	}
 }
 
-Music loadMusic(char* fileName) {
-	char filePath[1000];
-	sprintf(filePath, "res/music/%s.mp3", fileName);
-
+Music loadMusic(MusicState* state, AssetId id) {
 	Music result = {};
-	result.data = Mix_LoadMUS(filePath);
+	SDL_RWops* readStream = getFilePtrFromMem(state->assets, id, state->arena);
+	result.data = Mix_LoadMUS_RW(readStream, SDL_FALSE);
 
 	if(!result.data) {
 		fprintf(stderr, "Error loading music: %s\n", Mix_GetError());
@@ -437,8 +428,11 @@ void playMusic(Music* music, MusicState* musicState) {
 	music->playing = true;
 }
 
-void initMusic(MusicState* musicState) {
+void initMusic(MusicState* musicState, GameState* gameState) {
 #if PLAY_MUSIC
+	musicState->assets = &gameState->assets;
+	musicState->arena = &gameState->permanentStorage;
+
 	s32 mixerFlags = MIX_INIT_MP3;
 	s32 mixerInitStatus = Mix_Init(mixerFlags);
 
@@ -452,13 +446,13 @@ void initMusic(MusicState* musicState) {
 		InvalidCodePath;
 	}
 
-	musicState->menuMusic = loadMusic("hackformer_theme");
-	musicState->gameMusic = loadMusic("hackformerlevel0");
+	musicState->menuMusic = loadMusic(musicState, Asset_menuMusic);
+	musicState->gameMusic = loadMusic(musicState, Asset_levelMusic);
 #endif
 }
 
 GameState* createGameState(s32 windowWidth, s32 windowHeight) {
-	MemoryArena arena_ = createArena(4 * 1024 * 1024, true);
+	MemoryArena arena_ = createArena(8 * 1024 * 1024, true);
 
 	GameState* gameState = pushStruct(&arena_, GameState);
 	gameState->permanentStorage = arena_;
@@ -480,9 +474,12 @@ GameState* createGameState(s32 windowWidth, s32 windowHeight) {
 	gameState->characterAnimsCount = 1; //NOTE: 0 is a null character data
 	gameState->glowingTexturesCount = 1; //NOTE: 0 is a null glowing texture
 
+	Assets* assets = &gameState->assets;
+	initAssets(assets);
+
 	gameState->renderGroup = createRenderGroup(256 * 1024, &gameState->permanentStorage, gameState->pixelsPerMeter, 
 		gameState->windowWidth, gameState->windowHeight, &gameState->camera,
-		gameState->textures, &gameState->texturesCount);
+		gameState->textures, &gameState->texturesCount, assets);
 
 	initInputKeyCodes(&gameState->input);
 
@@ -492,24 +489,24 @@ GameState* createGameState(s32 windowWidth, s32 windowHeight) {
 void initFieldSpec(GameState* gameState) {
 	FieldSpec* spec = &gameState->fieldSpec;
 
-	spec->consoleFont = loadCachedFont(gameState->renderGroup, "fonts/PTS55f.ttf", 16, 2);
-	spec->attribute = loadPNGTexture(gameState->renderGroup, "attributes/Attribute", false);
-	spec->behaviour = loadPNGTexture(gameState->renderGroup, "attributes/Behaviour", false);
-	spec->valueBackground = loadPNGTexture(gameState->renderGroup, "attributes/changer_readout", false);
-	spec->leftButtonDefault = loadPNGTexture(gameState->renderGroup, "attributes/left_button", false);
-	spec->leftButtonClicked = loadPNGTexture(gameState->renderGroup, "attributes/left_button_clicked", false);
-	spec->leftButtonUnavailable = loadPNGTexture(gameState->renderGroup, "attributes/left_button_unavailable", false);
-	spec->defaultWaypoint = loadPNGTexture(gameState->renderGroup, "waypoints/default_waypoint", false);
-	spec->selectedWaypoint = loadPNGTexture(gameState->renderGroup, "waypoints/selected_waypoint", false);
-	spec->currentWaypoint = loadPNGTexture(gameState->renderGroup, "waypoints/current_waypoint", false);
-	spec->movedWaypoint = loadPNGTexture(gameState->renderGroup, "waypoints/moved_waypoint", false);
-	spec->defaultWaypointLine = loadPNGTexture(gameState->renderGroup, "waypoints/default_waypoint_line", false);
-	spec->currentWaypointLine = loadPNGTexture(gameState->renderGroup, "waypoints/current_waypoint_line", false);
-	spec->movedWaypointLine = loadPNGTexture(gameState->renderGroup, "waypoints/moved_waypoint_line", false);
-	spec->waypointArrow = loadPNGTexture(gameState->renderGroup, "waypoints/waypoint_arrow", false);
-	spec->tileHackShield = loadPNGTexture(gameState->renderGroup, "tile_hacking/tile_hack_shield", false);
-	spec->cornerTileHackShield = loadPNGTexture(gameState->renderGroup, "tile_hacking/corner_tile_hack_shield", false);
-	spec->tileHackArrow = loadPNGTexture(gameState->renderGroup, "tile_hacking/right_button", false);
+	spec->consoleFont = loadCachedFont(gameState->renderGroup, Asset_consoleFont, 16, 2, &gameState->permanentStorage);
+	spec->attribute = loadPNGTexture(gameState->renderGroup, Asset_attribute, false);
+	spec->behaviour = loadPNGTexture(gameState->renderGroup, Asset_behaviour, false);
+	spec->valueBackground = loadPNGTexture(gameState->renderGroup, Asset_changerReadout, false);
+	spec->leftButtonDefault = loadPNGTexture(gameState->renderGroup, Asset_consoleButtonDefault, false);
+	spec->leftButtonClicked = loadPNGTexture(gameState->renderGroup, Asset_consoleButtonClicked, false);
+	spec->leftButtonUnavailable = loadPNGTexture(gameState->renderGroup, Asset_consoleButtonUnavailable, false);
+	spec->defaultWaypoint = loadPNGTexture(gameState->renderGroup, Asset_defaultWaypoint, false);
+	spec->selectedWaypoint = loadPNGTexture(gameState->renderGroup, Asset_selectedWaypoint, false);
+	spec->currentWaypoint = loadPNGTexture(gameState->renderGroup, Asset_currentWaypoint, false);
+	spec->movedWaypoint = loadPNGTexture(gameState->renderGroup, Asset_movedWaypoint, false);
+	spec->defaultWaypointLine = loadPNGTexture(gameState->renderGroup, Asset_defaultWaypointLine, false);
+	spec->currentWaypointLine = loadPNGTexture(gameState->renderGroup, Asset_currentWaypointLine, false);
+	spec->movedWaypointLine = loadPNGTexture(gameState->renderGroup, Asset_movedWaypointLine, false);
+	spec->waypointArrow = loadPNGTexture(gameState->renderGroup, Asset_waypointArrow, false);
+	spec->tileHackShield = loadPNGTexture(gameState->renderGroup, Asset_tileHackShield, false);
+	spec->cornerTileHackShield = loadPNGTexture(gameState->renderGroup, Asset_cornerTileHackShield, false);
+	spec->tileHackArrow = loadPNGTexture(gameState->renderGroup, Asset_tileHackButton, false);
 	spec->tileArrowSize = getDrawSize(spec->tileHackArrow, 0.5);
 
 	spec->fieldSize = getDrawSize(spec->behaviour, 0.5);
@@ -524,14 +521,16 @@ void initFieldSpec(GameState* gameState) {
 void initDock(GameState* gameState) {
 	Dock* dock = &gameState->dock;
 
-	dock->dockTex = loadPNGTexture(gameState->renderGroup, "dock/dock", false);
-	dock->subDockTex = loadPNGTexture(gameState->renderGroup, "dock/sub_dock", false);
-	dock->energyBarStencil = loadPNGTexture(gameState->renderGroup, "dock/energy_bar_stencil", true);
-	dock->barCircleTex = loadPNGTexture(gameState->renderGroup, "dock/bar_energy", false);
-	dock->gravityTex = loadPNGTexture(gameState->renderGroup, "dock/gravity_field", false);
-	dock->timeTex = loadPNGTexture(gameState->renderGroup, "dock/time_field", false);
-	dock->acceptButton = createDockButton(gameState, "dock/accept_button", v2(gameState->windowSize.x * 0.5 + 0.45, gameState->windowSize.y - 1.6), 0.51);
-	dock->cancelButton = createDockButton(gameState, "dock/cancel_button", v2(gameState->windowSize.x * 0.5 - 2.55, gameState->windowSize.y - 1.6), 0.5);
+	dock->dockTex = loadPNGTexture(gameState->renderGroup, Asset_dock, false);
+	dock->subDockTex = loadPNGTexture(gameState->renderGroup, Asset_subDock, false);
+	dock->energyBarStencil = loadPNGTexture(gameState->renderGroup, Asset_energyBarStencil, true);
+	dock->barCircleTex = loadPNGTexture(gameState->renderGroup, Asset_barEnergy, false);
+	dock->gravityTex = loadPNGTexture(gameState->renderGroup, Asset_gravityField, false);
+	dock->timeTex = loadPNGTexture(gameState->renderGroup, Asset_timeField, false);
+	dock->acceptButton = createDockButton(gameState, Asset_dockAcceptButtonDefault, Asset_dockAcceptButtonClicked, 
+				Asset_dockAcceptButtonHover, v2(gameState->windowSize.x * 0.5 + 0.45, gameState->windowSize.y - 1.6), 0.51);
+	dock->cancelButton = createDockButton(gameState, Asset_dockCancelButtonDefault, Asset_dockCancelButtonClicked, 
+				Asset_dockCancelButtonHover, v2(gameState->windowSize.x * 0.5 - 2.55, gameState->windowSize.y - 1.6), 0.5);
 	dock->cancelButton.clickBounds.max.x -= 0.2;
 }
 
@@ -540,13 +539,13 @@ void initPauseMenu(GameState* gameState) {
 
 	RenderGroup* group = gameState->renderGroup;
 
-	pauseMenu->background = loadPNGTexture(group, "pause_menu/pause_menu", false);
-	pauseMenu->backgroundAnim = loadAnimation(group, "pause_menu/pause_menu_sprite", 1280, 720, 1.f, true);
+	pauseMenu->background = loadPNGTexture(group, Asset_pauseMenuBg, false);
+	pauseMenu->backgroundAnim = loadAnimation(group, Asset_pauseMenuAnim, 1280, 720, 1.f, true);
 
-	pauseMenu->quit = createPauseMenuButton(gameState, "pause_menu/quit_button", v2(15.51, 2.62), 1.5);
-	pauseMenu->restart = createPauseMenuButton(gameState, "pause_menu/restart_button", v2(6.54, 4.49), 1.1);
-	pauseMenu->resume = createPauseMenuButton(gameState, "pause_menu/resume_button", v2(3.21, 8.2), 1.18);
-	pauseMenu->settings = createPauseMenuButton(gameState, "pause_menu/settings_button", v2(12.4, 6.8), 1.08);
+	pauseMenu->quit = createPauseMenuButton(gameState, Asset_pauseMenuQuitButton, v2(15.51, 2.62), 1.5);
+	pauseMenu->restart = createPauseMenuButton(gameState, Asset_pauseMenuRestartButton, v2(6.54, 4.49), 1.1);
+	pauseMenu->resume = createPauseMenuButton(gameState, Asset_pauseMenuResumeButton, v2(3.21, 8.2), 1.18);
+	pauseMenu->settings = createPauseMenuButton(gameState, Asset_pauseMenuSettingsButton, v2(12.4, 6.8), 1.08);
 }
 
 void initMainMenu(GameState* gameState) {
@@ -554,13 +553,13 @@ void initMainMenu(GameState* gameState) {
 
 	RenderGroup* group = gameState->renderGroup;
 
-	mainMenu->background = loadPNGTexture(group, "main_menu/background", false);
-	mainMenu->backgroundAnim = loadAnimation(group, "main_menu/background_animation", 1280, 720, 1.f, true);
+	mainMenu->background = loadPNGTexture(group, Asset_mainMenuBg, false);
+	mainMenu->backgroundAnim = loadAnimation(group, Asset_mainMenuAnim, 1280, 720, 1.f, true);
 
 	double mainMenuButtonHeight = 0.6;
-	mainMenu->play = createPauseMenuButton(gameState, "main_menu/play_button", v2(10, 6), mainMenuButtonHeight);
-	mainMenu->settings = createPauseMenuButton(gameState, "main_menu/options_button", v2(10.6, 5.2), mainMenuButtonHeight);
-	mainMenu->quit = createPauseMenuButton(gameState, "main_menu/quit_button", v2(12, 3.2), mainMenuButtonHeight);
+	mainMenu->play = createPauseMenuButton(gameState, Asset_mainMenuPlayButton, v2(10, 6), mainMenuButtonHeight);
+	mainMenu->settings = createPauseMenuButton(gameState, Asset_mainMenuOptionsButton, v2(10.6, 5.2), mainMenuButtonHeight);
+	mainMenu->quit = createPauseMenuButton(gameState, Asset_mainMenuQuitButton, v2(12, 3.2), mainMenuButtonHeight);
 }
 
 char* getSaveFilePath(char* saveFileName, MemoryArena* arena) {
@@ -580,25 +579,22 @@ void loadImages(GameState* gameState) {
 		CharacterAnim* character = createCharacterAnim(gameState, &gameState->playerAnim);
 
 		AnimNode* walkNode = createAnimNode(gameState, &character->walk);
-		walkNode->main = loadAnimation(renderGroup, "player/running", 256, 256, 0.07f, true);
-		// walkNode->intro = loadAnimation(renderGroup, "player/running_transition", 256, 256, 0.05f, true);
-		// walkNode->main = loadAnimation(renderGroup, "player/running", 256, 256, 0.0425f, true);
-		// walkNode->outro = createReversedAnimation(&walkNode->intro);
+		walkNode->main = loadAnimation(renderGroup, Asset_playerRunning, 256, 256, 0.07f, true);
 
 		AnimNode* standNode = createAnimNode(gameState, &character->stand);
-		standNode->main = loadAnimation(renderGroup, "player/stand_2", 256, 256, 0.09f, true);
+		standNode->main = loadAnimation(renderGroup, Asset_playerStand, 256, 256, 0.09f, true);
 
 		AnimNode* deathNode = createAnimNode(gameState, &character->death);
-		deathNode->main = loadAnimation(renderGroup, "player/death", 256, 256, 0.06f, true);
+		deathNode->main = loadAnimation(renderGroup, Asset_playerDeath, 256, 256, 0.06f, true);
 
 		AnimNode* jumpNode = createAnimNode(gameState, &character->jump);
 
-		jumpNode->intro = loadAnimation(renderGroup, "player/jumping_intro", 256, 256, 0.07f, false);
-		jumpNode->main = loadAnimation(renderGroup, "player/jumping", 256, 256, 0.12f, true);
-		jumpNode->outro = loadAnimation(renderGroup, "player/jumping_outro", 256, 256, 0.03f, false);
+		jumpNode->intro = loadAnimation(renderGroup, Asset_playerJumpingIntro, 256, 256, 0.07f, false);
+		jumpNode->main = loadAnimation(renderGroup, Asset_playerJumping, 256, 256, 0.12f, true);
+		jumpNode->outro = loadAnimation(renderGroup, Asset_playerJumpingOutro, 256, 256, 0.03f, false);
 
 		AnimNode* hackNode = createAnimNode(gameState, &gameState->playerHack);
-		hackNode->intro = loadAnimation(renderGroup, "player/hacking", 256, 256, 0.07f, false);
+		hackNode->intro = loadAnimation(renderGroup, Asset_playerHacking, 256, 256, 0.07f, false);
 		hackNode->main = createAnimation(hackNode->intro.frames + (hackNode->intro.numFrames - 1));
 		hackNode->outro = createReversedAnimation(&hackNode->intro);
 	}
@@ -607,34 +603,34 @@ void loadImages(GameState* gameState) {
 		CharacterAnim* character = createCharacterAnim(gameState, &gameState->virus1Anim);
 
 		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
-		shoot->main = loadAnimation(renderGroup, "virus1/shoot", 145, 170, 0.04f, true);
+		shoot->main = loadAnimation(renderGroup, Asset_virus1Shoot, 145, 170, 0.04f, true);
 
 		AnimNode* stand = createAnimNode(gameState, &character->stand);
-		stand->main = createAnimation(loadPNGTexture(renderGroup, "virus1/stand"));
+		stand->main = createAnimation(loadPNGTexture(renderGroup, Asset_virus1Stand));
 	}
 
 	{
 		CharacterAnim* character = createCharacterAnim(gameState, &gameState->shrikeAnim);
 
 		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
-		shoot->main = loadAnimation(renderGroup, "shrike/shoot", 256, 256, 0.04f, true);
+		shoot->main = loadAnimation(renderGroup, Asset_shrikeShoot, 256, 256, 0.04f, true);
 		gameState->shootDelay = getAnimationDuration(&shoot->main);
 		//TODO: Make shoot animation time per frame be set by the shootDelay
 
 		//AnimNode* stand = createAnimNode(gameState, &character->stand);
-		gameState->shrikeStand = loadAnimation(renderGroup, "shrike/jet_burn", 256, 256, 0.07f, true);
+		gameState->shrikeStand = loadAnimation(renderGroup, Asset_shrikeStand, 256, 256, 0.07f, true);
 
-		gameState->shrikeBootUp = loadAnimation(renderGroup, "shrike/boot_up", 256, 256, 0.04f, false);
+		gameState->shrikeBootUp = loadAnimation(renderGroup, Asset_shrikeBootUp, 256, 256, 0.04f, false);
 	}
 
 	{
 		CharacterAnim* character = createCharacterAnim(gameState, &gameState->flyingVirusAnim);
 
 		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
-		shoot->main = loadAnimation(renderGroup, "virus2/shoot", 133, 127, 0.04f, true);
+		shoot->main = loadAnimation(renderGroup, Asset_virus2Shoot, 133, 127, 0.04f, true);
 
 		AnimNode* stand = createAnimNode(gameState, &character->stand);
-		stand->main = createAnimation(loadPNGTexture(renderGroup, "virus2/full"));
+		stand->main = createAnimation(loadPNGTexture(renderGroup, Asset_virus2Full));
 	}
 
 	{
@@ -643,70 +639,70 @@ void loadImages(GameState* gameState) {
 		CharacterAnim* character = createCharacterAnim(gameState, &trojan->trojanAnim);
 
 		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
-		shoot->main = loadAnimation(renderGroup, "trojan/shoot", 256, 256, 0.04f, true);
+		shoot->main = loadAnimation(renderGroup, Asset_trojanShoot, 256, 256, 0.04f, true);
 
 		AnimNode* disappear = createAnimNode(gameState, &character->disappear);
-		disappear->main = loadAnimation(renderGroup, "trojan/disappear", 256, 256, 0.04f, false);
+		disappear->main = loadAnimation(renderGroup, Asset_trojanDisappear, 256, 256, 0.04f, false);
 
 		AnimNode* stand = createAnimNode(gameState, &character->stand);
-		stand->main = createAnimation(loadPNGTexture(renderGroup, "trojan/full"));
+		stand->main = createAnimation(loadPNGTexture(renderGroup, Asset_trojanFull));
 
-		trojan->projectile = loadPNGTexture(renderGroup, "trojan/bolt");
+		trojan->projectile = loadPNGTexture(renderGroup, Asset_trojanBolt);
 		createCharacterAnim(gameState, &trojan->projectileDeath);
 		AnimNode* projectileDeath = createAnimNode(gameState, &trojan->projectileDeath->death);
-		projectileDeath->main = loadAnimation(renderGroup, "trojan/bolt_death", 128, 128, 0.05f, false);
+		projectileDeath->main = loadAnimation(renderGroup, Asset_trojanBoltDeath, 128, 128, 0.05f, false);
 	}
 	
-	gameState->hackEnergyAnim = loadAnimation(renderGroup, "energy_animation", 173, 172, 0.08f, true);
-	gameState->laserBolt = loadPNGTexture(renderGroup, "virus1/laser_bolt");
-	gameState->endPortal = loadPNGTexture(renderGroup, "end_portal");
+	gameState->hackEnergyAnim = loadAnimation(renderGroup, Asset_energy, 173, 172, 0.08f, true);
+	gameState->laserBolt = loadPNGTexture(renderGroup, Asset_laserBolt);
+	gameState->endPortal = loadPNGTexture(renderGroup, Asset_endPortal);
 
 	{
 		LaserImages* laser = &gameState->laserImages;
 
-		laser->baseOff = loadPNGTexture(renderGroup, "virus3/base_off");
-		laser->baseOn = loadPNGTexture(renderGroup, "virus3/base_on");
-		laser->topOff = loadPNGTexture(renderGroup, "virus3/top_off");
-		laser->topOn = loadPNGTexture(renderGroup, "virus3/top_on");
-		laser->beam = loadPNGTexture(renderGroup, "virus3/laser_beam");
+		laser->baseOff = loadPNGTexture(renderGroup, Asset_virus3BaseOff);
+		laser->baseOn = loadPNGTexture(renderGroup, Asset_virus3BaseOn);
+		laser->topOff = loadPNGTexture(renderGroup, Asset_virus3TopOff);
+		laser->topOn = loadPNGTexture(renderGroup, Asset_virus3TopOn);
+		laser->beam = loadPNGTexture(renderGroup, Asset_virus3LaserBeam);
 	}
 
 	{
 		MotherShipImages* motherShip = &gameState->motherShipImages;
 
-		motherShip->emitter = loadPNGTexture(renderGroup, "mothership/emitter");
-		motherShip->base = loadPNGTexture(renderGroup, "mothership/base");
-		motherShip->rotators[0] = loadPNGTexture(renderGroup, "mothership/rotator_3");
-		motherShip->rotators[1] = loadPNGTexture(renderGroup, "mothership/rotator_1");
-		motherShip->rotators[2] = loadPNGTexture(renderGroup, "mothership/rotator_2");
-		motherShip->projectileMoving = loadAnimation(renderGroup, "mothership/projectile_smoking", 120, 120, 0.04f, true);
-		motherShip->spawning = loadAnimation(renderGroup, "mothership/spawning", 512, 512, 0.04f, true);
+		motherShip->emitter = loadPNGTexture(renderGroup, Asset_motherShipEmitter);
+		motherShip->base = loadPNGTexture(renderGroup, Asset_motherShipBase);
+		motherShip->rotators[0] = loadPNGTexture(renderGroup, Asset_motherShipRotator3);
+		motherShip->rotators[1] = loadPNGTexture(renderGroup, Asset_motherShipRotator1);
+		motherShip->rotators[2] = loadPNGTexture(renderGroup, Asset_motherShipRotator2);
+		motherShip->projectileMoving = loadAnimation(renderGroup, Asset_motherShipProjectileSmoking, 120, 120, 0.04f, true);
+		motherShip->spawning = loadAnimation(renderGroup, Asset_motherShipShoot, 512, 512, 0.04f, true);
 
 		createCharacterAnim(gameState, &motherShip->projectileDeath);
 		AnimNode* projectileDeath = createAnimNode(gameState, &motherShip->projectileDeath->death);
-		projectileDeath->main = loadAnimation(renderGroup, "mothership/projectile_death", 120, 120, 0.04f, false);
+		projectileDeath->main = loadAnimation(renderGroup, Asset_motherShipProjectileDeath, 120, 120, 0.04f, false);
 	}
 
 	{
 		TrawlerImages* trawler = &gameState->trawlerImages;
 
-		trawler->frame = loadPNGTexture(renderGroup, "trawler/right_frame");
-		trawler->body = loadPNGTexture(renderGroup, "trawler/body");
-		trawler->wheel = loadPNGTexture(renderGroup, "trawler/wheel");
-		trawler->shoot = loadAnimation(renderGroup, "trawler/shoot", 256, 256, 0.04f, true);
-		trawler->bootUp = loadAnimation(renderGroup, "trawler/boot_up", 256, 256, 0.1f, false);
+		trawler->frame = loadPNGTexture(renderGroup, Asset_trawlerRightFrame);
+		trawler->body = loadPNGTexture(renderGroup, Asset_trawlerBody);
+		trawler->wheel = loadPNGTexture(renderGroup, Asset_trawlerWheel);
+		trawler->shoot = loadAnimation(renderGroup, Asset_trawlerShoot, 256, 256, 0.04f, true);
+		trawler->bootUp = loadAnimation(renderGroup, Asset_trawlerBootUp, 256, 256, 0.1f, false);
 
-		trawler->projectile = loadPNGTexture(renderGroup, "trawler/bolt");
+		trawler->projectile = loadPNGTexture(renderGroup, Asset_trawlerBolt);
 		createCharacterAnim(gameState, &trawler->projectileDeath);
 		AnimNode* projectileDeath = createAnimNode(gameState, &trawler->projectileDeath->death);
-		projectileDeath->main = loadAnimation(renderGroup, "trawler/bolt_death", 128, 128, 0.02f, false);
+		projectileDeath->main = loadAnimation(renderGroup, Asset_trawlerBoltDeath, 128, 128, 0.02f, false);
 	}
 
 	{
 		CursorImages* cursor = &gameState->cursorImages;
 
-		cursor->regular = loadPNGTexture(renderGroup, "cursor_default");
-		cursor->hacking = loadAnimation(renderGroup, "cursor_hacking", 64, 64, 0.04f, true);
+		cursor->regular = loadPNGTexture(renderGroup, Asset_cursorDefault);
+		cursor->hacking = loadAnimation(renderGroup, Asset_cursorHacking, 64, 64, 0.04f, true);
 	}
 
 	gameState->tileAtlasCount = arrayCount(globalTileData);
@@ -715,16 +711,14 @@ void loadImages(GameState* gameState) {
 	for(s32 tileIndex = 0; tileIndex < gameState->tileAtlasCount; tileIndex++) {
 		GlowingTexture* tex = createGlowingTexture(gameState);
 
-		char fileName[2000];
-		sprintf(fileName, "tiles/%s_regular", globalTileData[tileIndex].fileName);
-		tex->regular = loadPNGTexture(renderGroup, fileName);
-		
-		sprintf(fileName, "tiles/%s_glowing", globalTileData[tileIndex].fileName);
-		tex->glowing = loadPNGTexture(renderGroup, fileName);
+		tex->regular = loadPNGTexture(renderGroup, globalTileData[tileIndex].regularId);
+		tex->glowing = loadPNGTexture(renderGroup, globalTileData[tileIndex].glowingId);
 	}
 
-	gameState->lights[0] = loadPNGTexture(renderGroup, "light_0");
-	gameState->lights[1] = loadPNGTexture(renderGroup, "light_1");
+	gameState->lights[0] = loadPNGTexture(renderGroup, Asset_light0);
+	gameState->lights[1] = loadPNGTexture(renderGroup, Asset_light1);
+	gameState->lightCircle = loadPNGTexture(renderGroup, Asset_circle);
+	gameState->lightTriangle = loadPNGTexture(renderGroup, Asset_triangle);
 }
 
 
@@ -735,7 +729,7 @@ int main(int argc, char* argv[]) {
 	GameState* gameState = createGameState(windowWidth, windowHeight);
 	MusicState* musicState = &gameState->musicState;
 
-	initMusic(musicState);
+	initMusic(musicState, gameState);
 
 	RenderGroup* renderGroup = gameState->renderGroup;
 	Input* input = &gameState->input;
@@ -746,7 +740,7 @@ int main(int argc, char* argv[]) {
 	Camera* camera = &gameState->camera;
 	initCamera(camera);
 
-	gameState->textFont = loadFont("fonts/Roboto-Regular.ttf", 64);
+	gameState->textFont = loadFont(renderGroup, Asset_entityFont, 64, &gameState->permanentStorage);
 
 	initBackgroundTextures(&gameState->backgroundTextures);
 

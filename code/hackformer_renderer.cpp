@@ -1,31 +1,41 @@
-void loadShaderSource(char* fileName, char* source, s32 maxSourceLength) {
-	FILE* file = fopen(fileName, "r");
-	assert(file);
-
-	char line[1024];
-	char* linePtr;
-	s32 length = 0;
-
-	while (fgets (line, sizeof(line), file)) {
-		linePtr = line;
-
-		while(*linePtr) {
-			*source = *linePtr;
-			source++;
-			linePtr++;
-			length++;
-			assert(length < maxSourceLength);
-		}
-	}
-
-	*source = 0;
-	fclose(file);
+s32 getAssetPos(Assets* assets, AssetId id) {
+	s32 result = assets->assetFileOffsets[id];
+	return result;
 }
 
-GLuint addShader_(GLenum type, char* sourceFileName, Shader shaderProgram) {
+SDL_RWops* seekToAssetPos(Assets* assets, AssetId id) {
+	s32 seekPos =  getAssetPos(assets, id);
+	s64 seekResult = SDL_RWseek(assets->assetFileHandle, seekPos, RW_SEEK_SET);
+	assert(seekResult == seekPos);
+
+	return assets->assetFileHandle;
+}
+
+s32 getAssetSize(Assets* assets, AssetId id) {
+	assert(id >= 1 && id < Asset_count - 1);
+
+	s32 p1 = assets->assetFileOffsets[id];
+	s32 p2 = assets->assetFileOffsets[id + 1];
+
+	s32 result = p2 - p1;
+	return result;
+}
+
+void loadShaderSource(RenderGroup* group, AssetId assetId, char* source, s32 maxSourceLength) {
+	seekToAssetPos(group->assets, assetId);
+
+	s32 length = getAssetSize(group->assets, assetId);
+	assert(length < maxSourceLength);
+
+	SDL_RWread(group->assets->assetFileHandle, source, length, 1);
+
+	source[length] = 0;
+}
+
+GLuint addShader_(RenderGroup* group, GLenum type, AssetId sourceId, Shader shaderProgram) {
 	char sourceBuffer[4000];
 	char* source = sourceBuffer;
-	loadShaderSource(sourceFileName, source, arrayCount(sourceBuffer));
+	loadShaderSource(group, sourceId, source, arrayCount(sourceBuffer));
 
 	GLuint shader = glCreateShader(type);
 	assert(shader);
@@ -49,14 +59,14 @@ GLuint addShader_(GLenum type, char* sourceFileName, Shader shaderProgram) {
 	return shader;
 }
 
-Shader createShader(char* vertexShaderSourceFileName, char* fragmentShaderSourceFileName, V2 windowSize) {
+Shader createShader(RenderGroup* group, AssetId vsId, AssetId fsId, V2 windowSize) {
 	Shader result = {};
 
 	result.program = glCreateProgram();
 	assert(result.program);
 
-	GLuint vertexShader = addShader_(GL_VERTEX_SHADER, vertexShaderSourceFileName, result);
-	GLuint fragmentShader = addShader_(GL_FRAGMENT_SHADER, fragmentShaderSourceFileName, result);
+	GLuint vertexShader = addShader_(group, GL_VERTEX_SHADER, vsId, result);
+	GLuint fragmentShader = addShader_(group, GL_FRAGMENT_SHADER, fsId, result);
 
 	glLinkProgram(result.program);
 
@@ -89,10 +99,10 @@ Shader createShader(char* vertexShaderSourceFileName, char* fragmentShaderSource
 	return result;
 }
 
-ForwardShader createForwardShader(char* vertexShaderSourceFileName, char* fragmentShaderSourceFileName, V2 windowSize) {
+ForwardShader createForwardShader(RenderGroup* group, V2 windowSize) {
 	ForwardShader result = {};
 
-	result.shader = createShader(vertexShaderSourceFileName, fragmentShaderSourceFileName, windowSize);
+	result.shader = createShader(group, Asset_forwardVS, Asset_forwardFS, windowSize);
 
 	result.ambientUniform = glGetUniformLocation(result.shader.program, "ambient");
 
@@ -189,19 +199,16 @@ Texture createTexFromSurface(SDL_Surface* image, RenderGroup* group, bool stenci
 	return result;
 }
 
-//stencil is false by default
-Texture* loadPNGTexture(RenderGroup* group, char* fileName, bool stencil) {
-	assert(strlen(fileName) < 400);
+void loadAsset(Assets* assets, AssetId id) {
+	assert(assets->loaded[id] == false);
+	assets->loaded[id] = true;
+}
 
-	char diffuseFilePath[500];
-	sprintf(diffuseFilePath, "res/%s.png", fileName);
-
-	SDL_RWops* readStream = SDL_RWFromFile(diffuseFilePath, "r");
+Texture* loadPNGTexture(RenderGroup* group, SDL_RWops* readStream, bool stencil) {
 	SDL_Surface* diffuse = IMG_LoadPNG_RW(readStream);
-	SDL_FreeRW(readStream);
 
 	if (!diffuse) {
-		fprintf(stderr, "Failed to load diffuse texture from: %s\n", diffuseFilePath);
+		fprintf(stderr, "Failed to load diffuse texture");
 		InvalidCodePath;
 	}
 
@@ -214,30 +221,65 @@ Texture* loadPNGTexture(RenderGroup* group, char* fileName, bool stencil) {
 	return result;
 }
 
-TTF_Font* loadFont(char* fileName, s32 fontSize) {
-	TTF_Font *font = TTF_OpenFont(fileName, fontSize);
+Texture* loadPNGTexture(RenderGroup* group, char* fileName, bool stencil) {
+	SDL_RWops* readStream = SDL_RWFromFile(fileName, "rb");
+	assert(readStream);
+	Texture* result = loadPNGTexture(group, readStream, stencil);
+	return result;
+}
+
+//stencil is false by default
+Texture* loadPNGTexture(RenderGroup* group, AssetId id, bool stencil) {
+	loadAsset(group->assets, id);
+
+	SDL_RWops* readStream = seekToAssetPos(group->assets, id);
+	Texture* result = loadPNGTexture(group, readStream, stencil);
+	return result;
+}
+
+
+SDL_RWops* getFilePtrFromMem(Assets* assets, AssetId id, MemoryArena* arena) {
+	loadAsset(assets, id);
+
+	SDL_RWops* readStream = seekToAssetPos(assets, id);
+	s32 assetSize = getAssetSize(assets, id);
+
+	void* mem = pushSize(arena, assetSize);
+	SDL_RWread(readStream, mem, assetSize, 1);
+
+	readStream = SDL_RWFromMem(mem, assetSize);
+	assert(readStream);
+
+	return readStream;
+}
+
+TTF_Font* loadFont(RenderGroup* group, AssetId id, s32 fontSize, MemoryArena* arena) {
+	SDL_RWops* readStream = getFilePtrFromMem(group->assets, id, arena);
+
+	TTF_Font* font = TTF_OpenFontRW(readStream, 0, fontSize);
 
 	if (!font) {
-		fprintf(stderr, "Failed to load font: %s\n", fileName);
+		const char* error = TTF_GetError();
+		fprintf(stderr, "Failed to load font with id: %d\n", id);
 		InvalidCodePath;
 	}
 
 	TTF_SetFontHinting(font, TTF_HINTING_LIGHT);
 
 	return font;
+	//return NULL;
 }
 
-CachedFont loadCachedFont(RenderGroup* group, char* fileName, s32 fontSize, double scaleFactor) {
+CachedFont loadCachedFont(RenderGroup* group, AssetId id, s32 fontSize, double scaleFactor, MemoryArena* arena) {
 	CachedFont result = {};
-	result.font = loadFont(fileName, (s32)round(fontSize * scaleFactor));
+	result.font = loadFont(group, id, (s32)round(fontSize * scaleFactor), arena);
 	result.scaleFactor = scaleFactor;
 	result.lineHeight = fontSize / (group->pixelsPerMeter * scaleFactor);
 	return result;
 }
 
-Texture* extractTextures(RenderGroup* group, char* fileName, s32 frameWidth, s32 frameHeight, s32 frameSpacing, s32* numFrames) {
-
-	Texture* tex = loadPNGTexture(group, fileName);
+Texture* extractTextures(RenderGroup* group, AssetId id, s32 frameWidth, s32 frameHeight, s32 frameSpacing, s32* numFrames) {
+	Texture* tex = loadPNGTexture(group, id);
 	
 	s32 texWidth = (s32)(tex->size.x * group->pixelsPerMeter + 0.5);
 	s32 texHeight = (s32)(tex->size.y * group->pixelsPerMeter + 0.5);
@@ -283,19 +325,17 @@ Texture* extractTextures(RenderGroup* group, char* fileName, s32 frameWidth, s32
 	return result;
 }
 
-Animation loadAnimation(RenderGroup* group, char* fileName, 
-	s32 frameWidth, s32 frameHeight, double secondsPerFrame, bool pingPong) {
+Animation loadAnimation(RenderGroup* group, AssetId id, s32 frameWidth, s32 frameHeight, double secondsPerFrame,
+						bool pingPong) {
 	Animation result = {};
 
 	assert(secondsPerFrame > 0);
 	result.secondsPerFrame = secondsPerFrame;
-	result.frames = extractTextures(group, fileName, frameWidth, frameHeight, 0, &result.numFrames);
+	result.frames = extractTextures(group, id, frameWidth, frameHeight, 0, &result.numFrames);
 	result.pingPong = pingPong;
 	result.frameWidth = frameWidth;
 	result.frameHeight = frameHeight;
-	
-	assert(strlen(fileName) < arrayCount(result.fileName));
-	strcpy(result.fileName, fileName);
+	result.assetId = id;
 
 	return result;
 }
@@ -532,7 +572,7 @@ bool validTexture(Texture* texture) {
 }
 
 RenderGroup* createRenderGroup(size_t size, MemoryArena* arena, double pixelsPerMeter, s32 windowWidth, s32 windowHeight, 
-								Camera* camera, Texture* textures, s32* texturesCount) {
+								Camera* camera, Texture* textures, s32* texturesCount, Assets* assets) {
 	RenderGroup* result = pushStruct(arena, RenderGroup);
 
 	result->allocated = 0;
@@ -550,15 +590,18 @@ RenderGroup* createRenderGroup(size_t size, MemoryArena* arena, double pixelsPer
 	result->camera = camera;
 	result->textures = textures;
 	result->texturesCount = texturesCount;
-	result->forwardShader = createForwardShader("shaders/forward.vert", "shaders/forward.frag", windowSize);
+
+	result->assets = assets;
+
+	result->forwardShader = createForwardShader(result, windowSize);
 
 	//TODO: This compiles basic.vert twice (maybe it can be re-used for both programs)
-	result->basicShader = createShader("shaders/basic.vert", "shaders/basic.frag", windowSize);
-	result->stencilShader = createShader("shaders/basic.vert", "shaders/stencil.frag", windowSize);
+	result->basicShader = createShader(result, Asset_basicVS, Asset_basicFS, windowSize);
+	result->stencilShader = createShader(result, Asset_basicVS, Asset_stencilFS, windowSize);
 
 	result->defaultClipRect = result->windowBounds;
 
-	result->whiteTex = loadPNGTexture(result, "white", false);
+	result->whiteTex = loadPNGTexture(result, Asset_white, false);
 
 	return result;
 }
@@ -1014,8 +1057,8 @@ void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, double rotatio
 	}
 }
 
-void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, bool flipY, DrawOrder drawOrder, bool moveIntoCameraSpace,
-	 		     Orientation orientation, Color color, float emissivity) {
+void pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, bool flipY, DrawOrder drawOrder, 
+				 bool moveIntoCameraSpace, Orientation orientation, Color color, float emissivity) {
 
 	assert(validTexture(texture));
 

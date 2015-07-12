@@ -215,7 +215,7 @@ void writeAnimation(FILE* file, Animation* anim) {
 		writeS32(file, anim->reverse);
 		writeS32(file, anim->frameWidth);
 		writeS32(file, anim->frameHeight);
-		writeString(file, anim->fileName);
+		writeS32(file, anim->assetId);
 	}
 }
 
@@ -574,14 +574,10 @@ Animation readAnimation(FILE* file, GameState* gameState) {
 		result.reverse = readS32(file);
 		result.frameWidth = readS32(file);
 		result.frameHeight = readS32(file);
-
-		char fileName[arrayCount(result.fileName)];
-		readString(file, fileName);
-
-		strcpy(result.fileName, fileName);
+		result.assetId = (AssetId)readS32(file);
 
 		s32 numFrames = 0;
-		result.frames = extractTextures(gameState->renderGroup, fileName, result.frameWidth, result.frameHeight, 0, &numFrames);
+		result.frames = extractTextures(gameState->renderGroup, result.assetId, result.frameWidth, result.frameHeight, 0, &numFrames);
 		assert(numFrames == result.numFrames);
 	}
 

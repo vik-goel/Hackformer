@@ -28,7 +28,7 @@ struct RefNode {
 	RefNode* next;
 };
 
-#define MAX_COLLISION_POINTS 50
+#define MAX_COLLISION_POINTS 15
 #define INVALID_STORED_HITBOX_ROTATION -9999999999.0
 
 struct Hitbox {

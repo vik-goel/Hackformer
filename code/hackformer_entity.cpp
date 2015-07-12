@@ -1840,49 +1840,16 @@ void addShrikeHitbox(Entity* entity, GameState* gameState) {
 	double halfHitboxHeight = hitboxHeight * 0.5;
 	Hitbox* hitbox = addHitbox(entity, gameState);
 	setHitboxSize(entity, hitbox, hitboxWidth * 1, hitboxHeight * 1);
-	hitbox->collisionPointsCount = 42;
-	hitbox->originalCollisionPoints[0] = v2(-0.815972 * halfHitboxWidth, -0.533854 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[1] = v2(-0.703125 * halfHitboxWidth, -0.533854 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[2] = v2(-0.577257 * halfHitboxWidth, -0.442708 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[3] = v2(-0.559896 * halfHitboxWidth, -0.190972 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[4] = v2(-0.190972 * halfHitboxWidth, -0.099826 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[5] = v2(-0.091146 * halfHitboxWidth, -0.212674 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[6] = v2(0.091146 * halfHitboxWidth, -0.212674 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[7] = v2(0.186632 * halfHitboxWidth, -0.104167 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[8] = v2(0.555556 * halfHitboxWidth, -0.190972 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[9] = v2(0.564236 * halfHitboxWidth, -0.407986 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[10] = v2(0.694444 * halfHitboxWidth, -0.529514 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[11] = v2(0.815972 * halfHitboxWidth, -0.529514 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[12] = v2(0.933160 * halfHitboxWidth, -0.425347 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[13] = v2(0.933160 * halfHitboxWidth, -0.086806 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[14] = v2(0.846354 * halfHitboxWidth, 0.047743 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[15] = v2(0.677083 * halfHitboxWidth, 0.047743 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[16] = v2(0.577257 * halfHitboxWidth, -0.026042 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[17] = v2(0.295139 * halfHitboxWidth, 0.043403 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[18] = v2(0.360243 * halfHitboxWidth, 0.195312 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[19] = v2(0.499132 * halfHitboxWidth, 0.143229 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[20] = v2(0.594618 * halfHitboxWidth, 0.208333 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[21] = v2(0.585937 * halfHitboxWidth, 0.316840 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[22] = v2(0.490451 * halfHitboxWidth, 0.347222 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[23] = v2(0.360243 * halfHitboxWidth, 0.316840 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[24] = v2(0.299479 * halfHitboxWidth, 0.447049 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[25] = v2(0.199653 * halfHitboxWidth, 0.559896 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[26] = v2(0.082465 * halfHitboxWidth, 0.698785 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[27] = v2(-0.073785 * halfHitboxWidth, 0.694444 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[28] = v2(-0.186632 * halfHitboxWidth, 0.559896 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[29] = v2(-0.308160 * halfHitboxWidth, 0.451389 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[30] = v2(-0.355903 * halfHitboxWidth, 0.303819 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[31] = v2(-0.512153 * halfHitboxWidth, 0.347222 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[32] = v2(-0.585938 * halfHitboxWidth, 0.290799 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[33] = v2(-0.585938 * halfHitboxWidth, 0.208333 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[34] = v2(-0.503472 * halfHitboxWidth, 0.164931 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[35] = v2(-0.364583 * halfHitboxWidth, 0.199653 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[36] = v2(-0.290799 * halfHitboxWidth, 0.047743 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[37] = v2(-0.585938 * halfHitboxWidth, -0.030382 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[38] = v2(-0.672743 * halfHitboxWidth, 0.056424 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[39] = v2(-0.837674 * halfHitboxWidth, 0.052083 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[40] = v2(-0.928819 * halfHitboxWidth, -0.065104 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[41] = v2(-0.933160 * halfHitboxWidth, -0.416667 * halfHitboxHeight);
+	hitbox->collisionPointsCount = 9;
+	hitbox->originalCollisionPoints[0] = v2(-0.933160 * halfHitboxWidth, -0.538194 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[1] = v2(-0.5551215 * halfHitboxWidth, -0.538194 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[2] = v2(-0.551215 * halfHitboxWidth, -0.212674 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[3] = v2(0.551215 * halfHitboxWidth, -0.195313 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[4] = v2(0.551215 * halfHitboxWidth, -0.538194 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[5] = v2(0.933160 * halfHitboxWidth, -0.538194 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[6] = v2(0.933160 * halfHitboxWidth, 0.039062 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[7] = v2(-0.00000 * halfHitboxWidth, 0.690104 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[8] = v2(-0.933160 * halfHitboxWidth, 0.030382 * halfHitboxHeight);
 }
 
 Entity* addShrikeBootUp(GameState* gameState, V2 p) {
@@ -2304,8 +2271,8 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 	bool killed = false;
 
 	if(killField) {
-		if(entity->type == EntityType_laserBeam ||
-			hitEntity->type == EntityType_virus
+		if(entity->type == EntityType_laserBeam 
+		   || hitEntity->type == EntityType_virus
 		   || hitEntity->type == EntityType_text
 		   || hitEntity->type == EntityType_flyingVirus 
 		   || hitEntity->type == EntityType_trawler
@@ -2338,6 +2305,9 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 
 					if(hitEntity->numFields != entity->numFields) {
 						removeHitEntity = hitEntity->numFields < entity->numFields;
+					}
+					else if(hitEntity->alpha != entity->alpha) {
+						removeHitEntity = hitEntity->alpha < entity->alpha;
 					}
 					else if(hitEntity->p.y != entity->p.y) {
 						removeHitEntity = hitEntity->p.y < entity->p.y;
@@ -3572,11 +3542,26 @@ Entity* updateSpotlightBasedOnSpotlightField(Entity* entity, GameState* gameStat
 
 	double lightAngle = getSpotLightAngle(entity);
 
-	V3 color = v3(1, 1, .9);
-	color *= (1 - entity->cloakFactor);
+	V3 lightColor = v3(1, 1, .9);
+	//color *= (1 - entity->cloakFactor);
 
-	SpotLight spotLight = createSpotLight(entity->p, color, sightRadius, lightAngle, fov);
-	pushSpotLight(gameState->renderGroup, &spotLight, true);
+	u8 r = (u8)(255 * lightColor.x);
+	u8 g = (u8)(255 * lightColor.y);
+	u8 b = (u8)(255 * lightColor.z);
+	u8 a = (u8)(50 * (1 - entity->cloakFactor));
+
+	Color color = createColor(r, g, b, a);
+
+	V2 boundsOffset = v2(0.5, 0) * sightRadius;
+	boundsOffset = rotate(boundsOffset, lightAngle);
+
+	R2 lightBounds = rectCenterDiameter(entity->p + boundsOffset, v2(1, 1) * sightRadius);
+
+	pushTexture(gameState->renderGroup, gameState->lightTriangle, lightBounds, lightAngle, false, false, DrawOrder_light,
+				true, color, 1);
+
+	//SpotLight spotLight = createSpotLight(entity->p, color, sightRadius, lightAngle, fov);
+	//pushSpotLight(gameState->renderGroup, &spotLight, true);
 
 	Entity* target = getClosestTargetInSight(entity, gameState, sightRadius, fov); 
 
@@ -4091,6 +4076,9 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 					move(entity, dt, gameState, ddP);
 				}
 
+				if(target) wantedSpotLightAngle = getDegrees(entity->p - target->p);
+				else wantedSpotLightAngle = getDegrees(entity->dP);
+
 				if(setStartPos) {
 					entity->startPos = entity->p;
 				}
@@ -4103,7 +4091,8 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 
 		if(gameState->screenType != ScreenType_pause && !defaultMove) {
 			if(movementField->type != ConsoleField_followsWaypoints &&
-			   movementField->type != ConsoleField_keyboardControlled) {
+			   movementField->type != ConsoleField_keyboardControlled &&
+			   movementField->type != ConsoleField_bodyguard) {
 				wantedSpotLightAngle = getDegrees(entity->dP);
 			}
 
@@ -4290,8 +4279,21 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						ConsoleField* radiusField = field->children[0];
 						double radius = getDoubleValue(radiusField);
 
-						PointLight light = createPointLight(v3(entity->p, 0), field->lightColor * (1 - entity->cloakFactor), radius);
-						pushPointLight(gameState->renderGroup, &light, true);
+						//PointLight light = createPointLight(v3(entity->p, 0), field->lightColor * (1 - entity->cloakFactor), radius);
+						//pushPointLight(gameState->renderGroup, &light, true);
+
+						Texture* circle = gameState->lightCircle;
+						R2 lightBounds = rectCenterRadius(entity->p, v2(1, 1) * radius);
+
+						V3 lightColor = field->lightColor;
+						u8 r = (u8)(255 * lightColor.x);
+						u8 g = (u8)(255 * lightColor.y);
+						u8 b = (u8)(255 * lightColor.z);
+						u8 a = (u8)(50 * (1 - entity->cloakFactor));
+
+						Color color = createColor(r, g, b, a);
+						pushTexture(gameState->renderGroup, circle, lightBounds, false, false, DrawOrder_light, true, 
+									Orientation_0, color, 1);
 					}
 				} break;
 			}

@@ -6,10 +6,12 @@
 
 #include <stdint.h>
 
+typedef uint64_t u64;
 typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t u8;
 
+typedef int64_t s64;
 typedef int32_t s32;
 typedef int16_t s16;
 typedef int8_t s8;
@@ -32,6 +34,7 @@ typedef int8_t bool8;
 #include "SDL_mixer.h"
 
 #include "hackformer_math.h"
+#include "hackformer_packBuilder.h"
 
 #define TEMP_PIXELS_PER_METER 70.0f
 #define TILE_WIDTH_IN_METERS 0.9f
@@ -116,6 +119,7 @@ enum DrawOrder {
 	DrawOrder_laserBolt,
 	DrawOrder_trojanBolt,
 	DrawOrder_motherShipProjectile,
+	DrawOrder_light,
 	DrawOrder_gui,
 };
 
@@ -129,20 +133,22 @@ enum TileType {
 
 struct TileData {
 	TileType type;
-	char* fileName;
+	AssetId regularId;
+	AssetId glowingId;
 	bool32 tall;
+	char* fileName;
 };
 
 
-#define TILE(type, filename, tall) {Tile_##type, filename, tall},
+#define TILE(type, assetName, tall, fileName) {Tile_##type, Asset_##assetName##Regular, Asset_##assetName##Glowing, tall, fileName},
 
 static TileData globalTileData[] {
-	TILE(disappear, "disappear", false)
-	TILE(heavy, "heavy", false)
-	TILE(corner, "corner_1", true)
-	TILE(middle, "middle_1", false)
-	TILE(top, "top_1", true)
-	TILE(top, "top_2", true)
+	TILE(disappear, disappear, false, "disappear")
+	TILE(heavy, heavy, false, "heavy")
+	TILE(corner, corner1, true, "corner_1")
+	TILE(middle, middle1, false, "middle_1")
+	TILE(top, top1, true, "top_1")
+	TILE(top, top2, true, "top_2")
 };
 
 #undef TILE
@@ -179,6 +185,21 @@ void* pushIntoArena_(MemoryArena* arena, size_t amt) {
 	assert(arena->allocated < arena->size);
 
 	return result;
+}
+
+struct Assets {
+	SDL_RWops* assetFileHandle;
+	s32 assetFileOffsets[Asset_count];
+	bool loaded[Asset_count];
+};
+
+void initAssets(Assets* assets) {
+	assets->assetFileHandle = SDL_RWFromFile("assets.bin", "rb");
+	assert(assets->assetFileHandle);
+	
+	for(s32 assetIndex = 1; assetIndex < Asset_count; assetIndex++) {
+		SDL_RWread(assets->assetFileHandle, assets->assetFileOffsets + assetIndex, sizeof(s32), 1);
+	}
 }
 
 struct Key {
@@ -635,8 +656,8 @@ enum BackgroundType {
 };
 
 struct BackgroundTexture {
-	char* bgTexPath;
-	char* mgTexPath;
+	AssetId bgId;
+	AssetId mgId;
 
 	Texture* bg;
 	Texture* mg;
@@ -647,9 +668,9 @@ struct BackgroundTextures {
 	BackgroundTexture textures[Background_count];
 };
 
-void initBackgroundTexture(BackgroundTexture* texture, char* bgTexPath, char* mgTexPath) {
-	texture->bgTexPath = bgTexPath;
-	texture->mgTexPath = mgTexPath;
+void initBackgroundTexture(BackgroundTexture* texture, AssetId bgId, AssetId mgId) {
+	texture->bgId = bgId;
+	texture->mgId = mgId;
 
 	texture->bg = NULL;
 	texture->mg = NULL;
@@ -658,22 +679,22 @@ void initBackgroundTexture(BackgroundTexture* texture, char* bgTexPath, char* mg
 void initBackgroundTextures(BackgroundTextures* bgTextures) {
 	BackgroundTexture* bt = bgTextures->textures;
 
-	initBackgroundTexture(bt + Background_marine, "backgrounds/marine_city_bg", "backgrounds/marine_city_mg");
-	initBackgroundTexture(bt + Background_sunset, "backgrounds/sunset_city_bg", "backgrounds/sunset_city_mg");
+	initBackgroundTexture(bt + Background_marine, Asset_marineCityBg, Asset_marineCityMg);
+	initBackgroundTexture(bt + Background_sunset, Asset_sunsetCityBg, Asset_sunsetCityMg);
 }
 
 struct RenderGroup;
-Texture* loadPNGTexture(RenderGroup*, char*, bool = false);
+Texture* loadPNGTexture(RenderGroup*, AssetId, bool = false);
 
 void setBackgroundTexture(BackgroundTextures* bgTextures, BackgroundType type, RenderGroup* group) {
 	BackgroundTexture* bt = bgTextures->textures + type;
 
 	if(!bt->bg) {
-		bt->bg = loadPNGTexture(group, bt->bgTexPath);
+		bt->bg = loadPNGTexture(group, bt->bgId);
 	}
 
 	if(!bt->mg) {
-		bt->mg = loadPNGTexture(group, bt->mgTexPath);
+		bt->mg = loadPNGTexture(group, bt->mgId);
 	}
 
 	bgTextures->curBackgroundType = type;

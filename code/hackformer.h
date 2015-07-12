@@ -82,7 +82,7 @@ struct Input;
 #define DRAW_ENTITIES 1
 #define PLAY_MUSIC 1
 #define SHOW_MAIN_MENU 0
-#define ENABLE_LIGHTING 1
+#define ENABLE_LIGHTING 0
 #define DRAW_BACKGROUND 1
 #define DRAW_DOCK 1
 
@@ -163,6 +163,9 @@ struct Music {
 };
 
 struct MusicState {
+	Assets* assets;
+	MemoryArena* arena;
+
 	Music menuMusic;
 	Music gameMusic;
 };
@@ -223,6 +226,7 @@ struct GameState {
 	MemoryArena levelStorage;
 	MemoryArena hackSaveStorage;
 
+	Assets assets;
 	RenderGroup* renderGroup;
 	TTF_Font* textFont;
 
@@ -320,6 +324,8 @@ struct GameState {
 	double collisionBoundsAlpha;
 
 	Texture* lights[2];
+	Texture* lightCircle;
+	Texture* lightTriangle;
 };
 
 
