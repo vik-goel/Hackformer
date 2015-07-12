@@ -166,22 +166,6 @@ bool toggleEntityFacingDirection(Entity* entity, GameState* gameState) {
 
 	toggleFlags(entity, EntityFlag_facesLeft);
 
-	// V2 delta = v2(0.0025, 0);
-	// GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, delta, false);
-
-	// if(collisionResult.solidEntity) {
-	// 	toggleFlags(entity, EntityFlag_facesLeft);
-	// 	return false;
-	// }
-
-	// delta = v2(0, -0.0025);
-	// collisionResult = getCollisionTime(entity, gameState, delta, false);
-
-	// if(collisionResult.solidEntity) {
-	// 	toggleFlags(entity, EntityFlag_facesLeft);
-	// 	return false;
-	// }
-
 	return true;
 }
 
@@ -204,7 +188,6 @@ RefNode* refNode(GameState* gameState, s32 ref, RefNode* next) {
 	}
 
 	assert(result);
-	assert(result->ref != ref);
 
 	result->next = next;
 	result->ref = ref;
@@ -537,10 +520,8 @@ void addGroundReference(Entity* top, Entity* ground, GameState* gameState, bool 
 bool createsPickupFieldsOnDeath(Entity* entity) {
 	bool result = true;
 
-	//NOTE: This is just a hack to make the player death system work
-	//		Though the player should never make pickup fields because the level
-	//		should always end when the player is removed anyways
-	if(entity->type == EntityType_player) result = false;
+	if(entity->type == EntityType_player ||
+	   entity->type == EntityType_pickupField) result = false;
 
 	return result;
 }
@@ -588,7 +569,7 @@ void freeEntityDuringLevel(Entity* entity, GameState* gameState, bool createdThi
 			if(field) {
 				bool createField = !hasValues(field);
 				createField &= field->type != ConsoleField_givesEnergy;
-				createField &= !(entity->type == EntityType_hackEnergy && field->type == ConsoleField_bobsVertically);
+				//createField &= !(entity->type == EntityType_hackEnergy && field->type == ConsoleField_bobsVertically);
 
 				if(createField) {
 					Entity* pickupField = addPickupField(gameState, entity, field);
@@ -1470,7 +1451,6 @@ void initProjectile(Entity* entity, V2 target, s32 shooterRef, double speed, Tex
 	setFlags(entity, EntityFlag_removeWhenOutsideLevel|
 					 EntityFlag_hackable);
 
-	addField(entity, createBoolField(gameState, "hurts_entities", true, 2));
 	addField(entity, createConsoleField(gameState, "kills_enemies", ConsoleField_killsOnHit, 10));
 
 	entity->defaultTex = texture;
@@ -1988,7 +1968,7 @@ bool32 isPickupFieldSolid(Entity* pickupField) {
 	return solid;
 }
 
-bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
+bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState, bool penetrationTest) {
 	bool result = true;
 
 	switch(a->type) {
@@ -2044,8 +2024,9 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState) {
 			  (isNonHeavyTile(b) && getMovementField(b) == NULL)) result = true;
 
 			if( b->type == EntityType_laserBeam || 
-				isProjectile(b
-					)) result = false;
+				isProjectile(b)) result = false;
+
+			if(b->type == EntityType_pickupField && !penetrationTest) result = true;
 		} break;
 
 		default:
@@ -2077,12 +2058,12 @@ bool isIgnoringPenetration(Entity* a, Entity* b) {
 	return result;
 }
 
-bool collidesWith(Entity* a, Entity* b, GameState* gameState) {
+bool collidesWith(Entity* a, Entity* b, GameState* gameState, bool penetrationTest = false) {
 	bool result = !isSet(a, EntityFlag_remove) && !isSet(b, EntityFlag_remove);
 
 	result &= !isIgnoringPenetration(a, b);
-	result &= collidesWithRaw(a, b, gameState);
-	result &= collidesWithRaw(b, a, gameState);
+	result &= collidesWithRaw(a, b, gameState, penetrationTest);
+	result &= collidesWithRaw(b, a, gameState, penetrationTest);
 
 	return result;
 }
@@ -2351,6 +2332,27 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 				entity->numFields--;
 				setFlags(entity, EntityFlag_remove);
 			}
+			else if(hitEntity->type == EntityType_pickupField) {
+				if(hitEntity->fields[0]->type == entity->fields[0]->type) {
+					bool removeHitEntity = false;
+
+					if(hitEntity->numFields != entity->numFields) {
+						removeHitEntity = hitEntity->numFields < entity->numFields;
+					}
+					else if(hitEntity->p.y != entity->p.y) {
+						removeHitEntity = hitEntity->p.y < entity->p.y;
+					}
+					else {
+						removeHitEntity = hitEntity->ref < entity->ref;
+					}
+
+					if(removeHitEntity) {
+						setFlags(hitEntity, EntityFlag_remove);	
+					} else {
+						setFlags(entity, EntityFlag_remove);
+					}
+				}
+			}
 		} break;
 
 		case EntityType_hackEnergy: {
@@ -2381,10 +2383,10 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 
 	}
 
-	if(!killed && killField && isSet(entity, EntityFlag_remove)) {
-		setFlags(killField, ConsoleFlag_remove);
-		removeFieldsIfSet(entity->fields, &entity->numFields);
-	}
+	// if(!killed && killField && isSet(entity, EntityFlag_remove)) {
+	// 	setFlags(killField, ConsoleFlag_remove);
+	// 	removeFieldsIfSet(entity->fields, &entity->numFields);
+	// }
 
 	if(getField(entity, ConsoleField_crushesEntities)) {
 		if(!(*solid)) {
@@ -2670,7 +2672,7 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 					for (s32 colliderIndex = 0; colliderIndex < chunk->numRefs; colliderIndex++) {
 						Entity* collider = getEntityByRef(gameState, chunk->entityRefs[colliderIndex]);
 						
-						if (collider && collider != entity && collidesWith(entity, collider, gameState)) {
+						if (collider && collider != entity && collidesWith(entity, collider, gameState, ignorePenetratingEntities)) {
 							bool solidCollision = isSolidCollision(entity, collider, gameState, actuallyMoving);
 
 							Hitbox* colliderHitboxList = collider->hitboxes;
@@ -4051,8 +4053,8 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 				double targetDst;
 				Entity* target = getClosestGuardTarget(entity, gameState, &targetDst);
 
-				double transitionDst = 2;
-				double maxDst = 3;
+				double transitionDst = 3;
+				double maxDst = 4;
 
 				if(target && targetDst > maxDst) {
 					//go to target
@@ -4084,7 +4086,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 						movement += toTarget;
 					}
 
-					ddP = normalize(movement) * xMoveAcceleration;
+					ddP = normalize(movement) * xMoveAcceleration * 2;
 
 					move(entity, dt, gameState, ddP);
 				}
@@ -4510,18 +4512,18 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		}
 
 		if (!insideLevel) {
-			bool removeFields = false;
+			// bool removeFields = false;
 
-			for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
-				ConsoleField* field = entity->fields[fieldIndex];
+			// for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
+			// 	ConsoleField* field = entity->fields[fieldIndex];
 
-				if(field->type == ConsoleField_killsOnHit || field->type == ConsoleField_givesEnergy) {
-					removeFields = true;
-					setFlags(field, ConsoleFlag_remove);
-				}
-			}
+			// 	if(field->type == ConsoleField_killsOnHit || field->type == ConsoleField_givesEnergy) {
+			// 		removeFields = true;
+			// 		setFlags(field, ConsoleFlag_remove);
+			// 	}
+			// }
 
-			if(removeFields) removeFieldsIfSet(entity->fields, &entity->numFields);
+			// if(removeFields) removeFieldsIfSet(entity->fields, &entity->numFields);
 
 			setFlags(entity, EntityFlag_remove);
 		}
@@ -4646,6 +4648,17 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 
 			case EntityType_pickupField: {
+				double secondsToFadeOut = 10;
+				double fadePerSecond = 1.0 / secondsToFadeOut;
+				double fade = dt * fadePerSecond;
+
+				entity->alpha -= fade;
+
+				if(entity->alpha <= 0) {
+					entity->alpha = 0;
+					setFlags(entity, EntityFlag_remove);
+				}
+
 				//NOTE: If the pickupField has been removed and the field is transferred to the swap field
 				//		then it will have 1 field (the solid field)
 				if(entity->numFields >= 1 && !isSet(entity, EntityFlag_remove)) {
@@ -4658,7 +4671,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 					if(gameState->consoleEntityRef != entity->ref) {
 						entity->fields[0]->p = entity->p;
-						pushConsoleField(gameState->renderGroup, &gameState->fieldSpec, entity->fields[0]);
+						pushConsoleField(gameState->renderGroup, &gameState->fieldSpec, entity->fields[0], entity->alpha);
 					}
 				}
 			} break;

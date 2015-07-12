@@ -215,7 +215,13 @@ R2 getRenderBounds(Entity* entity, GameState* gameState) {
 V2 getBottomFieldP(Entity* entity, GameState* gameState, FieldSpec* spec) {
 	R2 renderBounds = getRenderBounds(entity, gameState);
 
-	V2 fieldOffset = v2(spec->fieldSize.x * 0.75, 0);
+	V2 fieldOffset;
+
+	if(entity->type == EntityType_pickupField) {
+		fieldOffset = v2(0, 0);
+	} else {
+		fieldOffset = v2(spec->fieldSize.x * 0.75, 0);
+	}
 
 	V2 result = fieldOffset + getRectCenter(renderBounds);
 	return result;
@@ -1146,8 +1152,6 @@ bool drawEntityConsoleFields(Entity* entity, FieldSpec* spec, GameState* gameSta
 			entity->fields[fieldIndex]->alpha = 1;
 		}
 
-
-		fieldP.x += spec->fieldSize.x * 0.5 + spec->triangleSize.x + spec->spacing.x * 3;
 		if (drawFields(gameState, entity, 0, dt, &fieldP, spec, fadeOut)) clickHandled = true;
 
 		for(s32 fieldIndex = entity->numFields - 1; fieldIndex >= 1; fieldIndex--) {

@@ -175,6 +175,7 @@ struct ConsoleField;
 
 struct RenderConsoleField {
 	ConsoleField* field;
+	double alpha;
 };
 
 struct RenderDashedLine {

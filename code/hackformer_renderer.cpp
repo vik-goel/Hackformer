@@ -841,12 +841,12 @@ void drawDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd,
 }
 
 #ifdef HACKFORMER_GAME
-void renderDrawConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field) {
+void renderDrawConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field, double alpha) {
 	field->p -= group->camera->p;
-	double alpha = field->alpha;
-	field->alpha = 1;
-	drawConsoleField(field, group, NULL, fieldSpec, false, true, NULL);
+	double oldAlpha = field->alpha;
 	field->alpha = alpha;
+	drawConsoleField(field, group, NULL, fieldSpec, false, true, NULL);
+	field->alpha = oldAlpha;
 	field->p += group->camera->p;
 }
 #endif
@@ -929,16 +929,17 @@ RenderTexture createRenderTexture(DrawOrder drawOrder, Texture* texture, bool fl
 
 #ifdef HACKFORMER_GAME
 //TODO: Cull console fields which are not currently visible
-void pushConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field) {
+void pushConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field, double alpha) {
 	assert(field);
 
 	if(group->rendering) {
-		renderDrawConsoleField(group, fieldSpec, field);
+		renderDrawConsoleField(group, fieldSpec, field, alpha);
 	} else {
 		RenderConsoleField* render = pushRenderElement(group, RenderConsoleField);
 
 		if(render) {
 			render->field = field;
+			render->alpha = alpha;
 		}
 	}
 } 
@@ -1325,7 +1326,7 @@ size_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, G
 
 		#ifdef HACKFORMER_GAME
 		START_CASE(RenderConsoleField);
-			renderDrawConsoleField(group, fieldSpec, render->field);
+			renderDrawConsoleField(group, fieldSpec, render->field, render->alpha);
 		END_CASE;
 		#endif
 
