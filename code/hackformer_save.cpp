@@ -275,6 +275,7 @@ void saveGame(GameState* gameState, char* fileName) {
 	writeS32(file, gameState->refCount_);
 	writeCamera(file, &gameState->camera);
 	writeRefNode(file, gameState->targetRefs);
+	writeRefNode(file, gameState->guardTargetRefs);
 	writeS32(file, gameState->consoleEntityRef);
 	writeRefNode(file, gameState->fadingOutConsoles);
 	writeS32(file, gameState->playerRef);
@@ -626,6 +627,7 @@ void loadGame(GameState* gameState, char* fileName) {
 	gameState->camera = readCamera(file);
 	
 	gameState->targetRefs = readRefNode(file, gameState);
+	gameState->guardTargetRefs = readRefNode(file, gameState);
 	gameState->consoleEntityRef = readS32(file);
 	gameState->fadingOutConsoles = readRefNode(file, gameState);
 	gameState->playerRef = readS32(file);
@@ -666,6 +668,25 @@ void loadGame(GameState* gameState, char* fileName) {
 	}
 
 	fclose(file);
+}
+
+void saveRefNodeToArena(MemoryArena* arena, RefNode* refNode) {
+	RefNode* node = refNode;
+	s32 count = 0;
+
+	while(node) {
+		count++;
+		node = node->next;
+	}
+
+	pushElem(arena, s32, count);
+
+	node = refNode;
+
+	while(node) {
+		pushElem(arena, s32, node->ref);
+		node = node->next;
+	}
 }
 
 void saveConsoleFieldToArena(MemoryArena* arena, ConsoleField* field) {
@@ -728,17 +749,7 @@ void saveConsoleFieldToArena(MemoryArena* arena, ConsoleField* field) {
 		}
 		else if(save->type == ConsoleField_spawnsTrawlers) {
 			pushElem(arena, double, field->spawnTimer);
-			s32 nodeCount = 0;
-
-			for (RefNode* node = field->spawnedEntities; node; node = node->next) {
-				nodeCount++;
-			}
-
-			pushElem(arena, s32, nodeCount);
-
-			for (RefNode* node = field->spawnedEntities; node; node = node->next) {
-				pushElem(arena, s32, node->ref);
-			}
+			saveRefNodeToArena(arena, field->spawnedEntities);
 		} else if(save->type == ConsoleField_light) {
 			pushElem(arena, V3, field->lightColor);
 		} else if(save->type == ConsoleField_scansForTargets) {
@@ -842,21 +853,8 @@ void updateSaveGameToArena(GameState* gameState) {
 
 	saveConsoleFieldToArena(arena, gameState->swapField);
 
-	RefNode* targetNode = gameState->targetRefs;
-	s32 targetNodeCount = 0;
-
-	while(targetNode) {
-		targetNodeCount++;
-		targetNode = targetNode->next;
-	}
-	pushElem(arena, s32, targetNodeCount);
-
-	targetNode = gameState->targetRefs;
-
-	while(targetNode) {
-		pushElem(arena, s32, targetNode->ref);
-		targetNode = targetNode->next;
-	}
+	saveRefNodeToArena(arena, gameState->targetRefs);
+	saveRefNodeToArena(arena, gameState->guardTargetRefs);
 
 	pushElem(arena, s32, gameState->numEntities);
 
@@ -896,26 +894,34 @@ void saveGameToArena(GameState* gameState) {
 
 #define readElemPtr(readPtr, type) (type*)(readPtr); (readPtr) = (type*)(readPtr) + 1
 #define readElem(readPtr, type) *readElemPtr((readPtr), type)
-
 ;
+
+void readRefNodeFromArena(GameState* gameState, RefNode** nodePtr, void** readPtr) {
+	if(*nodePtr) {
+		freeRefNode(*nodePtr, gameState);
+		*nodePtr = NULL;
+	}
+
+	s32 targetRefsCount = readElem(*readPtr, s32);
+	for(s32 targetRefIndex = 0; targetRefIndex < targetRefsCount; targetRefIndex++) {
+		s32 ref = readElem(*readPtr, s32);
+		*nodePtr = refNode(gameState, ref, *nodePtr);
+	}
+}
+
 void readConsoleFieldFromArena(void** readPtr, ConsoleField** fieldPtr, GameState* gameState) {
 	if(**(s32**)readPtr >= 0) {
 		ConsoleField* field = *fieldPtr;
 
-		if(!field) {
+		s32 originalChildrenCount = 0;
+
+		if(field) {
+			originalChildrenCount = field->numChildren;
+			freeConsoleField_(field, gameState);
+		}
+		else {
 			*fieldPtr = createConsoleField_(gameState);
 			field = *fieldPtr;
-		}
-
-		s32 originalChildrenCount = field->numChildren;
-
-		if(field->type == ConsoleField_followsWaypoints) {
-			freeWaypoints(field->curWaypoint, gameState);
-			field->curWaypoint = NULL;
-		}
-		else if(field->type == ConsoleField_spawnsTrawlers) {
-			freeRefNode(field->spawnedEntities, gameState);
-			field->spawnedEntities = NULL;
 		}
 
 		ConsoleFieldHackSave* save = readElemPtr(*readPtr, ConsoleFieldHackSave);
@@ -982,13 +988,7 @@ void readConsoleFieldFromArena(void** readPtr, ConsoleField** fieldPtr, GameStat
 		}
 		else if(field->type == ConsoleField_spawnsTrawlers) {
 			field->spawnTimer = readElem(*readPtr, double);
-
-			s32 nodeCount = readElem(*readPtr, s32);
-
-			for(s32 nodeIndex = 0; nodeIndex < nodeCount; nodeIndex++) {
-				s32 ref = readElem(*readPtr, s32);
-				field->spawnedEntities = refNode(gameState, ref, field->spawnedEntities);
-			}
+			readRefNodeFromArena(gameState, &field->spawnedEntities, readPtr); 
 		}
 		else if(field->type == ConsoleField_light) {
 			field->lightColor = readElem(*readPtr, V3);
@@ -1049,17 +1049,8 @@ void readGameFromArena(GameState* gameState, void* readPtr) {
 	gameState->gravityField->selectedIndex = readElem(readPtr, s32); 
 	readConsoleFieldFromArena(&readPtr, &gameState->swapField, gameState);
 
-	if(gameState->targetRefs) {
-		freeRefNode(gameState->targetRefs, gameState);
-		gameState->targetRefs = NULL;
-	}
-
-	s32 targetRefsCount = readElem(readPtr, s32);
-	for(s32 targetRefIndex = 0; targetRefIndex < targetRefsCount; targetRefIndex++) {
-		s32 ref = readElem(readPtr, s32);
-		gameState->targetRefs = refNode(gameState, ref, gameState->targetRefs);
-	}
-	
+	readRefNodeFromArena(gameState, &gameState->targetRefs, &readPtr);
+	readRefNodeFromArena(gameState, &gameState->guardTargetRefs, &readPtr);
 
 	s32 numEntities = readElem(readPtr, s32);
 	assert(numEntities == gameState->numEntities);

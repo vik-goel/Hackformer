@@ -204,6 +204,7 @@ RefNode* refNode(GameState* gameState, s32 ref, RefNode* next) {
 	}
 
 	assert(result);
+	assert(result->ref != ref);
 
 	result->next = next;
 	result->ref = ref;
@@ -3424,9 +3425,7 @@ Entity* getClosestTarget(Entity* entity, GameState* gameState, double* targetDst
 	Entity* result = NULL;
 	double minDstSq = 99999999999;
 
-	RefNode* node = gameState->targetRefs;
-
-	while(node) {
+	for(RefNode* node = gameState->targetRefs; node; node = node->next) {
 		Entity* testTarget = getEntityByRef(gameState, node->ref);
 
 		if(isValidTarget(entity, testTarget, gameState)) {
@@ -3437,8 +3436,6 @@ Entity* getClosestTarget(Entity* entity, GameState* gameState, double* targetDst
 				result = testTarget;
 			}
 		}
-
-		node = node->next;
 	}
 
 	*targetDst = minDstSq;
@@ -4357,7 +4354,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		s32 remainingTrawlers = 0;
 		s32 remainingShrikes = 0;
 
-		if(!gameState->doingInitialSim && target) {
+		if(!gameState->doingInitialSim && target && dt > 0) {
 			if(spawnTrawlersField) {
 				remainingTrawlers = isSpawnPossible(spawnTrawlersField, entity, gameState, true);
 			}

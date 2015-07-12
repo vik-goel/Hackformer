@@ -1,22 +1,27 @@
-void freeConsoleField(ConsoleField* field, GameState* gameState) {
-	// if (field->next) {
-	// 	freeConsoleField(field->next, gameState);
-	// 	field->next = NULL;
-	// }
-
-	//NOTE: Since the next pointer is only used in the free list and consoles in the free list should
-	//		never be freed again, the next pointer should be null. 
-	assert(!field->next);
-
+void freeConsoleField_(ConsoleField* field, GameState* gameState) {
 	if(field->type == ConsoleField_followsWaypoints && field->curWaypoint) {
 		freeWaypoints(field->curWaypoint, gameState);
 		field->curWaypoint = NULL;
 	}
+	else if(field->type == ConsoleField_spawnsTrawlers || field->type == ConsoleField_spawnsShrikes) {
+		freeRefNode(field->spawnedEntities, gameState);
+		field->spawnedEntities = NULL;
+	}
+}
+
+void freeConsoleField(ConsoleField* field, GameState* gameState) {
+	//NOTE: Since the next pointer is only used in the free list and consoles in the free list should
+	//		never be freed again, the next pointer should be null. 
+	assert(!field->next);
+
+	freeConsoleField_(field, gameState);
 
 	for (s32 childIndex = 0; childIndex < field->numChildren; childIndex++) {
 		freeConsoleField(field->children[childIndex], gameState);
 		field->children[childIndex] = NULL;
 	}
+
+	field->numChildren = 0;
 
 	field->next = gameState->consoleFreeList;
 	gameState->consoleFreeList = field;
@@ -27,10 +32,13 @@ ConsoleField* createConsoleField_(GameState* gameState) {
 
 	if (gameState->consoleFreeList) {
 		result = gameState->consoleFreeList;
-		gameState->consoleFreeList = gameState->consoleFreeList->next;
+		gameState->consoleFreeList = result->next;
 	} else {
 		result = pushStruct(&gameState->levelStorage, ConsoleField);
 	}
+
+	result->next = NULL;
+	result->numChildren = 0;
 
 	return result;
 }
@@ -231,6 +239,7 @@ void onAddConsoleFieldToEntity(Entity* entity, ConsoleField* field, bool exchang
 			field->shootTimer = 0;
 		} break;
 
+		case ConsoleField_spawnsShrikes:
 		case ConsoleField_spawnsTrawlers: {
 			for(RefNode* node = field->spawnedEntities; node; node = node->next) {
 				Entity* spawned = getEntityByRef(gameState, node->ref);
