@@ -101,19 +101,6 @@ void writeConsoleField(FILE* file, ConsoleField* field) {
 	}
 }
 
-void writeMessages(FILE* file, Messages* messages) {
-	if(messages) {
-		writeS32(file, messages->count);
-		writeS32(file, messages->selectedIndex);
-
-		for(s32 textIndex = 0; textIndex <= messages->count; textIndex++) {
-			writeString(file, messages->text[textIndex]);
-		}
-	} else {
-		writeS32(file, -1);
-	}
-}
-
 void writeTexture(FILE* file, Texture* texture, GameState* gameState) {
 	if(texture) {
 		s32 dataIndex = ((size_t)texture - (size_t)gameState->textures) / sizeof(Texture);
@@ -410,25 +397,6 @@ ConsoleField* readConsoleField(FILE* file, GameState* gameState) {
 	return field;
 }
 
-Messages* readMessages(FILE* file, GameState* gameState) {
-	Messages* result = NULL;
-
-	s32 count = readS32(file);
-
-	if(count >= 0) {
-		s32 selectedIndex = readS32(file);
-		char text[10][100];
-
-		for(s32 textIndex = 0; textIndex <= count; textIndex++) {
-			readString(file, text[textIndex]);
-		}
-
-		result = createMessages(gameState, text, count, selectedIndex);
-	}
-
-	return result;
-}
-
 Texture* readTexture(FILE* file, GameState* gameState) {
 	Texture* result = NULL;
 
@@ -538,7 +506,7 @@ void readEntity(FILE* file, GameState* gameState, s32 entityIndex) {
 	entity->jumpCount = readS32(file);
 	entity->timeSinceLastOnGround = readDouble(file);
 
-	entity->messages = readMessages(file, gameState);
+	entity->messages = readMessages(file, &gameState->levelStorage, &gameState->messagesFreeList);
 
 	entity->animTime = readDouble(file);
 	entity->currentAnim = readAnimNode(file, gameState);

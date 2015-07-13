@@ -2,29 +2,17 @@
 
 Clean Up
 ---------
-- Free the tile texture atlas when loading a new level
-- clean up text entity, texture memory
-
-- Better loading in of entities from the tmx file
-
-- re-enable laser bolt player, collision
-
-
-Bug Fixes
-----------
-- Fix flickering bug (need proper subpixel accuracy when blitting sprites)
-- Fix entity position on bigger screen sizes (when loading in from .tmx)
-- when patrolling change all of the hitboxes, not just the first one
+- re-enable projectile player, collision
+- set metersToPixels dynamically based on screen resolution
 - test remove when outside level to see that it works
-
 - Heavy tiles should be able to smash entities into the ceiling
+- Clean up moving to first waypoint if not currently on the path
 
 New Features
 -------------
 - locking fields so they can't be moved
 - locking fields so they can't be modified
 
-- Fade console fields in and out
 - Multiline text
 - use a priority queue to process path requests
 - Trail effect on death
@@ -48,18 +36,10 @@ STEALTH
 - Enemies react to noises that they hear
 - Enemies can alert other enemies
 
-Waypoint following
-	-Add waypoints
-	-Delete waypoints
-	-Move around waypoints
-	-Clean up moving to first waypoint if not currently on the path
-
-
 Editor
 -------
 - Adding text
 - Setting the height of a laser controller
-- Setting and moving around waypoints
 - Displaying backgrounds at different zoom levels
 
 */

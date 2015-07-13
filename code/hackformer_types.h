@@ -231,6 +231,7 @@ struct Input {
 			Key h;
 			Key j;
 			Key k;
+			Key t;
 			Key ctrl;
 			Key shift;
 			Key esc;
@@ -290,6 +291,7 @@ void initInputKeyCodes(Input* input) {
 	input->h.keyCode1 = SDLK_h;
 	input->j.keyCode1 = SDLK_j;
 	input->k.keyCode1 = SDLK_k;
+	input->t.keyCode1 = SDLK_t;
 
 	input->esc.keyCode1 = SDLK_ESCAPE;
 
@@ -398,179 +400,6 @@ bool controlZJustPressed(Input* input) {
 	return result;
 }
 
-void writeS32(FILE* file, s32 value) {
-	#ifdef SAVE_BINARY
-		size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
-		assert(numElementsWritten == 1);
-	#else
-		fprintf(file, "%d ", value);
-	#endif
-}
-
-void writeSize_t(FILE* file, size_t value) {
-	#ifdef SAVE_BINARY
-		size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
-		assert(numElementsWritten == 1);
-	#else
-		fprintf(file, "%u ", value);
-	#endif
-}
-
-
-void writeU32(FILE* file, u32 value) {
-	#ifdef SAVE_BINARY
-		size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
-		assert(numElementsWritten == 1);
-	#else
-		fprintf(file, "%u ", value);
-	#endif
-}
-
-void writeDouble(FILE* file, double value) {
-	#ifdef SAVE_BINARY
-		size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
-		assert(numElementsWritten == 1);
-	#else
-		fprintf(file, "%f ", value);
-	#endif
-}
-
-void writeString(FILE* file, char* value) {
-	#ifdef SAVE_BINARY
-		s32 len = strlen(value);
-		writeS32(file, len);
-		size_t numElementsWritten = fwrite(value, sizeof(char), len, file);
-		assert(numElementsWritten == len);
-	#else
-		fprintf(file, " \"");
-		fprintf(file, value);
-		fprintf(file, "\" ");
-	#endif
-}
-
-void writeV2(FILE* file, V2 value) {
-	writeDouble(file, value.x);
-	writeDouble(file, value.y);
-}
-
-void writeV3(FILE* file, V3 value) {
-	writeDouble(file, value.x);
-	writeDouble(file, value.y);
-	writeDouble(file, value.z);
-}
-
-void writeR2(FILE* file, R2 value) {
-	writeV2(file, value.min);
-	writeV2(file, value.max);
-}
-
-s32 readS32(FILE* file) {
-	s32 result = 0;
-
-	#ifdef SAVE_BINARY
-		size_t numElementsRead = fread(&result, sizeof(result), 1, file);
-		assert(numElementsRead == 1);
-	#else
-		fscanf (file, "%d", &result);
-	#endif
-
-	return result;  
-}
-
-size_t readSize_t(FILE* file) {
-	size_t result = 0;
-
-	#ifdef SAVE_BINARY
-		size_t numElementsRead = fread(&result, sizeof(result), 1, file);
-		assert(numElementsRead == 1);
-	#else
-		fscanf (file, "%u", &result);
-	#endif
-
-	return result;  
-}
-
-u32 readU32(FILE* file) {
-	u32 result = 0;
-
-	#ifdef SAVE_BINARY
-		size_t numElementsRead = fread(&result, sizeof(result), 1, file);
-		assert(numElementsRead == 1);
-	#else
-		fscanf (file, "%u", &result);
-	#endif
-
-	return result;  
-}
-
-double readDouble(FILE* file) {
-	double result = 0;
-
-	#ifdef SAVE_BINARY
-		size_t numElementsRead = fread(&result, sizeof(result), 1, file);
-		assert(numElementsRead == 1);
-	#else
-		fscanf (file, "%lf", &result);
-	#endif
-
-	return result;  
-}
-
-void readString(FILE* file, char* buffer) {
-	#ifdef SAVE_BINARY
-		s32 len = readS32(file);
-		size_t numElementsRead = fread(buffer, sizeof(char), len, file);
-		assert(numElementsRead == len);
-		buffer[len] = 0;
-	#else
-		char tempBuffer[1024];
-		s32 offset = 0;
-		bool32 firstWord = true;
-
-		while(true) {
-			fscanf (file, "%s", tempBuffer);
-
-			s32 strSize = strlen(tempBuffer) - 2; //-2 for the ""
-			memcpy(buffer + offset, tempBuffer + firstWord, strSize);
-
-			offset += strSize;
-			firstWord = false;
-
-			if(tempBuffer[strSize + 1] == '\"') {
-				break;
-			}
-			else {
-				buffer[offset++] = tempBuffer[strSize + 1];
-				buffer[offset++] = ' ';
-			}
-		}
-
-		buffer[offset] = 0;
-	#endif
-}
-
-V2 readV2(FILE* file) {
-	V2 result = {};
-	result.x = readDouble(file);
-	result.y = readDouble(file);
-	return result;
-}
-
-V3 readV3(FILE* file) {
-	V3 result = {};
-	result.x = readDouble(file);
-	result.y = readDouble(file);
-	result.z = readDouble(file);
-	return result;
-}
-
-R2 readR2(FILE* file) {
-	R2 result = {};
-	result.min = readV2(file);
-	result.max = readV2(file);
-	return result;
-}
-
 SDL_Window* createWindow(s32 windowWidth, s32 windowHeight) {
 	//TODO: Proper error handling if any of these libraries does not load
 	//TODO: Only initialize what is needed
@@ -660,6 +489,24 @@ struct BackgroundTextures {
 	BackgroundType curBackgroundType;
 	BackgroundTexture textures[Background_count];
 };
+
+struct Messages {
+	s32 count;
+	s32 selectedIndex;
+	char text[10][100];
+	Texture textures[10];
+
+	//NOTE: This is currently used for the free list
+	//TODO: This could be used to support having more than 10 messages
+	Messages* next;
+};
+
+TTF_Font* loadFont(struct RenderGroup* group, AssetId id, s32 fontSize, MemoryArena* arena);
+TTF_Font* loadTextFont(struct RenderGroup* group, MemoryArena* arena) {
+	TTF_Font* result = loadFont(group, Asset_entityFont, 64, arena);
+	assert(result);
+	return result;
+}
 
 void initBackgroundTexture(BackgroundTexture* texture, AssetId bgId, AssetId mgId) {
 	texture->bgId = bgId;
@@ -772,4 +619,262 @@ void drawBackgroundTexture(BackgroundTexture* backgroundTexture, RenderGroup* gr
 
 	pushTexture(group, bg, translateRect(bgBounds, -camera->p), false, false, DrawOrder_background);
 	pushTexture(group, mg, translateRect(mgBounds, -camera->p), false, false, DrawOrder_middleground);
+}
+
+void writeSize_t(FILE* file, size_t value) {
+	#ifdef SAVE_BINARY
+		size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
+		assert(numElementsWritten == 1);
+	#else
+		fprintf(file, "%u ", value);
+	#endif
+}
+
+
+void writeU32(FILE* file, u32 value) {
+	#ifdef SAVE_BINARY
+		size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
+		assert(numElementsWritten == 1);
+	#else
+		fprintf(file, "%u ", value);
+	#endif
+}
+
+void writeDouble(FILE* file, double value) {
+	#ifdef SAVE_BINARY
+		size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
+		assert(numElementsWritten == 1);
+	#else
+		fprintf(file, "%f ", value);
+	#endif
+}
+
+void writeV2(FILE* file, V2 value) {
+	writeDouble(file, value.x);
+	writeDouble(file, value.y);
+}
+
+void writeV3(FILE* file, V3 value) {
+	writeDouble(file, value.x);
+	writeDouble(file, value.y);
+	writeDouble(file, value.z);
+}
+
+void writeR2(FILE* file, R2 value) {
+	writeV2(file, value.min);
+	writeV2(file, value.max);
+}
+
+size_t readSize_t(FILE* file) {
+	size_t result = 0;
+
+	#ifdef SAVE_BINARY
+		size_t numElementsRead = fread(&result, sizeof(result), 1, file);
+		assert(numElementsRead == 1);
+	#else
+		fscanf (file, "%u", &result);
+	#endif
+
+	return result;  
+}
+
+u32 readU32(FILE* file) {
+	u32 result = 0;
+
+	#ifdef SAVE_BINARY
+		size_t numElementsRead = fread(&result, sizeof(result), 1, file);
+		assert(numElementsRead == 1);
+	#else
+		fscanf (file, "%u", &result);
+	#endif
+
+	return result;  
+}
+
+double readDouble(FILE* file) {
+	double result = 0;
+
+	#ifdef SAVE_BINARY
+		size_t numElementsRead = fread(&result, sizeof(result), 1, file);
+		assert(numElementsRead == 1);
+	#else
+		fscanf (file, "%lf", &result);
+	#endif
+
+	return result;  
+}
+
+V2 readV2(FILE* file) {
+	V2 result = {};
+	result.x = readDouble(file);
+	result.y = readDouble(file);
+	return result;
+}
+
+V3 readV3(FILE* file) {
+	V3 result = {};
+	result.x = readDouble(file);
+	result.y = readDouble(file);
+	result.z = readDouble(file);
+	return result;
+}
+
+R2 readR2(FILE* file) {
+	R2 result = {};
+	result.min = readV2(file);
+	result.max = readV2(file);
+	return result;
+}
+
+void writeS32(FILE* file, s32 value, bool otherMode = false) {
+	#ifdef SAVE_BINARY
+	if(!otherMode)
+	#else
+	if(otherMode)
+	#endif
+	{
+		size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
+		assert(numElementsWritten == 1);
+	} else {
+		fprintf(file, "%d ", value);
+	}
+}
+
+void writeString(FILE* file, char* value, bool otherMode = false) {
+	#ifdef SAVE_BINARY
+	if(!otherMode)
+	#else
+	if(otherMode)
+	#endif
+	{
+		s32 len = strlen(value);
+		writeS32(file, len);
+		size_t numElementsWritten = fwrite(value, sizeof(char), len, file);
+		assert(numElementsWritten == len);
+	} else {
+		fprintf(file, " \"");
+		fprintf(file, value);
+		fprintf(file, "\" ");
+	}
+}
+
+s32 readS32(FILE* file, bool otherMode = false) {
+	s32 result = 0;
+
+	#ifdef SAVE_BINARY
+	if(!otherMode)
+	#else
+	if(otherMode)
+	#endif
+	{
+		size_t numElementsRead = fread(&result, sizeof(result), 1, file);
+		assert(numElementsRead == 1);
+	} else {
+		fscanf (file, "%d", &result);
+	}
+
+	return result;  
+}
+
+void readString(FILE* file, char* buffer, bool otherMode = false) {
+	#ifdef SAVE_BINARY
+	if(!otherMode)
+	#else
+	if(otherMode)
+	#endif
+	{
+		s32 len = readS32(file);
+		size_t numElementsRead = fread(buffer, sizeof(char), len, file);
+		assert(numElementsRead == len);
+		buffer[len] = 0;
+	} else {
+		char tempBuffer[1024];
+		s32 offset = 0;
+		bool32 firstWord = true;
+
+		while(true) {
+			fscanf (file, "%s", tempBuffer);
+
+			s32 strSize = strlen(tempBuffer) - 2; //-2 for the ""
+			memcpy(buffer + offset, tempBuffer + firstWord, strSize);
+
+			offset += strSize;
+
+			if(firstWord) {
+				firstWord = false;
+			} else {
+				buffer[offset++] = tempBuffer[strSize];
+			}
+
+			if(tempBuffer[strSize + 1] == '\"') {
+				break;
+			}
+			else {
+				buffer[offset++] = tempBuffer[strSize + 1];
+				buffer[offset++] = ' ';
+			}
+		}
+
+		buffer[offset] = 0;
+	}
+}
+
+Messages* createMessages(MemoryArena* arena, Messages** messagesFreeList, char text[10][100], s32 count, s32 selectedIndex) {
+	Messages* result = NULL;
+
+	if (messagesFreeList && *messagesFreeList) {
+		result = *messagesFreeList;
+		*messagesFreeList = (*messagesFreeList)->next;
+	} else {
+		result = pushStruct(arena, Messages);
+	}
+
+	assert(result);
+
+	result->selectedIndex = selectedIndex;
+	result->count = count;
+	result->next = NULL;
+
+	assert(count < arrayCount(result->textures) - 1);
+	assert(arrayCount(result->textures) == arrayCount(result->text));
+
+	for(s32 textIndex = 0; textIndex <= count; textIndex++) {
+		result->textures[textIndex].texId = 0;
+		strcpy(result->text[textIndex], text[textIndex]);
+	}
+
+	return result;
+}
+
+
+Messages* readMessages(FILE* file, MemoryArena* arena, Messages** messagesFreeList) {
+	Messages* result = NULL;
+
+	s32 count = readS32(file);
+
+	if(count >= 0) {
+		s32 selectedIndex = readS32(file);
+		char text[10][100];
+
+		for(s32 textIndex = 0; textIndex <= count; textIndex++) {
+			readString(file, text[textIndex]);
+		}
+
+		result = createMessages(arena, messagesFreeList, text, count, selectedIndex);
+	}
+
+	return result;
+}
+
+void writeMessages(FILE* file, Messages* messages) {
+	if(messages) {
+		writeS32(file, messages->count);
+		writeS32(file, messages->selectedIndex);
+
+		for(s32 textIndex = 0; textIndex <= messages->count; textIndex++) {
+			writeString(file, messages->text[textIndex]);
+		}
+	} else {
+		writeS32(file, -1);
+	}
 }

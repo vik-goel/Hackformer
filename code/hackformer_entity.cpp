@@ -235,32 +235,6 @@ s32 countValidRefNodes(RefNode** nodePtr, GameState* gameState) {
 	return result;
 }
 
-Messages* createMessages(GameState* gameState, char text[10][100], s32 count, s32 selectedIndex) {
-	Messages* result = NULL;
-
-	if (gameState->messagesFreeList) {
-		result = gameState->messagesFreeList;
-		gameState->messagesFreeList = gameState->messagesFreeList->next;
-	} else {
-		result = pushStruct(&gameState->levelStorage, Messages);
-	}
-
-	assert(result);
-
-	result->count = count;
-	result->next = NULL;
-
-	assert(count < arrayCount(result->textures) - 1);
-	assert(arrayCount(result->textures) == arrayCount(result->text));
-
-	for(s32 textIndex = 0; textIndex <= count; textIndex++) {
-		result->textures[textIndex].texId = 0;
-		strcpy(result->text[textIndex], text[textIndex]);
-	}
-
-	return result;
-}
-
 void freeMessages(Messages* messages, GameState* gameState) {
 	assert(!messages->next);
 
@@ -538,6 +512,20 @@ void freeEntityAtLevelEnd(Entity* entity, GameState* gameState) {
 	}
 }
 
+void freeHitboxes(Entity* entity, GameState* gameState) {
+	Hitbox* box = entity->hitboxes;
+
+	if(box) {
+		while(box->next) {
+			box = box->next;
+		}
+
+		box->next = gameState->hitboxFreeList;
+		gameState->hitboxFreeList = entity->hitboxes;
+		entity->hitboxes = NULL;
+	}
+}
+
 void freeEntityDuringLevel(Entity* entity, GameState* gameState, bool createdThisFrame = false) {
 	Messages* messages = entity->messages;
 	if(messages) {
@@ -601,17 +589,7 @@ void freeEntityDuringLevel(Entity* entity, GameState* gameState, bool createdThi
 		entity->ignorePenetrationList = NULL;
 	}
 
-	Hitbox* box = entity->hitboxes;
-
-	if(box) {
-		while(box->next) {
-			box = box->next;
-		}
-
-		box->next = gameState->hitboxFreeList;
-		gameState->hitboxFreeList = entity->hitboxes;
-		entity->hitboxes = NULL;
-	}
+	freeHitboxes(entity, gameState);
 
 	entity->numFields = 0;
 
@@ -1371,22 +1349,23 @@ void setSelectedText(Entity* text, s32 selectedIndex, GameState* gameState) {
 
 	text->renderSize = texture->size;
 	text->clickBox = rectCenterDiameter(v2(0, 0), text->renderSize);
+
+	freeHitboxes(text, gameState);
+	giveEntityRectangularCollisionBounds(text, gameState, 0, 0, text->renderSize.x, text->renderSize.y);
 }
 
-Entity* addText(GameState* gameState, V2 p, char values[10][100], s32 numValues, s32 selectedIndex) {
+Entity* addText(GameState* gameState, V2 p, Messages* messages) {
 	Entity* result = addEntity(gameState, EntityType_text, DrawOrder_text, p, v2(0, 0));
 
-	result->messages = createMessages(gameState, values, numValues, selectedIndex);
-	setSelectedText(result, selectedIndex, gameState);
-
-	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
-										 result->renderSize.x, result->renderSize.y);
+	result->messages = messages;
+	setSelectedText(result, messages->selectedIndex, gameState);
 
 	setFlags(result, EntityFlag_noMovementByDefault|
 					 EntityFlag_hackable);
 
 	s32 selectedIndexValues[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-	addField(result, createPrimitiveField(s32, gameState, "selected_index", selectedIndexValues, numValues, selectedIndex, 1));
+	addField(result, createPrimitiveField(s32, gameState, "selected_index", selectedIndexValues, messages->count,
+										 messages->selectedIndex, 1));
 
 	return result;
 }

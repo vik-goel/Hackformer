@@ -179,6 +179,12 @@ void loadHackMap(GameState* gameState, char* fileName) {
 				hitbox->originalCollisionPoints[11] = v2(-0.820313 * halfHitboxWidth, -0.651201 * halfHitboxHeight);
 			} break;
 
+			case EntityType_text: {
+				Messages* messages = readMessages(file, &gameState->levelStorage, &gameState->messagesFreeList);
+				assert(messages);
+				addText(gameState, p, messages);
+			} break;
+
 
 			InvalidDefaultCase;
 		}
@@ -244,12 +250,6 @@ void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex
 	}
 
 	loadHackMap(gameState, maps[*mapFileIndex]);
-
-	// char textValues[10][100];
-	// sprintf(textValues[0], "Batman!");
-	// sprintf(textValues[1], "NANANANANA");
-	// sprintf(textValues[2], "batman");
-	// addText(gameState, v2(4, 5), textValues, 3, 1);
 
 	gameState->doingInitialSim = true;
 	gameState->renderGroup->enabled = false;
@@ -694,7 +694,6 @@ void loadImages(GameState* gameState) {
 	gameState->lightTriangle = loadPNGTexture(renderGroup, Asset_triangle);
 }
 
-
 int main(int argc, char* argv[]) {
 	s32 windowWidth = 1280, windowHeight = 720;
 	SDL_Window* window = createWindow(windowWidth, windowHeight);
@@ -713,7 +712,7 @@ int main(int argc, char* argv[]) {
 	Camera* camera = &gameState->camera;
 	initCamera(camera);
 
-	gameState->textFont = loadFont(renderGroup, Asset_entityFont, 64, &gameState->permanentStorage);
+	gameState->textFont = loadTextFont(renderGroup, &gameState->permanentStorage);
 
 	initBackgroundTextures(&gameState->backgroundTextures);
 

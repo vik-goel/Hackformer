@@ -82,14 +82,14 @@ void drawScaledTex(RenderGroup* group, Texture* tex, Camera* camera, V2 center, 
 	pushTexture(group, tex, bounds, flipX != 0, flipY != 0, DrawOrder_gui, true);
 }
 
-void setTile(TileSpec* tiles, s32 mapWidthInTiles, s32 mapHeightInTiles, Camera* camera, Input* input, V2 gridSize, TileSpec* value) {
-	V2 mousePos = unprojectP(camera, input->mouseInWorld);
+void setTile(EditorState* state, V2 gridSize, TileSpec* value) {
+	V2 mousePos = unprojectP(&state->camera, state->input.mouseInWorld);
 
 	s32 tileX = (s32)(mousePos.x / gridSize.x);
 	s32 tileY = (s32)(mousePos.y / gridSize.y);
 
-	if(tileX >= 0 && tileY >= 0 && tileX < mapWidthInTiles && tileY < mapHeightInTiles) {
-		TileSpec* spec = tiles + (tileY * mapWidthInTiles + tileX);
+	if(tileX >= 0 && tileY >= 0 && tileX < state->mapWidthInTiles && tileY < state->mapHeightInTiles) {
+		TileSpec* spec = state->tiles + (tileY * state->mapWidthInTiles + tileX);
 
 		if(value) {
 			*spec = *value;
@@ -113,37 +113,102 @@ Waypoint* allocateWaypoint(MemoryArena* arena, V2 p, Waypoint* next = NULL) {
 	return result;
 }
 
+char* textEditFileName = "editor_text.txt";
+
+void initText(EditorState* state, Entity* entity, V2 p) {
+	assert(entity->messages);
+	assert(entity->type == EntityType_text);
+
+	for(int i = 0; i < entity->messages->count; i++) {
+		entity->messages->textures[i] = createText(state->renderGroup, state->textFont, entity->messages->text[i]);
+	}
+
+	entity->drawOrder = DrawOrder_text;
+	entity->bounds = rectCenterDiameter(p, entity->messages->textures[entity->messages->selectedIndex].size);
+}
+
+Entity* addEditorEntity(EditorState* state, EntityType type, DrawOrder drawOrder, V2 size = v2(0, 0), Texture* tex = NULL) {
+	Messages* messages = NULL;
+
+	if(type == EntityType_text) {
+		messages = pushStruct(&state->arena, Messages);
+
+		FILE* file = fopen(textEditFileName, "r");
+
+		if(file) {
+			messages->count = readS32(file, true);
+
+			if(messages->count <= 0 || messages->count > 10) return NULL;
+
+			messages->selectedIndex = readS32(file, true) - 1;
+			if(messages->selectedIndex < 0 || messages->selectedIndex >= messages->count) return NULL;
+
+			for(s32 i = 0; i < messages->count; i++) {
+				readString(file, messages->text[i], true);
+				messages->textures[i] = createText(state->renderGroup, state->textFont, messages->text[i]);
+			}
+
+			size = messages->textures[messages->selectedIndex].size;
+
+			fclose(file);
+		} else {
+			return NULL;
+		}
+	}
+
+	Entity* entity = state->entities + state->entityCount++;
+
+	entity->type = type;
+	entity->drawOrder = drawOrder;
+
+	V2 center = unprojectP(&state->camera, state->input.mouseInWorld);
+
+	entity->bounds = rectCenterDiameter(center, size);
+	entity->tex = tex;
+
+	if(entityGetsWaypoints(entity)) {
+		entity->waypoints = allocateWaypoint(&state->arena, center);
+	}
+
+	entity->messages = messages;
+
+	return entity;
+}
+
 int main(int argc, char* argv[]) {
 	s32 panelWidth = 250;
 	s32 windowWidth = 1280 + panelWidth, windowHeight = 720;
 	SDL_Window* window = createWindow(windowWidth, windowHeight);
 
-	Input input = {};
-	initInputKeyCodes(&input);
+	EditorState state = {};
+	initInputKeyCodes(&state.input);
 
-	MemoryArena arena = createArena(1024 * 1024 * 150, true);
+	state.arena = createArena(1024 * 1024 * 150, true);
 
-	Camera camera = {};
-	initCamera(&camera);
-	double oldScale = camera.scale;
+	initCamera(&state.camera);
+	double oldScale = state.camera.scale;
 
-	Texture* textures = pushArray(&arena, Texture, MAX_TEXTURES);
-	s32 texturesCount = 1;
+	state.textures = pushArray(&state.arena, Texture, MAX_TEXTURES);
+	state.texturesCount = 1;
 
-	Assets assets = {};
-	initAssets(&assets);
+	initAssets(&state.assets);
 
-	RenderGroup* renderGroup  = createRenderGroup(8 * 1024 * 1024, &arena, TEMP_PIXELS_PER_METER, windowWidth, windowHeight, 
-													&camera, textures, &texturesCount, &assets);
+	state.renderGroup  = createRenderGroup(8 * 1024 * 1024, &state.arena, TEMP_PIXELS_PER_METER, windowWidth, windowHeight, 
+													&state.camera, state.textures, &state.texturesCount, &state.assets);
+	
+
+	RenderGroup* renderGroup = state.renderGroup;
 	renderGroup->enabled = true;
+
+	state.textFont = loadTextFont(renderGroup, &state.arena);
 
 	bool running = true;
 
-	Texture* tileAtlas = textures + texturesCount;
-	s32 tileAtlasCount = loadTileAtlas(renderGroup, textures, &texturesCount);
+	state.tileAtlas = state.textures + state.texturesCount;
+	state.tileAtlasCount = loadTileAtlas(renderGroup, state.textures, &state.texturesCount);
 
-	Entity* entities = pushArray(&arena, Entity, 5000);
-	s32 entityCount = 0;
+	state.entities = pushArray(&state.arena, Entity, 5000);
+	state.entityCount = 0;
 
 	Color lineColor = createColor(100, 100, 100, 255);
 	double lineThickness = 0.01;
@@ -181,7 +246,7 @@ int main(int argc, char* argv[]) {
 
 	char buffer[2000];
 
-	Texture* entityTextureAtlas = textures + texturesCount;
+	state.entityTextureAtlas = state.textures + state.texturesCount;
 	for(s32 specIndex = 0; specIndex < arrayCount(entitySpecs); specIndex++) {
 		EntitySpec* spec = entitySpecs + specIndex;
 		char* fileName = spec->fileName;
@@ -190,6 +255,7 @@ int main(int argc, char* argv[]) {
 	}
 
 	s32 selectedEntitySpecIndex = 0;
+	Entity* editText = NULL;
 	Entity* movingEntity = NULL;
 	Waypoint* movingWaypoint = NULL;
 
@@ -200,21 +266,17 @@ int main(int argc, char* argv[]) {
 
 	FILE* file = fopen(saveFileName, "rb");
 
-	s32 mapWidthInTiles = 0;
-	s32 mapHeightInTiles = 0;
-	TileSpec* tiles = NULL;
-
 	if(file) {
-		mapWidthInTiles = readS32(file);
-		mapHeightInTiles = readS32(file);
+		state.mapWidthInTiles = readS32(file);
+		state.mapHeightInTiles = readS32(file);
 
 		setBackgroundTexture(&backgroundTextures, (BackgroundType)readS32(file), renderGroup);
 
-		tiles = pushArray(&arena, TileSpec, mapHeightInTiles * mapWidthInTiles);
+		state.tiles = pushArray(&state.arena, TileSpec, state.mapHeightInTiles * state.mapWidthInTiles);
 
-		for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
-			for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
-				TileSpec* spec = tiles + (tileY * mapWidthInTiles + tileX);
+		for(s32 tileY = 0; tileY < state.mapHeightInTiles; tileY++) {
+			for(s32 tileX = 0; tileX < state.mapWidthInTiles; tileX++) {
+				TileSpec* spec = state.tiles + (tileY * state.mapWidthInTiles + tileX);
 
 				s32 tile = readS32(file);
 
@@ -231,58 +293,66 @@ int main(int argc, char* argv[]) {
 			}
 		}
 
-		entityCount = readS32(file);
+		state.entityCount = readS32(file);
 
-		for(s32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
-			Entity* entity = entities + entityIndex;
+		for(s32 entityIndex = 0; entityIndex < state.entityCount; entityIndex++) {
+			Entity* entity = state.entities + entityIndex;
 
 			entity->type = (EntityType)readS32(file);
-			bool foundSpec = false;
+			V2 p = readV2(file);
 
-			for(s32 specIndex = 0; specIndex < arrayCount(entitySpecs); specIndex++) {
-				EntitySpec* spec = entitySpecs + specIndex;
+			if(entity->type == EntityType_text) {
 
-				if(spec->type == entity->type) {
-					entity->drawOrder = spec->drawOrder;
-					entity->tex = entityTextureAtlas + specIndex;
-					entity->bounds = rectCenterDiameter(readV2(file), spec->size);
+				entity->messages = readMessages(file, &state.arena, NULL);
+				initText(&state, entity, p);
+			} else {
+				bool foundSpec = false;
 
-					if(entityGetsWaypoints(entity)) {
-						s32 numWaypoints = readS32(file);
+				for(s32 specIndex = 0; specIndex < arrayCount(entitySpecs); specIndex++) {
+					EntitySpec* spec = entitySpecs + specIndex;
 
-						if(numWaypoints > 0) {
-							entity->waypoints = pushArray(&arena, Waypoint, numWaypoints);
+					if(spec->type == entity->type) {
+						entity->drawOrder = spec->drawOrder;
+						entity->tex = state.entityTextureAtlas + specIndex;
+						entity->bounds = rectCenterDiameter(p, spec->size);
 
-							for(s32 wpIndex = 0; wpIndex < numWaypoints; wpIndex++) {
-								entity->waypoints[wpIndex].p = readV2(file);
+						if(entityGetsWaypoints(entity)) {
+							s32 numWaypoints = readS32(file);
 
-								if (wpIndex < numWaypoints - 1) {
-									entity->waypoints[wpIndex].next = entity->waypoints + (wpIndex + 1);
+							if(numWaypoints > 0) {
+								entity->waypoints = pushArray(&state.arena, Waypoint, numWaypoints);
+
+								for(s32 wpIndex = 0; wpIndex < numWaypoints; wpIndex++) {
+									entity->waypoints[wpIndex].p = readV2(file);
+
+									if (wpIndex < numWaypoints - 1) {
+										entity->waypoints[wpIndex].next = entity->waypoints + (wpIndex + 1);
+									}
 								}
 							}
 						}
+
+						foundSpec = true;
+						break;
 					}
-
-					foundSpec = true;
-					break;
 				}
-			}
 
-			assert(foundSpec);
+				assert(foundSpec);
+			}
 		}
 
 		fclose(file);
 	} else {
-		mapWidthInTiles = 60;
-		mapHeightInTiles = 12;
+		state.mapWidthInTiles = 60;
+		state.mapHeightInTiles = 12;
 
 		setBackgroundTexture(&backgroundTextures, Background_marine, renderGroup);
 
-		tiles = pushArray(&arena, TileSpec, mapHeightInTiles * mapWidthInTiles);
+		state.tiles = pushArray(&state.arena, TileSpec, state.mapHeightInTiles * state.mapWidthInTiles);
 
-		for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
-			for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
-				TileSpec* spec = tiles + (tileY * mapWidthInTiles + tileX);
+		for(s32 tileY = 0; tileY < state.mapHeightInTiles; tileY++) {
+			for(s32 tileX = 0; tileX < state.mapWidthInTiles; tileX++) {
+				TileSpec* spec = state.tiles + (tileY * state.mapWidthInTiles + tileX);
 				spec->index = -1;
 				spec->flipX = spec->flipY = false;
 				spec->tall = false;
@@ -292,79 +362,105 @@ int main(int argc, char* argv[]) {
 
 	bool32 gridVisible = true;
 
-	while(running) {
-		pollInput(&input, &running, windowHeight, TEMP_PIXELS_PER_METER, &camera);
+	Camera* camera = &state.camera;
+	Input* input = &state.input;
 
-		if(input.esc.justPressed) {
+	while(running) {
+		pollInput(&state.input, &running, windowHeight, TEMP_PIXELS_PER_METER, &state.camera);
+
+		if(input->esc.justPressed) {
 			cursorMode = CursorMode_moveEntity;
+		}
+		else if(input->t.justPressed) {
+			if(movingEntity && movingEntity->type == EntityType_text) {
+				Messages* messages = movingEntity->messages;
+				assert(messages);
+
+				FILE* file = fopen(textEditFileName, "w");
+				assert(file);
+
+				writeS32(file, messages->count, true);
+				fprintf(file, "\n");
+				writeS32(file, messages->selectedIndex + 1, true);
+				fprintf(file, "\n");
+
+				for(s32 i = 0; i < messages->count; i++) {
+					writeString(file, messages->text[i], true);
+					fprintf(file, "\n");
+				}
+
+				fclose(file);
+			} else {
+				addEditorEntity(&state, EntityType_text, DrawOrder_text);
+			}
 		}
 
 		//NOTE: Draw the game
 
-		camera.scale = 1;
+		camera->scale = 1;
 		pushClipRect(renderGroup, gameBounds);
 		pushFilledRect(renderGroup, renderGroup->windowBounds, createColor(150, 150, 150, 255));
-		camera.scale = oldScale;
+		camera->scale = oldScale;
 
-		if(camera.scale == 1) {
+		if(camera->scale == 1) {
 			BackgroundTexture* backgroundTexture = getBackgroundTexture(&backgroundTextures);
-			drawBackgroundTexture(backgroundTexture, renderGroup, &camera, gameWindowSize, mapWidthInTiles * TILE_WIDTH_IN_METERS);
+			drawBackgroundTexture(backgroundTexture, renderGroup, camera, gameWindowSize, state.mapWidthInTiles * TILE_WIDTH_IN_METERS);
 		}
 
 		if(gridVisible) {
-			for(s32 rowIndex = 0; rowIndex <= mapHeightInTiles; rowIndex++) {
+			for(s32 rowIndex = 0; rowIndex <= state.mapHeightInTiles; rowIndex++) {
 				V2 lineStart = v2(0, gridSize.y * rowIndex);
-				V2 lineEnd = v2(mapWidthInTiles * gridSize.x, lineStart.y);
+				V2 lineEnd = v2(state.mapWidthInTiles * gridSize.x, lineStart.y);
 
-				drawScaledLine(renderGroup, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, &camera);
+				drawScaledLine(renderGroup, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, camera);
 			}
 
-			for(s32 colIndex = 0; colIndex <= mapWidthInTiles; colIndex++) {
+			for(s32 colIndex = 0; colIndex <= state.mapWidthInTiles; colIndex++) {
 				V2 lineStart = v2(gridSize.x * colIndex, 0);
-				V2 lineEnd = v2(lineStart.x, mapHeightInTiles * gridSize.y);
+				V2 lineEnd = v2(lineStart.x, state.mapHeightInTiles * gridSize.y);
 
-				drawScaledLine(renderGroup, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, &camera);
+				drawScaledLine(renderGroup, lineColor, lineStart, lineEnd, lineThickness, dashSize, spaceSize, camera);
 			}
 		}
 
-		if(input.z.justPressed) {
+		if(input->z.justPressed) {
 			gridVisible = !gridVisible;
 		}
 
-		if(input.c.justPressed) {
-			camera.scale = 1;
+		if(input->c.justPressed) {
+			camera->scale = 1;
 			oldScale = 1;
 		}
 
-		if(input.num[1].justPressed) {
+		if(input->num[1].justPressed) {
 			setBackgroundTexture(&backgroundTextures, Background_marine, renderGroup);
 		}
-		if(input.num[2].justPressed) {
+		if(input->num[2].justPressed) {
 			setBackgroundTexture(&backgroundTextures, Background_sunset, renderGroup);
 		}
 
 		if(cursorMode == CursorMode_moveEntity && movingEntity) {
-			if(movingEntity->waypoints && input.n.justPressed) {
+			if(movingEntity->waypoints && input->n.justPressed) {
 				cursorMode = CursorMode_editWaypoints;
 			}
 		}
 
 		if(selectedTileSpec) {
-			if(input.g.justPressed) {
+			if(input->g.justPressed) {
 				selectedTileSpec->flipX = !selectedTileSpec->flipX;
 			}
 
-			if(input.h.justPressed) {
+			if(input->h.justPressed) {
 				selectedTileSpec->flipY = !selectedTileSpec->flipY;
 			}
 		}
 
-		for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
-			for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
-				TileSpec* spec = tiles + (tileY * mapWidthInTiles + tileX);
+		for(s32 tileY = 0; tileY < state.mapHeightInTiles; tileY++) {
+			for(s32 tileX = 0; tileX < state.mapWidthInTiles; tileX++) {
+				TileSpec* spec = state.tiles + (tileY * state.mapWidthInTiles + tileX);
 
 				if(spec->index >= 0) {
-					Texture* tex = tileAtlas + spec->index;
+					Texture* tex = state.tileAtlas + spec->index;
 
 					V2 tileSize;
 
@@ -382,32 +478,32 @@ int main(int argc, char* argv[]) {
 
 					V2 tileCenter = hadamard(v2(tileX, tileY), gridSize) + tileSize * 0.5 + tileOffset;
 
-					drawScaledTex(renderGroup, tex, &camera, tileCenter, tileSize, spec->flipX, spec->flipY);					
+					drawScaledTex(renderGroup, tex, camera, tileCenter, tileSize, spec->flipX, spec->flipY);					
 				}
 			}
 		}
 
-		for(s32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
-			Entity* entity = entities + entityIndex;
+		for(s32 entityIndex = 0; entityIndex < state.entityCount; entityIndex++) {
+			Entity* entity = state.entities + entityIndex;
+
+			Texture* tex = entity->tex;
+			if(!tex) {
+				tex = entity->messages->textures + entity->messages->selectedIndex;
+			}
 
 			V2 entityCenter = getRectCenter(entity->bounds);
 			V2 unscaledSize = getRectSize(entity->bounds);
 
-			V2 mouseP = unprojectP(&camera, input.mouseInWorld);
-			if(pointInsideRect(entity->bounds, mouseP)) {
-
-			}
-
-			drawScaledTex(renderGroup, entity->tex, &camera, entityCenter, unscaledSize, entity->flipX, entity->flipY);	
+			drawScaledTex(renderGroup, tex, camera, entityCenter, unscaledSize, entity->flipX, entity->flipY);	
 		}
 
 		//NOTE: Draw the panel
 
-		camera.scale = 1;
+		camera->scale = 1;
 		pushClipRect(renderGroup, panelBounds);
 		pushFilledRect(renderGroup, renderGroup->windowBounds, createColor(255, 255, 255, 255));
 
-		if(clickedInside(&input, panelBounds)) {
+		if(clickedInside(input, panelBounds)) {
 			selectedTileSpec = NULL;
 			cursorMode = CursorMode_moveEntity;
 		}
@@ -415,7 +511,7 @@ int main(int argc, char* argv[]) {
 
 		double maxTileY = 0;
 
-		for(s32 tileIndex = 0; tileIndex < tileAtlasCount; tileIndex++) {
+		for(s32 tileIndex = 0; tileIndex < state.tileAtlasCount; tileIndex++) {
 			V2 tileSpacing = v2(0.1, 0.1);
 
 			TileData* data = globalTileData + tileIndex;
@@ -433,8 +529,8 @@ int main(int argc, char* argv[]) {
 
 			if(tileBounds.max.y > maxTileY) maxTileY = tileBounds.max.y;
 
-			if(clickedInside(&input, tileBounds)) {
-				selectedTileSpec = pushStruct(&arena, TileSpec);
+			if(clickedInside(input, tileBounds)) {
+				selectedTileSpec = pushStruct(&state.arena, TileSpec);
 				selectedTileSpec->index = tileIndex;
 				selectedTileSpec->flipX = false;
 				selectedTileSpec->flipY = false;
@@ -442,7 +538,7 @@ int main(int argc, char* argv[]) {
 				cursorMode = CursorMode_stampTile;
 			}
 
-			Texture* tex = tileAtlas + tileIndex;
+			Texture* tex = state.tileAtlas + tileIndex;
 
 			pushTexture(renderGroup, tex, tileBounds, false, false, DrawOrder_gui);
 		}
@@ -453,22 +549,22 @@ int main(int argc, char* argv[]) {
 			V2 specMin = spec->panelP + panelBounds.min + v2(0, maxTileY);
 			R2 specBounds = r2(specMin, specMin + spec->size * spec->panelScale);
 
-			if(clickedInside(&input, specBounds)) {
+			if(clickedInside(&state.input, specBounds)) {
 				selectedEntitySpecIndex = specIndex;
 				cursorMode = CursorMode_stampEntity;
 			}
 
-			Texture* tex = entityTextureAtlas + specIndex;
+			Texture* tex = state.entityTextureAtlas + specIndex;
 
 			pushTexture(renderGroup, tex, specBounds, false, false, DrawOrder_gui);
 		}
 
 
 		//NOTE: Draw things which can cross between the game and panel
-		camera.scale = oldScale;
+		camera->scale = oldScale;
 		pushDefaultClipRect(renderGroup);
 
-		bool mouseInGame = pointInsideRect(gameBounds, input.mouseInMeters);
+		bool mouseInGame = pointInsideRect(gameBounds, input->mouseInMeters);
 
 		if(cursorMode == CursorMode_stampTile) {
 			if(selectedTileSpec) {
@@ -480,14 +576,14 @@ int main(int argc, char* argv[]) {
 					tileSize = shortTileSize;
 				}
 
-				R2 tileBounds = rectCenterDiameter(input.mouseInMeters, tileSize);
+				R2 tileBounds = rectCenterDiameter(input->mouseInMeters, tileSize);
 
-				if(input.leftMouse.pressed && mouseInGame) {
-					setTile(tiles, mapWidthInTiles, mapHeightInTiles, &camera, &input, gridSize, selectedTileSpec);
+				if(input->leftMouse.pressed && mouseInGame) {
+					setTile(&state, gridSize, selectedTileSpec);
 				}
 
 
-				Texture* tex = tileAtlas + selectedTileSpec->index;
+				Texture* tex = state.tileAtlas + selectedTileSpec->index;
 
 				pushTexture(renderGroup, tex, tileBounds, selectedTileSpec->flipX != 0, selectedTileSpec->flipY != 0, DrawOrder_gui);
 			}
@@ -495,30 +591,19 @@ int main(int argc, char* argv[]) {
 		else if(cursorMode == CursorMode_stampEntity) {
 			if(selectedEntitySpecIndex >= 0) {
 				EntitySpec* spec = entitySpecs + selectedEntitySpecIndex;
-				Texture* tex = entityTextureAtlas + selectedEntitySpecIndex;
+				Texture* tex = state.entityTextureAtlas + selectedEntitySpecIndex;
 
-				R2 entityBounds = rectCenterDiameter(input.mouseInMeters, spec->size);
+				R2 entityBounds = rectCenterDiameter(input->mouseInMeters, spec->size);
 
-				if(input.leftMouse.justPressed && mouseInGame) {
-					Entity* entity = entities + entityCount++;
-					entity->type = spec->type;
-					entity->drawOrder = spec->drawOrder;
-
-					V2 center = unprojectP(&camera, input.mouseInWorld);
-
-					entity->bounds = rectCenterDiameter(center, spec->size);
-					entity->tex = tex;
-
-					if(entityGetsWaypoints(entity)) {
-						entity->waypoints = allocateWaypoint(&arena, center);
-					}
+				if(input->leftMouse.justPressed && mouseInGame) {
+					addEditorEntity(&state, spec->type, spec->drawOrder, spec->size, tex);
 				}
 				
 				pushTexture(renderGroup, tex, entityBounds, false, false, DrawOrder_gui);
 			}
 		} else if(cursorMode == CursorMode_editWaypoints) {
 			if(movingEntity) {
-				if(input.leftMouse.justPressed) {
+				if(input->leftMouse.justPressed) {
 					Waypoint* wp = movingEntity->waypoints;
 
 					if(wp) {
@@ -526,12 +611,12 @@ int main(int argc, char* argv[]) {
 							wp = wp->next;
 						}
 
-						V2 center = unprojectP(&camera, input.mouseInWorld);
-						wp->next = allocateWaypoint(&arena, center);
+						V2 center = unprojectP(camera, input->mouseInWorld);
+						wp->next = allocateWaypoint(&state.arena, center);
 					}
 				}
 
-				if(input.m.justPressed) {
+				if(input->m.justPressed) {
 					Waypoint* wp = movingEntity->waypoints;
 
 					if(wp->next) {
@@ -550,8 +635,8 @@ int main(int argc, char* argv[]) {
 
 				V2 wpSize = v2(1, 1) * 0.05;
 
-				if(input.rightMouse.justPressed) {
-					V2 mouse = unprojectP(&camera, input.mouseInWorld);
+				if(input->rightMouse.justPressed) {
+					V2 mouse = unprojectP(camera, input->mouseInWorld);
 
 					for(Waypoint* wp = movingEntity->waypoints; wp; wp = wp->next) {
 						R2 wpBounds = rectCenterRadius(wp->p, wpSize);
@@ -564,8 +649,8 @@ int main(int argc, char* argv[]) {
 				}
 
 				if(movingWaypoint) {
-					if(input.rightMouse.pressed) {
-						movingWaypoint->p += input.dMouseMeters;
+					if(input->rightMouse.pressed) {
+						movingWaypoint->p += input->dMouseMeters;
 					} else {
 						movingWaypoint = NULL;
 					}
@@ -608,10 +693,10 @@ int main(int argc, char* argv[]) {
 		Entity* clickedEntity = NULL;
 		s32 clickedEntityIndex = -1;
 
-		for(s32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
-			Entity* entity = entities + entityIndex;
+		for(s32 entityIndex = 0; entityIndex < state.entityCount; entityIndex++) {
+			Entity* entity = state.entities + entityIndex;
 
-			V2 mouseP = unprojectP(&camera, input.mouseInWorld);
+			V2 mouseP = unprojectP(camera, input->mouseInWorld);
 
 			if(pointInsideRect(entity->bounds, mouseP)) {
 				clickedEntity = entity;
@@ -620,32 +705,32 @@ int main(int argc, char* argv[]) {
 			}
 		}
 
-		if(input.rightMouse.pressed && cursorMode != CursorMode_editWaypoints) {
+		if(input->rightMouse.pressed && cursorMode != CursorMode_editWaypoints) {
 			if(clickedEntity) {
 				if(clickedEntity == movingEntity) {
 					movingEntity = NULL;
 					cursorMode = CursorMode_moveEntity;
 				}
 
-				entities[clickedEntityIndex] = entities[entityCount-- - 1];
+				state.entities[clickedEntityIndex] = state.entities[state.entityCount-- - 1];
 				clickedEntity = NULL;
 				clickedEntityIndex = -1;
 			} else {
-				setTile(tiles, mapWidthInTiles, mapHeightInTiles, &camera, &input, gridSize, NULL);
+				setTile(&state, gridSize, NULL);
 			}
 		}
 
 		bool maintainMovingEntity = false;
-		if(input.leftMouse.pressed) {
+		if(input->leftMouse.pressed) {
 			if(cursorMode == CursorMode_moveEntity) {
-				if(input.leftMouse.justPressed) {
+				if(input->leftMouse.justPressed) {
 					movingEntity = clickedEntity;
 				}
 
 				if(movingEntity) {
 					V2 oldCenter = getRectCenter(movingEntity->bounds);
 
-					V2 center = unprojectP(&camera, input.mouseInWorld);
+					V2 center = unprojectP(camera, input->mouseInWorld);
 					movingEntity->bounds = reCenterRect(movingEntity->bounds, center);
 
 					V2 dCenter = center - oldCenter;
@@ -663,11 +748,11 @@ int main(int argc, char* argv[]) {
 			movingEntity = NULL;
 		}
 
-		if(input.x.justPressed) {
+		if(input->x.justPressed) {
 			s32 playerIndex = -1;
 
-			for(s32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
-				Entity* entity = entities + entityIndex;
+			for(s32 entityIndex = 0; entityIndex < state.entityCount; entityIndex++) {
+				Entity* entity = state.entities + entityIndex;
 
 				if(entity->type == EntityType_player) {
 					playerIndex = entityIndex;
@@ -676,23 +761,23 @@ int main(int argc, char* argv[]) {
 			}
 
 			if(playerIndex >= 0) {
-				entities[entityCount] = entities[playerIndex];
-				entities[playerIndex] = entities[entityCount - 1];
-				entities[entityCount - 1] = entities[entityCount];
-				entities[entityCount] = {};
+				state.entities[state.entityCount] = state.entities[playerIndex];
+				state.entities[playerIndex] = state.entities[state.entityCount - 1];
+				state.entities[state.entityCount - 1] = state.entities[state.entityCount];
+				state.entities[state.entityCount] = {};
 			}
 
 			FILE* file = fopen(saveFileName, "wb");
 			assert(file);
 
-			writeS32(file, mapWidthInTiles);
-			writeS32(file, mapHeightInTiles);
+			writeS32(file, state.mapWidthInTiles);
+			writeS32(file, state.mapHeightInTiles);
 
 			writeS32(file, backgroundTextures.curBackgroundType);
 
-			for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
-				for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
-					TileSpec* spec = tiles + (tileY * mapWidthInTiles + tileX);
+			for(s32 tileY = 0; tileY < state.mapHeightInTiles; tileY++) {
+				for(s32 tileX = 0; tileX < state.mapWidthInTiles; tileX++) {
+					TileSpec* spec = state.tiles + (tileY * state.mapWidthInTiles + tileX);
 					s32 tile = spec->index;
 
 					if(spec->flipX) {
@@ -704,10 +789,10 @@ int main(int argc, char* argv[]) {
 				}
 			}
 
-			writeS32(file, entityCount);
+			writeS32(file, state.entityCount);
 
-			for(s32 entityIndex = 0; entityIndex < entityCount; entityIndex++) {
-				Entity* entity = entities + entityIndex;
+			for(s32 entityIndex = 0; entityIndex < state.entityCount; entityIndex++) {
+				Entity* entity = state.entities + entityIndex;
 				writeS32(file, entity->type);
 				writeV2(file, getRectCenter(entity->bounds));
 
@@ -724,6 +809,10 @@ int main(int argc, char* argv[]) {
 						writeV2(file, wp->p);
 					}
 				}
+
+				if(entity->type == EntityType_text) {
+					writeMessages(file, entity->messages);
+				}
 			}
 
 			fclose(file);
@@ -732,8 +821,8 @@ int main(int argc, char* argv[]) {
 		glClear(GL_COLOR_BUFFER_BIT);
 		drawRenderGroup(renderGroup, NULL);
 		
-		moveCamera(&input, &camera, gameWindowSize);
-		oldScale = camera.scale;
+		moveCamera(input, camera, gameWindowSize);
+		oldScale = camera->scale;
 
 		SDL_GL_SwapWindow(window);
 	}

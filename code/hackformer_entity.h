@@ -46,17 +46,6 @@ struct Hitbox {
 	Hitbox* next;
 };
 
-struct Messages {
-	s32 count;
-	s32 selectedIndex;
-	char text[10][100];
-	Texture textures[10];
-
-	//NOTE: This is currently used for the free list
-	//TODO: This could be used to support having more than 10 messages
-	Messages* next;
-};
-
 struct Entity {
 	s32 ref;
 	EntityType type;

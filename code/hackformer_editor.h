@@ -34,6 +34,7 @@ struct Entity {
 	Waypoint* waypoints;
 	bool32 flipX;
 	bool32 flipY;
+	Messages* messages;
 };
 
 enum CursorMode {
@@ -41,4 +42,27 @@ enum CursorMode {
 	CursorMode_stampEntity,
 	CursorMode_moveEntity,
 	CursorMode_editWaypoints,
+};
+
+struct EditorState {
+	MemoryArena arena;
+	Input input;
+	Camera camera;
+	Assets assets;
+	RenderGroup* renderGroup;
+	TTF_Font* textFont;
+
+	Entity* entities;
+	s32 entityCount;
+
+	Texture* entityTextureAtlas;
+	Texture* tileAtlas;
+	s32 tileAtlasCount;
+	Texture* textures;
+	s32 texturesCount;
+
+	s32 mapWidthInTiles;
+	s32 mapHeightInTiles;
+
+	TileSpec* tiles;
 };
