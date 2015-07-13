@@ -45,6 +45,8 @@ void loadHackMap(GameState* gameState, char* fileName) {
 	addBackground(gameState);
 
 	V2 tileSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS);
+	double tileEpsilon = 0.0001;
+	V2 tilePlacementSize = tileSize + v2(1, 1) * tileEpsilon;
 
 	gameState->mapSize = hadamard(v2(mapWidthInTiles, mapHeightInTiles), tileSize);
 	gameState->worldSize = maxComponents(gameState->mapSize, gameState->windowSize);
@@ -55,6 +57,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 	setFlags(testEntity, EntityFlag_noMovementByDefault);
 	gameState->testEntityRef = testEntity->ref;
 
+
 	for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
 		for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
 			s32 tile = readS32(file);
@@ -64,7 +67,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 				bool32 flipX = tile & TILE_FLIP_X_FLAG;
 				bool32 flipY = tile & TILE_FLIP_Y_FLAG;
 
-				V2 tileP = hadamard(v2(tileX, tileY), tileSize);
+				V2 tileP = hadamard(v2(tileX, tileY), tilePlacementSize);
 
 				if(globalTileData[tileIndex].tall) {
 					tileP += 0.5 * v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_IN_METERS);
@@ -73,7 +76,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 				}
 
 				if(tileIndex == Tile_heavy) {
-					addHeavyTile(gameState, tileP + v2(0, 0.0001), flipX, flipY);
+					addHeavyTile(gameState, tileP + v2(0, 0.5), flipX, flipY);
 				} 
 				else if(tileIndex == Tile_disappear) {
 					addDisappearingTile(gameState, tileP, flipX, flipY);
@@ -99,15 +102,6 @@ void loadHackMap(GameState* gameState, char* fileName) {
 				addPlayer(gameState, p);
 			} break;
 				 
-			case EntityType_virus: {
-				addVirus(gameState, p);
-			} break;
-
-			case EntityType_flyingVirus: {
-				addFlyingVirus(gameState, p);
-			} break;
-
-
 			case EntityType_laserBase: {
 				//TODO: Load the height in from the file
 				double height = 4;
@@ -600,16 +594,6 @@ void loadImages(GameState* gameState) {
 	}
 
 	{
-		CharacterAnim* character = createCharacterAnim(gameState, &gameState->virus1Anim);
-
-		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
-		shoot->main = loadAnimation(renderGroup, Asset_virus1Shoot, 145, 170, 0.04f, true);
-
-		AnimNode* stand = createAnimNode(gameState, &character->stand);
-		stand->main = createAnimation(loadPNGTexture(renderGroup, Asset_virus1Stand));
-	}
-
-	{
 		CharacterAnim* character = createCharacterAnim(gameState, &gameState->shrikeAnim);
 
 		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
@@ -621,16 +605,6 @@ void loadImages(GameState* gameState) {
 		gameState->shrikeStand = loadAnimation(renderGroup, Asset_shrikeStand, 256, 256, 0.07f, true);
 
 		gameState->shrikeBootUp = loadAnimation(renderGroup, Asset_shrikeBootUp, 256, 256, 0.04f, false);
-	}
-
-	{
-		CharacterAnim* character = createCharacterAnim(gameState, &gameState->flyingVirusAnim);
-
-		AnimNode* shoot = createAnimNode(gameState, &character->shoot);
-		shoot->main = loadAnimation(renderGroup, Asset_virus2Shoot, 133, 127, 0.04f, true);
-
-		AnimNode* stand = createAnimNode(gameState, &character->stand);
-		stand->main = createAnimation(loadPNGTexture(renderGroup, Asset_virus2Full));
 	}
 
 	{
@@ -654,7 +628,6 @@ void loadImages(GameState* gameState) {
 	}
 	
 	gameState->hackEnergyAnim = loadAnimation(renderGroup, Asset_energy, 173, 172, 0.08f, true);
-	gameState->laserBolt = loadPNGTexture(renderGroup, Asset_laserBolt);
 	gameState->endPortal = loadPNGTexture(renderGroup, Asset_endPortal);
 
 	{

@@ -199,11 +199,6 @@ Texture createTexFromSurface(SDL_Surface* image, RenderGroup* group, bool stenci
 	return result;
 }
 
-void loadAsset(Assets* assets, AssetId id) {
-	assert(assets->loaded[id] == false);
-	assets->loaded[id] = true;
-}
-
 Texture* loadPNGTexture(RenderGroup* group, SDL_RWops* readStream, bool stencil) {
 	SDL_Surface* diffuse = IMG_LoadPNG_RW(readStream);
 
@@ -230,8 +225,6 @@ Texture* loadPNGTexture(RenderGroup* group, char* fileName, bool stencil) {
 
 //stencil is false by default
 Texture* loadPNGTexture(RenderGroup* group, AssetId id, bool stencil) {
-	loadAsset(group->assets, id);
-
 	SDL_RWops* readStream = seekToAssetPos(group->assets, id);
 	Texture* result = loadPNGTexture(group, readStream, stencil);
 	return result;
@@ -239,8 +232,6 @@ Texture* loadPNGTexture(RenderGroup* group, AssetId id, bool stencil) {
 
 
 SDL_RWops* getFilePtrFromMem(Assets* assets, AssetId id, MemoryArena* arena) {
-	loadAsset(assets, id);
-
 	SDL_RWops* readStream = seekToAssetPos(assets, id);
 	s32 assetSize = getAssetSize(assets, id);
 
@@ -1115,7 +1106,7 @@ void pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, Dra
 					bool fadeAlphaFromDisappearing,  Color color = WHITE) {
 	assert(texture);
 
-	if (entity->type == EntityType_laserBeam && isSet(entity, EntityFlag_laserOn)) return;
+	if (entity->type == EntityType_laserBeam && !isSet(entity, EntityFlag_laserOn)) return;
 	bool32 cloaked = isSet(entity, EntityFlag_cloaked) && !isSet(entity, EntityFlag_togglingCloak);
 	if(cloaked) return;
 
@@ -1538,7 +1529,7 @@ void drawRenderGroup(RenderGroup* group, FieldSpec* fieldSpec) {
 #if ENABLE_LIGHTING
 	group->ambient = (GLfloat)0.35;//0.43;
 #else
-	group->ambient = (GLfloat)1;
+	group->ambient = (GLfloat)0.5;
 #endif
 
 	setAmbient(group, group->ambient);

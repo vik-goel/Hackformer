@@ -382,8 +382,7 @@ bool removeFromSpatialPartition(Entity* entity, GameState* gameState) {
 }
 
 bool isProjectile(Entity* entity) {
-	bool result = entity->type == EntityType_laserBolt ||
-				  entity->type == EntityType_motherShipProjectile ||
+	bool result = entity->type == EntityType_motherShipProjectile ||
 				  entity->type == EntityType_trawlerBolt ||
 				  entity->type == EntityType_trojanBolt;
 
@@ -1063,7 +1062,7 @@ void addLightField(Entity* entity, GameState* gameState, V3 color) {
 
 	result->lightColor = color;
 
-	double radii[] = {2, 4, 6, 8, 10};
+	double radii[] = {1.5, 3, 4.5, 6, 7.5};
 	
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "radius", radii, 
 													    arrayCount(radii), 2, 2));
@@ -1147,51 +1146,6 @@ Texture* getStandTex(CharacterAnim* characterAnim, GameState* gameState) {
 	Texture* standTex = standAnim->frames + 0;
 	assert(validTexture(standTex));
 	return standTex;
-}
-
-Entity* addVirus(GameState* gameState, V2 p) {
-	V2 size = getDrawSize(getStandTex(gameState->virus1Anim, gameState), 1.6);
-	Entity* result = addEntity(gameState, EntityType_virus, DrawOrder_virus, p, size);
-
-	double heightOffs = 0.4;
-
-	#if 1
-	double hitboxWidth = result->renderSize.x;
-	double hitboxHeight = result->renderSize.y;
-	double halfHitboxWidth = hitboxWidth * 0.5;
-	double halfHitboxHeight = hitboxHeight * 0.5;
-	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(result, hitbox, hitboxWidth, hitboxHeight);
-	hitbox->collisionPointsCount = 12;
-	hitbox->originalCollisionPoints[0] = v2(-0.929457 * halfHitboxWidth, -1 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[1] = v2(1 * halfHitboxWidth, -1 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[2] = v2(1 * halfHitboxWidth, -0.438368 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[3] = v2(0.902656 * halfHitboxWidth, -0.303819 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[4] = v2(0.570489 * halfHitboxWidth, -0.256076 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[5] = v2(0.829995 * halfHitboxWidth, 0.260417 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[6] = v2(0.586059 * halfHitboxWidth, 0.503472 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[7] = v2(0.518587 * halfHitboxWidth, 0.985243 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[8] = v2(-0.176889 * halfHitboxWidth, 0.985243 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[9] = v2(-0.483106 * halfHitboxWidth, 0.434028 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[10] = v2(-0.711472 * halfHitboxWidth, 0.399306 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[11] = v2(-1.022879 * halfHitboxWidth, -0.494792 * halfHitboxHeight);
-	#else 
-	giveEntityRectangularCollisionBounds(result, gameState, 0, 0,
-										 result->renderSize.x, result->renderSize.y + heightOffs);
-	#endif
-
-	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
-
-	setFlags(result, EntityFlag_facesLeft|
-					 EntityFlag_hackable);
-
-	addPatrolField(result, gameState);
-	addShootField(result, gameState, 1, EntityType_virus);
-	addSpotlightField(result, gameState);
-
-	result->characterAnim = gameState->virus1Anim;
-
-	return result;
 }
 
 Entity* addEndPortal(GameState* gameState, V2 p) {
@@ -1456,32 +1410,6 @@ void initProjectile(Entity* entity, V2 target, s32 shooterRef, double speed, Tex
 	entity->defaultTex = texture;
 }
 
-Entity* addLaserBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, double speed) {
-	Entity* result = addEntity(gameState, EntityType_laserBolt, DrawOrder_laserBolt, p, v2(0.24f, 0.24f));
-
-	double hitboxWidth = result->renderSize.x;
-	double hitboxHeight = result->renderSize.y;
-	double halfHitboxWidth = hitboxWidth * 0.5;
-	double halfHitboxHeight = hitboxHeight * 0.5;
-	Hitbox* hitbox = addHitbox(result, gameState);
-	setHitboxSize(result, hitbox, hitboxWidth * 1, hitboxHeight * 1);
-	hitbox->collisionPointsCount = 8;
-	hitbox->originalCollisionPoints[0] = v2(-0.013021 * halfHitboxWidth, -0.989583 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[1] = v2(0.651042 * halfHitboxWidth, -0.763889 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[2] = v2(0.998264 * halfHitboxWidth, -0.073785 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[3] = v2(0.785590 * halfHitboxWidth, 0.664062 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[4] = v2(0.013021 * halfHitboxWidth, 0.998264 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[5] = v2(-0.616319 * halfHitboxWidth, 0.789931 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[6] = v2(-0.989583 * halfHitboxWidth, 0.008681 * halfHitboxHeight);
-	hitbox->originalCollisionPoints[7] = v2(-0.724826 * halfHitboxWidth, -0.707465 * halfHitboxHeight);
-
-	initProjectile(result, target, shooterRef, speed, gameState->laserBolt, gameState);
-
-	result->emissivity = 1;
-					 
-	return result;
-}
-
 Entity* addTrojanBolt(GameState* gameState, V2 p, V2 target, s32 shooterRef, double speed) {
 	Entity* result = addEntity(gameState, EntityType_trojanBolt, DrawOrder_trojanBolt, p, v2(1, 1) * 0.3);
 
@@ -1647,29 +1575,6 @@ Entity* addLaserController(GameState* gameState, V2 baseP, double height) {
 	addGroundReference(beam, base, gameState, true);
 
 	return base;
-}
-
-Entity* addFlyingVirus(GameState* gameState, V2 p) {
-	V2 size = getDrawSize(getStandTex(gameState->flyingVirusAnim, gameState), 0.75);
-	Entity* result = addEntity(gameState, EntityType_flyingVirus, DrawOrder_flyingVirus, p, size);
-
-	result->characterAnim = gameState->flyingVirusAnim;
-
-	setFlags(result, EntityFlag_hackable|
-					 EntityFlag_noMovementByDefault);
-
-	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, 
-										 result->renderSize.x, result->renderSize.y);
-
-	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
-
-	addShootField(result, gameState, 1, EntityType_flyingVirus);
-	addSpotlightField(result, gameState);
-
-	result->spotLightAngle = 210;
-	result->emissivity = 0.4f;
-
-	return result;
 }
 
 Entity* addTrojan(GameState* gameState, V2 p) {
@@ -1952,9 +1857,7 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState, bool penetratio
 		} break;
 
 		case EntityType_player: {
-			if (b->type == EntityType_virus ||
-				b->type == EntityType_flyingVirus ||
-				b->type == EntityType_trojan ||
+			if (b->type == EntityType_trojan ||
 				b->type == EntityType_motherShip ||
 				b->type == EntityType_trawler ||
 				b->type == EntityType_shrike) result = false;
@@ -2272,9 +2175,7 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 
 	if(killField) {
 		if(entity->type == EntityType_laserBeam 
-		   || hitEntity->type == EntityType_virus
 		   || hitEntity->type == EntityType_text
-		   || hitEntity->type == EntityType_flyingVirus 
 		   || hitEntity->type == EntityType_trawler
 		   || hitEntity->type == EntityType_trojan
 		   || hitEntity->type == EntityType_shrike
@@ -2525,8 +2426,7 @@ void projectPointOntoHitbox(V2 point, Hitbox* hitbox, V2 hitboxOffset, V2 direct
 		return;
 	}
 
-	ProjectPointResult originalResult = *result;
-
+	//ProjectPointResult originalResult = *result;
 	//bool insideHitbox = true;
 
 	for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
@@ -2563,6 +2463,33 @@ void projectPointOntoHitbox(V2 point, Hitbox* hitbox, V2 hitboxOffset, V2 direct
 		} else {
 			//we are moving parallel to the line
 			//TODO: can still collide with the line if we are already on it
+
+			// point = (p1 + hitboxOffset) + t * line
+			// (0, 0) = relativeOffset + t * line
+			// t * line.x = -relativeOffset.x
+			// t = - 
+			// t * line.y = -relativeOffset.y
+
+			bool onLine = false;
+			double epsilon = 0;
+
+			if(line.x == 0) {
+				onLine = relativeOffset.x == 0 && relativeOffset.y >= 0 && p2.y + hitboxOffset.y <= point.y;
+			}
+			else if(line.y == 0) {
+				onLine = relativeOffset.y == 0 && relativeOffset.x >= 0 && p2.x + hitboxOffset.x <= point.x;
+			}
+			else {
+				onLine = epsilonEquals(-relativeOffset.x / line.x, -relativeOffset.y / line.y, epsilon);
+			}
+
+			if(onLine) {
+				if(dot(direction, lineNormal) > 0) {
+					result->hitTime = 0;
+					result->hitLineNormal = lineNormal;
+					result->collisionNormalFromMovingEntity = projectingOntoMovingEntity;
+				}
+			}
 		}
 
 		// if(insideHitbox) {
@@ -2578,6 +2505,10 @@ void projectPointOntoHitbox(V2 point, Hitbox* hitbox, V2 hitboxOffset, V2 direct
 
 void getPolygonCollisionTime(Hitbox* moving, Hitbox* fixed, Entity* movingEntity, Entity* fixedEntity, GameState* gameState,
 							 GetCollisionTimeResult* result, V2 delta, bool solidCollision) {
+
+	if(movingEntity->type == EntityType_tile && getMovementField(movingEntity)) {
+		s32 breakHere = 5;
+	}
 
 	V2 movingOffset = getHitboxCenter(moving, movingEntity);
 	V2 fixedOffset = getHitboxCenter(fixed, fixedEntity);
@@ -3543,12 +3474,16 @@ Entity* updateSpotlightBasedOnSpotlightField(Entity* entity, GameState* gameStat
 	double lightAngle = getSpotLightAngle(entity);
 
 	V3 lightColor = v3(1, 1, .9);
-	//color *= (1 - entity->cloakFactor);
-
+	
+#if ENABLE_LIGHTING
+	lightColor *= (1 - entity->cloakFactor);
+	SpotLight spotLight = createSpotLight(entity->p, lightColor, sightRadius, lightAngle, fov);
+	pushSpotLight(gameState->renderGroup, &spotLight, true);
+#else
 	u8 r = (u8)(255 * lightColor.x);
 	u8 g = (u8)(255 * lightColor.y);
 	u8 b = (u8)(255 * lightColor.z);
-	u8 a = (u8)(50 * (1 - entity->cloakFactor));
+	u8 a = (u8)(25 * (1 - entity->cloakFactor));
 
 	Color color = createColor(r, g, b, a);
 
@@ -3559,9 +3494,7 @@ Entity* updateSpotlightBasedOnSpotlightField(Entity* entity, GameState* gameStat
 
 	pushTexture(gameState->renderGroup, gameState->lightTriangle, lightBounds, lightAngle, false, false, DrawOrder_light,
 				true, color, 1);
-
-	//SpotLight spotLight = createSpotLight(entity->p, color, sightRadius, lightAngle, fov);
-	//pushSpotLight(gameState->renderGroup, &spotLight, true);
+#endif
 
 	Entity* target = getClosestTargetInSight(entity, gameState, sightRadius, fov); 
 
@@ -3622,12 +3555,6 @@ bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt, 
 					V2 spawnOffset = v2(0, 0);
 
 					switch(entity->type) {
-						case EntityType_virus:
-							spawnOffset = v2(0, -0.3);
-							break;
-						case EntityType_flyingVirus:
-							spawnOffset = v2(0.2, -0.29);
-							break;
 						case EntityType_trojan: 
 							spawnOffset = v2(0, -0.46);
 							break;
@@ -3662,7 +3589,6 @@ bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt, 
 						}
 						else {
 							InvalidCodePath;
-							addLaserBolt(gameState, spawnP, target->p, entity->ref, bulletSpeed);
 						}
 					}
 				}
@@ -3876,7 +3802,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 
 
 			case ConsoleField_movesBackAndForth: {
-				bool shouldPatrol = !doingOtherAction && dt > 0 && isSet(entity, EntityFlag_grounded); 
+				bool shouldPatrol = !doingOtherAction && dt > 0 && isSet(entity, EntityFlag_grounded|EntityFlag_noMovementByDefault); 
 
 				if (shouldPatrol) {
 					bool shouldChangeDirection = tryPatrolMove(entity, gameState, xMoveAcceleration, dt, ddP);
@@ -4279,9 +4205,10 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						ConsoleField* radiusField = field->children[0];
 						double radius = getDoubleValue(radiusField);
 
-						//PointLight light = createPointLight(v3(entity->p, 0), field->lightColor * (1 - entity->cloakFactor), radius);
-						//pushPointLight(gameState->renderGroup, &light, true);
-
+					#if ENABLE_LIGHTING
+						PointLight light = createPointLight(v3(entity->p, 0), field->lightColor * (1 - entity->cloakFactor), radius);
+						pushPointLight(gameState->renderGroup, &light, true);
+					#else
 						Texture* circle = gameState->lightCircle;
 						R2 lightBounds = rectCenterRadius(entity->p, v2(1, 1) * radius);
 
@@ -4289,11 +4216,12 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 						u8 r = (u8)(255 * lightColor.x);
 						u8 g = (u8)(255 * lightColor.y);
 						u8 b = (u8)(255 * lightColor.z);
-						u8 a = (u8)(50 * (1 - entity->cloakFactor));
+						u8 a = (u8)(25 * (1 - entity->cloakFactor));
 
 						Color color = createColor(r, g, b, a);
 						pushTexture(gameState->renderGroup, circle, lightBounds, false, false, DrawOrder_light, true, 
 									Orientation_0, color, 1);
+					#endif
 					}
 				} break;
 			}

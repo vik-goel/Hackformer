@@ -58,12 +58,9 @@ enum EntityType {
 	EntityType_death,
 	EntityType_hackEnergy,
 	EntityType_text,
-	EntityType_virus,
-	EntityType_laserBolt,
 	EntityType_endPortal,
 	EntityType_laserBase,
 	EntityType_laserBeam,
-	EntityType_flyingVirus,
 	EntityType_pickupField,
 	EntityType_trojan,
 	EntityType_disappearingTile,
@@ -104,8 +101,6 @@ enum DrawOrder {
 	DrawOrder_motherShip_3,
 	DrawOrder_motherShip_4,
 	DrawOrder_motherShip_5,
-	DrawOrder_virus,
-	DrawOrder_flyingVirus,
 	DrawOrder_shrike,
 	DrawOrder_trojan,
 	DrawOrder_trawler,
@@ -116,7 +111,6 @@ enum DrawOrder {
 	DrawOrder_player,
 	DrawOrder_trawlerBolt,
 	DrawOrder_heavyTile,
-	DrawOrder_laserBolt,
 	DrawOrder_trojanBolt,
 	DrawOrder_motherShipProjectile,
 	DrawOrder_light,
@@ -190,13 +184,12 @@ void* pushIntoArena_(MemoryArena* arena, size_t amt) {
 struct Assets {
 	SDL_RWops* assetFileHandle;
 	s32 assetFileOffsets[Asset_count];
-	bool loaded[Asset_count];
 };
 
 void initAssets(Assets* assets) {
 	assets->assetFileHandle = SDL_RWFromFile("assets.bin", "rb");
 	assert(assets->assetFileHandle);
-	
+
 	for(s32 assetIndex = 1; assetIndex < Asset_count; assetIndex++) {
 		SDL_RWread(assets->assetFileHandle, assets->assetFileOffsets + assetIndex, sizeof(s32), 1);
 	}

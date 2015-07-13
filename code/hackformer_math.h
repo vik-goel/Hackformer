@@ -29,6 +29,11 @@ struct R2 {
 
 //NOTE: Scalar operations here
 
+bool epsilonEquals(double a, double b, double epsilon) {
+	bool result = abs(a - b) <= epsilon;
+	return result;
+}
+
 double square(double a) {
 	return a * a;
 }

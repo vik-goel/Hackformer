@@ -139,13 +139,6 @@ int main(int argc, char** argv) {
 		"trojan/full.png",
 		"trojan/shoot.png",
 		
-		"virus1/laser_bolt.png",
-		"virus1/shoot.png",
-		"virus1/stand.png",
-
-		"virus2/full.png",
-		"virus2/shoot.png",
-
 		"virus3/base_off.png",
 		"virus3/base_on.png",
 		"virus3/laser_beam.png",

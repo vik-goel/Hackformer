@@ -503,15 +503,24 @@ void setConsoleFieldSelectedIndex(GameState* gameState, ConsoleField* field, s32
 bool clickConsoleButton(R2 bounds, ConsoleField* field, Input* input, FieldSpec* spec, bool increase, 
 						ButtonState* state, GameState* gameState) {
 	bool clickHandled = false;
+	bool couldClick = pointInsideRect(bounds, input->mouseInMeters);
 
 	bool canAfford = field->numChildren || spec->hackEnergy >= field->tweakCost;
 
-	if(canAfford) {
+	bool hasNextValue = (field->type == ConsoleField_unlimitedInt || field->numValues == 0);
+
+	if(increase) {
+		if(field->selectedIndex < field->numValues - 1) hasNextValue = true;
+	} else {
+		if(field->selectedIndex > 0) hasNextValue = true;
+	}
+
+	if(canAfford && hasNextValue) {
 		ConsoleFlag flag = increase ? ConsoleFlag_wasRightArrowSelected : ConsoleFlag_wasLeftArrowSelected;
 		bool32 wasClicked = isSet(field, flag);
 		clearFlags(field, flag);
 
-		if(wasClicked || pointInsideRect(bounds, input->mouseInMeters)) {
+		if(wasClicked || couldClick) {
 			if(input->leftMouse.pressed) {
 				clickHandled = true;
 				setFlags(field, flag);
@@ -534,6 +543,7 @@ bool clickConsoleButton(R2 bounds, ConsoleField* field, Input* input, FieldSpec*
 		}
 	} else { 
 		*state = ButtonState_cantAfford;
+		clickHandled = couldClick && input->leftMouse.pressed;
 	}	
 
 	return clickHandled;
@@ -614,22 +624,12 @@ bool drawValueArrow(V2 p, ConsoleField* field, RenderGroup* group, Input* input,
 	bool clickHandled = false;
 
 	R2 triangleBounds = rectCenterDiameter(p, spec->triangleSize);
-	bool drawArrow = (field->type == ConsoleField_unlimitedInt);
-
-	if(facesRight) {
-		if(field->selectedIndex < field->numValues - 1) drawArrow = true;
-	} else {
-		if(field->selectedIndex > 0) drawArrow = true;
-	}
-
 	ButtonState state = ButtonState_cantAfford;
 
-	if(drawArrow) {
-		R2 clickBounds = triangleBounds;
-		clickBounds.max.y -= spec->fieldSize.y;
+	R2 clickBounds = triangleBounds;
+	clickBounds.max.y -= spec->fieldSize.y;
 
-		clickConsoleButton(clickBounds, field, input, spec, facesRight, &state, gameState);
-	}	
+	clickHandled = clickConsoleButton(clickBounds, field, input, spec, facesRight, &state, gameState);
 
 	Texture* tex = NULL;
 	Color color = WHITE;

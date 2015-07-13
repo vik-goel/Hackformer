@@ -59,7 +59,7 @@ void main() {
 	}
 
 	result *= result * result;
-	result = clamp(result, vec3(0.0), vec3(1.0));
+	//result = clamp(result, vec3(0.0), vec3(1.0));
 
 #if 0 
 	//NOTE: This does the lighting in srgb space
@@ -72,6 +72,10 @@ void main() {
 	result *= texColor.xyz * tint.xyz; 
 	vec3 gamma = vec3(1.0 / 2.2);
 	vec3 gammaCorrectedResult = pow(result.xyz, gamma);
+
+	gammaCorrectedResult.x = gammaCorrectedResult.x / (gammaCorrectedResult.x + 1.0);
+	gammaCorrectedResult.y = gammaCorrectedResult.y / (gammaCorrectedResult.y + 1.0);
+	gammaCorrectedResult.z = gammaCorrectedResult.z / (gammaCorrectedResult.z + 1.0);
 
 	gl_FragColor = vec4(gammaCorrectedResult, texColor.a * tint.a);
 #endif

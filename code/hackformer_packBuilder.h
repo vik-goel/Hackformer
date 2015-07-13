@@ -102,13 +102,6 @@ enum AssetId {
 	Asset_trojanFull,
 	Asset_trojanShoot,
 
-	Asset_laserBolt,
-	Asset_virus1Shoot,
-	Asset_virus1Stand,
-
-	Asset_virus2Full,
-	Asset_virus2Shoot,
-
 	Asset_virus3BaseOff,
 	Asset_virus3BaseOn,
 	Asset_virus3LaserBeam,
