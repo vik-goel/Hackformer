@@ -114,9 +114,27 @@ bool hasValues(ConsoleField* field) {
 	return result;
 }
 
+bool shouldDrawField(FieldSpec* spec, ConsoleField* field) {
+	bool result = false;
+
+	if(spec->hackAbilities.moveFields) {
+		result = true;
+	}
+	else {
+		result = hasValues(field) || field->numChildren > 0;
+	}
+
+	return result;
+}
+
 double getTotalFieldHeight(FieldSpec* spec, ConsoleField* field) {
-	double result = spec->fieldSize.y + spec->spacing.y;
-	if(hasValues(field)) result += spec->valueSize.y - spec->valueBackgroundPenetration;
+	double result = 0;
+
+	if(shouldDrawField(spec, field)) {
+		result = spec->fieldSize.y + spec->spacing.y;
+		if(hasValues(field)) result += spec->valueSize.y - spec->valueBackgroundPenetration;
+	}
+
 	return result;
 }
 
@@ -277,21 +295,17 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 	R2 bounds = rectCenterDiameter(field->p, spec->fieldSize);
 
 	if (gameState->input.leftMouse.justPressed) {
-		if (pointInsideRect(bounds, gameState->input.mouseInMeters)) {
-			if(!isSet(field, ConsoleFlag_selected)) {
-				if(gameState->input.shift.pressed) {
-					if(!gameState->swapField && canFieldBeCloned(field)) {
-						if(spec->hackEnergy >= field->tweakCost) {
-							updateSaveGame(gameState);
-							spec->hackEnergy -= field->tweakCost;
-							gameState->swapField = createConsoleField(gameState, field);
-							rebaseField(gameState->swapField, gameState->swapFieldP); 
-						}
-					}
-				} else {
-					spec->mouseOffset = (gameState->input.mouseInMeters - field->p);
-					setFlags(field, ConsoleFlag_selected);
+		if (pointInsideRect(bounds, gameState->input.mouseInMeters) && !isSet(field, ConsoleFlag_selected)) {
+			if(gameState->input.shift.pressed && spec->hackAbilities.cloneFields) {
+				if(!gameState->swapField && canFieldBeCloned(field) && spec->hackEnergy >= field->tweakCost) {
+					updateSaveGame(gameState);
+					spec->hackEnergy -= field->tweakCost;
+					gameState->swapField = createConsoleField(gameState, field);
+					rebaseField(gameState->swapField, gameState->swapFieldP); 
 				}
+			} else if(spec->hackAbilities.moveFields) {
+				spec->mouseOffset = (gameState->input.mouseInMeters - field->p);
+				setFlags(field, ConsoleFlag_selected);
 			}
 
 			result = true;
@@ -505,7 +519,8 @@ bool clickConsoleButton(R2 bounds, ConsoleField* field, Input* input, FieldSpec*
 	bool clickHandled = false;
 	bool couldClick = pointInsideRect(bounds, input->mouseInMeters);
 
-	bool canAfford = field->numChildren || spec->hackEnergy >= field->tweakCost;
+	bool canAfford = (!hasValues(field) || spec->hackAbilities.editFields) && 
+					 (field->numChildren || spec->hackEnergy >= field->tweakCost);
 
 	bool hasNextValue = (field->type == ConsoleField_unlimitedInt || field->numValues == 0);
 
@@ -795,32 +810,35 @@ bool calcFieldPositions(GameState* gameState, ConsoleField** fields, s32 fieldsC
 
 	for (s32 fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
 		ConsoleField* field = fields[fieldIndex];
-		double fieldHeight = getTotalFieldHeight(spec, field);
-		fieldP->y -= fieldHeight;
-		field->p = *fieldP + field->offs;
 
-		//NOTE: Currently, fields with values like speed cannot be moved.
-		if (!hasValues(field) && !(isPickupField && fieldIndex == fieldsCount - 1)) {
-			if(moveField(field, gameState, dt, spec)) result = true;
-		} else {
-			moveToEquilibrium(field, dt);
-		}
+		if(shouldDrawField(spec, field)) {
+			double fieldHeight = getTotalFieldHeight(spec, field);
+			fieldP->y -= fieldHeight;
+			field->p = *fieldP + field->offs;
 
-		field->p = *fieldP + field->offs;
-
-		if (!isSet(field, ConsoleFlag_remove)) {
-			if (field->numChildren && field->childYOffs) {
-
-				V2 startFieldP = *fieldP;
-				fieldP->x += spec->childInset;
-				*fieldP += field->offs;
-
-				calcFieldPositions(gameState, field->children, field->numChildren, dt, fieldP, spec, isPickupField);
-
-				*fieldP = startFieldP - v2(0, field->childYOffs);
+			//NOTE: Currently, fields with values like speed cannot be moved.
+			if (!hasValues(field) && !(isPickupField && fieldIndex == fieldsCount - 1)) {
+				if(moveField(field, gameState, dt, spec)) result = true;
+			} else {
+				moveToEquilibrium(field, dt);
 			}
-		} else {
-			fieldP->y -= field->childYOffs;
+
+			field->p = *fieldP + field->offs;
+
+			if (!isSet(field, ConsoleFlag_remove)) {
+				if (field->numChildren && field->childYOffs) {
+
+					V2 startFieldP = *fieldP;
+					fieldP->x += spec->childInset;
+					*fieldP += field->offs;
+
+					calcFieldPositions(gameState, field->children, field->numChildren, dt, fieldP, spec, isPickupField);
+
+					*fieldP = startFieldP - v2(0, field->childYOffs);
+				}
+			} else {
+				fieldP->y -= field->childYOffs;
+			}
 		}
 	}
 
@@ -845,23 +863,25 @@ bool drawFieldsRaw(RenderGroup* group, Input* input, ConsoleField** fields, s32 
 	for (s32 fieldIndex = 0; fieldIndex < fieldsCount; fieldIndex++) {
 		ConsoleField* field = fields[fieldIndex];
 
-		fadeFieldAlpha(field, dt, fadeOut);
+		if(shouldDrawField(spec, field)) {
+			fadeFieldAlpha(field, dt, fadeOut);
 
-		if (drawConsoleField(field, group, input, spec, true, drawFieldSprite, gameState)) result = true;
+			if (drawConsoleField(field, group, input, spec, true, drawFieldSprite, gameState)) result = true;
 
-		if (field->numChildren && field->childYOffs) {
-			V2 rectSize = v2(spec->fieldSize.x, field->childYOffs);//getTotalYOffset(field->children, field->numChildren, spec, false));
-			V2 clipTopRight = field->p + v2(spec->fieldSize.x, -spec->fieldSize.y) * 0.5 + v2(spec->childInset, 0);
+			if (field->numChildren && field->childYOffs) {
+				V2 rectSize = v2(spec->fieldSize.x, field->childYOffs);//getTotalYOffset(field->children, field->numChildren, spec, false));
+				V2 clipTopRight = field->p + v2(spec->fieldSize.x, -spec->fieldSize.y) * 0.5 + v2(spec->childInset, 0);
 
-			R2 clipRect = r2(clipTopRight, clipTopRight - rectSize);
-			pushClipRect(group, clipRect);
+				R2 clipRect = r2(clipTopRight, clipTopRight - rectSize);
+				pushClipRect(group, clipRect);
 
-			//pushFilledRect(group, clipRect, MAGENTA, false);
-			if (drawFieldsRaw(group, input, field->children, field->numChildren, spec, gameState, dt, drawFieldSprite, fadeOut)) {
-				result = true;
+				//pushFilledRect(group, clipRect, MAGENTA, false);
+				if (drawFieldsRaw(group, input, field->children, field->numChildren, spec, gameState, dt, drawFieldSprite, fadeOut)) {
+					result = true;
+				}
+
+				pushDefaultClipRect(group);
 			}
-
-			pushDefaultClipRect(group);
 		}
 	}
 
@@ -1030,7 +1050,7 @@ bool drawTileFields(Entity* entity, FieldSpec* spec, GameState* gameState, doubl
 	fadeFieldAlpha(xOffsetField, dt, fadeOut);
 	fadeFieldAlpha(yOffsetField, dt, fadeOut);
 
-	bool showArrows = (getMovementField(entity) == NULL);
+	bool showArrows = (getMovementField(entity) == NULL && spec->hackAbilities.moveTiles);
 
 	bool moving = xOffsetField->selectedIndex != entity->tileXOffset ||
 				  yOffsetField->selectedIndex != entity->tileYOffset;
@@ -1186,23 +1206,23 @@ bool updateConsole(GameState* gameState, double dt) {
 
 	FieldSpec* spec = &gameState->fieldSpec;
 
-#if 1
-	{ //NOTE: This draws the gravity field
-		ConsoleField* gravityField = gameState->gravityField;
-		assert(gravityField);
-		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gravityField, 1, spec, gameState, dt, false)) 
-			clickHandled = true;
+	if(spec->hackAbilities.globalHacks) {
+		{ //NOTE: This draws the gravity field
+			ConsoleField* gravityField = gameState->gravityField;
+			assert(gravityField);
+			if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &gravityField, 1, spec, gameState, dt, false)) 
+				clickHandled = true;
 
-		gameState->gravity = v2(0, gravityField->doubleValues[gravityField->selectedIndex]);
-	}
+			gameState->gravity = v2(0, gravityField->doubleValues[gravityField->selectedIndex]);
+		}
 
-	{ //NOTE: This draws the time field
-		ConsoleField* timeField = gameState->timeField;
-		assert(timeField);
-		if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &timeField, 1, spec, gameState, dt, false))
-		 clickHandled = true;
+		{ //NOTE: This draws the time field
+			ConsoleField* timeField = gameState->timeField;
+			assert(timeField);
+			if (drawFieldsRaw(gameState->renderGroup, &gameState->input, &timeField, 1, spec, gameState, dt, false))
+			 clickHandled = true;
+		}
 	}
-#endif
 
 		//NOTE: This draws the swap field
 	if (gameState->swapField) {

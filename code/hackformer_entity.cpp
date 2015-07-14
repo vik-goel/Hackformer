@@ -616,7 +616,7 @@ void freeEntityDuringLevel(Entity* entity, GameState* gameState, bool createdThi
 		}
 	}
 
-	if(createsPickupFieldsOnDeath(entity) && !createdThisFrame) {
+	if(gameState->fieldSpec.hackAbilities.moveFields && createsPickupFieldsOnDeath(entity) && !createdThisFrame) {
 		for (s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
 			ConsoleField* field = entity->fields[fieldIndex];
 
@@ -5168,7 +5168,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 		#endif
 
 		double collisionBoundsAlpha = gameState->collisionBoundsAlpha;
-		if((isTileType(entity) && getMovementField(entity) == NULL) 
+		if((isTileType(entity) && getMovementField(entity) == NULL && gameState->fieldSpec.hackAbilities.moveTiles) 
 			|| entity->type == EntityType_player || 
 			entity->ref != gameState->consoleEntityRef) collisionBoundsAlpha = 0;
 

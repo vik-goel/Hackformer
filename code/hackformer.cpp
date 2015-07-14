@@ -960,53 +960,55 @@ int main(int argc, char* argv[]) {
 			}
 
 		//NOTE: Draw the dock after the console
-			V2 topFieldSize = getDrawSize(dock->gravityTex, 0.7);
+			if(gameState->fieldSpec.hackAbilities.globalHacks) {
+				V2 topFieldSize = getDrawSize(dock->gravityTex, 0.7);
 
-			V2 gravityP = gameState->gravityField->p + v2(0, 0.48);
-			R2 gravityBounds = rectCenterDiameter(gravityP, topFieldSize);
+				V2 gravityP = gameState->gravityField->p + v2(0, 0.48);
+				R2 gravityBounds = rectCenterDiameter(gravityP, topFieldSize);
 
-			V2 timeP = gameState->timeField->p + v2(0.3, 0.36);
-			R2 timeBounds = rectCenterDiameter(timeP, topFieldSize);
+				V2 timeP = gameState->timeField->p + v2(0.3, 0.36);
+				R2 timeBounds = rectCenterDiameter(timeP, topFieldSize);
 
-			pushTexture(renderGroup, dock->gravityTex, gravityBounds, false, false, DrawOrder_gui, false);
-			pushTexture(renderGroup, dock->timeTex, timeBounds, false, false, DrawOrder_gui, false);
+				pushTexture(renderGroup, dock->gravityTex, gravityBounds, false, false, DrawOrder_gui, false);
+				pushTexture(renderGroup, dock->timeTex, timeBounds, false, false, DrawOrder_gui, false);
 
-			Color barColor = createColor(191, 16, 16, 255);
+				Color barColor = createColor(191, 16, 16, 255);
 
-			double maxGravityBarLength = 2.2;
-			double gravityBarLength = maxGravityBarLength * ((double)gameState->gravityField->selectedIndex / (double)(gameState->gravityField->numValues - 1));
-			V2 gravityBarSize = v2(gravityBarLength, 0.07);
-			V2 circleSize = v2(1, 1) * 0.085;
+				double maxGravityBarLength = 2.2;
+				double gravityBarLength = maxGravityBarLength * ((double)gameState->gravityField->selectedIndex / (double)(gameState->gravityField->numValues - 1));
+				V2 gravityBarSize = v2(gravityBarLength, 0.07);
+				V2 circleSize = v2(1, 1) * 0.085;
 
-			if(gravityBarLength) {
-				V2 gravityBarP = gravityP + v2(-0.9, -0.3);
-				V2 gravityLeftCircleP = gravityBarP + v2(-0.02, 0.035);
+				if(gravityBarLength) {
+					V2 gravityBarP = gravityP + v2(-0.9, -0.3);
+					V2 gravityLeftCircleP = gravityBarP + v2(-0.02, 0.035);
 
-				pushTexture(renderGroup, dock->barCircleTex, rectCenterDiameter(gravityLeftCircleP, circleSize), 
-							false, false, DrawOrder_gui, false);
-				
-				if(gravityBarLength == maxGravityBarLength) {
-					V2 gravityRightCircleP = gravityLeftCircleP + v2(gravityBarLength + 0.03, 0);
-					pushTexture(renderGroup, dock->barCircleTex, rectCenterDiameter(gravityRightCircleP, circleSize), 
+					pushTexture(renderGroup, dock->barCircleTex, rectCenterDiameter(gravityLeftCircleP, circleSize), 
 								false, false, DrawOrder_gui, false);
+					
+					if(gravityBarLength == maxGravityBarLength) {
+						V2 gravityRightCircleP = gravityLeftCircleP + v2(gravityBarLength + 0.03, 0);
+						pushTexture(renderGroup, dock->barCircleTex, rectCenterDiameter(gravityRightCircleP, circleSize), 
+									false, false, DrawOrder_gui, false);
+					}
+
+					pushFilledRect(renderGroup, r2(gravityBarP, gravityBarP + gravityBarSize), barColor);
 				}
 
-				pushFilledRect(renderGroup, r2(gravityBarP, gravityBarP + gravityBarSize), barColor);
-			}
+				double maxTimeBarLength = 2.25;
+				double timeBarLength = maxTimeBarLength * ((double)gameState->timeField->selectedIndex / (double)(gameState->timeField->numValues - 1));
 
-			double maxTimeBarLength = 2.25;
-			double timeBarLength = maxTimeBarLength * ((double)gameState->timeField->selectedIndex / (double)(gameState->timeField->numValues - 1));
+				if(timeBarLength) {
+					V2 timeBarP = timeP + v2(-1.32, 0.23);
+					V2 timeBarSize = v2(timeBarLength, gravityBarSize.y);
 
-			if(timeBarLength) {
-				V2 timeBarP = timeP + v2(-1.32, 0.23);
-				V2 timeBarSize = v2(timeBarLength, gravityBarSize.y);
+					pushFilledRect(renderGroup, r2(timeBarP, timeBarP + timeBarSize), barColor);
 
-				pushFilledRect(renderGroup, r2(timeBarP, timeBarP + timeBarSize), barColor);
-
-				V2 timeCircleP = timeBarP - v2(0.015, -0.035);
-				circleSize *= 0.9;
-				pushTexture(renderGroup, dock->barCircleTex, rectCenterDiameter(timeCircleP, circleSize), 
-							false, false, DrawOrder_gui, false);
+					V2 timeCircleP = timeBarP - v2(0.015, -0.035);
+					circleSize *= 0.9;
+					pushTexture(renderGroup, dock->barCircleTex, rectCenterDiameter(timeCircleP, circleSize), 
+								false, false, DrawOrder_gui, false);
+				}
 			}
 		#endif
 
