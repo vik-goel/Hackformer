@@ -53,7 +53,6 @@ Editor
 
 */
 
-#define SAVE_BINARY
 #include "hackformer_types.h"
 
 #define HACKFORMER_GAME

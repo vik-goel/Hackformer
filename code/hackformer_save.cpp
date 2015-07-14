@@ -40,45 +40,6 @@ void streamRefNode(IOStream* stream, RefNode** nodePtr) {
 	}
 }
 
-void streamWaypoints(IOStream* stream, Waypoint** waypointPtr) {
-	s32 count;
-
-	if(stream->reading) {
-		readElem(stream, count);
-
-		Waypoint* points = pushArray(&stream->gameState->levelStorage, Waypoint, count);
-
-		for(s32 i = 0; i < count; i++) {
-			points[i].next = points + ((i + 1) % count);
-			streamV2(stream, &points[i].p);
-			streamElem(stream, points[i].moved);
-			streamElem(stream, points[i].selected);
-		}
-
-		assert(*waypointPtr == NULL);
-		*waypointPtr = points;
-	} else {
-		count = 0;
-
-		for(Waypoint* w = *waypointPtr; w; w = w->next) {
-			if(count != 0 && w == *waypointPtr) break;
-			count++;
-		}
-
-		writeElem(stream, count);
-
-		Waypoint* w = *waypointPtr;
-
-		for(s32 i = 0; i < count; i++) {
-			streamV2(stream, &w->p);
-			streamElem(stream, w->moved);
-			streamElem(stream, w->selected);
-
-			w = w->next;
-		}
-	}
-}
-
 void streamConsoleField(IOStream* stream, ConsoleField** fieldPtr) {
 	GameState* gameState = stream->gameState;
 
@@ -128,7 +89,7 @@ void streamConsoleField(IOStream* stream, ConsoleField** fieldPtr) {
 		} break;
 
 		case ConsoleField_followsWaypoints: {
-			streamWaypoints(stream, &field->curWaypoint);
+			streamWaypoints(stream, &field->curWaypoint, &gameState->levelStorage, false);
 			streamElem(stream, field->waypointDelay);
 		} break;
 
@@ -177,6 +138,7 @@ void streamConsoleField(IOStream* stream, ConsoleField** fieldPtr) {
 
 void streamFieldSpec(IOStream* stream, FieldSpec* spec) {
 	streamElem(stream, spec->hackEnergy);
+	streamHackAbilities(stream, &spec->hackAbilities);
 }
 
 void streamHitboxes(IOStream* stream, Hitbox** hitboxesPtr) {
@@ -223,43 +185,6 @@ void streamHitboxes(IOStream* stream, Hitbox** hitboxesPtr) {
 	}
 
 	*hitboxesPtr = hitboxes;
-}
-
-void streamMessages(IOStream* stream, Messages** messagesPtr, Entity* entity) {
-	Messages* messages = *messagesPtr;
-
-	if(stream->reading) {
-		s32 count;
-		streamElem(stream, count);
-
-		if(count < 0) {
-			*messagesPtr = NULL;
-			return;
-		} else {
-			messages = pushStruct(&stream->gameState->levelStorage, Messages);
-			messages->count = count;
-		}
-	}
-	else {
-		if(messages) {
-			streamElem(stream, messages->count);
-		} else {
-			streamValue(stream, s32, -1);
-			return;
-		}
-	}
-
-	streamElem(stream, messages->selectedIndex);
-
-	for(s32 i = 0; i < messages->count; i++) {
-		streamStr(stream, messages->text[i]);
-	}
-
-	*messagesPtr = messages;
-
-	if(stream->reading) {
-		setSelectedText(entity, messages->selectedIndex, stream->gameState);
-	}
 }
 
 void streamTextureObject_(IOStream* stream, void** nodePtr, void* array, size_t nodeSize) {
@@ -347,7 +272,11 @@ void streamEntity(IOStream* stream, Entity* entity, s32 entityIndex, bool stream
 	streamElem(stream, entity->jumpCount);
 	streamElem(stream, entity->timeSinceLastOnGround);
 
-	streamMessages(stream, &entity->messages, entity);
+	streamMessages(stream, &entity->messages, &gameState->levelStorage);
+
+	if(stream->reading && entity->messages) {
+		setSelectedText(entity, entity->messages->selectedIndex, gameState);
+	}
 
 	streamElem(stream, entity->animTime);
 	streamAnimNode(stream, &entity->currentAnim);

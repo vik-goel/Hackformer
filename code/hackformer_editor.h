@@ -1,4 +1,3 @@
-#define SAVE_BINARY
 #include "hackformer_types.h"
 
 #include "hackformer_renderer.h"
@@ -19,11 +18,6 @@ struct TileSpec {
 	bool32 flipX;
 	bool32 flipY;
 	bool32 tall;
-};
-
-struct Waypoint {
-	V2 p;
-	Waypoint* next;
 };
 
 struct Entity {
@@ -55,6 +49,8 @@ struct EditorState {
 	Entity* entities;
 	s32 entityCount;
 
+	BackgroundTextures backgroundTextures;
+
 	Texture* entityTextureAtlas;
 	Texture* tileAtlas;
 	s32 tileAtlasCount;
@@ -63,6 +59,9 @@ struct EditorState {
 
 	s32 mapWidthInTiles;
 	s32 mapHeightInTiles;
+	s32 initialEnergy;
 
 	TileSpec* tiles;
+
+	HackAbilities hackAbilities;
 };

@@ -136,15 +136,15 @@ Entity* addEditorEntity(EditorState* state, EntityType type, DrawOrder drawOrder
 		FILE* file = fopen(textEditFileName, "r");
 
 		if(file) {
-			messages->count = readS32(file, true);
+			messages->count = readS32(file);
 
 			if(messages->count <= 0 || messages->count > 10) return NULL;
 
-			messages->selectedIndex = readS32(file, true) - 1;
+			messages->selectedIndex = readS32(file) - 1;
 			if(messages->selectedIndex < 0 || messages->selectedIndex >= messages->count) return NULL;
 
 			for(s32 i = 0; i < messages->count; i++) {
-				readString(file, messages->text[i], true);
+				readString(file, messages->text[i]);
 				messages->textures[i] = createText(state->renderGroup, state->textFont, messages->text[i]);
 			}
 
@@ -175,6 +175,248 @@ Entity* addEditorEntity(EditorState* state, EntityType type, DrawOrder drawOrder
 	return entity;
 }
 
+#define ENTITY(type, width, height, fileName, panelX, panelY, panelScale) {EntityType_##type, DrawOrder_##type, v2(width, height), fileName, v2(panelX, panelY), panelScale},
+EntitySpec entitySpecs[] {
+	ENTITY(player, 1.75, 1.75, "player", 0, 6, 1)
+	ENTITY(lamp_0, 1, 0.5, "light_0", 0.1, 5, 1)
+	ENTITY(lamp_1, 350.0/109.0*0.4, 0.4, "light_1", 1.5, 5, 1)
+	ENTITY(laserBase, 0.9, 0.65, "virus3", 1.5, 6, 1)
+	ENTITY(hackEnergy, 0.7, 0.7, "energy", 0.5, 0.5, 1)
+	ENTITY(endPortal, 2, 2, "end_portal", 0, 3, 1)
+	ENTITY(trojan, 2, 2, "trojan", 0, 1, 1)
+	ENTITY(motherShip, 6 * (264.0 / 512.0), 6 * (339.0 / 512.0), "mothership", 2, 3, 0.5)
+	ENTITY(trawler, 2, 2, "trawler", 1.8, 1.2, 1)
+	ENTITY(shrike, 1.5, 1.5, "shrike", 1.75, 0, 1)
+	ENTITY(checkPoint, 0.59, 1.25, "checkpoint", 2.5, 6.5, 1)
+};
+#undef ENTITY
+
+void streamHackFile(IOStream* stream, EditorState* state) {
+	streamElem(stream, state->mapWidthInTiles);
+	streamElem(stream, state->mapHeightInTiles);
+	streamElem(stream, state->initialEnergy);
+
+	streamHackAbilities(stream, &state->hackAbilities);
+
+	if(stream->reading) {
+		BackgroundType type;
+		streamElem(stream, type);
+		setBackgroundTexture(&state->backgroundTextures, type, state->renderGroup);
+	}
+	else {
+		streamElem(stream, state->backgroundTextures.curBackgroundType);
+	}
+	
+
+	if(stream->reading) {
+		state->tiles = pushArray(&state->arena, TileSpec, state->mapHeightInTiles * state->mapWidthInTiles);
+	}
+
+	for(s32 tileY = 0; tileY < state->mapHeightInTiles; tileY++) {
+		for(s32 tileX = 0; tileX < state->mapWidthInTiles; tileX++) {
+			TileSpec* spec = state->tiles + tileY * state->mapWidthInTiles + tileX;
+
+			if(stream->reading) {
+				s32 val;
+				streamElem(stream, val);
+
+				if(val == -1) {
+					spec->index = -1;
+				}
+				else {
+					spec->index = val & TILE_INDEX_MASK;
+					spec->flipX = val & TILE_FLIP_X_FLAG;
+					spec->flipY = val & TILE_FLIP_Y_FLAG;
+					spec->tall = globalTileData[spec->index].tall;
+				}
+			}
+			else {
+				if(spec->index >= 0) {
+					s32 val = spec->index & TILE_INDEX_MASK;
+					if(spec->flipX) val |= TILE_FLIP_X_FLAG;
+					if(spec->flipY) val |= TILE_FLIP_Y_FLAG;
+
+					streamElem(stream, val);
+				}
+				else {
+					streamValue(stream, s32, -1);
+				}
+			}
+		}
+	}
+
+	streamElem(stream, state->entityCount);
+
+	for(s32 i = 0; i < state->entityCount; i++) {
+		Entity* entity = state->entities + i;
+		streamElem(stream, entity->type);
+
+		V2 p = getRectCenter(entity->bounds);
+		streamV2(stream, &p);
+
+		if(entity->type == EntityType_text) {
+			streamMessages(stream, &entity->messages, &state->arena);
+		}
+
+		if(stream->reading) {
+			if(entity->type == EntityType_text) {
+				initText(state, entity, p);
+			} else {
+				bool foundSpec = false;
+
+				for(s32 specIndex = 0; specIndex < arrayCount(entitySpecs); specIndex++) {
+					EntitySpec* spec = entitySpecs + specIndex;
+
+					if(spec->type == entity->type) {
+						entity->drawOrder = spec->drawOrder;
+						entity->tex = state->entityTextureAtlas + specIndex;
+						entity->bounds = rectCenterDiameter(p, spec->size);
+
+						foundSpec = true;
+						break;
+					}
+				}
+
+				assert(foundSpec);
+			}
+		}
+
+		if(entityGetsWaypoints(entity)) {
+			streamWaypoints(stream, &entity->waypoints, &state->arena, true);
+		}
+	}	
+
+	freeIostream(stream);
+}
+
+void saveHackFile(EditorState* state, char* fileName) {
+	IOStream stream = createIostream(NULL, fileName, false);
+	streamHackFile(&stream, state);
+}
+
+bool loadHackFile(EditorState* state, char* fileName) {
+	IOStream stream = createIostream(NULL, fileName, true, false);
+
+	if(stream.file) {
+		streamHackFile(&stream, state);
+		return true;
+	}
+
+	return false;
+}
+
+s32 show5ButtonDialog(SDL_Window* window, char* message) {
+	s32 result = 0;
+
+	SDL_MessageBoxButtonData buttons[5] = {};
+
+	for(s32 i = 0; i < arrayCount(buttons); i++) {
+		buttons[i].buttonid = i;
+	}
+
+	buttons[0].text = "cancel";
+	buttons[1].text = "increase by 1";
+	buttons[2].text = "increase by 5";
+	buttons[3].text = "decrease by 1";
+	buttons[4].text = "decrease by 5";
+
+	SDL_MessageBoxData messageBoxData = {};
+	messageBoxData.flags = SDL_MESSAGEBOX_INFORMATION;
+	messageBoxData.window = window;
+	messageBoxData.title = "editor";
+	messageBoxData.message = message;
+	messageBoxData.numbuttons = arrayCount(buttons);
+	messageBoxData.buttons = buttons;
+	messageBoxData.colorScheme = NULL;
+
+	s32 buttonId = 0;
+	s32 showResult = SDL_ShowMessageBox(&messageBoxData, &buttonId);
+
+	if(showResult < 0) {
+		const char* error = SDL_GetError();
+		s32 breakHere = 4;
+	}
+	else if(buttonId > 0) {
+		switch(buttonId) {
+			case 1:
+				result = 1;
+				break;
+			case 2:
+				result = 5;
+				break;
+			case 3:
+				result = -1;
+				break;
+			case 4:
+				result = -5;
+				break;
+			InvalidDefaultCase;
+		}
+	}
+
+	return result;
+}
+
+void showAbilitiesDialog(SDL_Window* window, HackAbilities* abilities) {
+	char message[1000];
+	sprintf(message, "Edit Fields: %d, Move Tiles: %d, Move Fields %d, Clone Fields %d, Global Hacks %d", 
+					  abilities->editFields, abilities->moveTiles, abilities->moveFields, abilities->cloneFields, 
+					  abilities->globalHacks);
+
+	SDL_MessageBoxButtonData buttons[6] = {};
+
+	for(s32 i = 0; i < arrayCount(buttons); i++) {
+		buttons[i].buttonid = i;
+	}
+
+	buttons[5].text = "edit fields";
+	buttons[4].text = "move tiles";
+	buttons[3].text = "move fields";
+	buttons[2].text = "clone fields";
+	buttons[1].text = "global hacks";
+	buttons[0].text = "cancel";
+
+	SDL_MessageBoxData messageBoxData = {};
+	messageBoxData.flags = SDL_MESSAGEBOX_INFORMATION;
+	messageBoxData.window = window;
+	messageBoxData.title = "toggle_abilities";
+	messageBoxData.message = message;
+	messageBoxData.numbuttons = arrayCount(buttons);
+	messageBoxData.buttons = buttons;
+	messageBoxData.colorScheme = NULL;
+
+	s32 buttonId = 0;
+	s32 showResult = SDL_ShowMessageBox(&messageBoxData, &buttonId);
+
+	if(showResult < 0) {
+		const char* error = SDL_GetError();
+		s32 breakHere = 4;
+	}
+	else {
+		switch(buttonId) {
+			case 5:
+				abilities->editFields = !abilities->editFields;
+				break;
+			case 4:
+				abilities->moveTiles = !abilities->moveTiles;
+				break;
+			case 3:
+				abilities->moveFields = !abilities->moveFields;
+				break;
+			case 2:
+				abilities->cloneFields = !abilities->cloneFields;
+				break;
+			case 1:
+				abilities->globalHacks = !abilities->globalHacks;
+				break;
+			case 0:
+				break;
+
+			InvalidDefaultCase;
+		}
+	}
+}
+
 int main(int argc, char* argv[]) {
 	s32 panelWidth = 250;
 	s32 windowWidth = 1280 + panelWidth, windowHeight = 720;
@@ -183,7 +425,7 @@ int main(int argc, char* argv[]) {
 	EditorState state = {};
 	initInputKeyCodes(&state.input);
 
-	state.arena = createArena(1024 * 1024 * 200, true);
+	initArena(&state.arena, MEGABYTES(200), true);
 
 	initCamera(&state.camera);
 	double oldScale = state.camera.scale;
@@ -229,22 +471,6 @@ int main(int argc, char* argv[]) {
 
 	CursorMode cursorMode = CursorMode_moveEntity;
 
-	#define ENTITY(type, width, height, fileName, panelX, panelY, panelScale) {EntityType_##type, DrawOrder_##type, v2(width, height), fileName, v2(panelX, panelY), panelScale},
-	EntitySpec entitySpecs[] {
-		ENTITY(player, 1.75, 1.75, "player", 0, 6, 1)
-		ENTITY(lamp_0, 1, 0.5, "light_0", 0.1, 5, 1)
-		ENTITY(lamp_1, 350.0/109.0*0.4, 0.4, "light_1", 1.5, 5, 1)
-		ENTITY(laserBase, 0.9, 0.65, "virus3", 1.5, 6, 1)
-		ENTITY(hackEnergy, 0.7, 0.7, "energy", 0.5, 0.5, 1)
-		ENTITY(endPortal, 2, 2, "end_portal", 0, 3, 1)
-		ENTITY(trojan, 2, 2, "trojan", 0, 1, 1)
-		ENTITY(motherShip, 6 * (264.0 / 512.0), 6 * (339.0 / 512.0), "mothership", 2, 3, 0.5)
-		ENTITY(trawler, 2, 2, "trawler", 1.8, 1.2, 1)
-		ENTITY(shrike, 1.5, 1.5, "shrike", 1.75, 0, 1)
-		ENTITY(checkPoint, 0.59, 1.25, "checkpoint", 2.5, 6.5, 1)
-	};
-	#undef ENTITY
-
 	char buffer[2000];
 
 	state.entityTextureAtlas = state.textures + state.texturesCount;
@@ -260,94 +486,23 @@ int main(int argc, char* argv[]) {
 	Entity* movingEntity = NULL;
 	Waypoint* movingWaypoint = NULL;
 
-	BackgroundTextures backgroundTextures;
-	initBackgroundTextures(&backgroundTextures);
+	initBackgroundTextures(&state.backgroundTextures);
 
 	char* saveFileName = "maps/edit.hack";
 
-	FILE* file = fopen(saveFileName, "rb");
+	if(loadHackFile(&state, saveFileName)) {
 
-	if(file) {
-		state.mapWidthInTiles = readS32(file);
-		state.mapHeightInTiles = readS32(file);
-
-		setBackgroundTexture(&backgroundTextures, (BackgroundType)readS32(file), renderGroup);
-
-		state.tiles = pushArray(&state.arena, TileSpec, state.mapHeightInTiles * state.mapWidthInTiles);
-
-		for(s32 tileY = 0; tileY < state.mapHeightInTiles; tileY++) {
-			for(s32 tileX = 0; tileX < state.mapWidthInTiles; tileX++) {
-				TileSpec* spec = state.tiles + (tileY * state.mapWidthInTiles + tileX);
-
-				s32 tile = readS32(file);
-
-				if(tile == -1) {
-					spec->index = -1;
-					spec->flipX = spec->flipY = false;
-					spec->tall = false;
-				} else {
-					spec->index = tile & TILE_INDEX_MASK;
-					spec->flipX = tile & TILE_FLIP_X_FLAG;
-					spec->flipY = tile & TILE_FLIP_Y_FLAG;
-					spec->tall = globalTileData[spec->index].tall;
-				}
-			}
-		}
-
-		state.entityCount = readS32(file);
-
-		for(s32 entityIndex = 0; entityIndex < state.entityCount; entityIndex++) {
-			Entity* entity = state.entities + entityIndex;
-
-			entity->type = (EntityType)readS32(file);
-			V2 p = readV2(file);
-
-			if(entity->type == EntityType_text) {
-
-				entity->messages = readMessages(file, &state.arena, NULL);
-				initText(&state, entity, p);
-			} else {
-				bool foundSpec = false;
-
-				for(s32 specIndex = 0; specIndex < arrayCount(entitySpecs); specIndex++) {
-					EntitySpec* spec = entitySpecs + specIndex;
-
-					if(spec->type == entity->type) {
-						entity->drawOrder = spec->drawOrder;
-						entity->tex = state.entityTextureAtlas + specIndex;
-						entity->bounds = rectCenterDiameter(p, spec->size);
-
-						if(entityGetsWaypoints(entity)) {
-							s32 numWaypoints = readS32(file);
-
-							if(numWaypoints > 0) {
-								entity->waypoints = pushArray(&state.arena, Waypoint, numWaypoints);
-
-								for(s32 wpIndex = 0; wpIndex < numWaypoints; wpIndex++) {
-									entity->waypoints[wpIndex].p = readV2(file);
-
-									if (wpIndex < numWaypoints - 1) {
-										entity->waypoints[wpIndex].next = entity->waypoints + (wpIndex + 1);
-									}
-								}
-							}
-						}
-
-						foundSpec = true;
-						break;
-					}
-				}
-
-				assert(foundSpec);
-			}
-		}
-
-		fclose(file);
 	} else {
 		state.mapWidthInTiles = 60;
 		state.mapHeightInTiles = 12;
 
-		setBackgroundTexture(&backgroundTextures, Background_marine, renderGroup);
+		state.hackAbilities.editFields = true;
+		state.hackAbilities.moveTiles = true;
+		state.hackAbilities.moveFields = true;
+		state.hackAbilities.cloneFields = true;
+		state.hackAbilities.globalHacks = true;
+
+		setBackgroundTexture(&state.backgroundTextures, Background_marine, renderGroup);
 
 		state.tiles = pushArray(&state.arena, TileSpec, state.mapHeightInTiles * state.mapWidthInTiles);
 
@@ -381,13 +536,13 @@ int main(int argc, char* argv[]) {
 				FILE* file = fopen(textEditFileName, "w");
 				assert(file);
 
-				writeS32(file, messages->count, true);
+				writeS32(file, messages->count);
 				fprintf(file, "\n");
-				writeS32(file, messages->selectedIndex + 1, true);
+				writeS32(file, messages->selectedIndex + 1);
 				fprintf(file, "\n");
 
 				for(s32 i = 0; i < messages->count; i++) {
-					writeString(file, messages->text[i], true);
+					writeString(file, messages->text[i]);
 					fprintf(file, "\n");
 				}
 
@@ -401,56 +556,12 @@ int main(int argc, char* argv[]) {
 			char message[1000];
 			sprintf(message, "map width in tiles: %d", state.mapWidthInTiles);
 
-			SDL_MessageBoxButtonData buttons[5] = {};
+			s32 oldWidth = state.mapWidthInTiles;
+			s32 newWidth = oldWidth + show5ButtonDialog(window, message);			
 
-			for(s32 i = 0; i < arrayCount(buttons); i++) {
-				buttons[i].buttonid = i;
-			}
+			if(newWidth < 1) newWidth = 1;
 
-			buttons[0].text = "cancel";
-			buttons[1].text = "increase by 1";
-			buttons[2].text = "increase by 5";
-			buttons[3].text = "decrease by 1";
-			buttons[4].text = "decrease by 5";
-
-			SDL_MessageBoxData messageBoxData = {};
-			messageBoxData.flags = SDL_MESSAGEBOX_INFORMATION;
-			messageBoxData.window = window;
-			messageBoxData.title = "map_size";
-			messageBoxData.message = message;
-			messageBoxData.numbuttons = arrayCount(buttons);
-			messageBoxData.buttons = buttons;
-			messageBoxData.colorScheme = NULL;
-
-			s32 buttonId = 0;
-			s32 showResult = SDL_ShowMessageBox(&messageBoxData, &buttonId);
-
-			if(showResult < 0) {
-				const char* error = SDL_GetError();
-				s32 breakHere = 4;
-			}
-			else if(buttonId > 0) {
-				s32 oldWidth = state.mapWidthInTiles;
-				s32 newWidth = oldWidth;
-
-				switch(buttonId) {
-					case 1:
-						newWidth += 1;
-						break;
-					case 2:
-						newWidth += 5;
-						break;
-					case 3:
-						newWidth -= 1;
-						break;
-					case 4:
-						newWidth -= 5;
-						break;
-					InvalidDefaultCase;
-				}
-
-				if(newWidth < 1) newWidth = 1;
-
+			if(newWidth != oldWidth) {
 				TileSpec* newTiles = pushArray(&state.arena, TileSpec, state.mapHeightInTiles * newWidth);
 
 				for(s32 tileY = 0; tileY < state.mapHeightInTiles; tileY++) {
@@ -473,6 +584,17 @@ int main(int argc, char* argv[]) {
 			}
 		}
 
+		if(input->j.justPressed) {
+			char message[1000];
+			sprintf(message, "initial energy: %d", state.initialEnergy);
+			state.initialEnergy += show5ButtonDialog(window, message);	
+			if(state.initialEnergy < 0) state.initialEnergy = 0;		
+		}
+
+		if(input->l.justPressed) {
+			showAbilitiesDialog(window, &state.hackAbilities);
+		}
+
 		//NOTE: Draw the game
 
 		camera->scale = 1;
@@ -481,7 +603,7 @@ int main(int argc, char* argv[]) {
 		camera->scale = oldScale;
 
 		if(camera->scale == 1) {
-			BackgroundTexture* backgroundTexture = getBackgroundTexture(&backgroundTextures);
+			BackgroundTexture* backgroundTexture = getBackgroundTexture(&state.backgroundTextures);
 			drawBackgroundTexture(backgroundTexture, renderGroup, camera, gameWindowSize, state.mapWidthInTiles * TILE_WIDTH_IN_METERS);
 		}
 
@@ -511,10 +633,10 @@ int main(int argc, char* argv[]) {
 		}
 
 		if(input->num[1].justPressed) {
-			setBackgroundTexture(&backgroundTextures, Background_marine, renderGroup);
+			setBackgroundTexture(&state.backgroundTextures, Background_marine, renderGroup);
 		}
 		if(input->num[2].justPressed) {
-			setBackgroundTexture(&backgroundTextures, Background_sunset, renderGroup);
+			setBackgroundTexture(&state.backgroundTextures, Background_sunset, renderGroup);
 		}
 
 		if(cursorMode == CursorMode_moveEntity && movingEntity) {
@@ -845,55 +967,7 @@ int main(int argc, char* argv[]) {
 				state.entities[state.entityCount] = {};
 			}
 
-			FILE* file = fopen(saveFileName, "wb");
-			assert(file);
-
-			writeS32(file, state.mapWidthInTiles);
-			writeS32(file, state.mapHeightInTiles);
-
-			writeS32(file, backgroundTextures.curBackgroundType);
-
-			for(s32 tileY = 0; tileY < state.mapHeightInTiles; tileY++) {
-				for(s32 tileX = 0; tileX < state.mapWidthInTiles; tileX++) {
-					TileSpec* spec = state.tiles + (tileY * state.mapWidthInTiles + tileX);
-					s32 tile = spec->index;
-
-					if(spec->flipX) {
-						tile |= TILE_FLIP_X_FLAG;
-					}
-					if(spec->flipY) tile |= TILE_FLIP_Y_FLAG;
-
-					writeS32(file, tile);
-				}
-			}
-
-			writeS32(file, state.entityCount);
-
-			for(s32 entityIndex = 0; entityIndex < state.entityCount; entityIndex++) {
-				Entity* entity = state.entities + entityIndex;
-				writeS32(file, entity->type);
-				writeV2(file, getRectCenter(entity->bounds));
-
-				if(entity->waypoints) {
-					s32 wpCount = 0;
-
-					for(Waypoint* wp = entity->waypoints; wp; wp = wp->next) {
-						wpCount++;
-					}
-
-					writeS32(file, wpCount);
-
-					for(Waypoint* wp = entity->waypoints; wp; wp = wp->next) {
-						writeV2(file, wp->p);
-					}
-				}
-
-				if(entity->type == EntityType_text) {
-					writeMessages(file, entity->messages);
-				}
-			}
-
-			fclose(file);
+			saveHackFile(&state, saveFileName);
 		}
 
 		glClear(GL_COLOR_BUFFER_BIT);

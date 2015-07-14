@@ -49,13 +49,6 @@ enum Alertness {
 	Alertness_count
 };
 
-struct Waypoint {
-	V2 p;
-	bool32 moved;
-	bool32 selected;
-	Waypoint* next;
-};
-
 #define MAX_CONSOLE_FIELD_CHILDREN 4
 
 struct ConsoleField {
@@ -143,6 +136,7 @@ struct FieldSpec {
 	V2 mouseOffset;
 
 	double hackEnergy;
+	HackAbilities hackAbilities;
 
 	Texture* attribute;
 	Texture* behaviour;

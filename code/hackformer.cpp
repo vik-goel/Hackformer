@@ -15,18 +15,9 @@ void initSpatialPartition(GameState* gameState) {
 	memset(gameState->chunks, 0, numChunks * sizeof(EntityChunk));
 }
 
-void loadWaypoints(FILE* file, Entity* entity, GameState* gameState) {
-	s32 numWaypoints = readS32(file);
-
-	if(numWaypoints > 0) {
-		ConsoleField* wpField = addFollowsWaypointsField(entity, gameState);
-		wpField->curWaypoint = pushArray(&gameState->levelStorage, Waypoint, numWaypoints);
-
-		for(s32 wpIndex = 0; wpIndex < numWaypoints; wpIndex++) {
-			wpField->curWaypoint[wpIndex].p = readV2(file);
-			wpField->curWaypoint[wpIndex].next = wpField->curWaypoint + ((wpIndex + 1) % numWaypoints);						
-		}					
-	}
+void loadWaypoints(IOStream* stream, Entity* entity, GameState* gameState) {
+	ConsoleField* wpField = addFollowsWaypointsField(entity, gameState);
+	streamWaypoints(stream, &wpField->curWaypoint, &gameState->levelStorage, true);
 }
 
 void loadHackMap(GameState* gameState, char* fileName) {
@@ -34,18 +25,26 @@ void loadHackMap(GameState* gameState, char* fileName) {
 	assert(strlen(fileName) < arrayCount(filePath) - 100);
 	sprintf(filePath, "maps/%s", fileName);
 
-	FILE* file = fopen(filePath, "rb");
-	assert(file);
+	IOStream streamObj = createIostream(gameState, filePath, true);
+	IOStream* stream = &streamObj;
 
-	s32 mapWidthInTiles = readS32(file);
-	s32 mapHeightInTiles = readS32(file);
+	s32 mapWidthInTiles, mapHeightInTiles;
+	streamElem(stream, mapWidthInTiles);
+	streamElem(stream, mapHeightInTiles);
 
-	BackgroundType bgType = (BackgroundType)readS32(file);
+	s32 initialEnergy;
+	streamElem(stream, initialEnergy);
+	gameState->fieldSpec.hackEnergy = initialEnergy;
+
+	streamHackAbilities(stream, &gameState->fieldSpec.hackAbilities);
+
+	BackgroundType bgType;
+	streamElem(stream, bgType);
 	setBackgroundTexture(&gameState->backgroundTextures, bgType, gameState->renderGroup);
 	addBackground(gameState);
 
 	V2 tileSize = v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS);
-	double tileEpsilon = 0.0001;
+	double tileEpsilon = 0.000001;
 	V2 tilePlacementSize = tileSize + v2(1, 1) * tileEpsilon;
 
 	gameState->mapSize = hadamard(v2(mapWidthInTiles, mapHeightInTiles), tileSize);
@@ -60,7 +59,8 @@ void loadHackMap(GameState* gameState, char* fileName) {
 
 	for(s32 tileY = 0; tileY < mapHeightInTiles; tileY++) {
 		for(s32 tileX = 0; tileX < mapWidthInTiles; tileX++) {
-			s32 tile = readS32(file);
+			s32 tile;
+			streamElem(stream, tile);
 
 			if(tile >= 0) {
 				s32 tileIndex = tile & TILE_INDEX_MASK;
@@ -70,7 +70,12 @@ void loadHackMap(GameState* gameState, char* fileName) {
 				V2 tileP = hadamard(v2(tileX, tileY), tilePlacementSize);
 
 				if(globalTileData[tileIndex].tall) {
-					tileP += 0.5 * v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_IN_METERS);
+					double overhangHeight = TILE_HEIGHT_IN_METERS - TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS;
+					tileP += 0.5 * (v2(TILE_WIDTH_IN_METERS, TILE_HEIGHT_IN_METERS) + v2(0, 1) * tileEpsilon);
+
+					if(flipY) {
+						tileP.y -= overhangHeight;
+					}
 				} else {
 					tileP += 0.5 * tileSize;
 				}
@@ -91,11 +96,15 @@ void loadHackMap(GameState* gameState, char* fileName) {
 		}
 	}
 
-	s32 numEntities = readS32(file);
+	s32 numEntities;
+	streamElem(stream, numEntities);
 
 	for(s32 entityIndex = 0; entityIndex < numEntities; entityIndex++) {
-		EntityType entityType = (EntityType)readS32(file);
-		V2 p = readV2(file);
+		EntityType entityType;
+		streamElem(stream, entityType);
+
+		V2 p;
+		streamV2(stream, &p);
 
 		switch(entityType) {
 			case EntityType_player: {
@@ -118,7 +127,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 
 			case EntityType_trojan: {
 				Entity* entity = addTrojan(gameState, p);
-				loadWaypoints(file, entity, gameState);
+				loadWaypoints(stream, entity, gameState);
 			} break;
 
 			case EntityType_motherShip: {
@@ -135,7 +144,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 		
 			case EntityType_shrike: {
 				Entity* entity = addShrikeBootUp(gameState, p);
-				loadWaypoints(file, entity, gameState);
+				loadWaypoints(stream, entity, gameState);
 			} break;
 
 			case EntityType_lamp_0: {
@@ -184,7 +193,8 @@ void loadHackMap(GameState* gameState, char* fileName) {
 			} break;
 
 			case EntityType_text: {
-				Messages* messages = readMessages(file, &gameState->levelStorage, &gameState->messagesFreeList);
+				Messages* messages;
+				streamMessages(stream, &messages, &gameState->levelStorage);
 				assert(messages);
 				addText(gameState, p, messages);
 			} break;
@@ -194,7 +204,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 		}
 	}
 
-	fclose(file);
+	freeIostream(stream);
 }
 
 void freeLevel(GameState* gameState, bool loadingFromCheckpoint) {
