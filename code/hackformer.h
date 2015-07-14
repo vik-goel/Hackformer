@@ -36,11 +36,20 @@ STEALTH
 - Enemies react to noises that they hear
 - Enemies can alert other enemies
 
+ABILITIES (should be able to have any subset of these active for any given level)
+Editing fields
+Moving tiles, heavy tiles
+Moving fields
+Cloning fields
+Global hacks (gravity, time)
+
 Editor
 -------
 - Adding text
 - Setting the height of a laser controller
 - Displaying backgrounds at different zoom levels
+
+- level where you need to hack the end portal or you just keep looping back to the same level
 
 */
 
@@ -216,11 +225,11 @@ struct GameState {
 	Random random;
 
 	RefNode* targetRefs;
-	s32 consoleEntityRef;
+	RefNode* guardTargetRefs;
 	RefNode* fadingOutConsoles;
+	s32 consoleEntityRef;
 	s32 playerRef;
 	s32 testEntityRef;
-	RefNode* guardTargetRefs;
 
 	bool32 loadNextLevel;
 	bool32 reloadCurrentLevel;
@@ -303,6 +312,9 @@ struct GameState {
 	Texture* lights[2];
 	Texture* lightCircle;
 	Texture* lightTriangle;
+
+	Texture* checkPointReached;
+	Texture* checkPointUnreached;
 };
 
 
@@ -331,3 +343,5 @@ void togglePause(GameState* gameState) {
 		InvalidCodePath;
 	}
 }
+
+void freeLevel(GameState* gameState);

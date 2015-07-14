@@ -11,10 +11,14 @@ struct SaveMemoryHeader {
 	SaveReference saves[MAX_HACK_UNDOS];
 };
 
-void saveGame(GameState* gameState, char* fileName);
-void loadGame(GameState* gameState, char* fileName);
-void saveGameToArena(GameState* gameState);
-void loadGameFromArena(GameState* gameState);
-void updateSaveGameToArena(GameState* gameState);
-void undoLastSaveGameFromArena(GameState* gameState);
+//Savegames, checkpoints
+void saveCompleteGame(GameState* gameState, char* fileName);
+void saveCompleteGame(GameState* gameState, MemoryArena* arena);
+void loadCompleteGame(GameState* gameState, char* fileName);
+void loadCompleteGame(GameState* gameState, MemoryArena* arena);
+
+//Hacking
+void updateSaveGame(GameState* gameState, bool initialSave = false);
+void undoLastSaveGame(GameState* gameState);
+void undoAllHackMoves(GameState* gameState);
 double getEnergyLoss(GameState* gameState);

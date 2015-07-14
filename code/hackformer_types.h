@@ -77,6 +77,7 @@ enum EntityType {
 	EntityType_lamp_1,
 	EntityType_shrike,
 	EntityType_test,
+	EntityType_checkPoint,
 };
 
 enum DrawOrder {
@@ -90,6 +91,7 @@ enum DrawOrder {
 	DrawOrder_lamp_0,
 	DrawOrder_lamp_1,
 	DrawOrder_movingTile,
+	DrawOrder_checkPoint,
 	DrawOrder_endPortal,
 	DrawOrder_hackEnergy,
 	DrawOrder_laserBeam,
@@ -621,16 +623,6 @@ void drawBackgroundTexture(BackgroundTexture* backgroundTexture, RenderGroup* gr
 	pushTexture(group, mg, translateRect(mgBounds, -camera->p), false, false, DrawOrder_middleground);
 }
 
-void writeSize_t(FILE* file, size_t value) {
-	#ifdef SAVE_BINARY
-		size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
-		assert(numElementsWritten == 1);
-	#else
-		fprintf(file, "%u ", value);
-	#endif
-}
-
-
 void writeU32(FILE* file, u32 value) {
 	#ifdef SAVE_BINARY
 		size_t numElementsWritten = fwrite(&value, sizeof(value), 1, file);
@@ -660,9 +652,125 @@ void writeV3(FILE* file, V3 value) {
 	writeDouble(file, value.z);
 }
 
-void writeR2(FILE* file, R2 value) {
+void writeV2(FILE* file, R2 value) {
 	writeV2(file, value.min);
 	writeV2(file, value.max);
+}
+
+struct IOStream {
+	FILE* file;
+	MemoryArena* arena;
+	void* readPtr;
+	bool32 reading;
+	struct GameState* gameState;
+};
+
+IOStream createIostream(struct GameState* gameState, MemoryArena* arena, void* readPtr = NULL) {
+	IOStream result = {};
+
+	result.gameState = gameState;
+
+	result.arena = arena;
+	result.readPtr = readPtr;
+	if(readPtr) result.reading = true;
+
+	return result;
+}
+
+IOStream createIostream(struct GameState* gameState, char* fileName, bool32 reading) {
+	IOStream result = {};
+
+	result.gameState = gameState;
+
+	if(reading) {
+		result.file = fopen(fileName, "rb");
+	} else {
+		result.file = fopen(fileName, "wb");
+	}
+
+	assert(result.file);
+	result.reading = reading;
+
+	return result;
+}
+
+void freeIostream(IOStream* iostream) {
+	if(iostream->file) {
+		fclose(iostream->file);
+	}
+}
+
+#define writeElem(iostream, value) writeElem_((iostream), &(value), sizeof((value)))
+void writeElem_(IOStream* iostream, void* value, size_t valueSize) {
+	if(iostream->file) {
+		size_t numElementsWritten = fwrite(value, valueSize, 1, iostream->file);
+		assert(numElementsWritten == 1);
+	}
+	else if(iostream->arena) {
+		void* mem = pushSize(iostream->arena, valueSize);
+		memcpy(mem, value, valueSize);
+	}
+	else {
+		InvalidCodePath;
+	}
+}
+
+#define readElem(iostream, value) readElem_((iostream), &(value), sizeof((value)))
+void readElem_(IOStream* iostream, void* value, size_t valueSize) {
+	if(iostream->file) {
+		size_t numElementsRead = fread(value, valueSize, 1, iostream->file);
+		assert(numElementsRead == 1);
+	}
+	else if(iostream->arena && iostream->readPtr) {
+		void* mem = iostream->readPtr;
+		iostream->readPtr = (char*)iostream->readPtr + valueSize;
+		assert((size_t)iostream->readPtr <= (size_t)iostream->arena->base + (size_t)iostream->arena->allocated);
+		memcpy(value, mem, valueSize);
+	}
+	else {
+		InvalidCodePath;
+	}
+}
+
+#define streamValue(iostream, type, value) {type val = value; streamElem((iostream), (val));}
+#define streamElem(iostream, value) streamElem_((iostream), &(value), sizeof((value)))
+void streamElem_(IOStream* stream, void* value, size_t valueSize) {
+	if(stream->reading) {
+		readElem_(stream, value, valueSize);
+	}
+	else {
+		writeElem_(stream, value, valueSize);
+	}
+}
+
+void streamStr(IOStream* stream, char* str) {
+	if(stream->reading) {
+		s32 len;
+		readElem_(stream, &len, sizeof(len));
+		readElem_(stream, str, len);
+		str[len] = 0;
+	}
+	else {
+		s32 len = strlen(str);
+		writeElem_(stream, &len, sizeof(len));
+		writeElem_(stream, str, len);
+	}
+}
+
+void streamV2(IOStream* stream, V2* vec) {
+	streamElem(stream, vec->x);
+	streamElem(stream, vec->y);
+}
+
+void streamV3(IOStream* stream, V3* vec) {
+	streamElem(stream, vec->x);
+	streamElem(stream, vec->y);
+	streamElem(stream, vec->z);
+}
+
+void streamR2(IOStream* stream, R2* rect) {
+	streamV2(stream, &rect->min);
+	streamV2(stream, &rect->max);
 }
 
 size_t readSize_t(FILE* file) {
@@ -795,27 +903,21 @@ void readString(FILE* file, char* buffer, bool otherMode = false) {
 		while(true) {
 			fscanf (file, "%s", tempBuffer);
 
-			s32 strSize = strlen(tempBuffer) - 2; //-2 for the ""
-			memcpy(buffer + offset, tempBuffer + firstWord, strSize);
+			s32 strSize = strlen(tempBuffer); 
+			memcpy(buffer + offset, tempBuffer, strSize);
 
 			offset += strSize;
 
-			if(firstWord) {
-				firstWord = false;
-			} else {
-				buffer[offset++] = tempBuffer[strSize];
-			}
-
-			if(tempBuffer[strSize + 1] == '\"') {
+			if(buffer[offset - 1] == '\"') {
 				break;
 			}
 			else {
-				buffer[offset++] = tempBuffer[strSize + 1];
 				buffer[offset++] = ' ';
 			}
 		}
 
-		buffer[offset] = 0;
+		buffer[offset - 1] = 0;
+		memcpy(buffer, buffer + 1, offset - 1);
 	}
 }
 
@@ -866,15 +968,15 @@ Messages* readMessages(FILE* file, MemoryArena* arena, Messages** messagesFreeLi
 	return result;
 }
 
-void writeMessages(FILE* file, Messages* messages) {
+void writeMessages(IOStream* iostream, Messages* messages) {
 	if(messages) {
-		writeS32(file, messages->count);
-		writeS32(file, messages->selectedIndex);
+		streamElem(iostream, messages->count);
+		streamElem(iostream, messages->selectedIndex);
 
 		for(s32 textIndex = 0; textIndex <= messages->count; textIndex++) {
-			writeString(file, messages->text[textIndex]);
+			streamStr(iostream, messages->text[textIndex]);
 		}
 	} else {
-		writeS32(file, -1);
+		streamValue(iostream, s32, -1);
 	}
 }

@@ -165,6 +165,9 @@ int main(int argc, char** argv) {
 		"energy_animation.png",
 		"light_0.png",
 		"light_1.png",
+
+		"checkpoint_reached.png",
+		"checkpoint_unreached.png",
 	};
 
 	s32 fileNameCount = arrayCount(fileNames);

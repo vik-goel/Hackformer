@@ -126,7 +126,11 @@ void loadHackMap(GameState* gameState, char* fileName) {
 			} break;
 
 			case EntityType_trawler: {
-				Entity* entity = addTrawlerBootUp(gameState, p);
+				addTrawlerBootUp(gameState, p);
+			} break;
+
+			case EntityType_checkPoint: {
+				addCheckPoint(gameState, p);
 			} break;
 		
 			case EntityType_shrike: {
@@ -209,6 +213,8 @@ void freeLevel(GameState* gameState) {
 	gameState->fadingOutConsoles = NULL;
 	gameState->targetRefs = NULL;
 	gameState->guardTargetRefs = NULL;
+	gameState->timeField = NULL;
+	gameState->gravityField = NULL;
 	gameState->swapField = NULL;
 
 	gameState->consoleEntityRef = 0;
@@ -692,6 +698,9 @@ void loadImages(GameState* gameState) {
 	gameState->lights[1] = loadPNGTexture(renderGroup, Asset_light1);
 	gameState->lightCircle = loadPNGTexture(renderGroup, Asset_circle);
 	gameState->lightTriangle = loadPNGTexture(renderGroup, Asset_triangle);
+
+	gameState->checkPointReached = loadPNGTexture(renderGroup, Asset_checkPointReached);
+	gameState->checkPointUnreached = loadPNGTexture(renderGroup, Asset_checkPointUnreached);
 }
 
 int main(int argc, char* argv[]) {
@@ -903,13 +912,13 @@ int main(int argc, char* argv[]) {
 					gameState->consoleEntityRef = 0;
 
 					if(cancelButtonClicked) {
-						loadGameFromArena(gameState);
+						undoAllHackMoves(gameState);
 					}
 				}
 			}
 
 			if(controlZJustPressed(input) && getEntityByRef(gameState, gameState->consoleEntityRef)) {
-				undoLastSaveGameFromArena(gameState);
+				undoLastSaveGame(gameState);
 			}
 
 		//NOTE: Draw the dock after the console
@@ -1121,12 +1130,12 @@ int main(int argc, char* argv[]) {
 		if(gameState->screenType == ScreenType_game) {
 			if (input->n.justPressed) {
 				if(!saveFilePath) saveFilePath = getSaveFilePath(saveFileName, &gameState->permanentStorage);
-				saveGame(gameState, saveFilePath);
+				saveCompleteGame(gameState, saveFilePath);
 			}
 			if (input->m.justPressed) {
 				freeLevel(gameState);
 				if(!saveFilePath) saveFilePath = getSaveFilePath(saveFileName, &gameState->permanentStorage);
-				loadGame(gameState, saveFilePath);
+				loadCompleteGame(gameState, saveFilePath);
 			}
 
 			if (input->x.justPressed) {

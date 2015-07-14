@@ -129,5 +129,8 @@ enum AssetId {
 	Asset_light0,
 	Asset_light1,
 
+	Asset_checkPointReached,
+	Asset_checkPointUnreached,
+
 	Asset_count
 };

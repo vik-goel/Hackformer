@@ -21,6 +21,7 @@ enum EntityFlag {
 	EntityFlag_flipY = 1 << 16,
 	EntityFlag_isCornerTile = 1 << 17,
 	EntityFlag_jumped = 1 << 18,
+	EntityFlag_checkPointReached = 1 << 19,
 };
 
 struct RefNode {
@@ -33,6 +34,7 @@ struct RefNode {
 
 struct Hitbox {
 	V2 collisionSize; //Broad phase
+	V2 collisionOffset;
 
 	s32 collisionPointsCount;
 	V2 originalCollisionPoints[MAX_COLLISION_POINTS]; //Narrow phase
@@ -42,7 +44,6 @@ struct Hitbox {
 	double storedRotation;
 	V2 rotatedCollisionPoints[MAX_COLLISION_POINTS];
 
-	V2 collisionOffset;
 	Hitbox* next;
 };
 
@@ -92,7 +93,7 @@ struct Entity {
 	s32 jumpCount;
 	double timeSinceLastOnGround;
 
-	//Used by text entity
+	//Used booly text entity
 	Messages* messages;
 
 	double animTime;
@@ -104,16 +105,6 @@ struct Entity {
 	CharacterAnim* characterAnim;
 
 	V2 groundNormal;
-};
-
-struct EntityHackSave {
-	V2 p;
-	double rotation;
-	s32 tileXOffset;
-	s32 tileYOffset;
-	s32 messagesSelectedIndex;
-	double timeSinceLastOnGround;
-	s32 numFields;
 };
 
 struct EntityReference {

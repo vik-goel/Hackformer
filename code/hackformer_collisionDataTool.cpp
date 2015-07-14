@@ -38,8 +38,11 @@ int main(int argc, char* argv[]) {
 	Texture* textures = pushArray(&arena, Texture, 10);
 	s32 texturesCount = 1;
 
+	Assets assets = {};
+	initAssets(&assets);
+
 	RenderGroup* renderGroup = createRenderGroup(1024 * 1024, &arena, TEMP_PIXELS_PER_METER, windowWidth, windowHeight, 
-		&camera, textures, &texturesCount);
+		&camera, textures, &texturesCount, &assets);
 	renderGroup->enabled = true;
 
 

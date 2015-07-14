@@ -1,763 +1,454 @@
-#define writeLinkedListCount(file, list) {s32 listCount = 0; auto listNodePtr = (list); while(listNodePtr) { listCount++; listNodePtr = listNodePtr->next;} writeS32((file), listCount); }
+void streamCamera(IOStream* stream, Camera* camera) {
+	streamV2(stream, &camera->p);
+	streamV2(stream, &camera->dP);
+	streamV2(stream, &camera->newP);
+	streamElem(stream, camera->moveToTarget);
+	streamElem(stream, camera->deferredMoveToTarget);
+	streamElem(stream, camera->scale);
+	streamV2(stream, &camera->scaleCenter);
+}
 
-void writeHitboxes(FILE* file, Hitbox* hitboxes) {
-	writeLinkedListCount(file, hitboxes);
+void streamRandom(IOStream* stream, Random* random) {
+	streamElem(stream, random->seed);
+}
 
-	while(hitboxes) {
-		writeV2(file, hitboxes->collisionSize);
-		writeV2(file, hitboxes->collisionOffset);
+void streamRefNode(IOStream* stream, RefNode** nodePtr) {
+	s32 count;
 
-		writeS32(file, hitboxes->collisionPointsCount);
+	if(stream->reading) {
+		readElem(stream, count);
 
-		for(s32 pIndex = 0; pIndex < hitboxes->collisionPointsCount; pIndex++) {
-			writeV2(file, hitboxes->originalCollisionPoints[pIndex]);
+		*nodePtr = NULL;
+		
+		for(s32 i = 0; i < count; i++) {
+			s32 ref;
+			readElem(stream, ref);
+			*nodePtr = refNode(stream->gameState, ref, *nodePtr);
+		}
+	} else {
+		count = 0;
+
+		for(RefNode* n = *nodePtr; n; n = n->next) {
+			count++;
 		}
 
-		hitboxes = hitboxes->next;
+		writeElem(stream, count);
+
+		for(RefNode* n = *nodePtr; n; n = n->next) {
+			writeElem(stream, n->ref);
+		}
 	}
 }
 
-void writeRefNode(FILE* file, RefNode* refNode) {
-	writeLinkedListCount(file, refNode);
+void streamWaypoints(IOStream* stream, Waypoint** waypointPtr) {
+	s32 count;
 
-	while(refNode) {
-		writeS32(file, refNode->ref);
-		refNode = refNode->next;
+	if(stream->reading) {
+		readElem(stream, count);
+
+		Waypoint* points = pushArray(&stream->gameState->levelStorage, Waypoint, count);
+
+		for(s32 i = 0; i < count; i++) {
+			points[i].next = points + ((i + 1) % count);
+			streamV2(stream, &points[i].p);
+			streamElem(stream, points[i].moved);
+			streamElem(stream, points[i].selected);
+		}
+
+		assert(*waypointPtr == NULL);
+		*waypointPtr = points;
+	} else {
+		count = 0;
+
+		for(Waypoint* w = *waypointPtr; w; w = w->next) {
+			if(count != 0 && w == *waypointPtr) break;
+			count++;
+		}
+
+		writeElem(stream, count);
+
+		Waypoint* w = *waypointPtr;
+
+		for(s32 i = 0; i < count; i++) {
+			streamV2(stream, &w->p);
+			streamElem(stream, w->moved);
+			streamElem(stream, w->selected);
+
+			w = w->next;
+		}
 	}
 }
 
-void writeConsoleField(FILE* file, ConsoleField* field) {
-	if(field) {
-		writeS32(file, field->type);
-		writeU32(file, field->flags);
-		writeString(file, field->name);
+void streamConsoleField(IOStream* stream, ConsoleField** fieldPtr) {
+	GameState* gameState = stream->gameState;
 
-		writeS32(file, field->numValues);
+	ConsoleField* field = *fieldPtr;
 
-		if(field->type == ConsoleField_double) {
+	if(!field) {
+		if(stream->reading) {
+			field = createConsoleField_(gameState);
+			*fieldPtr = field;
+		}
+		else {
+			streamValue(stream, s32, -1);
+			return;
+		}
+	}
+
+	s32 type;
+	if(!stream->reading) type = field->type;
+	streamElem(stream, type);
+
+	if(stream->reading) {
+		if(type < 0) {
+			freeConsoleField(field, gameState);
+			*fieldPtr = NULL;
+			return;
+		} else {
+			freeConsoleField_(field, gameState);
+			field->type = (ConsoleFieldType)type;
+		}
+	}
+
+	streamElem(stream, field->flags);
+	streamStr(stream, field->name);
+	streamElem(stream, field->numValues);
+
+	switch(field->type) {
+		case ConsoleField_double: {
 			for(s32 i = 0; i < field->numValues; i++) {
-				writeDouble(file, field->doubleValues[i]);
+				streamElem(stream, field->doubleValues[i]);
 			}
-		}
-		else if(field->type == ConsoleField_s32) {
+		} break;
+
+		case ConsoleField_s32: {
 			for(s32 i = 0; i < field->numValues; i++) {
-				writeS32(file, field->s32Values[i]);
+				streamElem(stream, field->s32Values[i]);
 			}
-		}
-		else if(field->type == ConsoleField_followsWaypoints) {
-			Waypoint* wp = field->curWaypoint;
-			
-			s32 count = (wp != NULL);
-			wp = wp->next;
+		} break;
 
-			while(wp && wp != field->curWaypoint) {
-				count++;
-				wp = wp->next;
-			}
+		case ConsoleField_followsWaypoints: {
+			streamWaypoints(stream, &field->curWaypoint);
+			streamElem(stream, field->waypointDelay);
+		} break;
 
-			writeS32(file, count);
+		case ConsoleField_bobsVertically: {
+			streamElem(stream, field->bobHeight);
+			streamElem(stream, field->bobbingUp);
+			streamElem(stream, field->initialBob);
+		} break;
 
-			wp = field->curWaypoint;
+		case ConsoleField_shootsAtTarget: {
+			streamElem(stream, field->shootTimer);
+			streamElem(stream, field->shootEntityType);
+		} break;
 
-			while(wp && count > 0) {
-				writeV2(file, wp->p);
-				wp = wp->next;
-				count--;
-			}
+		case ConsoleField_spawnsTrawlers:
+		case ConsoleField_spawnsShrikes: {
+			streamElem(stream, field->spawnTimer);
+			streamRefNode(stream, &field->spawnedEntities);
+		} break;
 
-			writeDouble(file, field->waypointDelay);
-		} else if(field->type == ConsoleField_bobsVertically) {
-			writeDouble(file, field->bobHeight);
-			writeS32(file, field->bobbingUp);
-			writeS32(file, field->initialBob);
-		} else if(field->type == ConsoleField_shootsAtTarget) {
-			writeDouble(file, field->shootTimer);
-			writeS32(file, field->shootEntityType);
-		} else if(field->type == ConsoleField_spawnsTrawlers) {
-			writeDouble(file, field->spawnTimer);
-			writeRefNode(file, field->spawnedEntities);
-		} else if(field->type == ConsoleField_light) {
-			writeV3(file, field->lightColor);
-		} else if(field->type == ConsoleField_scansForTargets) {
-			writeDouble(file, field->scanStart);
-			writeS32(file, field->decreasingScanAngle);
-		}
+		case ConsoleField_light: {
+			streamV3(stream, &field->lightColor);
+		} break;
 
-		writeS32(file, field->selectedIndex);
-		writeS32(file, field->initialIndex);
-		writeS32(file, field->tweakCost);
-		writeV2(file, field->p);
-		writeV2(file, field->offs);
-		writeS32(file, field->numChildren);
+		case ConsoleField_scansForTargets: {
+			streamElem(stream, field->scanStart);
+			streamElem(stream, field->decreasingScanAngle);
+		} break;
+	}
 
-		for(s32 childIndex = 0; childIndex < field->numChildren; childIndex++) {
-			writeConsoleField(file, field->children[childIndex]);
-		}
+	streamElem(stream, field->selectedIndex);
+	streamElem(stream, field->initialIndex);
+	streamElem(stream, field->tweakCost);
+	streamV2(stream, &field->p);
+	streamV2(stream, &field->offs);
+	streamElem(stream, field->childYOffs);
+	streamElem(stream, field->alpha);
+	streamElem(stream, field->numChildren);
 
-		writeDouble(file, field->childYOffs); 
-		writeDouble(file, field->alpha); 
-	} else {
-		writeS32(file, -1);
+	for(s32 i = 0; i < field->numChildren; i++) {
+		if (stream->reading) field->children[i] = NULL;
+		streamConsoleField(stream, field->children + i);
+		assert(field->children[i]);
 	}
 }
 
-void writeTexture(FILE* file, Texture* texture, GameState* gameState) {
-	if(texture) {
-		s32 dataIndex = ((size_t)texture - (size_t)gameState->textures) / sizeof(Texture);
-		assert(dataIndex >= 0 && dataIndex < gameState->texturesCount);
-
-		writeS32(file, dataIndex);
-	} else {
-		writeS32(file, -1);
-	}
+void streamFieldSpec(IOStream* stream, FieldSpec* spec) {
+	streamElem(stream, spec->hackEnergy);
 }
 
-void writeGlowingTexture(FILE* file, GlowingTexture* texture, GameState* gameState) {
-	if(texture) {
-		s32 dataIndex = ((size_t)texture - (size_t)gameState->glowingTextures) / sizeof(GlowingTexture);
-		assert(dataIndex >= 0 && dataIndex < gameState->glowingTexturesCount);
+void streamHitboxes(IOStream* stream, Hitbox** hitboxesPtr) {
+	s32 count;
+	Hitbox* hitboxes = *hitboxesPtr;
 
-		writeS32(file, dataIndex);
-	} else {
-		writeS32(file, -1);
-	}
-}
+	if(stream->reading) {
+		streamElem(stream, count);
 
-void writeAnimNode(FILE* file, AnimNode* anim, GameState* gameState) {
-	if (anim){
-		s32 dataIndex = ((size_t)anim - (size_t)gameState->animNodes) / sizeof(AnimNode);
-		assert(dataIndex >= 0 && dataIndex < gameState->animNodesCount);
+		assert(hitboxes == NULL);	
 
-		writeS32(file, dataIndex);
-	} else {
-		writeS32(file, -1);
-	}
-}
+		if(count > 0) {
+			hitboxes = pushArray(&stream->gameState->levelStorage, Hitbox, count);
 
-void writeCharacterAnim(FILE* file, CharacterAnim* anim, GameState* gameState) {
-	if (anim){
-		s32 dataIndex = ((size_t)anim - (size_t)gameState->characterAnims) / sizeof(CharacterAnim);
-		assert(dataIndex >= 0 && dataIndex < gameState->characterAnimsCount);
-
-		writeS32(file, dataIndex);
-	} else {
-		writeS32(file, -1);
-	}
-}
-
-void writeEntity(FILE* file, Entity* entity, GameState* gameState) {
-	writeS32(file, entity->ref);
-	writeS32(file, entity->type);
-	writeU32(file, entity->flags);
-	writeV2(file, entity->p);
-	writeV2(file, entity->dP);
-	writeDouble(file, entity->rotation);
-	writeDouble(file, entity->wheelRotation);
-	writeV2(file, entity->renderSize);
-	writeS32(file, entity->drawOrder);
-	writeHitboxes(file, entity->hitboxes);
-	writeR2(file, entity->clickBox);
-	writeS32(file, entity->numFields);
-
-	for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
-		writeConsoleField(file, entity->fields[fieldIndex]);
-	}
-
-	writeRefNode(file, entity->groundReferenceList);
-	writeRefNode(file, entity->ignorePenetrationList);
-
-	writeDouble(file, entity->emissivity);
-	writeDouble(file, entity->spotLightAngle);
-	writeDouble(file, entity->alpha);
-	writeDouble(file, entity->cloakFactor);
-	writeS32(file, entity->targetRef);
-	writeS32(file, entity->spawnerRef);
-	writeV2(file, entity->startPos);
-	writeS32(file, entity->tileXOffset);
-	writeS32(file, entity->tileYOffset);
-	writeS32(file, entity->jumpCount);
-	writeDouble(file, entity->timeSinceLastOnGround);
-
-	writeMessages(file, entity->messages);
-
-	writeDouble(file, entity->animTime);
-	writeAnimNode(file, entity->currentAnim, gameState);
-	writeAnimNode(file, entity->nextAnim, gameState);
-	writeTexture(file, entity->defaultTex, gameState);
-	writeGlowingTexture(file, entity->glowingTex, gameState);
-	writeCharacterAnim(file, entity->characterAnim, gameState);
-}
-
-void writeFieldSpec(FILE* file, FieldSpec* spec) {
-	writeV2(file, spec->mouseOffset);
-	writeDouble(file, spec->hackEnergy);
-}
-
-void writeAnimation(FILE* file, Animation* anim) {
-	writeS32(file, anim->numFrames);
-
-	if(anim->numFrames) {
-		writeDouble(file, anim->secondsPerFrame);
-		writeS32(file, anim->pingPong);
-		writeS32(file, anim->reverse);
-		writeS32(file, anim->frameWidth);
-		writeS32(file, anim->frameHeight);
-		writeS32(file, anim->assetId);
-	}
-}
-
-void writeCamera(FILE* file, Camera* camera) {
-	writeV2(file, camera->p);
-	writeV2(file, camera->newP);
-	writeS32(file, camera->moveToTarget);
-	writeS32(file, camera->deferredMoveToTarget);
-	writeDouble(file, camera->scale);
-}
-
-void writeButton(FILE* file, Button* button) {
-	writeS32(file, button->selected);
-	writeDouble(file, button->scale);
-}
-
-void writePauseMenu(FILE* file, PauseMenu* menu) {
-	writeDouble(file, menu->animCounter);
-	writeButton(file, &menu->quit);
-	writeButton(file, &menu->restart);
-	writeButton(file, &menu->resume);
-	writeButton(file, &menu->settings);
-}
-
-void writeDock(FILE* file, Dock* dock) {
-	writeDouble(file, dock->subDockYOffs);
-}
-
-void offsetSavePtrs(MemoryArena* arena, bool forwards) {
-	SaveMemoryHeader* header = (SaveMemoryHeader*)arena->base;
-
-	size_t movement = (size_t)arena->base;
-	if(!forwards) movement *= -1;
-
-	for(s32 saveIndex = 0; saveIndex < header->numSaveGames; saveIndex++) {
-		SaveReference* ref = header->saves + saveIndex;
-		ref->save = (char*)ref->save + movement;
-	}
-}
-
-void writeMemoryArena(FILE* file, MemoryArena* arena) {
-	offsetSavePtrs(arena, false);
-
-	writeSize_t(file, arena->allocated);
-
-	size_t numElementsWritten = fwrite(arena->base, sizeof(char), arena->allocated, file);
-	assert(numElementsWritten == arena->allocated);
-
-	offsetSavePtrs(arena, true);
-}
-
-void saveGame(GameState* gameState, char* fileName) {
-	FILE* file = fopen(fileName, "wb");
-	assert(file);
-
-	writeS32(file, gameState->screenType);
-	writeS32(file, gameState->refCount_);
-	writeCamera(file, &gameState->camera);
-	writeRefNode(file, gameState->targetRefs);
-	writeRefNode(file, gameState->guardTargetRefs);
-	writeS32(file, gameState->consoleEntityRef);
-	writeRefNode(file, gameState->fadingOutConsoles);
-	writeS32(file, gameState->playerRef);
-	writeS32(file, gameState->testEntityRef);
-	writeS32(file, gameState->loadNextLevel);
-	writeS32(file, gameState->reloadCurrentLevel);
-	writeS32(file, gameState->doingInitialSim);
-
-	writeConsoleField(file, gameState->timeField);
-	writeConsoleField(file, gameState->gravityField);
-	writeConsoleField(file, gameState->swapField);
-	writeV2(file, gameState->swapFieldP);
-	writeFieldSpec(file, &gameState->fieldSpec);
-
-	writeV2(file, gameState->mapSize);
-	writeV2(file, gameState->worldSize);
-	writeV2(file, gameState->gravity);
-
-	writeS32(file, gameState->backgroundTextures.curBackgroundType);
-
-	writePauseMenu(file, &gameState->pauseMenu);
-	writeDock(file, &gameState->dock);
-
-	writeDouble(file, gameState->collisionBoundsAlpha);
-
-	writeS32(file, gameState->numEntities);
-
-	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-		Entity* entity = gameState->entities + entityIndex;
-		writeEntity(file, entity, gameState);
-	}
-
-	if(getEntityByRef(gameState, gameState->consoleEntityRef)) {
-		writeMemoryArena(file, &gameState->hackSaveStorage);
-	}
-
-	fclose(file);
-}
-
-RefNode* readRefNode(FILE* file, GameState* gameState) {
-	RefNode* result = NULL;
-
-	s32 numNodes = readS32(file);
-
-	for(s32 nodeIndex = 0; nodeIndex < numNodes; nodeIndex++) {
-		s32 ref = readS32(file);
-		RefNode* node = refNode(gameState, ref);
-
-		node->next = result;
-		result = node;
-	}
-
-	return result;
-}
-
-ConsoleField* readConsoleField(FILE* file, GameState* gameState) {
-	ConsoleField* field = NULL;
-	s32 type = readS32(file);
-
-	if(type >= 0) {
-		field = createConsoleField_(gameState);
-		*field = {};
-
-		field->type = (ConsoleFieldType)type;
-		field->flags = readU32(file);
-		readString(file, field->name);
-
-		field->numValues = readS32(file);
-
-		if(field->type == ConsoleField_double) {
-			for(s32 i = 0; i < field->numValues; i++) {
-				field->doubleValues[i] = readDouble(file);
-			}
-		}
-		else if(field->type == ConsoleField_s32) {
-			for(s32 i = 0; i < field->numValues; i++) {
-				field->s32Values[i] = readS32(file);
-			}
-		}
-		else if(field->type == ConsoleField_followsWaypoints) {
-			s32 numWaypoints = readS32(file);
-			Waypoint* prevPoint = NULL;
-
-			for(s32 waypointIndex = 0; waypointIndex < numWaypoints; waypointIndex++) {
-				V2 p = readV2(file);
-				Waypoint* wp = createWaypoint(gameState, p);
-
-				if(prevPoint) prevPoint->next = wp;
-				else field->curWaypoint = wp;
-
-				prevPoint = wp;
-				if(waypointIndex == numWaypoints - 1) wp->next = field->curWaypoint;
+			for(s32 i = 0; i < count - 1; i++) {
+				hitboxes[i].next = hitboxes + i + 1;
 			}
 
-			field->waypointDelay = readDouble(file);
-		} else if(field->type == ConsoleField_bobsVertically) {
-			field->bobHeight = readDouble(file);
-			field->bobbingUp = readS32(file);
-			field->initialBob = readS32(file);
-		} else if(field->type == ConsoleField_shootsAtTarget) {
-			field->shootTimer = readDouble(file);
-			field->shootEntityType = (EntityType)readS32(file);
-		} else if(field->type == ConsoleField_spawnsTrawlers) {
-			field->spawnTimer = readDouble(file);
-			field->spawnedEntities = readRefNode(file, gameState);
-		} else if(field->type == ConsoleField_light) {
-			field->lightColor = readV3(file);
-		} else if(field->type == ConsoleField_scansForTargets) {
-			field->scanStart = readDouble(file);
-			field->decreasingScanAngle = readS32(file);
+			hitboxes[count - 1].next = NULL;
+		} else {
+			hitboxes = NULL;
+		}
+	}
+	else {
+		count = 0;
+
+		for(Hitbox* h = hitboxes; h; h = h->next) {
+			count++;
 		}
 
-		field->selectedIndex = readS32(file);
-		field->initialIndex = readS32(file);
-		field->tweakCost = readS32(file);
+		streamElem(stream, count);
+	}
 
-		field->p = readV2(file);
-		field->offs = readV2(file);
+	for(Hitbox* h = hitboxes; h; h = h->next) {
+		streamV2(stream, &h->collisionSize);
+		streamV2(stream, &h->collisionOffset);
+		streamElem(stream, h->collisionPointsCount);
 
-		field->next = NULL;
-
-		field->numChildren = readS32(file);
-
-		for(s32 fieldIndex = 0; fieldIndex < field->numChildren; fieldIndex++) {
-			field->children[fieldIndex] = readConsoleField(file, gameState);
+		for(s32 i = 0; i < h->collisionPointsCount; i++) {
+			streamV2(stream, &h->originalCollisionPoints[i]);
 		}
 
-		field->childYOffs = readDouble(file);
-		field->alpha = readDouble(file);
+		h->storedRotation = INVALID_STORED_HITBOX_ROTATION;
 	}
 
-	return field;
+	*hitboxesPtr = hitboxes;
 }
 
-Texture* readTexture(FILE* file, GameState* gameState) {
-	Texture* result = NULL;
+void streamMessages(IOStream* stream, Messages** messagesPtr, Entity* entity) {
+	Messages* messages = *messagesPtr;
 
-	s32 dataIndex = readS32(file);
+	if(stream->reading) {
+		s32 count;
+		streamElem(stream, count);
 
-	if(dataIndex >= 0) {
-		assert(dataIndex < gameState->texturesCount);
-		result = gameState->textures + dataIndex;
-	}
-
-	return result;
-}
-
-GlowingTexture* readGlowingTexture(FILE* file, GameState* gameState) {
-	GlowingTexture* result = NULL;
-
-	s32 dataIndex = readS32(file);
-
-	if(dataIndex >= 0) {
-		assert(dataIndex < gameState->texturesCount);
-		result = gameState->glowingTextures + dataIndex;
-	}
-
-	return result;
-}
-
-AnimNode* readAnimNode(FILE* file, GameState* gameState) {
-	AnimNode* result = NULL;
-
-	s32 dataIndex = readS32(file);
-
-	if(dataIndex >= 0) {
-		assert(dataIndex < gameState->animNodesCount);
-		result = gameState->animNodes + dataIndex;
-	}
-
-	return result;
-}
-
-CharacterAnim* readCharacterAnim(FILE* file, GameState* gameState) {
-	CharacterAnim* result = NULL;
-
-	s32 dataIndex = readS32(file);
-
-	if(dataIndex >= 0) {
-		assert(dataIndex < gameState->characterAnimsCount);
-		result = gameState->characterAnims + dataIndex;
-	}
-
-	return result;
-}
-
-void readEntity(FILE* file, GameState* gameState, s32 entityIndex) {
-	s32 ref = readS32(file);
-
-	Entity* entity = addEntity(gameState, ref, entityIndex);
-	entity->type = (EntityType)readS32(file);
-	entity->flags = readU32(file);
-	entity->p = readV2(file);
-	entity->dP = readV2(file);
-	entity->rotation = readDouble(file);
-	entity->wheelRotation = readDouble(file);
-	entity->renderSize = readV2(file);
-	entity->drawOrder = (DrawOrder)readS32(file);
-
-	s32 numHitboxes = readS32(file);
-
-	for(s32 hitboxIndex = 0; hitboxIndex < numHitboxes; hitboxIndex++) {
-		Hitbox* hitbox = createUnzeroedHitbox(gameState);
-		hitbox->collisionSize = readV2(file);
-		hitbox->collisionOffset = readV2(file);
-
-		hitbox->collisionPointsCount = readS32(file);
-
-		for(s32 pIndex = 0; pIndex < hitbox->collisionPointsCount; pIndex++) {
-			hitbox->originalCollisionPoints[pIndex] = readV2(file);
+		if(count < 0) {
+			*messagesPtr = NULL;
+			return;
+		} else {
+			messages = pushStruct(&stream->gameState->levelStorage, Messages);
+			messages->count = count;
 		}
-
-		hitbox->storedRotation = INVALID_STORED_HITBOX_ROTATION;
-
-		hitbox->next = entity->hitboxes;
-		entity->hitboxes = hitbox;
+	}
+	else {
+		if(messages) {
+			streamElem(stream, messages->count);
+		} else {
+			streamValue(stream, s32, -1);
+			return;
+		}
 	}
 
-	entity->clickBox = readR2(file);
-	entity->numFields = readS32(file);
+	streamElem(stream, messages->selectedIndex);
 
-	for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
-		entity->fields[fieldIndex] = readConsoleField(file, gameState);
+	for(s32 i = 0; i < messages->count; i++) {
+		streamStr(stream, messages->text[i]);
 	}
 
-	entity->groundReferenceList = readRefNode(file, gameState);
-	entity->ignorePenetrationList = readRefNode(file, gameState);
+	*messagesPtr = messages;
 
-	entity->emissivity = (float)readDouble(file);
-	entity->spotLightAngle = readDouble(file);
-	entity->alpha = readDouble(file);
-	entity->cloakFactor = readDouble(file);
-
-	entity->targetRef = readS32(file);
-	entity->spawnerRef = readS32(file);
-
-	entity->startPos = readV2(file);
-
-	entity->tileXOffset = readS32(file);
-	entity->tileYOffset = readS32(file);
-	entity->jumpCount = readS32(file);
-	entity->timeSinceLastOnGround = readDouble(file);
-
-	entity->messages = readMessages(file, &gameState->levelStorage, &gameState->messagesFreeList);
-
-	entity->animTime = readDouble(file);
-	entity->currentAnim = readAnimNode(file, gameState);
-	entity->nextAnim = readAnimNode(file, gameState);
-	entity->defaultTex = readTexture(file, gameState);
-	entity->glowingTex = readGlowingTexture(file, gameState);
-	entity->characterAnim = readCharacterAnim(file, gameState);
-
-	addToSpatialPartition(entity, gameState);
+	if(stream->reading) {
+		setSelectedText(entity, messages->selectedIndex, stream->gameState);
+	}
 }
 
-Camera readCamera(FILE* file) {
-	Camera result = {};
+void streamTextureObject_(IOStream* stream, void** nodePtr, void* array, size_t nodeSize) {
+	if(stream->reading) {
+		s32 index;
+		streamElem(stream, index);
 
-	result.p = readV2(file);
-	result.newP = readV2(file);
-
-	result.moveToTarget = readS32(file);
-	result.deferredMoveToTarget = readS32(file);
-	result.scale = readDouble(file);
-
-	return result;
+		if(index > 0) {
+			*nodePtr = (char*)array + index * nodeSize;
+		}
+		else {
+			*nodePtr = NULL;
+		}
+	}
+	else {
+		if(*nodePtr) {
+			s32 index = ((size_t)*nodePtr - (size_t)array) / nodeSize;
+			streamElem(stream, index);
+		}
+		else {
+			streamValue(stream, s32, -1);
+		}
+	}
 }
 
-Animation readAnimation(FILE* file, GameState* gameState) {
-	Animation result = {};
+void streamAnimNode(IOStream* stream, AnimNode** nodePtr) {
+	streamTextureObject_(stream, (void**)nodePtr, stream->gameState->animNodes, sizeof(AnimNode));
+}
 
-	result.numFrames = readS32(file);
+void streamTexture(IOStream* stream, Texture** texturePtr) {
+	streamTextureObject_(stream, (void**)texturePtr, stream->gameState->textures, sizeof(Texture));
+}
 
-	if(result.numFrames > 0) {
-		result.secondsPerFrame = readDouble(file);
-		result.pingPong = readS32(file);
-		result.reverse = readS32(file);
-		result.frameWidth = readS32(file);
-		result.frameHeight = readS32(file);
-		result.assetId = (AssetId)readS32(file);
+void streamGlowingTexture(IOStream* stream, GlowingTexture** texturePtr) {
+	streamTextureObject_(stream, (void**)texturePtr, stream->gameState->glowingTextures, sizeof(GlowingTexture));
+}
 
-		s32 numFrames = 0;
-		result.frames = extractTextures(gameState->renderGroup, result.assetId, result.frameWidth, result.frameHeight, 0, &numFrames);
-		assert(numFrames == result.numFrames);
+void streamCharacterAnim(IOStream* stream, CharacterAnim** animPtr) {
+	streamTextureObject_(stream, (void**)animPtr, stream->gameState->characterAnims, sizeof(CharacterAnim));
+}
+
+void streamEntity(IOStream* stream, Entity* entity, s32 entityIndex) {
+	streamElem(stream, entity->ref);
+
+	if(stream->reading) {
+		addEntity(stream->gameState, entity->ref, entityIndex);
 	}
 
-	return result;
-}
+	streamElem(stream, entity->type);
+	streamElem(stream, entity->flags);
 
-void readButton(FILE* file, Button* button) {
-	button->selected = readS32(file);
-	button->scale = readDouble(file);
-}
+	streamV2(stream, &entity->p);
+	streamV2(stream, &entity->dP);
+	streamElem(stream, entity->rotation);
+	streamElem(stream, entity->wheelRotation);
 
-void readPauseMenu(FILE* file, PauseMenu* menu) {
-	menu->animCounter = readDouble(file);
-	readButton(file, &menu->quit);
-	readButton(file, &menu->restart);
-	readButton(file, &menu->resume);
-	readButton(file, &menu->settings);
-}
+	streamV2(stream, &entity->renderSize);
+	streamElem(stream, entity->drawOrder);
 
-void readDock(FILE* file, Dock* dock) {
-	dock->subDockYOffs = readDouble(file);
-}
+	streamHitboxes(stream, &entity->hitboxes);
+	streamR2(stream, &entity->clickBox);
 
-void readMemoryArena(FILE* file, MemoryArena* arena) {
-	arena->allocated = readSize_t(file);
-	assert(arena->allocated < arena->size);
-	size_t numElementsRead = fread(arena->base, sizeof(char), arena->allocated, file);
-	assert(numElementsRead == arena->allocated);
+	streamElem(stream, entity->numFields);
+	for(int i = 0; i < entity->numFields; i++) {
+		streamConsoleField(stream, entity->fields + i);
+	}
 
-	offsetSavePtrs(arena, true);
-}
+	streamRefNode(stream, &entity->groundReferenceList);
+	streamRefNode(stream, &entity->ignorePenetrationList);
 
-void freeLevel(GameState*);
+	streamElem(stream, entity->emissivity);
+	streamElem(stream, entity->spotLightAngle);
+	streamElem(stream, entity->alpha);
+	streamElem(stream, entity->cloakFactor);
 
-void loadGame(GameState* gameState, char* fileName) {
-	FILE* file = fopen(fileName, "rb");
-	assert(file);
-
-	freeLevel(gameState);
-
-	gameState->screenType = (ScreenType)readS32(file);
-	gameState->refCount_ = readS32(file);
-	gameState->camera = readCamera(file);
+	streamElem(stream, entity->targetRef);
+	streamElem(stream, entity->spawnerRef);
+	streamV2(stream, &entity->startPos);
 	
-	gameState->targetRefs = readRefNode(file, gameState);
-	gameState->guardTargetRefs = readRefNode(file, gameState);
-	gameState->consoleEntityRef = readS32(file);
-	gameState->fadingOutConsoles = readRefNode(file, gameState);
-	gameState->playerRef = readS32(file);
-	gameState->testEntityRef = readS32(file);
+	streamElem(stream, entity->tileXOffset);
+	streamElem(stream, entity->tileYOffset);
 
-	gameState->loadNextLevel = readS32(file);
-	gameState->reloadCurrentLevel = readS32(file);
-	gameState->doingInitialSim = readS32(file);
+	streamElem(stream, entity->jumpCount);
+	streamElem(stream, entity->timeSinceLastOnGround);
 
-	gameState->timeField = readConsoleField(file, gameState);
-	gameState->gravityField = readConsoleField(file, gameState);
-	gameState->swapField = readConsoleField(file, gameState);
-	gameState->swapFieldP = readV2(file);
-	gameState->fieldSpec.mouseOffset = readV2(file);
-	gameState->fieldSpec.hackEnergy = readDouble(file);
+	streamMessages(stream, &entity->messages, entity);
 
-	gameState->mapSize = readV2(file);
-	gameState->worldSize = readV2(file);
-	gameState->gravity = readV2(file);
+	streamElem(stream, entity->animTime);
+	streamAnimNode(stream, &entity->currentAnim);
+	streamAnimNode(stream, &entity->nextAnim);
+	streamTexture(stream, &entity->defaultTex);
+	streamGlowingTexture(stream, &entity->glowingTex);
+	streamCharacterAnim(stream, &entity->characterAnim);
 
-	gameState->backgroundTextures.curBackgroundType = (BackgroundType)readS32(file);
+	streamV2(stream, &entity->groundNormal);
 
-	readPauseMenu(file, &gameState->pauseMenu);
-	readDock(file, &gameState->dock);
+	if(stream->reading) {
+		addToSpatialPartition(entity, stream->gameState);
+	}
+}
 
-	gameState->collisionBoundsAlpha = readDouble(file);
+void streamGameChanges(IOStream* stream);
 
-	initSpatialPartition(gameState);
+void streamGame(IOStream* stream) {
+	GameState* gameState = stream->gameState;
 
-	gameState->numEntities = readS32(file);
+	streamElem(stream, gameState->screenType);
+	streamElem(stream, gameState->refCount_);
+	streamCamera(stream, &gameState->camera);
+	streamRandom(stream, &gameState->random);
 
-	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-		readEntity(file, gameState, entityIndex);
+	streamRefNode(stream, &gameState->targetRefs);
+	streamRefNode(stream, &gameState->guardTargetRefs);
+	streamRefNode(stream, &gameState->fadingOutConsoles);
+	streamElem(stream, gameState->consoleEntityRef);
+	streamElem(stream, gameState->playerRef);
+	streamElem(stream, gameState->testEntityRef);
+
+	streamElem(stream, gameState->loadNextLevel);
+	streamElem(stream, gameState->reloadCurrentLevel);
+	streamElem(stream, gameState->doingInitialSim);
+	
+	streamConsoleField(stream, &gameState->timeField);
+	streamConsoleField(stream, &gameState->gravityField);
+	streamConsoleField(stream, &gameState->swapField);
+	streamV2(stream, &gameState->swapFieldP);
+	streamFieldSpec(stream, &gameState->fieldSpec);
+
+	streamV2(stream, &gameState->mapSize);	
+	streamV2(stream, &gameState->worldSize);	
+	streamV2(stream, &gameState->gravity);	
+
+	streamElem(stream, gameState->backgroundTextures.curBackgroundType);
+	streamElem(stream, gameState->collisionBoundsAlpha);
+
+	if(stream->reading) {
+		initSpatialPartition(gameState);
+	}
+
+	streamElem(stream, gameState->numEntities);
+
+	for(s32 i = 0; i < gameState->numEntities; i++) {
+		streamEntity(stream, gameState->entities + i, i);
 	}
 
 	if(getEntityByRef(gameState, gameState->consoleEntityRef)) {
-		readMemoryArena(file, &gameState->hackSaveStorage);
-	}
+		MemoryArena* arena = &gameState->hackSaveStorage;
+		SaveMemoryHeader* header = (SaveMemoryHeader*)arena->base;
 
-	fclose(file);
-}
+		streamElem(stream, arena->allocated);
 
-void saveRefNodeToArena(MemoryArena* arena, RefNode* refNode) {
-	RefNode* node = refNode;
-	s32 count = 0;
-
-	while(node) {
-		count++;
-		node = node->next;
-	}
-
-	pushElem(arena, s32, count);
-
-	node = refNode;
-
-	while(node) {
-		pushElem(arena, s32, node->ref);
-		node = node->next;
-	}
-}
-
-void saveConsoleFieldToArena(MemoryArena* arena, ConsoleField* field) {
-	if(field) {
-		ConsoleFieldHackSave* save = pushStruct(arena, ConsoleFieldHackSave);
-
-		save->type = field->type;
-		save->flags = field->flags;
-		strcpy(save->name, field->name);
-		save->numValues = field->numValues;
-		save->selectedIndex = field->selectedIndex;
-		save->initialIndex = field->initialIndex;
-		save->tweakCost = field->tweakCost;
-		save->p = field->p;
-		save->offs = field->offs;
-		save->numChildren = field->numChildren;
-		save->childYOffs = field->childYOffs;
-
-		if(save->type == ConsoleField_double) {
-			for(s32 i = 0; i < save->numValues; i++) {
-				pushElem(arena, double, field->doubleValues[i]);
-			}
-		} 
-		else if(save->type == ConsoleField_s32) {
-			for(s32 i = 0; i < save->numValues; i++) {
-				pushElem(arena, s32, field->s32Values[i]);
+		if(!stream->reading) {
+			for(s32 i = 0; i < header->numSaveGames; i++) {
+				header->saves[i].save = (void*)((size_t)header->saves[i].save - (size_t)arena->base);
 			}
 		}
-		else if(save->type == ConsoleField_followsWaypoints) {
-			s32 waypointCount = 0;
 
-			Waypoint* wp = field->curWaypoint;
+		streamElem_(stream, arena->base, arena->allocated);
 
-			while(wp) {
-				if(wp == field->curWaypoint && waypointCount != 0) break;
-				waypointCount++;
-
-				wp = wp->next;
-			}
-
-			wp = field->curWaypoint;
-
-			pushElem(arena, s32, waypointCount);
-
-			for(s32 wpIndex = 0; wpIndex < waypointCount; wpIndex++) {
-				pushElem(arena, V2, wp->p);
-				wp = wp->next;
-			}
-
-			pushElem(arena, double, field->waypointDelay);
+		for(s32 i = 0; i < header->numSaveGames; i++) {
+			header->saves[i].save = (void*)((size_t)header->saves[i].save + (size_t)arena->base);
 		}
-		else if(save->type == ConsoleField_bobsVertically) {
-			pushElem(arena, double, field->bobHeight);
-			pushElem(arena, s32, field->bobbingUp);
-			pushElem(arena, s32, field->initialBob);
-		}
-		else if(save->type == ConsoleField_shootsAtTarget) {
-			pushElem(arena, double, field->shootTimer);
-			pushElem(arena, s32, field->shootEntityType);
-		}
-		else if(save->type == ConsoleField_spawnsTrawlers) {
-			pushElem(arena, double, field->spawnTimer);
-			saveRefNodeToArena(arena, field->spawnedEntities);
-		} else if(save->type == ConsoleField_light) {
-			pushElem(arena, V3, field->lightColor);
-		} else if(save->type == ConsoleField_scansForTargets) {
-			pushElem(arena, double, field->scanStart);
-			pushElem(arena, s32, field->decreasingScanAngle);
-		}
-
-		for(s32 fieldIndex = 0; fieldIndex < field->numChildren; fieldIndex++) {
-			saveConsoleFieldToArena(arena, field->children[fieldIndex]);
-		}
-	} else {
-		pushElem(arena, s32, -1);
-	}
-}
-
-void saveEntityToArena(MemoryArena* arena, Entity* entity) {
-	EntityHackSave* save = pushStruct(arena, EntityHackSave);
-
-	save->p = entity->p;
-	save->rotation = entity->rotation;
-	save->tileXOffset = entity->tileXOffset;
-	save->tileYOffset = entity->tileYOffset;
-
-	if(entity->messages) {
-		save->messagesSelectedIndex =  entity->messages->selectedIndex;
-	} else {
-		save->messagesSelectedIndex = -1;
 	}
 
-	save->timeSinceLastOnGround = entity->timeSinceLastOnGround;
-
-	save->numFields = entity->numFields;
-
-	for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
-		saveConsoleFieldToArena(arena, entity->fields[fieldIndex]);
-	}
+	freeIostream(stream);	
 }
 
-SaveReference* getSaveReference(MemoryArena* arena, s32 saveIndex) {
-	SaveMemoryHeader* header = (SaveMemoryHeader*)arena->base;
-	SaveReference* result = header->saves + saveIndex;
-	return result;
+void saveCompleteGame(GameState* gameState, char* fileName) {
+	IOStream stream = createIostream(gameState, fileName, false);
+	streamGame(&stream);	
 }
 
+void saveCompleteGame(GameState* gameState, MemoryArena* arena) {
+	arena->allocated = 0;
+	IOStream stream = createIostream(gameState, arena, NULL);
+	streamGame(&stream);	
+}
+
+void loadCompleteGame(GameState* gameState, char* fileName) {
+	IOStream stream = createIostream(gameState, fileName, true);
+	streamGame(&stream);	
+}
+
+void loadCompleteGame(GameState* gameState, MemoryArena* arena) {
+	freeLevel(gameState);
+	void* readPtr = arena->base;
+	IOStream stream = createIostream(gameState, arena, readPtr);
+	streamGame(&stream);	
+}
 s32 getSlotIndex(s32 saveIndex) {
 	assert(saveIndex >= 0);
 
@@ -774,31 +465,91 @@ s32 getSlotIndex(s32 saveIndex) {
 	return result;
 }
 
-void updateSaveGameToArena(GameState* gameState) {
+void streamConsoleFieldChanges(IOStream* stream, ConsoleField** fieldPtr) {
+	streamConsoleField(stream, fieldPtr);
+
+	if(stream->reading && *fieldPtr) {
+		clearFlags(*fieldPtr, ConsoleFlag_selected);
+		(*fieldPtr)->offs = v2(0, 0);
+	}
+}
+
+void streamEntityChanges(IOStream* stream, Entity* entity) {
+	streamV2(stream, &entity->p);
+	streamElem(stream, entity->rotation);
+	streamElem(stream, entity->tileXOffset);
+	streamElem(stream, entity->tileYOffset);
+	
+	if(entity->messages) {
+		streamElem(stream, entity->messages->selectedIndex);
+	}
+
+	streamElem(stream, entity->timeSinceLastOnGround);
+
+	if(stream->reading) {
+		for(s32 i = 0; i < entity->numFields; i++) {
+			freeConsoleField(entity->fields[i], stream->gameState);
+			entity->fields[i] = NULL;
+		}
+	}
+
+	streamElem(stream, entity->numFields);
+
+	for(s32 i = 0; i < entity->numFields; i++) {
+		streamConsoleFieldChanges(stream, entity->fields + i);
+	}
+}
+
+void streamGameChanges(IOStream* stream) {
+	GameState* gameState = stream->gameState;
+
+	streamElem(stream, gameState->fieldSpec.hackEnergy);
+	streamV2(stream, &gameState->gravity);
+	streamElem(stream, gameState->timeField->selectedIndex);
+	streamElem(stream, gameState->gravityField->selectedIndex);
+
+	streamConsoleFieldChanges(stream, &gameState->swapField);
+
+	streamRefNode(stream, &gameState->targetRefs);
+	streamRefNode(stream, &gameState->guardTargetRefs);
+
+	streamElem(stream, gameState->numEntities);
+
+	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
+		streamEntityChanges(stream, gameState->entities + entityIndex);
+	}
+
+	freeIostream(stream);
+}
+
+void updateSaveGame(GameState* gameState, bool initialSave) {
 	MemoryArena* arena = &gameState->hackSaveStorage;
 
-	s32* numSaveGamesPtr = (s32*)arena->base;
-	*numSaveGamesPtr = *numSaveGamesPtr + 1;
+	if(initialSave) {
+		arena->allocated = 0;
+		SaveMemoryHeader* header = pushStruct(arena, SaveMemoryHeader);
+		header->numSaveGames = -1;
+	}
 
-	s32 numSaveGames = *numSaveGamesPtr - 1; //Want to 0 index the save games
+	SaveMemoryHeader* header = (SaveMemoryHeader*)arena->base;
+	header->numSaveGames++;
 
-	if(numSaveGames == 1) {
-		//Since we do the save before any changes are made, the first save would be identical to the 
-		//0th save. 
+	if(header->numSaveGames == 1) {
+		//This would just be a duplicate of the 0th save game
 		return;
 	}
 
-	SaveReference* saveGameReference = getSaveReference(arena, getSlotIndex(numSaveGames));
+	SaveReference* saveGameReference = header->saves + getSlotIndex(header->numSaveGames);
 
-	s32 slotIndex = numSaveGames;
+	s32 slotIndex = header->numSaveGames;
 	size_t totalAllocated = 0;
 	size_t oldAllocated = arena->allocated;
 
-	if(numSaveGames >= MAX_HACK_UNDOS) {
+	if(header->numSaveGames >= MAX_HACK_UNDOS) {
 		//NOTE: Can't just directly go to the savePtr corresponding to slotIndex
 		//		because it may have been corrupted by the last write. Instead, we 
 		//		go to the last write and advance by its size to find out where we should be. 
-		SaveReference* oneMinusSlotIndexSave = getSaveReference(arena, slotIndex - 1);
+		SaveReference* oneMinusSlotIndexSave = header->saves +  slotIndex - 1;
 		void* saveStart = (char*)oneMinusSlotIndexSave->save + oneMinusSlotIndexSave->size;
 
 		totalAllocated = arena->allocated;
@@ -807,25 +558,12 @@ void updateSaveGameToArena(GameState* gameState) {
 
 	//NOTE: Update the save game ptr table
 	saveGameReference->save = (char*)arena->base + arena->allocated;
-	saveGameReference->index = numSaveGames;
+	saveGameReference->index = header->numSaveGames;
 
-	pushElem(arena, double, gameState->fieldSpec.hackEnergy);
-	pushElem(arena, V2, gameState->gravity);
 
-	pushElem(arena, s32, gameState->timeField->selectedIndex);
-	pushElem(arena, s32, gameState->gravityField->selectedIndex);
+	IOStream stream = createIostream(gameState, arena, NULL); 
+	streamGameChanges(&stream);
 
-	saveConsoleFieldToArena(arena, gameState->swapField);
-
-	saveRefNodeToArena(arena, gameState->targetRefs);
-	saveRefNodeToArena(arena, gameState->guardTargetRefs);
-
-	pushElem(arena, s32, gameState->numEntities);
-
-	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-		Entity* entity = gameState->entities + entityIndex;
-		saveEntityToArena(arena, entity);
-	}
 
 	saveGameReference->size = arena->allocated - oldAllocated;
 
@@ -833,7 +571,7 @@ void updateSaveGameToArena(GameState* gameState) {
 		size_t arenaLimit = (size_t)arena->base + arena->allocated;
 
 		for(s32 checkIndex = slotIndex; checkIndex < MAX_HACK_UNDOS; checkIndex++) {
-			SaveReference* checkReference = getSaveReference(arena, checkIndex);
+			SaveReference* checkReference = header->saves + checkIndex;
 
 			if((size_t)checkReference->save < arenaLimit) {
 				*checkReference = {};
@@ -846,224 +584,52 @@ void updateSaveGameToArena(GameState* gameState) {
 	}
 }
 
-void saveGameToArena(GameState* gameState) {
+void undoLastSaveGame(GameState* gameState) {
 	MemoryArena* arena = &gameState->hackSaveStorage;
-	arena->allocated = 0;
+	SaveMemoryHeader* header = (SaveMemoryHeader*)arena->base;
 
-	pushElem(arena, s32, 0); //Reset the number of save games
-	arena->allocated += sizeof(void*) * MAX_HACK_UNDOS;
+	if(header->numSaveGames > 0) {
+		s32 slotIndex = getSlotIndex(header->numSaveGames);
+		SaveReference* lastSaveReference = header->saves + slotIndex;
 
-	updateSaveGameToArena(gameState);
-}
-
-#define readElemPtr(readPtr, type) (type*)(readPtr); (readPtr) = (type*)(readPtr) + 1
-#define readElem(readPtr, type) *readElemPtr((readPtr), type)
-;
-
-void readRefNodeFromArena(GameState* gameState, RefNode** nodePtr, void** readPtr) {
-	if(*nodePtr) {
-		freeRefNode(*nodePtr, gameState);
-		*nodePtr = NULL;
-	}
-
-	s32 targetRefsCount = readElem(*readPtr, s32);
-	for(s32 targetRefIndex = 0; targetRefIndex < targetRefsCount; targetRefIndex++) {
-		s32 ref = readElem(*readPtr, s32);
-		*nodePtr = refNode(gameState, ref, *nodePtr);
-	}
-}
-
-void readConsoleFieldFromArena(void** readPtr, ConsoleField** fieldPtr, GameState* gameState) {
-	if(**(s32**)readPtr >= 0) {
-		ConsoleField* field = *fieldPtr;
-
-		s32 originalChildrenCount = 0;
-
-		if(field) {
-			originalChildrenCount = field->numChildren;
-			freeConsoleField_(field, gameState);
-		}
-		else {
-			*fieldPtr = createConsoleField_(gameState);
-			field = *fieldPtr;
-		}
-
-		ConsoleFieldHackSave* save = readElemPtr(*readPtr, ConsoleFieldHackSave);
-
-		field->type = save->type;
-		field->flags = save->flags;
-		strcpy(field->name, save->name);
-		field->numValues = save->numValues;
-		field->selectedIndex = save->selectedIndex;
-		field->initialIndex = save->initialIndex;
-		field->tweakCost = save->tweakCost;
-		field->p = save->p;
-		field->offs = save->offs;
-		field->numChildren = save->numChildren;
-		field->childYOffs = save->childYOffs;
-
-		for(s32 childIndex = save->numChildren; childIndex < originalChildrenCount; childIndex++) {
-			freeConsoleField(field->children[childIndex], gameState);
-			field->children[childIndex] = NULL;
-		}
-
-		if(field->type == ConsoleField_double) {
-			for(s32 i = 0; i < field->numValues; i++) {
-				field->doubleValues[i] = readElem(*readPtr, double);
-			}
-		}
-		else if(field->type == ConsoleField_s32) {
-			for(s32 i = 0; i < field->numValues; i++) {
-				field->s32Values[i] = readElem(*readPtr, s32);
-			}
-		}
-		else if(field->type == ConsoleField_followsWaypoints) {
-			s32 numWaypoints = readElem(*readPtr, s32);
-
-			Waypoint* firstWp = NULL;
-			Waypoint* prevWp = NULL;
-
-			for(s32 wpIndex = 0; wpIndex < numWaypoints; wpIndex++) {
-				V2 p = readElem(*readPtr, V2);
-				Waypoint* wp = allocateWaypoint(gameState, p);
-
-				if(firstWp) {
-					prevWp->next = wp;
-				} else {
-					firstWp = wp;
-				}
-
-				prevWp = wp;
-			}
-
-			prevWp->next = firstWp;
-			field->curWaypoint = firstWp;
-
-			field->waypointDelay = readElem(*readPtr, double);
-		} 
-		else if(field->type == ConsoleField_bobsVertically) {
-			field->bobHeight = readElem(*readPtr, double);
-			field->bobbingUp = readElem(*readPtr, s32);
-			field->initialBob = readElem(*readPtr, s32);
-		}
-		else if(field->type == ConsoleField_shootsAtTarget) {
-			field->shootTimer = readElem(*readPtr, double);
-			field->shootEntityType = (EntityType)readElem(*readPtr, s32);
-		}
-		else if(field->type == ConsoleField_spawnsTrawlers) {
-			field->spawnTimer = readElem(*readPtr, double);
-			readRefNodeFromArena(gameState, &field->spawnedEntities, readPtr); 
-		}
-		else if(field->type == ConsoleField_light) {
-			field->lightColor = readElem(*readPtr, V3);
-		} 
-		else if(field->type == ConsoleField_scansForTargets) {
-			field->scanStart = readElem(*readPtr, double);
-			field->decreasingScanAngle = readElem(*readPtr, s32);
-		}
-
-		clearFlags(field, ConsoleFlag_selected);
-		field->offs = v2(0, 0);
-
-		for(s32 fieldIndex = 0; fieldIndex < field->numChildren; fieldIndex++) {
-			readConsoleFieldFromArena(readPtr, field->children + fieldIndex, gameState);
-		}
-	} else {
-		*readPtr = (s32*)(*readPtr) + 1;
-
-		if(*fieldPtr) {
-			freeConsoleField(*fieldPtr, gameState);
-			*fieldPtr = NULL;
-		}
-	}
-}
-
-void readEntityFromArena(void** readPtr, Entity* entity, GameState* gameState) {
-	EntityHackSave* save = readElemPtr((*readPtr), EntityHackSave);
-
-	setEntityP(entity, save->p, gameState);
-	entity->rotation = save->rotation;
-	entity->tileXOffset = save->tileXOffset;
-	entity->tileYOffset = save->tileYOffset;
-	if(entity->messages)entity->messages->selectedIndex = save->messagesSelectedIndex;
-	entity->timeSinceLastOnGround = save->timeSinceLastOnGround;
-
-	for(s32 fieldIndex = save->numFields; fieldIndex < entity->numFields; fieldIndex++) {
-		freeConsoleField(entity->fields[fieldIndex], gameState);
-		entity->fields[fieldIndex] = NULL;
-	}
-
-	entity->numFields = save->numFields;
-	assert(entity->numFields < 8);
-
-	if(entity->type == EntityType_player) {
-		s32 breakHere = 5;
-	}
-
-	for(s32 fieldIndex = 0; fieldIndex < entity->numFields; fieldIndex++) {
-		readConsoleFieldFromArena(readPtr, entity->fields + fieldIndex, gameState);
-	}
-}
-
-void readGameFromArena(GameState* gameState, void* readPtr) {
-	gameState->fieldSpec.hackEnergy = readElem(readPtr, double);
-	gameState->gravity = readElem(readPtr, V2);
-
-	gameState->timeField->selectedIndex = readElem(readPtr, s32); 
-	gameState->gravityField->selectedIndex = readElem(readPtr, s32); 
-	readConsoleFieldFromArena(&readPtr, &gameState->swapField, gameState);
-
-	readRefNodeFromArena(gameState, &gameState->targetRefs, &readPtr);
-	readRefNodeFromArena(gameState, &gameState->guardTargetRefs, &readPtr);
-
-	s32 numEntities = readElem(readPtr, s32);
-	assert(numEntities == gameState->numEntities);
-
-	for(s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-		readEntityFromArena(&readPtr, gameState->entities + entityIndex, gameState);
-	}
-}
-
-void loadGameFromArena(GameState* gameState) {
-	MemoryArena* arena = &gameState->hackSaveStorage;
-	void* readPtr = getSaveReference(arena, 0)->save;
-	readGameFromArena(gameState, readPtr);	
-}
-
-
-void undoLastSaveGameFromArena(GameState* gameState) {
-	MemoryArena* arena = &gameState->hackSaveStorage;
-
-	s32* numSaveGamesPtr = (s32*)arena->base;
-	s32 numSaveGames = *numSaveGamesPtr - 1;
-
-	if(numSaveGames > 0) {
-		s32 slotIndex = getSlotIndex(numSaveGames);
-		SaveReference* lastSaveReference = getSaveReference(arena, slotIndex);
-
-		bool acceptableReference = numSaveGames == lastSaveReference->index && lastSaveReference->save;
+		bool acceptableReference = header->numSaveGames == lastSaveReference->index && lastSaveReference->save;
 
 		//they should be the same
-		if(numSaveGames == 1) acceptableReference |= lastSaveReference->index == 0;
+		if(header->numSaveGames == 1) acceptableReference |= lastSaveReference->index == 0;
 
 		if(acceptableReference) {
 			freeRefNode(gameState->fadingOutConsoles, gameState);
 			gameState->fadingOutConsoles = NULL;
 
-			readGameFromArena(gameState, lastSaveReference->save);
-			*numSaveGamesPtr = *numSaveGamesPtr - 1;
+			IOStream stream = createIostream(gameState, arena, lastSaveReference->save); 
+			streamGameChanges(&stream);
+
+			header->numSaveGames--;
 		}
+	}
+}
+
+void undoAllHackMoves(GameState* gameState) {
+	MemoryArena* arena = &gameState->hackSaveStorage;
+	SaveMemoryHeader* header = (SaveMemoryHeader*)arena->base;
+
+	if(header->numSaveGames > 0) {
+		void* readPtr = header->saves->save;
+		IOStream stream = createIostream(gameState, arena, readPtr); 
+		streamGameChanges(&stream);
 	}
 }
 
 double getEnergyLoss(GameState* gameState) {
 	double result = 0;
 
-	if(getEntityByRef(gameState, gameState->consoleEntityRef)) {
-		MemoryArena* arena = &gameState->hackSaveStorage;
+	MemoryArena* arena = &gameState->hackSaveStorage;
+	SaveMemoryHeader* header = (SaveMemoryHeader*)arena->base;
+
+	if(header->numSaveGames > 0 && getEntityByRef(gameState, gameState->consoleEntityRef)) {
 		assert(arena->allocated);
 
-		double oldEnergy = *((double*)getSaveReference(arena, 0)->save);
+		double oldEnergy = *((double*)header->saves->save);
 		double newEnergy = gameState->fieldSpec.hackEnergy;
 		result = oldEnergy - newEnergy;
 	}

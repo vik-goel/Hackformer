@@ -1114,6 +1114,40 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 	return result;
 }
 
+Entity* addCheckPoint(GameState* gameState, V2 p) {
+	Entity* result = addEntity(gameState, EntityType_checkPoint, DrawOrder_checkPoint, p, v2(0.59, 1.25));
+
+	double hitboxWidth = result->renderSize.x;
+	double hitboxHeight = result->renderSize.y;
+	double halfHitboxWidth = hitboxWidth * 0.5;
+	double halfHitboxHeight = hitboxHeight * 0.5;
+	Hitbox* hitbox = addHitbox(result, gameState);
+	setHitboxSize(result, hitbox, hitboxWidth * 1, hitboxHeight * 1);
+	hitbox->collisionPointsCount = 13;
+	hitbox->originalCollisionPoints[0] = v2(-0.799329 * halfHitboxWidth, -0.998264 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[1] = v2(0.319418 * halfHitboxWidth, -0.998264 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[2] = v2(0.310248 * halfHitboxWidth, -0.442708 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[3] = v2(0.777921 * halfHitboxWidth, -0.373264 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[4] = v2(0.970493 * halfHitboxWidth, -0.182292 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[5] = v2(0.988833 * halfHitboxWidth, 0.516493 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[6] = v2(0.622030 * halfHitboxWidth, 0.855035 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[7] = v2(0.044317 * halfHitboxWidth, 1 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[8] = v2(-0.643438 * halfHitboxWidth, 1 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[9] = v2(-0.863519 * halfHitboxWidth, 0.915799 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[10] = v2(-0.991900 * halfHitboxWidth, 0.755208 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[11] = v2(-0.982730 * halfHitboxWidth, -0.264757 * halfHitboxHeight);
+	hitbox->originalCollisionPoints[12] = v2(-0.808499 * halfHitboxWidth, -0.421007 * halfHitboxHeight);
+
+	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
+
+	setFlags(result, EntityFlag_hackable);
+
+	result->defaultTex = gameState->checkPointUnreached;
+	result->emissivity = 1;
+
+	return result;
+}
+
 Texture* getStandTex(CharacterAnim* characterAnim, GameState* gameState) {
 	assert(gameState);
 	assert(characterAnim);
@@ -1878,6 +1912,10 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState, bool penetratio
 			if(b->type == EntityType_pickupField && !penetrationTest) result = true;
 		} break;
 
+		case EntityType_checkPoint: {
+			result = isTileType(b) || (b->type == EntityType_player && !isSet(a, EntityFlag_checkPointReached));
+		} break;
+
 		default:
 			if(isProjectile(a)) {
 				if (b->ref == a->spawnerRef) result = false;
@@ -1958,6 +1996,10 @@ bool isSolidCollisionRaw(Entity* a, Entity* b, GameState* gameState, bool actual
 
 		case EntityType_pickupField: {
 			result = !canPickupField(a, b, gameState);
+		} break;
+
+		case EntityType_checkPoint: {
+			result = b->type != EntityType_player;
 		} break;
 
 		default: {
@@ -2224,6 +2266,13 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 			setFlags(hitEntity, EntityFlag_remove);
 		} break;
 
+		case EntityType_checkPoint: {
+			if(hitEntity->type == EntityType_player) {
+				setFlags(entity, EntityFlag_checkPointReached);
+				entity->defaultTex = gameState->checkPointReached;
+			}
+
+		} break;
 
 		default: {
 			if(isProjectile(entity)) {

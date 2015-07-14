@@ -113,7 +113,7 @@ Waypoint* allocateWaypoint(MemoryArena* arena, V2 p, Waypoint* next = NULL) {
 	return result;
 }
 
-char* textEditFileName = "editor_text.txt";
+char* textEditFileName = "maps/editor_text.txt";
 
 void initText(EditorState* state, Entity* entity, V2 p) {
 	assert(entity->messages);
@@ -183,7 +183,7 @@ int main(int argc, char* argv[]) {
 	EditorState state = {};
 	initInputKeyCodes(&state.input);
 
-	state.arena = createArena(1024 * 1024 * 150, true);
+	state.arena = createArena(1024 * 1024 * 200, true);
 
 	initCamera(&state.camera);
 	double oldScale = state.camera.scale;
@@ -241,6 +241,7 @@ int main(int argc, char* argv[]) {
 		ENTITY(motherShip, 6 * (264.0 / 512.0), 6 * (339.0 / 512.0), "mothership", 2, 3, 0.5)
 		ENTITY(trawler, 2, 2, "trawler", 1.8, 1.2, 1)
 		ENTITY(shrike, 1.5, 1.5, "shrike", 1.75, 0, 1)
+		ENTITY(checkPoint, 0.59, 1.25, "checkpoint", 2.5, 6.5, 1)
 	};
 	#undef ENTITY
 
@@ -371,7 +372,8 @@ int main(int argc, char* argv[]) {
 		if(input->esc.justPressed) {
 			cursorMode = CursorMode_moveEntity;
 		}
-		else if(input->t.justPressed) {
+		
+		if(input->t.justPressed) {
 			if(movingEntity && movingEntity->type == EntityType_text) {
 				Messages* messages = movingEntity->messages;
 				assert(messages);
@@ -392,6 +394,82 @@ int main(int argc, char* argv[]) {
 				fclose(file);
 			} else {
 				addEditorEntity(&state, EntityType_text, DrawOrder_text);
+			}
+		}
+
+		if(input->k.justPressed) {
+			char message[1000];
+			sprintf(message, "map width in tiles: %d", state.mapWidthInTiles);
+
+			SDL_MessageBoxButtonData buttons[5] = {};
+
+			for(s32 i = 0; i < arrayCount(buttons); i++) {
+				buttons[i].buttonid = i;
+			}
+
+			buttons[0].text = "cancel";
+			buttons[1].text = "increase by 1";
+			buttons[2].text = "increase by 5";
+			buttons[3].text = "decrease by 1";
+			buttons[4].text = "decrease by 5";
+
+			SDL_MessageBoxData messageBoxData = {};
+			messageBoxData.flags = SDL_MESSAGEBOX_INFORMATION;
+			messageBoxData.window = window;
+			messageBoxData.title = "map_size";
+			messageBoxData.message = message;
+			messageBoxData.numbuttons = arrayCount(buttons);
+			messageBoxData.buttons = buttons;
+			messageBoxData.colorScheme = NULL;
+
+			s32 buttonId = 0;
+			s32 showResult = SDL_ShowMessageBox(&messageBoxData, &buttonId);
+
+			if(showResult < 0) {
+				const char* error = SDL_GetError();
+				s32 breakHere = 4;
+			}
+			else if(buttonId > 0) {
+				s32 oldWidth = state.mapWidthInTiles;
+				s32 newWidth = oldWidth;
+
+				switch(buttonId) {
+					case 1:
+						newWidth += 1;
+						break;
+					case 2:
+						newWidth += 5;
+						break;
+					case 3:
+						newWidth -= 1;
+						break;
+					case 4:
+						newWidth -= 5;
+						break;
+					InvalidDefaultCase;
+				}
+
+				if(newWidth < 1) newWidth = 1;
+
+				TileSpec* newTiles = pushArray(&state.arena, TileSpec, state.mapHeightInTiles * newWidth);
+
+				for(s32 tileY = 0; tileY < state.mapHeightInTiles; tileY++) {
+					for (s32 tileX = 0; tileX < newWidth; tileX++) {
+						TileSpec* newTile = newTiles + (tileY * newWidth + tileX);
+
+						TileSpec oldTile = {};
+						oldTile.index = -1;
+
+						if(tileX < oldWidth) {
+							oldTile = state.tiles[tileY * oldWidth + tileX];
+						}
+
+						*newTile = oldTile;
+					}
+				}
+
+				state.tiles = newTiles;
+				state.mapWidthInTiles = newWidth;
 			}
 		}
 

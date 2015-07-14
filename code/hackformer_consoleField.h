@@ -112,34 +112,15 @@ struct ConsoleField {
 	//NOTE: These attributes are used for drag and droppable fields
 	V2 offs;
 
+	double childYOffs;
+	double alpha;
+
 	//NOTE: This is used for storage in the free list
 	ConsoleField* next;
 
 	//NOTE: This is used for hierarchal console fields
 	s32 numChildren;
 	ConsoleField* children[MAX_CONSOLE_FIELD_CHILDREN];
-	double childYOffs;
-	double alpha;
-};
-
-struct ConsoleFieldHackSave {
-	ConsoleFieldType type; //NOTE: This must NEVER be negative
-	u32 flags;
-
-	char name[20];
-	
-	s32 numValues;
-
-	s32 selectedIndex;
-	s32 initialIndex;
-
-	s32 tweakCost;
-	
-	V2 p;
-	V2 offs;
-
-	s32 numChildren;
-	double childYOffs;
 };
 
 enum ButtonState {
