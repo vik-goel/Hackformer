@@ -363,9 +363,9 @@ void streamEntity(IOStream* stream, Entity* entity, s32 entityIndex, bool stream
 	}
 
 	if(streamingCheckpoint) {
-		entity->checkPointSave = NULL;
-
 		if(stream->reading) {
+			entity->checkPointSave = NULL;
+			
 			for(CheckPointSave* save = gameState->checkPointSaveList; save; save = save->next) {
 				if(save->ref == entity->ref) {
 					entity->checkPointSave = save;

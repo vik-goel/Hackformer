@@ -530,9 +530,10 @@ void freeHitboxes(Entity* entity, GameState* gameState) {
 	}
 }
 
-void toggleCheckpoint(Entity*, GameState*);
+void toggleCheckpoint(Entity*, GameState*, bool);
 
 void addToCheckPointSaveList(GameState* gameState, CheckPointSave* save) {
+	assert(save->next == NULL);
 	save->next = gameState->checkPointSaveList;
 	gameState->checkPointSaveList = save;
 }
@@ -540,7 +541,6 @@ void addToCheckPointSaveList(GameState* gameState, CheckPointSave* save) {
 void freeCheckPointSave(GameState* gameState, CheckPointSave* save) {
 	if(save) {
 		save->ref = 0;
-		addToCheckPointSaveList(gameState, save);
 	}
 }
 
@@ -567,10 +567,13 @@ CheckPointSave* allocateCheckPointSave(GameState* gameState, s32 ref) {
 		else {
 			gameState->checkPointSaveList = save->next;
 		}
+
+		save->next = NULL;
 	}
 	else {
 		save = pushStruct(&gameState->checkPointStorage, CheckPointSave);
 		save->arena = NULL;
+		save->next = NULL;
 	}
 
 	save->ref = ref;
@@ -585,7 +588,7 @@ CheckPointSave* allocateCheckPointSave(GameState* gameState, s32 ref) {
 
 void freeEntityDuringLevel(Entity* entity, GameState* gameState, bool createdThisFrame = false) {
 	if(isSet(entity, EntityFlag_checkPointReached)) {
-		toggleCheckpoint(entity, gameState);
+		toggleCheckpoint(entity, gameState, true);
 	}
 
 	freeCheckPointSave(gameState, entity->checkPointSave);
@@ -1208,6 +1211,8 @@ Entity* addCheckPoint(GameState* gameState, V2 p) {
 
 	result->defaultTex = gameState->checkPointUnreached;
 	result->emissivity = 1;
+
+	addField(result, createBoolField(gameState, "reached", false, 5));
 
 	return result;
 }
@@ -2253,8 +2258,19 @@ void tryKeyboardJump(Entity* entity, GameState* gameState, ConsoleField* keyboar
 	}
 }
 
-void toggleCheckpoint(Entity* entity, GameState* gameState) {
+void toggleCheckpoint(Entity* entity, GameState* gameState, bool toggleReachedField) {
 	toggleFlags(entity, EntityFlag_checkPointReached);
+
+	if(toggleReachedField) {
+		ConsoleField* reachedField = getField(entity, ConsoleField_bool);
+		assert(reachedField);
+
+		if(isSet(entity, EntityFlag_checkPointReached)) {
+			reachedField->selectedIndex = 1;
+		} else {
+			reachedField->selectedIndex = 0;
+		}
+	}
 
 	if(isSet(entity, EntityFlag_checkPointReached)) {
 		entity->defaultTex = gameState->checkPointReached;
@@ -2350,7 +2366,7 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 
 		case EntityType_checkPoint: {
 			if(hitEntity->type == EntityType_player) {
-				toggleCheckpoint(entity, gameState);
+				toggleCheckpoint(entity, gameState, true);
 			}
 
 		} break;
@@ -4636,6 +4652,17 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			} break;
 
 
+
+			case EntityType_checkPoint: {
+				ConsoleField* reachedField = getField(entity, ConsoleField_bool);
+				assert(reachedField);
+				bool reached = reachedField->selectedIndex != 0;
+				bool storedReached = isSet(entity, EntityFlag_checkPointReached) != 0;
+
+				if(reached != storedReached) {
+					toggleCheckpoint(entity, gameState, false);
+				}
+			} break;
 
 
 
