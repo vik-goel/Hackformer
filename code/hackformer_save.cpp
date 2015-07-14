@@ -301,11 +301,13 @@ void streamCharacterAnim(IOStream* stream, CharacterAnim** animPtr) {
 	streamTextureObject_(stream, (void**)animPtr, stream->gameState->characterAnims, sizeof(CharacterAnim));
 }
 
-void streamEntity(IOStream* stream, Entity* entity, s32 entityIndex) {
+void streamEntity(IOStream* stream, Entity* entity, s32 entityIndex, bool streamingCheckpoint) {
+	GameState* gameState = stream->gameState;
+
 	streamElem(stream, entity->ref);
 
 	if(stream->reading) {
-		addEntity(stream->gameState, entity->ref, entityIndex);
+		addEntity(gameState, entity->ref, entityIndex);
 	}
 
 	streamElem(stream, entity->type);
@@ -357,13 +359,51 @@ void streamEntity(IOStream* stream, Entity* entity, s32 entityIndex) {
 	streamV2(stream, &entity->groundNormal);
 
 	if(stream->reading) {
-		addToSpatialPartition(entity, stream->gameState);
+		addToSpatialPartition(entity, gameState);
 	}
+
+	if(streamingCheckpoint) {
+		entity->checkPointSave = NULL;
+
+		if(stream->reading) {
+			for(CheckPointSave* save = gameState->checkPointSaveList; save; save = save->next) {
+				if(save->ref == entity->ref) {
+					entity->checkPointSave = save;
+				}
+			}
+		}
+	}
+	else {
+		if(stream->reading) {
+			s32 offset; 
+			readElem(stream, offset);
+
+			if(offset >= 0) {
+				entity->checkPointSave = (CheckPointSave*)((char*)gameState->checkPointStorage.base + offset);
+			} else {
+				entity->checkPointSave = NULL;
+			}
+		}
+		else {
+			s32 offset = -1;
+
+			if(entity->checkPointSave) {
+				offset = (size_t)entity->checkPointSave - (size_t)gameState->checkPointStorage.base;
+			}
+
+			writeElem(stream, offset);
+		}
+	}
+}
+
+void streamArena(IOStream* stream, MemoryArena* arena) {
+	streamElem(stream, arena->allocated);
+	streamElem_(stream, arena->base, arena->allocated);
 }
 
 void streamGameChanges(IOStream* stream);
 
-void streamGame(IOStream* stream) {
+void streamGame(IOStream* stream, bool streamingCheckpoint) {
 	GameState* gameState = stream->gameState;
 
 	streamElem(stream, gameState->screenType);
@@ -402,14 +442,14 @@ void streamGame(IOStream* stream) {
 	streamElem(stream, gameState->numEntities);
 
 	for(s32 i = 0; i < gameState->numEntities; i++) {
-		streamEntity(stream, gameState->entities + i, i);
+		streamEntity(stream, gameState->entities + i, i, streamingCheckpoint);
 	}
 
 	if(getEntityByRef(gameState, gameState->consoleEntityRef)) {
 		MemoryArena* arena = &gameState->hackSaveStorage;
 		SaveMemoryHeader* header = (SaveMemoryHeader*)arena->base;
 
-		streamElem(stream, arena->allocated);
+		
 
 		if(!stream->reading) {
 			for(s32 i = 0; i < header->numSaveGames; i++) {
@@ -417,10 +457,36 @@ void streamGame(IOStream* stream) {
 			}
 		}
 
-		streamElem_(stream, arena->base, arena->allocated);
+		streamArena(stream, arena);
 
 		for(s32 i = 0; i < header->numSaveGames; i++) {
 			header->saves[i].save = (void*)((size_t)header->saves[i].save + (size_t)arena->base);
+		}
+	}
+
+	if(!streamingCheckpoint) {
+		if(stream->reading) {
+			while(true) {
+				bool32 keepReading;
+				streamElem(stream, keepReading);
+				if(!keepReading) break;
+
+				s32 ref;
+				streamElem(stream, ref);
+				CheckPointSave* save = allocateCheckPointSave(gameState, ref);
+				streamArena(stream, save->arena);
+			}
+		} else {
+			for(CheckPointSave* save = gameState->checkPointSaveList; save; save = save->next) {
+				if(save->arena && getEntityByRef(gameState, save->ref)) {
+					streamValue(stream, bool32, true);
+
+					streamElem(stream, save->ref);
+					streamArena(stream, save->arena);
+				}
+			}
+
+			streamValue(stream, bool32, false);
 		}
 	}
 
@@ -429,26 +495,27 @@ void streamGame(IOStream* stream) {
 
 void saveCompleteGame(GameState* gameState, char* fileName) {
 	IOStream stream = createIostream(gameState, fileName, false);
-	streamGame(&stream);	
+	streamGame(&stream, false);	
+}
+
+void loadCompleteGame(GameState* gameState, char* fileName) {
+	IOStream stream = createIostream(gameState, fileName, true);
+	streamGame(&stream, false);	
 }
 
 void saveCompleteGame(GameState* gameState, MemoryArena* arena) {
 	arena->allocated = 0;
 	IOStream stream = createIostream(gameState, arena, NULL);
-	streamGame(&stream);	
-}
-
-void loadCompleteGame(GameState* gameState, char* fileName) {
-	IOStream stream = createIostream(gameState, fileName, true);
-	streamGame(&stream);	
+	streamGame(&stream, true);	
 }
 
 void loadCompleteGame(GameState* gameState, MemoryArena* arena) {
-	freeLevel(gameState);
+	freeLevel(gameState, true);
 	void* readPtr = arena->base;
 	IOStream stream = createIostream(gameState, arena, readPtr);
-	streamGame(&stream);	
+	streamGame(&stream, true);	
 }
+
 s32 getSlotIndex(s32 saveIndex) {
 	assert(saveIndex >= 0);
 

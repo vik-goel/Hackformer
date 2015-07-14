@@ -4,6 +4,26 @@
 		"selected_items":
 		[
 			[
+				"hack",
+				"hackSaveStorage"
+			],
+			[
+				"select",
+				"selectedIndex"
+			],
+			[
+				"coll",
+				"collisionPointsCount"
+			],
+			[
+				"map",
+				"mapWidthInTiles"
+			],
+			[
+				"mess",
+				"messageBoxData"
+			],
+			[
 				"draw",
 				"drawOrder"
 			],
@@ -320,10 +340,6 @@
 				"SDL_Renderer"
 			],
 			[
-				"coll",
-				"collisionTime"
-			],
-			[
 				"col",
 				"collisionTime"
 			],
@@ -496,85 +512,18 @@
 	"buffers":
 	[
 		{
-			"file": "code/hackformer_entity.cpp",
+			"file": "code/hackformer_save.h",
 			"settings":
 			{
-				"buffer_size": 162409,
+				"buffer_size": 672,
 				"line_ending": "Windows"
 			}
 		},
 		{
-			"file": "code/hackformer_packBuilder.cpp",
+			"file": "code/hackformer_save.cpp",
 			"settings":
 			{
-				"buffer_size": 4684,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "code/hackformer_types.h",
-			"settings":
-			{
-				"buffer_size": 17658,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "code/hackformer.cpp",
-			"settings":
-			{
-				"buffer_size": 43261,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"contents": "FILE* seekToAssetPos(RenderGroup* group, AssetId id) {\n	s32 seekResult = fseek(group->assetFileHandle, group->assetFileOffsets[id], SEEK_SET);\n	assert(seekResult == 0);\n\n	return group->assetFileHandle;\n}\n\nSDL_RWops* getReadStream(RenderGroup* group, AssetId id) {\n	FILE* file = seekToAssetPos(group, id);\n\n	SDL_RWops* readStream = SDL_RWFromFP(file, SDL_FALSE);\n	return readStream;\n}\n\nvoid loadShaderSource(RenderGroup* group, AssetId assetId, char* source, s32 maxSourceLength) {\n	FILE* file = seekToAssetPos(group, assetId);\n\n	char line[1024];\n	char* linePtr;\n	s32 length = 0;\n\n	while (fgets (line, sizeof(line), file)) {\n		if(line[0] == \"/\" && line[1] == \"/\" && line[2] == \"\")\n\n		linePtr = line;\n\n		while(*linePtr) {\n			*source = *linePtr;\n			source++;\n			linePtr++;\n			length++;\n			assert(length < maxSourceLength);\n		}\n	}\n\n	*source = 0;\n}\n\nGLuint addShader_(RenderGroup* group, GLenum type, AssetId sourceId, Shader shaderProgram) {\n	char sourceBuffer[4000];\n	char* source = sourceBuffer;\n	loadShaderSource(group, sourceId, source, arrayCount(sourceBuffer));\n\n	GLuint shader = glCreateShader(type);\n	assert(shader);\n\n	glShaderSource(shader, 1, &source, NULL);\n\n	glCompileShader(shader);\n	GLint compileSuccess = 0;\n	glGetShaderiv(shader, GL_COMPILE_STATUS, &compileSuccess);\n\n	if (compileSuccess == GL_FALSE) {\n		char errorBuffer[1024];\n		s32 errorLength = 0;\n		glGetShaderInfoLog(shader, arrayCount(errorBuffer), &errorLength, errorBuffer);\n		fprintf(stderr, \"Failed to compile shader: %s\\n\", errorBuffer);\n		InvalidCodePath;\n	}\n\n	glAttachShader(shaderProgram.program, shader);\n\n	return shader;\n}\n\nShader createShader(RenderGroup* group, AssetId vsId, AssetId fsId, V2 windowSize) {\n	Shader result = {};\n\n	result.program = glCreateProgram();\n	assert(result.program);\n\n	GLuint vertexShader = addShader_(group, GL_VERTEX_SHADER, vsId, result);\n	GLuint fragmentShader = addShader_(group, GL_FRAGMENT_SHADER, fsId, result);\n\n	glLinkProgram(result.program);\n\n	GLint linkSuccess = 0;\n	glGetProgramiv(result.program, GL_LINK_STATUS, &linkSuccess);\n\n	if (linkSuccess == GL_FALSE) {\n		GLchar errorBuffer[1024];\n		GLsizei errorLength = 0;\n		glGetProgramInfoLog(result.program, (GLsizei)arrayCount(errorBuffer), &errorLength, errorBuffer);\n		fprintf(stderr, \"Failed to link shader: %s\\n\", errorBuffer);\n		InvalidCodePath;\n	}\n\n	glDetachShader(result.program, vertexShader);\n	glDetachShader(result.program, fragmentShader);\n\n	glDeleteShader(vertexShader);\n	glDeleteShader(fragmentShader);\n\n	glUseProgram(result.program);\n	GLint windowSizeUniformLocation = glGetUniformLocation(result.program, \"twoOverScreenSize\");\n	glUniform2f(windowSizeUniformLocation, (GLfloat)(2.0/windowSize.x), (GLfloat)(2.0/windowSize.y));\n\n	result.tintUniformLocation = glGetUniformLocation(result.program, \"tint\");\n\n	GLint diffuseLocation = glGetUniformLocation(result.program, \"diffuseTexture\");\n	glUniform1i(diffuseLocation, 0);\n\n	return result;\n}\n\nForwardShader createForwardShader(RenderGroup* group, V2 windowSize) {\n	ForwardShader result = {};\n\n	result.shader = createShader(group, Asset_forwardVS, Asset_forwardFS, windowSize);\n\n	result.ambientUniform = glGetUniformLocation(result.shader.program, \"ambient\");\n\n	char* uniformPrefix = \"pointLights[\";\n	char uniformName[128];\n\n	for(s32 lightIndex = 0; lightIndex < arrayCount(result.pointLightUniforms); lightIndex++) {\n		PointLightUniforms* lightUniforms = result.pointLightUniforms + lightIndex;\n\n		sprintf(uniformName, \"%s%d].p\", uniformPrefix, lightIndex);\n		lightUniforms->p = glGetUniformLocation(result.shader.program, uniformName);\n\n		sprintf(uniformName, \"%s%d].color\", uniformPrefix, lightIndex);\n		lightUniforms->color = glGetUniformLocation(result.shader.program, uniformName);\n\n		sprintf(uniformName, \"%s%d].range\", uniformPrefix, lightIndex);\n		lightUniforms->range = glGetUniformLocation(result.shader.program, uniformName);\n	}\n\n	uniformPrefix = \"spotLights[\";\n\n	for(s32 lightIndex = 0; lightIndex < arrayCount(result.spotLightUniforms); lightIndex++) {\n		SpotLightUniforms* lightUniforms = result.spotLightUniforms + lightIndex;\n\n		sprintf(uniformName, \"%s%d].base.p\", uniformPrefix, lightIndex);\n		lightUniforms->base.p = glGetUniformLocation(result.shader.program, uniformName);\n\n		sprintf(uniformName, \"%s%d].base.color\", uniformPrefix, lightIndex);\n		lightUniforms->base.color = glGetUniformLocation(result.shader.program, uniformName);\n\n		sprintf(uniformName, \"%s%d].dir\", uniformPrefix, lightIndex);\n		lightUniforms->dir = glGetUniformLocation(result.shader.program, uniformName);\n\n		sprintf(uniformName, \"%s%d].cutoff\", uniformPrefix, lightIndex);\n		lightUniforms->cutoff = glGetUniformLocation(result.shader.program, uniformName);\n\n		sprintf(uniformName, \"%s%d].base.range\", uniformPrefix, lightIndex);\n		lightUniforms->base.range = glGetUniformLocation(result.shader.program, uniformName);\n	}\n\n	return result;\n}\n\nvoid freeTexture(Texture* texture) {\n	if(texture->texId) {\n		glDeleteTextures(1, &texture->texId);\n		texture->texId = 0;\n	}\n}\n\nGLuint generateTexture(SDL_Surface* image, bool srgb = false) {\n	glEnable(GL_TEXTURE_2D);\n\n	GLuint result = 0;\n\n	glGenTextures(1, &result);\n	assert(result);\n\n	glBindTexture(GL_TEXTURE_2D, result);\n\n	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);\n	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);\n\n	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);\n	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);\n\n	GLenum format;\n\n	if (image->format->BytesPerPixel == 3) {\n		format = GL_RGB;\n	} else if (image->format->BytesPerPixel == 4) {\n		format = GL_RGBA;\n	} else {\n		InvalidCodePath;\n	}\n\n	GLint internalFormal = srgb ? GL_SRGB8_ALPHA8 : GL_RGBA;\n\n	glTexImage2D(GL_TEXTURE_2D, 0, internalFormal, image->w, image->h, 0, format, GL_UNSIGNED_BYTE, image->pixels);\n\n	return result;\n}\n\nTexture createTexFromSurface(SDL_Surface* image, RenderGroup* group, bool stencil) {\n	Texture result = {};\n\n	result.texId = generateTexture(image, !stencil);\n	result.uv = r2(v2(0, 0), v2(1, 1));\n	result.size = v2(image->w, image->h) * (1.0 / group->pixelsPerMeter);\n\n	SDL_FreeSurface(image);\n	glBindTexture(GL_TEXTURE_2D, 0);\n\n	return result;\n}\n\n//stencil is false by default\nTexture* loadPNGTexture(RenderGroup* group, AssetId id, bool stencil) {\n	SDL_RWops* readStream = getReadStream(group, id);\n	SDL_Surface* diffuse = IMG_LoadPNG_RW(readStream);\n	SDL_FreeRW(readStream);\n\n	if (!diffuse) {\n		fprintf(stderr, \"Failed to load diffuse texture with id: %d\\n\", id);\n		InvalidCodePath;\n	}\n\n	Texture* result = group->textures + *group->texturesCount;\n	*result = createTexFromSurface(diffuse, group, stencil);\n\n	*group->texturesCount = *group->texturesCount + 1;\n	assert(*group->texturesCount < MAX_TEXTURES);\n\n	return result;\n}\n\nTTF_Font* loadFont(RenderGroup* group, AssetId id, s32 fontSize) {\n	SDL_RWops* readStream = getReadStream(group, id);\n	TTF_Font* font = TTF_OpenFontRW(readStream, 0, fontSize);\n\n	if (!font) {\n		fprintf(stderr, \"Failed to load font with id: %d\\n\", id);\n		InvalidCodePath;\n	}\n\n	TTF_SetFontHinting(font, TTF_HINTING_LIGHT);\n\n	return font;\n}\n\nCachedFont loadCachedFont(RenderGroup* group, AssetId id, s32 fontSize, double scaleFactor) {\n	CachedFont result = {};\n	result.font = loadFont(group, id, (s32)round(fontSize * scaleFactor));\n	result.scaleFactor = scaleFactor;\n	result.lineHeight = fontSize / (group->pixelsPerMeter * scaleFactor);\n	return result;\n}\n\nTexture* extractTextures(RenderGroup* group, AssetId id, s32 frameWidth, s32 frameHeight, s32 frameSpacing, s32* numFrames) {\n\n	Texture* tex = loadPNGTexture(group, id);\n	\n	s32 texWidth = (s32)(tex->size.x * group->pixelsPerMeter + 0.5);\n	s32 texHeight = (s32)(tex->size.y * group->pixelsPerMeter + 0.5);\n\n	s32 numCols = texWidth / (frameWidth + frameSpacing);\n	s32 numRows = texHeight / (frameHeight + frameSpacing);\n\n	assert(frameWidth > 0);\n	assert(frameHeight > 0);\n\n	//TODO: Add a way to test this\n	//assert(width % numCols == 0);\n	//assert(height % numRows == 0);\n\n	*numFrames = numRows * numCols;\n	Texture* result = tex + 1;\n\n	V2 frameSize = v2((double)(frameWidth + frameSpacing) / (double)texWidth, \n		(double)(frameHeight + frameSpacing) / (double)texHeight);\n\n	V2 texSize = v2((double)frameWidth / (double)texWidth, (double)frameHeight/(double)texHeight);\n\n	V2 frameOffset = v2(frameSpacing / (double)texWidth, frameSpacing / (double)texHeight) * 0.5;\n\n	V2 dataTexSize = hadamard(texSize, tex->size);\n\n	for (s32 rowIndex = 0; rowIndex < numRows; rowIndex++) {\n		for (s32 colIndex = 0; colIndex < numCols; colIndex++) {\n			s32 textureIndex = colIndex + rowIndex * numCols;\n\n			Texture* data = result + textureIndex;\n			data->texId = tex->texId;\n\n			V2 minCorner = hadamard(v2(colIndex, rowIndex), frameSize) + frameOffset;\n			data->uv = r2(minCorner, minCorner + texSize);\n			data->size = dataTexSize;\n		}\n	}\n\n	*group->texturesCount = *group->texturesCount + *numFrames;\n	assert(*group->texturesCount < MAX_TEXTURES);\n\n	return result;\n}\n\nAnimation loadAnimation(RenderGroup* group, AssetId id, s32 frameWidth, s32 frameHeight, double secondsPerFrame,\n						bool pingPong) {\n	Animation result = {};\n\n	assert(secondsPerFrame > 0);\n	result.secondsPerFrame = secondsPerFrame;\n	result.frames = extractTextures(group, id, frameWidth, frameHeight, 0, &result.numFrames);\n	result.pingPong = pingPong;\n	result.frameWidth = frameWidth;\n	result.frameHeight = frameHeight;\n	result.assetId = id;\n\n	return result;\n}\n\nAnimation createAnimation(Texture* tex) {\n	Animation result = {};\n	result.secondsPerFrame = 0;\n	result.frames = tex;\n	result.numFrames = 1;\n	return result;\n}\n\ndouble getAnimationDuration(Animation* animation) {\n	double result = animation->numFrames * animation->secondsPerFrame;\n	return result;\n}\n\nTexture* getAnimationFrame(Animation* animation, double animTime) {\n	bool32 reverse = animation->reverse;\n\n	s32 frameIndex = 0;\n	if (animation->secondsPerFrame > 0) {\n		frameIndex = (s32)(animTime / animation->secondsPerFrame) % animation->numFrames;\n	}\n\n	if(animation->pingPong && animation->numFrames > 1) {\n		double duration = getAnimationDuration(animation);\n\n		if(animTime > duration) {\n			duration -= animation->secondsPerFrame;\n			animTime -= duration;\n\n			frameIndex = (s32)(animTime / animation->secondsPerFrame) % (animation->numFrames - 1);\n\n			s32 numTimesPlayed = (s32)(animTime / duration) + 1;\n\n			if (numTimesPlayed % 2 == 1) {\n				reverse = !reverse;\n			}\n		}\n	}\n\n	\n\n	if (reverse) {\n		frameIndex = (animation->numFrames - 1) - frameIndex;\n	}\n\n	Texture* result = animation->frames + frameIndex;\n	return result;\n}\n\n#ifdef HACKFORMER_GAME\n\nAnimation createReversedAnimation(Animation* anim) {\n	Animation result = *anim;\n	result.reverse = !result.reverse;\n	return result;\n}\n\nGlowingTexture* createGlowingTexture(GameState* gameState) {\n	GlowingTexture* result = gameState->glowingTextures + gameState->glowingTexturesCount++;\n	assert(gameState->glowingTexturesCount < MAX_GLOWING_TEXTURES);\n	return result;\n}\n\nAnimNode* createAnimNode(GameState* gameState, AnimNode** anim = NULL) {\n	AnimNode* result = gameState->animNodes + gameState->animNodesCount++;\n	assert(gameState->animNodesCount < MAX_ANIM_NODES);\n	if(anim) *anim = result;\n	return result;\n}\n\nCharacterAnim* createCharacterAnim(GameState* gameState, CharacterAnim** anim = NULL) {\n	CharacterAnim* data = gameState->characterAnims + gameState->characterAnimsCount++;\n	assert(gameState->characterAnimsCount < MAX_CHARACTER_ANIMS);\n	if(anim) *anim = data;\n	return data;\n}\n\n#endif\n\nvoid setColor(RenderGroup* group, Color color) {\n	GLfloat r = (GLfloat)((color.r + 0.5) / 255.0);\n	GLfloat g = (GLfloat)((color.g + 0.5) / 255.0);\n	GLfloat b = (GLfloat)((color.b + 0.5) / 255.0);\n	GLfloat a = (GLfloat)((color.a + 0.5) / 255.0);\n\n\n	glUniform4f(group->currentShader->tintUniformLocation, r, g, b, a);\n}\n\nSDL_Rect getPixelSpaceRect(double pixelsPerMeter, s32 windowHeight, R2 rect) {\n	SDL_Rect result = {};\n\n	double width = getRectWidth(rect);\n	double height = getRectHeight(rect);\n\n	result.w = (s32)ceil(width * pixelsPerMeter);\n	result.h = (s32)ceil(height * pixelsPerMeter);\n	result.x = (s32)ceil(rect.max.x * pixelsPerMeter) - result.w;\n	result.y = windowHeight - (s32)ceil(rect.max.y * pixelsPerMeter);\n\n	return result;\n}\n\nvoid bindShader(RenderGroup* group, Shader* shader) {\n	if(group->currentShader != shader) {\n		group->currentShader = shader;\n		glUseProgram(shader->program);\n	}\n}\n\nvoid setClipRect(double pixelsPerMeter, R2 rect) {\n	GLint x = (GLint)(rect.min.x * pixelsPerMeter);\n	GLint y = (GLint)(rect.min.y * pixelsPerMeter);\n	GLsizei width = (GLsizei)(getRectWidth(rect) * pixelsPerMeter);\n	GLsizei height = (GLsizei)(getRectHeight(rect) * pixelsPerMeter);\n\n	glEnable(GL_SCISSOR_TEST);\n	glScissor(x, y, width, height);\n}\n\nTexture createText(RenderGroup* group, TTF_Font* font, char* msg) {\n	SDL_Color fontColor = {0, 0, 0, 255};\n	SDL_Surface* fontSurface = TTF_RenderText_Blended(font, msg, fontColor);\n\n	Texture result = createTexFromSurface(fontSurface, group, false);\n\n	return result;\n}\n\nGlyph* getGlyph(CachedFont* cachedFont, RenderGroup* group, char c, double metersPerPixel) {\n	if (!cachedFont->cache[c].tex.texId) {	\n		SDL_Color white = {255, 255, 255, 255};\n\n		SDL_Surface* glyphSurface = TTF_RenderGlyph_Blended(cachedFont->font, c, white);\n		assert(glyphSurface);\n\n		SDL_PixelFormat* format = glyphSurface->format;\n		s32 maxX = 0, minX = glyphSurface->w - 1, maxY = 0, minY = glyphSurface->h - 1;\n\n		for(s32 y = 0; y < glyphSurface->h; y++) {\n			for(s32 x = 0; x < glyphSurface->w; x++) {\n				void* pixelPtr = (u8*)glyphSurface->pixels + x * format->BytesPerPixel + y * glyphSurface->pitch; \n				assert(format->BytesPerPixel == 4);\n\n				u32 pixel = *(u32*)pixelPtr;\n				u32 alpha = pixel & format-> Amask;\n\n				if(alpha) {\n					if(x > maxX) maxX = x;\n					if (x < minX) minX = x;\n					if(y > maxY) maxY = y;\n					if(y < minY) minY = y;\n				}\n			}\n		}\n\n		cachedFont->cache[c].padding.max.y = minY * metersPerPixel;\n		cachedFont->cache[c].padding.min.y = ((glyphSurface->h - 1) * metersPerPixel) - (maxY * metersPerPixel);\n		cachedFont->cache[c].padding.max.x = minX * metersPerPixel;\n		cachedFont->cache[c].padding.min.x = ((glyphSurface->w - 1) * metersPerPixel) - (maxX * metersPerPixel);\n\n		cachedFont->cache[c].tex = createTexFromSurface(glyphSurface, group, false);\n		assert(cachedFont->cache[c].tex.texId);\n	}\n\n	Glyph* result = cachedFont->cache + c;\n	return result;\n}\n\ndouble getTextWidth(CachedFont* cachedFont, RenderGroup* group, char* msg) {\n	double result = 0;\n\n	double metersPerPixel = 1.0 / (group->pixelsPerMeter * cachedFont->scaleFactor);\n	double invScaleFactor = 1.0 / cachedFont->scaleFactor;\n\n	while(*msg) {\n		result += getGlyph(cachedFont, group, *msg, metersPerPixel)->tex.size.x * invScaleFactor;\n		msg++;\n	}\n\n	return result;\n}\n\ndouble getTextHeight(CachedFont* cachedFont, RenderGroup* group, char* msg) {\n	double result = 0;\n\n	double metersPerPixel = 1.0 / (group->pixelsPerMeter * cachedFont->scaleFactor);\n	double invScaleFactor = 1.0 / cachedFont->scaleFactor;\n\n	while(*msg) {\n		Glyph* glyph = getGlyph(cachedFont, group, *msg, metersPerPixel);\n		double glyphHeight = glyph->tex.size.y * invScaleFactor - glyph->padding.min.y - glyph->padding.max.y;\n		if(glyphHeight > result) result = glyphHeight;\n\n		msg++;\n	}\n\n	return result;\n}\n\nV2 getTextSize(CachedFont* cachedFont, RenderGroup* group, char* msg) {\n	V2 result = v2(getTextWidth(cachedFont, group, msg), getTextHeight(cachedFont, group, msg));\n	return result;\n}\n\nR2 getTextPadding(CachedFont* cachedFont, RenderGroup* group, char* msg) {\n	R2 result = {v2(-1, -1), v2(-1, -1)};\n\n	double metersPerPixel = 1.0 / (group->pixelsPerMeter * cachedFont->scaleFactor);\n\n	while(char c = *msg++) {\n		Glyph* glyph = getGlyph(cachedFont, group, c, metersPerPixel);\n\n		if(result.min.x < 0 || glyph->padding.min.x < result.min.x) result.min.x = glyph->padding.min.x;\n		if(result.max.x < 0 || glyph->padding.max.x < result.max.x) result.max.x = glyph->padding.max.x;\n		if(result.min.y < 0 || glyph->padding.min.y < result.min.y) result.min.y = glyph->padding.min.y;\n		if(result.max.y < 0 || glyph->padding.max.y < result.max.y) result.max.y = glyph->padding.max.y;\n	}\n\n	if(result.min.x < 0) result.min.x = 0;\n	if(result.max.x < 0) result.max.x = 0;\n	if(result.min.y < 0) result.min.y = 0;\n	if(result.max.y < 0) result.max.y = 0;\n\n	return result;\n}\n\nbool validTexture(Texture* texture) {\n	bool result = texture && texture->texId;\n	return result;\n}\n\nRenderGroup* createRenderGroup(size_t size, MemoryArena* arena, double pixelsPerMeter, s32 windowWidth, s32 windowHeight, \n								Camera* camera, Texture* textures, s32* texturesCount) {\n	RenderGroup* result = pushStruct(arena, RenderGroup);\n\n	result->allocated = 0;\n	result->numSortPtrs = 0;\n	result->sortAddressCutoff = 0;\n	result->maxSize = size;\n	result->base = pushSize(arena, size);\n	result->pixelsPerMeter = pixelsPerMeter;\n	result->windowWidth = windowWidth;\n	result->windowHeight = windowHeight;\n\n	V2 windowSize = v2(windowWidth, windowHeight) * (1.0 / pixelsPerMeter);\n\n	result->windowBounds = r2(v2(0, 0), windowSize);\n	result->camera = camera;\n	result->textures = textures;\n	result->texturesCount = texturesCount;\n\n	result->assetFileHandle = fopen(\"assets.bin\", \"rb\");\n	assert(result->assetFileHandle);\n\n	for(s32 assetIndex = 1; assetIndex < Asset_count; assetIndex++) {\n		result->assetFileOffsets[assetIndex] = readS32(result->assetFileHandle);\n	}\n\n	result->forwardShader = createForwardShader(result, windowSize);\n\n	//TODO: This compiles basic.vert twice (maybe it can be re-used for both programs)\n	result->basicShader = createShader(result, Asset_basicVS, Asset_basicFS, windowSize);\n	result->stencilShader = createShader(result, Asset_basicVS, Asset_stencilFS, windowSize);\n\n	result->defaultClipRect = result->windowBounds;\n\n	result->whiteTex = loadPNGTexture(result, Asset_white, false);\n\n	return result;\n}\n\nvoid sendTexCoord(V2 uvMin, V2 uvMax, s32 orientation) {\n	switch(orientation) {\n		case Orientation_0: {\n			glTexCoord2f((GLfloat)uvMax.x, (GLfloat)uvMax.y); \n		} break;\n\n		case Orientation_90: {\n			glTexCoord2f((GLfloat)uvMin.x, (GLfloat)uvMax.y); \n		} break;\n\n		case Orientation_180: {\n			glTexCoord2f((GLfloat)uvMin.x, (GLfloat)uvMin.y); \n		} break;\n\n		case Orientation_270: {\n			glTexCoord2f((GLfloat)uvMax.x, (GLfloat)uvMin.y); \n		} break;\n\n		InvalidDefaultCase;		\n	}\n}\n\nvoid bindTexture(Texture* texture, RenderGroup* group) {\n	assert(validTexture(texture));\n\n	glEnable(GL_TEXTURE_2D);\n	glEnable(GL_BLEND);\n	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);\n\n	glActiveTexture(GL_TEXTURE0);\n	glBindTexture(GL_TEXTURE_2D, texture->texId);\n}\n\nvoid setAmbient(RenderGroup* group, GLfloat ambient) {\n	glUniform3f(group->forwardShader.ambientUniform, ambient, ambient, ambient);\n}\n\nvoid drawTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, bool flipY, Orientation orientation, float emissivity, \n				GLfloat ambient, Color color) {\n	if(emissivity) {\n		setAmbient(group, ambient + (1 - ambient) * emissivity);\n	}\n\n	bindTexture(texture, group);\n\n	setColor(group, color);\n\n	V2 uvMin = texture->uv.min;\n	V2 uvMax = texture->uv.max;\n\n	if (!flipX) {\n		swap(uvMin.x, uvMax.x);\n	}\n\n	if(flipY) {\n		swap(uvMin.y, uvMax.y);\n	}\n\n	glBegin(GL_QUADS);\n		sendTexCoord(uvMin, uvMax, orientation);\n		glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);\n\n		sendTexCoord(uvMin, uvMax, (orientation + 1) % Orientation_count); \n		glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.min.y);\n\n		sendTexCoord(uvMin, uvMax, (orientation + 2) % Orientation_count); \n		glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.max.y);\n\n		sendTexCoord(uvMin, uvMax, (orientation + 3) % Orientation_count); \n		glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.max.y);\n	glEnd();\n\n	if(emissivity) {\n		setAmbient(group, ambient);\n	}\n}\n\nvoid drawTexture(RenderGroup* group, Texture* texture, R2 bounds, double rot, Color color, bool flipX, bool flipY, float emissivity,\n				 GLfloat ambient) {\n	if(emissivity) {\n		setAmbient(group, ambient + (1 - ambient) * emissivity);\n	}\n\n	bindTexture(texture, group);\n	setColor(group, color);\n\n	V2 uvMin = texture->uv.min;\n	V2 uvMax = texture->uv.max;\n\n	if (!flipX) {\n		swap(uvMin.x, uvMax.x);\n	}\n\n	if(flipY) {\n		swap(uvMin.y, uvMax.y);\n	}\n\n	V2 center = getRectCenter(bounds);\n\n	V2 originRelativeMin = bounds.min - center;\n	V2 originRelativeMax = bounds.max - center;\n\n	V2 originRelativeP2 = v2(originRelativeMax.x, originRelativeMin.y);\n	V2 originRelativeP3 = v2(originRelativeMin.x, originRelativeMax.y);\n\n	V2 p[4];\n\n	p[0] = rotate(originRelativeMin, rot) + center;\n	p[1] = rotate(originRelativeP2, rot) + center;\n	p[2] = rotate(originRelativeMax, rot) + center;\n	p[3] = rotate(originRelativeP3, rot) + center;\n\n	glBegin(GL_QUADS);\n		for(s32 pIndex = 0; pIndex < arrayCount(p); pIndex++) {\n			sendTexCoord(uvMin, uvMax, pIndex);\n			glVertex2f((GLfloat)p[pIndex].x, (GLfloat)p[pIndex].y);\n		}\n	glEnd();\n\n	if(emissivity) {\n		setAmbient(group, ambient);\n	}\n}\n\nvoid drawFilledStencil(RenderGroup* group, Texture* stencil, R2 bounds, double widthPercentage, Color color) {\n	double uvWidth = getRectWidth(stencil->uv);\n	uvWidth *= widthPercentage;\n\n	double uMax = stencil->uv.min.x + uvWidth;\n\n	V2 uvMax = v2(uMax, stencil->uv.max.y);\n	V2 uvMin = stencil->uv.min;\n\n	Shader* oldShader = group->currentShader;\n	bindShader(group, &group->stencilShader);\n\n	bindTexture(stencil, group);\n	setColor(group, color);\n\n	glBegin(GL_QUADS);\n		glTexCoord2f((GLfloat)uvMin.x, (GLfloat)uvMax.y);\n		glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);\n\n		glTexCoord2f((GLfloat)uvMax.x, (GLfloat)uvMax.y);\n		glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.min.y);\n\n		glTexCoord2f((GLfloat)uvMax.x, (GLfloat)uvMin.y);\n		glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.max.y);\n\n		glTexCoord2f((GLfloat)uvMin.x, (GLfloat)uvMin.y);\n		glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.max.y);\n	glEnd();\n\n	bindShader(group, oldShader);\n}\n\nvoid drawText(RenderGroup* group, CachedFont* cachedFont, char* msg, V2 p, Color color) {\n	double metersPerPixel = 1.0 / (group->pixelsPerMeter * cachedFont->scaleFactor);\n	double invScaleFactor = 1.0 / cachedFont->scaleFactor;\n\n	while(*msg) {\n		Texture* texture = &getGlyph(cachedFont, group, *msg, metersPerPixel)->tex;\n		V2 size = texture->size * invScaleFactor;\n		R2 bounds = r2(p, p + size);\n\n		drawTexture(group, texture, bounds, false, false, Orientation_0, 0, 1, color);\n\n		p.x += size.x;\n		msg++;\n	}\n}\n\nvoid drawFillRect(RenderGroup* group, R2 bounds, Color color) {\n	// SDL_Rect dstRect = getPixelSpaceRect(group->pixelsPerMeter, group->windowHeight, rect);\n	// SDL_RenderFillRect(group->renderer, &dstRect);\n\n	bindTexture(group->whiteTex, group);\n	setColor(group, color);\n			\n	glBegin(GL_QUADS);\n		glTexCoord2f(0, 0);\n		glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.min.y);\n\n		glTexCoord2f(1, 0);\n		glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.min.y);\n\n		glTexCoord2f(1, 1);\n		glVertex2f((GLfloat)bounds.max.x, (GLfloat)bounds.max.y);\n\n		glTexCoord2f(0, 1);\n		glVertex2f((GLfloat)bounds.min.x, (GLfloat)bounds.max.y);\n	glEnd();\n}\n\nvoid drawFillQuad(RenderGroup* group, V2 p1, V2 p2, V2 p3, V2 p4) {\n	bindTexture(group->whiteTex, group);\n\n	glBegin(GL_QUADS);\n		glTexCoord2f(0, 0);\n		glVertex2f((GLfloat)p1.x, (GLfloat)p1.y);\n\n		glTexCoord2f(1, 0);\n		glVertex2f((GLfloat)p2.x, (GLfloat)p2.y);\n\n		glTexCoord2f(1, 1);\n		glVertex2f((GLfloat)p3.x, (GLfloat)p3.y);\n\n		glTexCoord2f(0, 1);\n		glVertex2f((GLfloat)p4.x, (GLfloat)p4.y);\n	glEnd();\n}\n\nvoid drawOutlinedRect(RenderGroup* group, R2 rect, Color color, double thickness) {\n	V2 halfThickness = v2(thickness, thickness) * 0.5;\n	double width = getRectWidth(rect);\n	double height = getRectHeight(rect);\n\n	V2 bottomMinCorner = rect.min - halfThickness;\n	V2 bottomMaxCorner = v2(rect.max.x, rect.min.y) + halfThickness;\n\n	V2 topMinCorner = v2(rect.min.x, rect.max.y) - halfThickness;\n	V2 topMaxCorner = rect.max + halfThickness;\n\n	V2 leftMinCorner = bottomMinCorner + v2(0, thickness);\n	V2 leftMaxCorner = topMinCorner + v2(thickness, 0);\n\n	V2 rightMinCorner = bottomMaxCorner - v2(thickness, 0);\n	V2 rightMaxCorner = topMaxCorner - v2(0, thickness);\n\n	drawFillRect(group, r2(bottomMinCorner, bottomMaxCorner), color);\n	drawFillRect(group, r2(topMinCorner, topMaxCorner), color);\n	drawFillRect(group, r2(leftMinCorner, leftMaxCorner), color);\n	drawFillRect(group, r2(rightMinCorner, rightMaxCorner), color);\n}\n\nvoid drawDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd,\n					 double thickness, double dashSize, double spaceSize) {\n	setColor(group, color);\n	if((lineStart.x > lineEnd.x) || (lineStart.x == lineEnd.x && lineStart.y > lineEnd.y)) {\n		swap(lineStart, lineEnd);\n	}\n\n	V2 dir = normalize(lineEnd - lineStart);\n	V2 normal = perp(dir) * thickness;\n\n	V2 dashSkip = dashSize * dir;\n	V2 spaceSkip = spaceSize * dir;\n\n	V2 start = lineStart;\n\n	while(true) {\n		bool doneDrawing = false;\n		V2 end = start + dashSkip;\n\n		if(end.x > lineEnd.x || (lineStart.x == lineEnd.x && end.y > lineEnd.y)) {\n			doneDrawing = true;\n			end = lineEnd;\n		}\n\n		if((dashSkip.y > 0 && end.y > lineEnd.y) || (dashSkip.y < 0 && end.y < lineEnd.y)) {\n			doneDrawing = true;\n			end = lineEnd;\n		}\n\n		V2 p1 = start + normal;\n		V2 p2 = start - normal;\n		V2 p3 = end - normal;\n		V2 p4 = end + normal;\n\n		drawFillQuad(group, p1, p2, p3, p4);\n\n		if(doneDrawing) break;\n\n		start = end + spaceSkip;\n	}\n}\n\n#ifdef HACKFORMER_GAME\nvoid renderDrawConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field, double alpha) {\n	field->p -= group->camera->p;\n	double oldAlpha = field->alpha;\n	field->alpha = alpha;\n	drawConsoleField(field, group, NULL, fieldSpec, false, true, NULL);\n	field->alpha = oldAlpha;\n	field->p += group->camera->p;\n}\n#endif\n\nDrawType getRenderHeaderType(RenderHeader* header) {\n	DrawType result = (DrawType)(header->type_ & RENDER_HEADER_TYPE_MASK);\n	return result;\n}\n\nbool32 renderElemClipRect(RenderHeader* header) {\n	bool32 result = header->type_ & RENDER_HEADER_CLIP_RECT_FLAG;\n	return result;\n}\n\nvoid setRenderElemClipRect(RenderHeader* header) {\n	header->type_ |= RENDER_HEADER_CLIP_RECT_FLAG;\n}\n\n#define pushRenderElement(group, type) (type*)pushRenderElement_(group, DrawType_##type, sizeof(type))\nvoid* pushRenderElement_(RenderGroup* group, DrawType type, size_t size) {\n	size_t headerBytes = sizeof(RenderHeader);\n\n	if (group->hasClipRect) {\n		headerBytes += sizeof(R2);\n	}\n\n	size += headerBytes;\n\n	void* result = NULL;\n\n	if(group->enabled) {\n		if (group->allocated + size < group->maxSize) {\n				result = (char*)group->base + group->allocated;\n				group->allocated += size;\n\n				RenderHeader* header = (RenderHeader*)result;\n				header->type_ = type;\n\n				if(group->hasClipRect) {\n					setRenderElemClipRect(header);\n					R2* clipRectPtr = (R2*)((char*)result + sizeof(RenderHeader));\n					*clipRectPtr = group->clipRect;\n				} \n\n				if(!group->sortAddressCutoff) {\n					assert(group->numSortPtrs + 1 < arrayCount(group->sortPtrs));\n					group->sortPtrs[group->numSortPtrs++] = (RenderHeader*)result;\n				}\n\n				result = (char*)result + headerBytes;\n		} else {\n			InvalidCodePath;\n		}\n	}\n\n	return result;\n}\n\nvoid pushSortEnd(RenderGroup* group) {\n	group->sortAddressCutoff = group->allocated;\n}\n\nRenderTexture createRenderTexture(DrawOrder drawOrder, Texture* texture, bool flipX, bool flipY,\n								Orientation orientation, float emissivity, Color color) {\n	RenderTexture result = {};\n\n	assert(texture->texId);\n\n	result.drawOrder = drawOrder;\n	result.texture = texture;\n	result.flipX = flipX;\n	result.flipY = flipY;\n	result.orientation = orientation;\n	result.emissivity = emissivity;\n	result.color = color;\n\n	return result;\n}\n\n\n#ifdef HACKFORMER_GAME\n//TODO: Cull console fields which are not currently visible\nvoid pushConsoleField(RenderGroup* group, FieldSpec* fieldSpec, ConsoleField* field, double alpha) {\n	assert(field);\n\n	if(group->rendering) {\n		renderDrawConsoleField(group, fieldSpec, field, alpha);\n	} else {\n		RenderConsoleField* render = pushRenderElement(group, RenderConsoleField);\n\n		if(render) {\n			render->field = field;\n			render->alpha = alpha;\n		}\n	}\n} \n#endif\n\nvoid pushFilledStencil(RenderGroup* group, Texture* stencil, R2 bounds, double widthPercentage, Color color) {\n	assert(validTexture(stencil));\n	assert(widthPercentage >= 0 && widthPercentage <= 1);\n\n	bounds = scaleRect(bounds, v2(1, 1) * group->camera->scale);\n	bounds.max.x = bounds.min.x + getRectWidth(bounds) * widthPercentage;\n\n	if(rectanglesOverlap(group->windowBounds, bounds)) {\n		if(group->rendering) {\n			drawFilledStencil(group, stencil, bounds, widthPercentage, color);\n		} else {\n			RenderFilledStencil* render = pushRenderElement(group, RenderFilledStencil);\n\n			if (render) {\n				render->stencil = stencil;\n				render->bounds = bounds;\n				render->widthPercentage = widthPercentage;\n				render->color = color;\n			}\n		}\n	}\n}\n\nvoid pushTexture(RenderGroup* group, Texture* texture, R2 bounds, double rotation, bool flipX = false, bool flipY = false, \n	DrawOrder drawOrder = DrawOrder_gui, bool moveIntoCameraSpace = false, Color color = WHITE, float emissivity = 0) {\n\n	assert(validTexture(texture));\n\n	R2 drawBounds = bounds;\n	if(moveIntoCameraSpace) drawBounds = translateRect(bounds, -group->camera->p);\n	drawBounds = scaleRect(drawBounds, v2(1, 1) * group->camera->scale);\n\n	R2 clipBounds = drawBounds;\n\n	if(rotation) {\n		V2 halfSize = getRectSize(clipBounds) * 0.5;\n		double size = length(halfSize);\n\n		clipBounds = rectCenterDiameter(getRectCenter(clipBounds), v2(size, size));\n	}\n\n	if(rectanglesOverlap(group->windowBounds, clipBounds)) {\n		if(group->rendering) {\n			if(rotation) {\n				drawTexture(group, texture, drawBounds, rotation, color, flipX, flipY, emissivity, group->ambient);\n			} else {\n				drawTexture(group, texture, drawBounds, flipX, flipY, Orientation_0, emissivity, group->ambient, color);\n			}\n		} else {\n			if(rotation) {\n				RenderRotatedTexture* render = pushRenderElement(group, RenderRotatedTexture);\n\n				if (render) {\n					render->tex = createRenderTexture(drawOrder, texture, flipX, flipY, Orientation_0, emissivity, color);\n					render->bounds = drawBounds;\n					render->rad = rotation;\n				}\n			} else {\n				RenderBoundedTexture* render = pushRenderElement(group, RenderBoundedTexture);\n\n				if (render) {\n					render->tex = createRenderTexture(drawOrder, texture, flipX, flipY, Orientation_0, emissivity, color);\n					render->bounds = drawBounds;\n				}\n			}\n		}\n	}\n}\n\nvoid pushTexture(RenderGroup* group, Texture* texture, R2 bounds, bool flipX, bool flipY, DrawOrder drawOrder, \n				 bool moveIntoCameraSpace, Orientation orientation, Color color, float emissivity) {\n\n	assert(validTexture(texture));\n\n	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, -group->camera->p) : bounds;\n	drawBounds = scaleRect(drawBounds, v2(1, 1) * group->camera->scale);\n\n	if(rectanglesOverlap(group->windowBounds, drawBounds)) {\n		if(group->rendering) {\n			drawTexture(group, texture, drawBounds, flipX, flipY, orientation, emissivity, group->ambient, color);\n		} else {\n			RenderBoundedTexture* render = pushRenderElement(group, RenderBoundedTexture);\n\n			if (render) {\n				render->tex = createRenderTexture(drawOrder, texture, flipX, flipY, orientation, emissivity, color);\n				render->bounds = drawBounds;\n			}\n		}\n	}\n}\n\nvoid pushDashedLine(RenderGroup* group, Color color, V2 lineStart, V2 lineEnd, double thickness,\n					 double dashSize, double spaceSize, bool moveIntoCameraSpace = false) {\n	if(lineStart == lineEnd) return;\n\n	V2 lineCenter = (lineStart + lineEnd) * 0.5;\n	lineStart = lineCenter + (lineStart - lineCenter) * group->camera->scale;\n	lineEnd = lineCenter + (lineEnd - lineCenter) * group->camera->scale;\n\n	if(moveIntoCameraSpace) {\n		lineStart -= group->camera->p;\n		lineEnd -= group->camera->p;\n	}\n\n	//TODO: No need to push lines on if they aren't visible\n\n	if(group->rendering) {\n		drawDashedLine(group, color, lineStart, lineEnd, thickness, dashSize, spaceSize);\n	} else {\n		RenderDashedLine* render = pushRenderElement(group, RenderDashedLine);\n\n		if (render) {\n			render->color = color;\n			render->lineStart = lineStart;\n			render->lineEnd = lineEnd;\n			render->thickness = thickness;\n			render->dashSize = dashSize;\n			render->spaceSize = spaceSize;\n		}\n	}\n}\n\n#ifdef HACKFORMER_GAME\nvoid pushEntityTexture(RenderGroup* group, Texture* texture, Entity* entity, DrawOrder drawOrder, \n					bool fadeAlphaFromDisappearing,  Color color = WHITE) {\n	assert(texture);\n\n	if (entity->type == EntityType_laserBeam && isSet(entity, EntityFlag_laserOn)) return;\n	bool32 cloaked = isSet(entity, EntityFlag_cloaked) && !isSet(entity, EntityFlag_togglingCloak);\n	if(cloaked) return;\n\n	R2 drawBounds = translateRect(rectCenterDiameter(entity->p, entity->renderSize), -group->camera->p);\n	drawBounds = scaleRect(drawBounds, v2(1, 1) * group->camera->scale);\n\n	R2 clipBounds = scaleRect(drawBounds, v2(1, 1) * 1.05);\n\n	double alpha = entity->alpha;\n\n	//TODO: This won't properly blend the alpha\n	//		The mothership would have to rendered at full alpha into an intermidiate texture\n	//		And then that texture would be rendered with less alpha to the screen\n	//		Otherwise, parts of lower layers that shouldn't be visible will become visible \n	if(fadeAlphaFromDisappearing) {\n		alpha = max(0, alpha - entity->cloakFactor);\n	}\n\n	color.a = (u8)(color.a * alpha);\n\n	double rotation = entity->rotation;\n\n	if(rotation) {\n		V2 halfSize = getRectSize(clipBounds) * 0.5;\n		double size = length(halfSize);\n\n		clipBounds = rectCenterDiameter(getRectCenter(clipBounds), v2(size, size));\n	}\n\n	bool flipX = isSet(entity, EntityFlag_facesLeft) != 0;\n	if (entity->type == EntityType_laserBase) flipX = false;\n	bool flipY = isSet(entity, EntityFlag_flipY) != 0;\n\n	if(rectanglesOverlap(group->windowBounds, clipBounds)) {\n		if(isTileType(entity) && getMovementField(entity) != NULL) drawOrder = DrawOrder_movingTile;\n\n		if(group->rendering) {\n			if(rotation) {\n				drawTexture(group, texture, drawBounds, rotation, color, flipX, flipY, entity->emissivity, group->ambient);\n			} else {\n				drawTexture(group, texture, drawBounds, flipX, flipY, Orientation_0, entity->emissivity, group->ambient, color);\n			}\n		} else {\n			RenderEntityTexture* render = pushRenderElement(group, RenderEntityTexture);\n\n			if (render) {\n				render->tex = createRenderTexture(drawOrder, texture, flipX, flipY, Orientation_0, entity->emissivity, color);\n				render->p = &entity->p;\n				render->renderSize = &entity->renderSize;\n				render->rotation = rotation;\n			}\n		}\n	}\n}\n\n#endif\n\nvoid pushText(RenderGroup* group, CachedFont* font, char* msg, V2 p, Color color = BLACK,\n			  TextAlignment alignment = TextAlignment_bottomLeft) {\n\n	switch(alignment) {\n		case TextAlignment_center: {\n			V2 strSize = getTextSize(font, group, msg);\n			p -= v2(strSize.x, strSize.y) * 0.5;\n		} break;\n\n		case TextAlignment_bottomLeft:\n			break;\n\n		InvalidDefaultCase;\n	}\n\n\n	if(group->rendering) {\n		drawText(group, font, msg, p, color);\n	} else {\n		RenderText* render = pushRenderElement(group, RenderText);\n\n		if (render) {\n			assert(strlen(msg) < arrayCount(render->msg) - 1);\n\n			char* dstPtr = (char*)render->msg;\n\n			while(*msg) {\n				*dstPtr++ = *msg++;\n			}\n			*dstPtr = 0;\n\n			render->p = p;\n			render->font = font;\n			render->color = color;\n		}\n	}\n}\n\nvoid pushFilledRect(RenderGroup* group, R2 bounds, Color color, bool moveIntoCameraSpace = false) {\n	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, -group->camera->p) : bounds;\n	drawBounds = scaleRect(drawBounds, v2(1, 1) * group->camera->scale);\n\n	if(rectanglesOverlap(group->windowBounds, drawBounds)) {\n		if(group->rendering) {\n			drawFillRect(group, drawBounds, color);\n		} else {\n			RenderFillRect* render = pushRenderElement(group, RenderFillRect);\n\n			if (render) {\n				render->color = color;\n				render->bounds = drawBounds;\n			}\n		}\n	}\n}\n\nvoid pushOutlinedRect(RenderGroup* group, R2 bounds, double thickness, Color color, bool moveIntoCameraSpace = false) {\n	R2 drawBounds = moveIntoCameraSpace ? translateRect(bounds, -group->camera->p) : bounds;\n	drawBounds = scaleRect(drawBounds, v2(1, 1) * group->camera->scale);\n\n	if(rectanglesOverlap(group->windowBounds, addDiameterTo(drawBounds, v2(1, 1) * thickness))) {\n		if(group->rendering) {\n			drawOutlinedRect(group, drawBounds, color, thickness);\n		} else {\n\n			RenderOutlinedRect* render = pushRenderElement(group, RenderOutlinedRect);\n\n			if (render) {\n				render->thickness = thickness;\n				render->color = color;\n				render->bounds = drawBounds;\n			}\n		}\n	}\n}\n\nPointLight createPointLight(V3 p, V3 color, double range) {\n	PointLight result = {};\n\n	result.p = p;\n	result.color = color;\n	result.range = range;\n\n	return result;\n}\n\nSpotLight createSpotLight(V2 p, V3 color, double range, double angle, double spread) {\n	SpotLight result = {};\n\n	result.base = createPointLight(v3(p, 0), color, range);\n	result.angle = angle;\n	result.spread = spread;\n\n	return result;\n}\n\nPointLight getRenderablePointLight(PointLight* light, bool moveIntoCameraSpace, V2 negativeCameraP) {\n	assert(light->range > 0);\n\n	PointLight result = *light;\n	if (moveIntoCameraSpace) result.p += v3(negativeCameraP, 0);\n\n	return result;\n}\n\nvoid pushPointLight(RenderGroup* group, PointLight* pl, bool moveIntoCameraSpace = false) {\n	if(group->enabled) {\n		if(group->forwardShader.numPointLights + 1 < arrayCount(group->forwardShader.pointLights)) {\n			PointLight* light = group->forwardShader.pointLights + group->forwardShader.numPointLights;\n			group->forwardShader.numPointLights++;\n\n			*light = getRenderablePointLight(pl, moveIntoCameraSpace, -group->camera->p);\n		} else {\n			InvalidCodePath;\n		}\n	}\n}\n\nvoid pushSpotLight(RenderGroup* group, SpotLight* sl, bool moveIntoCameraSpace = false) {\n	if(group->enabled) {\n		if(group->forwardShader.numSpotLights + 1 < arrayCount(group->forwardShader.spotLights)) {\n			SpotLight* light = group->forwardShader.spotLights + group->forwardShader.numSpotLights;\n			group->forwardShader.numSpotLights++;\n\n			light->base = getRenderablePointLight(&sl->base, moveIntoCameraSpace, -group->camera->p);\n			light->angle = sl->angle;\n			light->spread = sl->spread;\n		} else {\n			InvalidCodePath;\n		}\n	}\n}\n\n\nvoid pushClipRect(RenderGroup* group, R2 clipRect) {\n	group->clipRect = clipRect;\n	group->hasClipRect = true;\n}\n\nvoid pushDefaultClipRect(RenderGroup* group) {\n	group->hasClipRect = false;\n}\n\nsize_t drawRenderElem(RenderGroup* group, FieldSpec* fieldSpec, void* elemPtr, GLfloat ambient, bool pastSortEnd) {\n	RenderHeader* header = (RenderHeader*)elemPtr;\n	size_t elemSize = sizeof(RenderHeader);\n\n	elemPtr = (char*)elemPtr + sizeof(RenderHeader);\n\n	if (renderElemClipRect(header)) {\n		R2* clipBounds = (R2*)elemPtr;\n		elemPtr = (char*)elemPtr + sizeof(R2);\n		elemSize += sizeof(R2);\n		setClipRect(group->pixelsPerMeter, *clipBounds);\n	} else if(pastSortEnd) {\n		glDisable(GL_SCISSOR_TEST);\n	} else {\n		setClipRect(group->pixelsPerMeter, group->defaultClipRect);\n	}\n\n	#define START_CASE(type) case DrawType_##type: { type* render = (type*)elemPtr; elemSize += sizeof(type);\n	#define END_CASE } break\n\n	switch(getRenderHeaderType(header)) {\n\n		START_CASE(RenderBoundedTexture);\n			drawTexture(group, render->tex.texture, render->bounds, render->tex.flipX != 0, render->tex.flipY != 0, \n						render->tex.orientation, render->tex.emissivity, ambient, render->tex.color);\n		END_CASE;\n\n		START_CASE(RenderEntityTexture);\n			R2 bounds = rectCenterDiameter(*render->p - group->camera->p, *render->renderSize);\n\n			if(render->rotation) {\n				drawTexture(group, render->tex.texture, bounds, render->rotation, render->tex.color, render->tex.flipX != 0, \n							render->tex.flipY != 0, render->tex.emissivity, group->ambient);\n			} else {\n				drawTexture(group, render->tex.texture, bounds, render->tex.flipX != 0, render->tex.flipY != 0,\n							render->tex.orientation, render->tex.emissivity, ambient, render->tex.color);\n			}\n		END_CASE;\n\n		START_CASE(RenderText);\n			drawText(group, render->font, render->msg, render->p, render->color);\n		END_CASE;\n\n		START_CASE(RenderFillRect);\n			drawFillRect(group, render->bounds, render->color);\n		END_CASE;\n\n		START_CASE(RenderOutlinedRect);\n			drawOutlinedRect(group, render->bounds, render->color, render->thickness);\n		END_CASE;\n\n		#ifdef HACKFORMER_GAME\n		START_CASE(RenderConsoleField);\n			renderDrawConsoleField(group, fieldSpec, render->field, render->alpha);\n		END_CASE;\n		#endif\n\n		START_CASE(RenderDashedLine);\n			drawDashedLine(group, render->color, render->lineStart, render->lineEnd, render->thickness, render->dashSize, render->spaceSize);\n		END_CASE;\n\n		START_CASE(RenderRotatedTexture);\n			drawTexture(group, render->tex.texture, render->bounds, render->rad, render->tex.color,\n					    render->tex.flipX != 0, false, render->tex.emissivity, group->ambient);\n		END_CASE;\n\n		START_CASE(RenderFilledStencil);\n			drawFilledStencil(group, render->stencil, render->bounds, render->widthPercentage, render->color);\n		END_CASE;\n\n		InvalidDefaultCase;\n	}\n\n	#undef START_CASE\n	#undef END_CASE\n\n	return elemSize;\n}\n\nbool isRenderTextureType(DrawType type) {\n	bool result = (type == DrawType_RenderEntityTexture) || (type == DrawType_RenderBoundedTexture);\n	return result;\n}\n\nRenderTexture* getRenderTexture(RenderHeader* header) {\n	assert(isRenderTextureType(getRenderHeaderType(header)));\n\n	RenderTexture* result = (RenderTexture*)((char*)header + sizeof(RenderHeader));\n\n	if(renderElemClipRect(header)) {\n		result = (RenderTexture*)((char*)result + sizeof(R2));\n	}\n\n	return result;\n}\n\nConsoleField* getConsoleFieldFromRenderHeader(RenderHeader* header) {\n	assert(getRenderHeaderType(header) == DrawType_RenderConsoleField);\n\n	void* render = (char*)header + sizeof(RenderHeader);\n\n	if(renderElemClipRect(header)) {\n		render = (char*)render + sizeof(R2);\n	}\n\n	ConsoleField* result = ((RenderConsoleField*)render)->field;\n\n	return result;\n}\n\ns32 renderElemCompare(const void* a, const void* b) {\n	RenderHeader* e1 = *(RenderHeader**)a;\n	RenderHeader* e2 = *(RenderHeader**)b;\n\n	DrawType e1Type = getRenderHeaderType(e1);\n	DrawType e2Type = getRenderHeaderType(e2);\n\n	bool e1IsRenderTexture = isRenderTextureType(e1Type);\n	bool e2IsRenderTexture = isRenderTextureType(e2Type);\n\n	bool e1IsRenderTextureOrConsoleField = e1IsRenderTexture;\n	bool e2IsRenderTextureOrConsoleField = e2IsRenderTexture;\n\n	#ifdef HACKFORMER_GAME\n	bool e1IsConsoleField = e1Type == DrawType_RenderConsoleField;\n	bool e2IsConsoleField = e2Type == DrawType_RenderConsoleField;\n\n	if(e1IsConsoleField && e2IsConsoleField) {\n		ConsoleField* f1 = getConsoleFieldFromRenderHeader(e1);\n		ConsoleField* f2 = getConsoleFieldFromRenderHeader(e2);\n\n		if(f1->p.y > f2->p.y) return 1;\n		if(f1->p.y < f2->p.y) return -1;\n\n		//NOTE: Arbitrary comparisons done to help ensure a consistent render order across frames\n		if(f1->p.x > f2->p.x) return 1;\n		if(f1->p.x < f2->p.x) return -1;\n		return *f1->name > *f2->name;\n	}\n\n	e1IsRenderTextureOrConsoleField |= e1IsConsoleField;\n	e2IsRenderTextureOrConsoleField |= e2IsConsoleField;\n	#endif\n\n	if(e1IsRenderTextureOrConsoleField) {\n		if(!e2IsRenderTextureOrConsoleField) return -1;\n\n		RenderTexture* r1 = NULL;\n		if(e1IsRenderTexture) r1 = getRenderTexture(e1);\n		RenderTexture* r2 = NULL;\n		if(e2IsRenderTexture) r2 = getRenderTexture(e2);\n\n		#ifdef HACKFORMER_GAME\n		DrawOrder r1DrawOrder = (r1 == NULL ? DrawOrder_pickupField : r1->drawOrder);\n		DrawOrder r2DrawOrder = (r2 == NULL ? DrawOrder_pickupField : r2->drawOrder);\n		#else \n		DrawOrder r1DrawOrder = r1->drawOrder;\n		DrawOrder r2DrawOrder = r2->drawOrder;\n		#endif\n\n		if(r1DrawOrder > r2DrawOrder) return 1;\n		if(r1DrawOrder < r2DrawOrder) return -1;\n\n		assert(r1);\n		assert(r2);\n\n		double r1MinY, r2MinY;\n\n		if(e1Type == DrawType_RenderEntityTexture) {\n			RenderEntityTexture* entityTex = (RenderEntityTexture*)r1;\n			r1MinY = entityTex->p->y - entityTex->p->y / 2;\n		} else {\n			RenderBoundedTexture* boundedTex = (RenderBoundedTexture*)r1;\n			r1MinY = boundedTex->bounds.min.y;\n		}\n\n		if(e2Type == DrawType_RenderEntityTexture) {\n			RenderEntityTexture* entityTex = (RenderEntityTexture*)r2;\n			r2MinY = entityTex->p->y - entityTex->p->y / 2;\n		} else {\n			RenderBoundedTexture* boundedTex = (RenderBoundedTexture*)r2;\n			r2MinY = boundedTex->bounds.min.y;\n		}\n\n		if(r1MinY > r2MinY) return 1;\n		if(r1MinY < r2MinY) return -1;\n\n		//NOTE: This comparison is done to ensure that entity which is placed on top is consistent across frames\n		//		For example, if two tiles are overlapping and have exactly the same position and draw order, we \n		//		always want the same one to be on top.\n		return r1->texture > r2->texture;\n	}\n\n	if (e2IsRenderTextureOrConsoleField) return 1;\n\n	return 0;\n}\n\nbool isPointLightVisible(RenderGroup* group, PointLight* light) {\n	double colorDepth = 1.0 / 256.0;\n\n	R2 maxLightBounds = addRadiusTo(group->windowBounds, v2(1, 1) * light->range);\n\n	//TODO: Account for z\n	bool result = pointInsideRect(maxLightBounds, light->p.xy);\n	return result;\n}\n\nvoid setPointLightUniforms(PointLightUniforms* lightUniforms, PointLight* light) {\n	glUniform3f(lightUniforms->p, (GLfloat)light->p.x, (GLfloat)light->p.y, (GLfloat)light->p.z);\n	glUniform3f(lightUniforms->color, (GLfloat)light->color.x, (GLfloat)light->color.y, (GLfloat)light->color.z);\n	glUniform1f(lightUniforms->range, (GLfloat)light->range);\n}\n\nvoid drawRenderGroup(RenderGroup* group, FieldSpec* fieldSpec) {\n	group->rendering = true;\n	qsort(group->sortPtrs, group->numSortPtrs, sizeof(RenderHeader*), renderElemCompare);\n	bindShader(group, &group->forwardShader.shader);\n\n#if ENABLE_LIGHTING\n	group->ambient = (GLfloat)0.35;//0.43;\n#else\n	group->ambient = (GLfloat)1;\n#endif\n\n	setAmbient(group, group->ambient);\n\n	s32 uniformPointLightIndex = 0;\n	s32 uniformSpotLightIndex = 0;\n\n	PointLight defaultPointLight = {};\n\n	for(s32 lightIndex = 0; lightIndex < group->forwardShader.numPointLights; lightIndex++) {\n		PointLight* light = group->forwardShader.pointLights + lightIndex;\n\n		//TODO: account for z\n		//TODO: handle case where we run out of lights in a nicer way\n		if(isPointLightVisible(group, light)) {\n			assert(uniformPointLightIndex < arrayCount(group->forwardShader.pointLightUniforms));\n			PointLightUniforms* lightUniforms = group->forwardShader.pointLightUniforms + uniformPointLightIndex;\n			uniformPointLightIndex++;\n			setPointLightUniforms(lightUniforms, light);\n		}\n	}\n\n	for(s32 uniformIndex = uniformPointLightIndex; uniformIndex < arrayCount(group->forwardShader.pointLightUniforms); uniformIndex++) {\n		PointLightUniforms* lightUniforms = group->forwardShader.pointLightUniforms + uniformIndex;\n		setPointLightUniforms(lightUniforms, &defaultPointLight);\n	}\n\n	for(s32 lightIndex = 0; lightIndex < group->forwardShader.numSpotLights; lightIndex++) {\n		SpotLight* light = group->forwardShader.spotLights + lightIndex;\n\n		//TODO: account for z\n		//TODO: handle case where we run out of lights in a nicer way\n		if(isPointLightVisible(group, &light->base)) {\n			assert(uniformSpotLightIndex < arrayCount(group->forwardShader.spotLightUniforms));\n			SpotLightUniforms* lightUniforms = group->forwardShader.spotLightUniforms + uniformSpotLightIndex;\n			uniformSpotLightIndex++;\n			setPointLightUniforms(&lightUniforms->base, &light->base);\n\n			double angle = light->angle;\n			V2 lightDir = v2(cos(angle), sin(angle));\n			double cutoff = cos(toRadians(light->spread / 2));\n\n			glUniform2f(lightUniforms->dir, (GLfloat)lightDir.x, (GLfloat)lightDir.y);\n			glUniform1f(lightUniforms->cutoff, (GLfloat)cutoff);\n		}\n	}\n\n	for(s32 uniformIndex = uniformSpotLightIndex; uniformIndex < arrayCount(group->forwardShader.spotLightUniforms); uniformIndex++) {\n		SpotLightUniforms* lightUniforms = group->forwardShader.spotLightUniforms + uniformIndex;\n		setPointLightUniforms(&lightUniforms->base, &defaultPointLight);\n	}\n\n	for(s32 elemIndex = 0; elemIndex < group->numSortPtrs; elemIndex++) {\n		void* elemPtr = group->sortPtrs[elemIndex];\n		drawRenderElem(group, fieldSpec, elemPtr, group->ambient, false);\n	}\n\n	u32 groupByteIndex = group->sortAddressCutoff;\n\n	bindShader(group, &group->basicShader);\n\n	while(groupByteIndex < group->allocated) {\n		void* elemPtr = (char*)group->base + groupByteIndex;\n		groupByteIndex += drawRenderElem(group, fieldSpec, elemPtr, group->ambient, true);\n	}\n\n	group->numSortPtrs = 0;\n	group->allocated = 0;\n	group->sortAddressCutoff = 0;\n	group->forwardShader.numPointLights = 0;\n	group->forwardShader.numSpotLights = 0;\n	pushDefaultClipRect(group);\n	group->rendering = false;\n}\n",
-			"file": "code/hackformer_renderer.cpp",
-			"file_size": 49941,
-			"file_write_time": 130811982835738390,
-			"settings":
-			{
-				"buffer_size": 48412,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "res/shaders/stencil.frag",
-			"settings":
-			{
-				"buffer_size": 208,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "code/hackformer_packBuilder.h",
-			"settings":
-			{
-				"buffer_size": 2671,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "code/hackformer_renderer.h",
-			"settings":
-			{
-				"buffer_size": 3515,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "code/hackformer.h",
-			"settings":
-			{
-				"buffer_size": 6747,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "code/hackformer_consoleField.h",
-			"settings":
-			{
-				"buffer_size": 4795,
+				"buffer_size": 16874,
 				"line_ending": "Windows"
 			}
 		},
@@ -582,7 +531,47 @@
 			"file": "code/hackformer_entity.h",
 			"settings":
 			{
-				"buffer_size": 4771,
+				"buffer_size": 4417,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_types.h",
+			"settings":
+			{
+				"buffer_size": 22969,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer.cpp",
+			"settings":
+			{
+				"buffer_size": 42952,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_consoleField.h",
+			"settings":
+			{
+				"buffer_size": 4540,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer.h",
+			"settings":
+			{
+				"buffer_size": 6620,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_consoleField.cpp",
+			"settings":
+			{
+				"buffer_size": 39802,
 				"line_ending": "Windows"
 			}
 		}
@@ -645,27 +634,30 @@
 	],
 	"file_history":
 	[
+		"/W/c++former/code/hackformer_save_2.cpp",
+		"/W/c++former/code/hackformer_entity.h",
+		"/W/c++former/code/hackformer_entity.cpp",
+		"/W/c++former/code/hackformer_consoleField.cpp",
+		"/W/c++former/code/hackformer.cpp",
+		"/W/c++former/code/hackformer_editor.cpp",
+		"/W/c++former/code/hackformer_types.h",
+		"/W/c++former/code/hackformer_editor.h",
+		"/W/c++former/code/hackformer.h",
+		"/W/c++former/code/hackformer_save.cpp",
+		"/W/c++former/code/hackformer_renderer.cpp",
+		"/W/c++former/code/hackformer_collisionDataTool.cpp",
+		"/W/c++former/code/hackformer_packBuilder.cpp",
+		"/W/c++former/code/hackformer_packBuilder.h",
+		"/W/c++former/code/hackformer_math.h",
+		"/W/c++former/code/hackformer_renderer.h",
+		"/W/c++former/res/shaders/forward.frag",
 		"/W/c++former/res/shaders/stencil.frag",
 		"/W/c++former/res/shaders/basic.frag",
 		"/W/c++former/res/shaders/basic.vert",
 		"/W/c++former/res/shaders/forward.vert",
-		"/W/c++former/res/shaders/forward.frag",
-		"/W/c++former/code/hackformer_renderer.cpp",
-		"/W/c++former/code/hackformer_save.cpp",
-		"/W/c++former/code/hackformer_renderer.h",
-		"/W/c++former/code/hackformer.cpp",
-		"/W/c++former/code/hackformer.h",
 		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/hackformer_pack_builder.sublime-build",
-		"/W/c++former/code/hackformer_consoleField.cpp",
-		"/W/c++former/code/hackformer_types.h",
-		"/W/c++former/code/hackformer_collisionDataTool.cpp",
-		"/W/c++former/code/hackformer_math.h",
 		"/W/c++former/code/hackformer_animationDisplayer.cpp",
 		"/W/c++former/code/hackformer_anim",
-		"/W/c++former/code/hackformer_editor.h",
-		"/W/c++former/code/hackformer_entity.h",
-		"/W/c++former/code/hackformer_editor.cpp",
-		"/W/c++former/code/hackformer_entity.cpp",
 		"/W/c++former/code/hackformer_consoleField.h",
 		"/W/c++former/code/hackformer_save.h",
 		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/hackformer_animation_displayer_tool_build.sublime-build",
@@ -769,10 +761,7 @@
 		"/C/Users/Vik/Downloads/handmade_hero_038_source/handmade_hero_day_038_source/code/handmade.h",
 		"/C/Users/Vik/Downloads/handmade_hero_038_source/handmade_hero_day_038_source/code/handmade.cpp",
 		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/SublimeLinter.sublime-settings",
-		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/test build 1.sublime-build",
-		"/W/c++former/hackformer.cpp",
-		"/W/c++former/hackformer_math.cpp",
-		"/W/c++former/main.cpp"
+		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/test build 1.sublime-build"
 	],
 	"find":
 	{
@@ -791,6 +780,66 @@
 		"case_sensitive": false,
 		"find_history":
 		[
+			"readAnimation",
+			"ConsoleFlag_selected",
+			"readGameFromArena",
+			"createIostream",
+			"streamRefNode",
+			"refNode",
+			"initSpatialPartition",
+			"chunks",
+			"messages",
+			"readElem",
+			"readR2",
+			"readV3",
+			"readV2",
+			"readString",
+			"readU32",
+			"readS32",
+			"readDouble",
+			"pushElem",
+			"readElemPtr",
+			"writer",
+			"Writer*",
+			"writer",
+			"writeV2",
+			"writeR2",
+			"witer,",
+			"writeElem(writer, -1);",
+			"writeV3",
+			"writeString",
+			"writeU32",
+			"file",
+			"FILE* file",
+			"writeV2(file",
+			"writeDouble(file",
+			"writeS32(",
+			"writeS32(file",
+			");\n",
+			"addeditor",
+			"messages",
+			"readMessages",
+			"writeString",
+			"entity->tex",
+			"messages",
+			"addEntity",
+			"pushStruct",
+			"selectedEntitySpecIndex",
+			"clickConsoleButton",
+			"button",
+			"clickHandled",
+			"lightField",
+			"movesBack",
+			"102",
+			"load",
+			"loadPNG",
+			"assets",
+			"loadPNG",
+			"res/",
+			"Assets",
+			"MusicState",
+			"45",
+			"SDL_Free",
 			"final_sprite",
 			"TexId",
 			"AnimId",
@@ -858,67 +907,7 @@
 			"hackEnergy",
 			"drawWaypointInformation",
 			"death",
-			"edit",
-			"glowing",
-			"drawCollisioNB",
-			"drawCollisionBounds",
-			"drawCollisionB",
-			"setEntityP",
-			"entity->p =",
-			"entity->p = ",
-			"sortAddressCutoff",
-			"texturesCount",
-			"shootTimer",
-			"drawConsole",
-			"EntityType_motherShipProjectile",
-			"EntityType_laserBolt",
-			"moveEntityBase",
-			"EntityType_laserBolt",
-			";\n",
-			"projectileDeath",
-			"EntityType_motherSHipProjectile",
-			"entity->animTime -=",
-			"onGround",
-			"tileSize",
-			"EntityType_motherS",
-			"= selected",
-			"flipX",
-			"flipY",
-			"51",
-			"setTile",
-			"selectedTileSpec->fl",
-			"gridSize",
-			"selectedTIleIndex",
-			"freeRefNode",
-			"case EntityType_trawler",
-			"EntityType_moth",
-			"drawCollisionBounds",
-			"fadeFieldAlpha",
-			"updateCons",
-			"fadeOutConsole",
-			"drawFieldsRaw",
-			"draws the",
-			"EntityFlag_unchargingAfterShooting",
-			"EntityType_laserBolt",
-			"EntityType_trojan",
-			"MotherShipImages",
-			"rotation",
-			"case EntityType_tro",
-			"fadeAlphaFrom",
-			"crushEntity",
-			"HitboxPointType",
-			"timeSinceGrounded",
-			"EntityType_tile",
-			"alpha",
-			"spotLightAngle",
-			"changeSpotLightAngle",
-			"shootField",
-			"updateSpot",
-			"getClosestTargetInSight",
-			"freeL",
-			"pushElem",
-			"addFollowsWaypointsField",
-			"movingEntity ="
+			"edit"
 		],
 		"highlight": true,
 		"in_selection": false,
@@ -926,6 +915,24 @@
 		"regex": false,
 		"replace_history":
 		[
+			"readElem",
+			"readStr",
+			"readElem",
+			"iostream",
+			"IOStream*",
+			"iostream",
+			"writeElem",
+			"writer,",
+			"writeValue(witer, s32, -1);",
+			"writeElem",
+			"writeStr",
+			"writeElem",
+			"writer",
+			"Writer* writer",
+			"writeElem(writer",
+			"writeElem(",
+			"writeElem(writer",
+			"writeS32(writer",
 			"Asset",
 			"AnimId",
 			"TexId",
@@ -966,24 +973,109 @@
 	"groups":
 	[
 		{
-			"selected": 5,
+			"selected": 1,
 			"sheets":
 			[
 				{
 					"buffer": 0,
-					"file": "code/hackformer_entity.cpp",
+					"file": "code/hackformer_save.h",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 162409,
+						"buffer_size": 672,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								129404,
-								129404
+								101,
+								117
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 2,
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "code/hackformer_save.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 16874,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								10799,
+								10799
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 5743.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 1,
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "code/hackformer_entity.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 4417,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								2603,
+								2603
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 1485.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 4,
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "code/hackformer_types.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 22969,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								16083,
+								16063
 							]
 						],
 						"settings":
@@ -993,84 +1085,27 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 60641.0,
+						"translation.y": 9534.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 8,
 					"type": "text"
 				},
 				{
-					"buffer": 1,
-					"file": "code/hackformer_packBuilder.cpp",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 4684,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								4184,
-								4184
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage"
-						},
-						"translation.x": 0.0,
-						"translation.y": 2463.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 3,
-					"type": "text"
-				},
-				{
-					"buffer": 2,
-					"file": "code/hackformer_types.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 17658,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								713,
-								713
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 129.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 4,
-					"type": "text"
-				},
-				{
-					"buffer": 3,
+					"buffer": 4,
 					"file": "code/hackformer.cpp",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 43261,
+						"buffer_size": 42952,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								27256,
-								27256
+								34816,
+								34816
 							]
 						],
 						"settings":
@@ -1079,118 +1114,33 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 10290.0,
+						"translation.y": 13349.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 7,
-					"type": "text"
-				},
-				{
-					"buffer": 4,
-					"file": "code/hackformer_renderer.cpp",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 48412,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								677,
-								677
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 0.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 1,
-					"type": "text"
-				},
-				{
-					"buffer": 5,
-					"file": "res/shaders/stencil.frag",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 208,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								0,
-								0
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/OpenGL Shading Language (GLSL)/GLSL.tmLanguage"
-						},
-						"translation.x": 0.0,
-						"translation.y": 0.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 0,
 					"type": "text"
 				}
 			]
 		},
 		{
-			"selected": 0,
+			"selected": 2,
 			"sheets":
 			[
 				{
-					"buffer": 6,
-					"file": "code/hackformer_packBuilder.h",
+					"buffer": 5,
+					"file": "code/hackformer_consoleField.h",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 2671,
+						"buffer_size": 4540,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								2605,
-								2620
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage"
-						},
-						"translation.x": 0.0,
-						"translation.y": 1620.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 2,
-					"type": "text"
-				},
-				{
-					"buffer": 7,
-					"file": "code/hackformer_renderer.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 3515,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								3459,
-								3474
+								2223,
+								2223
 							]
 						],
 						"settings":
@@ -1199,85 +1149,57 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 2772.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 6,
-					"type": "text"
-				},
-				{
-					"buffer": 8,
-					"file": "code/hackformer.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 6747,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								1799,
-								1799
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": -0.0,
-						"translation.y": 765.0,
+						"translation.y": 1738.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 5,
 					"type": "text"
 				},
 				{
-					"buffer": 9,
-					"file": "code/hackformer_consoleField.h",
+					"buffer": 3,
+					"file": "code/hackformer_types.h",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 4795,
+						"buffer_size": 22969,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								515,
-								541
+								16718,
+								16718
 							]
 						],
 						"settings":
 						{
+							"history_list_is_closing": true,
 							"syntax": "Packages/C++/C++.tmLanguage",
 							"translate_tabs_to_spaces": false
 						},
-						"translation.x": -0.0,
-						"translation.y": 1125.0,
+						"translation.x": 0.0,
+						"translation.y": 10661.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 10,
+					"stack_index": 3,
 					"type": "text"
 				},
 				{
-					"buffer": 10,
-					"file": "code/hackformer_entity.h",
+					"buffer": 6,
+					"file": "code/hackformer.h",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 4771,
+						"buffer_size": 6620,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								865,
-								865
+								1134,
+								1134
 							]
 						],
 						"settings":
@@ -1286,10 +1208,39 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 360.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 9,
+					"stack_index": 0,
+					"type": "text"
+				},
+				{
+					"buffer": 7,
+					"file": "code/hackformer_consoleField.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 39802,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								15434,
+								15434
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 7529.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 6,
 					"type": "text"
 				}
 			]
@@ -1415,7 +1366,7 @@
 		],
 		"width": 392.0
 	},
-	"selected_group": 0,
+	"selected_group": 1,
 	"settings":
 	{
 	},

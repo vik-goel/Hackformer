@@ -47,6 +47,12 @@ struct Hitbox {
 	Hitbox* next;
 };
 
+struct CheckPointSave {
+	MemoryArena* arena;
+	s32 ref;
+	CheckPointSave* next;
+};
+
 struct Entity {
 	s32 ref;
 	EntityType type;
@@ -75,6 +81,8 @@ struct Entity {
 	double spotLightAngle;
 	double alpha;
 	double cloakFactor;
+
+	CheckPointSave* checkPointSave;
 
 	//Used by any entity that shoots
 	s32 targetRef;

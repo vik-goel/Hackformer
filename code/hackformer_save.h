@@ -11,10 +11,12 @@ struct SaveMemoryHeader {
 	SaveReference saves[MAX_HACK_UNDOS];
 };
 
-//Savegames, checkpoints
+//Savegames
 void saveCompleteGame(GameState* gameState, char* fileName);
-void saveCompleteGame(GameState* gameState, MemoryArena* arena);
 void loadCompleteGame(GameState* gameState, char* fileName);
+
+//Checkpoints
+void saveCompleteGame(GameState* gameState, MemoryArena* arena);
 void loadCompleteGame(GameState* gameState, MemoryArena* arena);
 
 //Hacking

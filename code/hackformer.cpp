@@ -197,9 +197,9 @@ void loadHackMap(GameState* gameState, char* fileName) {
 	fclose(file);
 }
 
-void freeLevel(GameState* gameState) {
+void freeLevel(GameState* gameState, bool loadingFromCheckpoint) {
 	for (s32 entityIndex = 0; entityIndex < gameState->numEntities; entityIndex++) {
-		freeEntityAtLevelEnd(gameState->entities + entityIndex, gameState);
+		freeEntityAtLevelEnd(gameState->entities + entityIndex, gameState, loadingFromCheckpoint);
 	}
 
 	memset(gameState->entityRefs_, 0, sizeof(gameState->entityRefs_));
@@ -217,6 +217,11 @@ void freeLevel(GameState* gameState) {
 	gameState->gravityField = NULL;
 	gameState->swapField = NULL;
 
+	if(!loadingFromCheckpoint) {
+		gameState->checkPointSaveList = NULL;
+		gameState->checkPointStorage.allocated = 0;
+	}
+
 	gameState->consoleEntityRef = 0;
 	gameState->playerRef = 0;
 	gameState->numEntities = 0;
@@ -228,17 +233,38 @@ void freeLevel(GameState* gameState) {
 	gameState->refCount_ = 1; //NOTE: This is for the null reference
 }
 
+bool loadCheckPoint(GameState* gameState) {
+	CheckPointSave* checkPoint = NULL;
+
+	for(CheckPointSave* save = gameState->checkPointSaveList; save; save = save->next) {
+		if(getEntityByRef(gameState, save->ref)) {
+			checkPoint = save;
+			break;
+		}
+	}
+
+	if(!checkPoint) return false;
+
+	assert(checkPoint->arena);
+	loadCompleteGame(gameState, checkPoint->arena);
+
+	return true;
+}
+
 void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex, bool firstLevelLoad) {
-	freeLevel(gameState);
-
-	gameState->random = createRandom(RANDOM_MAX / 2);
-
 	if (gameState->loadNextLevel) {
 		firstLevelLoad = true;
 		gameState->loadNextLevel = false;
 		(*mapFileIndex)++;
 		(*mapFileIndex) %= numMaps;
 	}
+	else if(loadCheckPoint(gameState)) {
+		return;
+	}
+
+	freeLevel(gameState);
+
+	gameState->random = createRandom(RANDOM_MAX / 2);
 
 	double topFieldYOffset = 1.05;
 	{
@@ -452,13 +478,15 @@ void initMusic(MusicState* musicState, GameState* gameState) {
 }
 
 GameState* createGameState(s32 windowWidth, s32 windowHeight) {
-	MemoryArena arena_ = createArena(8 * 1024 * 1024, true);
+	MemoryArena arena_;
+	initArena(&arena_, MEGABYTES(8), true);
 
 	GameState* gameState = pushStruct(&arena_, GameState);
 	gameState->permanentStorage = arena_;
 
-	gameState->levelStorage = createArena(24 * 1024 * 1024, false);
-	gameState->hackSaveStorage = createArena(24 * 1024 * 1024, false);
+	initArena(&gameState->levelStorage, MEGABYTES(24), false);
+	initArena(&gameState->hackSaveStorage, MEGABYTES(24), false);
+	initArena(&gameState->checkPointStorage, MEGABYTES(24), false);
 
 	gameState->pixelsPerMeter = TEMP_PIXELS_PER_METER;
 	gameState->windowWidth = windowWidth;

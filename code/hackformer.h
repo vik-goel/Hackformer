@@ -215,6 +215,9 @@ struct GameState {
 	MemoryArena levelStorage;
 	MemoryArena hackSaveStorage;
 
+	MemoryArena checkPointStorage;
+	CheckPointSave* checkPointSaveList;
+
 	Assets assets;
 	RenderGroup* renderGroup;
 	TTF_Font* textFont;
@@ -344,4 +347,4 @@ void togglePause(GameState* gameState) {
 	}
 }
 
-void freeLevel(GameState* gameState);
+void freeLevel(GameState* gameState, bool loadingFromCheckpoint = false);

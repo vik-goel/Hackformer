@@ -184,7 +184,7 @@ RefNode* refNode(GameState* gameState, s32 ref, RefNode* next) {
 		result = gameState->refNodeFreeList;
 		gameState->refNodeFreeList = gameState->refNodeFreeList->next;
 	} else {
-		result = (RefNode*)pushStruct(&gameState->levelStorage, RefNode);
+		result = pushStruct(&gameState->levelStorage, RefNode);
 	}
 
 	assert(result);
@@ -503,12 +503,16 @@ Entity* addPickupField(GameState*, Entity*, ConsoleField*);
 Entity* addDeath(GameState*, V2, V2, DrawOrder, double, CharacterAnim*);
 Entity* addMotherShipProjectileDeath(GameState* gameState, Entity* motherShipProjectile);
 
-void freeEntityAtLevelEnd(Entity* entity, GameState* gameState) {
+void freeEntityAtLevelEnd(Entity* entity, GameState* gameState, bool loadingFromCheckpoint) {
 	Messages* messages = entity->messages;
 	if(messages) {
 		for (s32 messageIndex = 0; messageIndex < messages->count; messageIndex++) {
 			freeTexture(messages->textures + messageIndex);
 		}
+	}
+
+	if(entity->checkPointSave && !loadingFromCheckpoint) {
+
 	}
 }
 
@@ -526,7 +530,67 @@ void freeHitboxes(Entity* entity, GameState* gameState) {
 	}
 }
 
+void toggleCheckpoint(Entity*, GameState*);
+
+void addToCheckPointSaveList(GameState* gameState, CheckPointSave* save) {
+	save->next = gameState->checkPointSaveList;
+	gameState->checkPointSaveList = save;
+}
+
+void freeCheckPointSave(GameState* gameState, CheckPointSave* save) {
+	if(save) {
+		save->ref = 0;
+		addToCheckPointSaveList(gameState, save);
+	}
+}
+
+CheckPointSave* allocateCheckPointSave(GameState* gameState, s32 ref) {
+	CheckPointSave* prevSave = NULL;
+	CheckPointSave* save = NULL;
+
+	for(CheckPointSave* c = gameState->checkPointSaveList; c; c = c->next) {
+		if(!c->arena || !getEntityByRef(gameState, c->ref)) {
+			save = c;
+		}
+
+		if(c->arena) {
+			break;
+		}
+
+		prevSave = c;
+	}
+
+	if(save) {
+		if(prevSave) {
+			prevSave->next = save->next;
+		}
+		else {
+			gameState->checkPointSaveList = save->next;
+		}
+	}
+	else {
+		save = pushStruct(&gameState->checkPointStorage, CheckPointSave);
+		save->arena = NULL;
+	}
+
+	save->ref = ref;
+	if(!save->arena) {
+		save->arena = subArena(&gameState->checkPointStorage, MEGABYTES(2));
+	}
+
+	addToCheckPointSaveList(gameState, save);
+
+	return save;
+}
+
 void freeEntityDuringLevel(Entity* entity, GameState* gameState, bool createdThisFrame = false) {
+	if(isSet(entity, EntityFlag_checkPointReached)) {
+		toggleCheckpoint(entity, gameState);
+	}
+
+	freeCheckPointSave(gameState, entity->checkPointSave);
+	entity->checkPointSave = NULL;
+
 	Messages* messages = entity->messages;
 	if(messages) {
 		for (s32 messageIndex = 0; messageIndex < messages->count; messageIndex++) {
@@ -2189,6 +2253,24 @@ void tryKeyboardJump(Entity* entity, GameState* gameState, ConsoleField* keyboar
 	}
 }
 
+void toggleCheckpoint(Entity* entity, GameState* gameState) {
+	toggleFlags(entity, EntityFlag_checkPointReached);
+
+	if(isSet(entity, EntityFlag_checkPointReached)) {
+		entity->defaultTex = gameState->checkPointReached;
+
+		freeCheckPointSave(gameState, entity->checkPointSave);
+		entity->checkPointSave = allocateCheckPointSave(gameState, entity->ref);
+
+		saveCompleteGame(gameState, entity->checkPointSave->arena);
+	}
+	else {
+		entity->defaultTex = gameState->checkPointUnreached;
+		freeCheckPointSave(gameState, entity->checkPointSave);
+		entity->checkPointSave = NULL;
+	}
+}
+
 void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* solid, V2 entityVel, V2 collisionNormal, 
 			   bool collisionNormalFromHitEntity) {
 	ConsoleField* killField = getField(entity, ConsoleField_killsOnHit); 
@@ -2268,8 +2350,7 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 
 		case EntityType_checkPoint: {
 			if(hitEntity->type == EntityType_player) {
-				setFlags(entity, EntityFlag_checkPointReached);
-				entity->defaultTex = gameState->checkPointReached;
+				toggleCheckpoint(entity, gameState);
 			}
 
 		} break;

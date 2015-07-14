@@ -50,6 +50,9 @@ typedef int8_t bool8;
 #define MAX_ANIM_NODES 20
 #define MAX_CHARACTER_ANIMS 10
 
+#define KILOBYTES(num) (1024 * num)
+#define MEGABYTES(num) (1024 * KILOBYTES(num))
+
 enum EntityType {
 	EntityType_background,
 	EntityType_player,
@@ -155,18 +158,17 @@ struct MemoryArena {
 	size_t size;
 };
 
-MemoryArena createArena(size_t size, bool clearToZero) {
-	MemoryArena result = {};
-	result.size = size;
+void initArena(MemoryArena* arena, size_t size, bool clearToZero) {
+	arena->allocated = 0;
+	arena->size = size;
 
 	if(clearToZero) {
-		result.base = calloc(1, size);
+		arena->base = calloc(1, size);
 	} else {
-		result.base = malloc(size);
+		arena->base = malloc(size);
 	}
 
-	assert(result.base);
-	return result;
+	assert(arena->base);
 }
 
 #define pushArray(arena, type, count) (type*)pushIntoArena_(arena, count * sizeof(type))
@@ -179,6 +181,16 @@ void* pushIntoArena_(MemoryArena* arena, size_t amt) {
 
 	arena->allocated += amt;
 	assert(arena->allocated < arena->size);
+
+	return result;
+}
+
+MemoryArena* subArena(MemoryArena* arena, size_t size) {
+	MemoryArena* result = pushStruct(arena, MemoryArena);
+
+	result->size = size;
+	result->allocated = 0;
+	result->base = pushSize(arena, size);
 
 	return result;
 }
