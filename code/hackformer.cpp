@@ -17,13 +17,13 @@ void initSpatialPartition(GameState* gameState) {
 
 void loadWaypoints(IOStream* stream, Entity* entity, GameState* gameState) {
 	ConsoleField* wpField = addFollowsWaypointsField(entity, gameState);
-	streamWaypoints(stream, &wpField->curWaypoint, &gameState->levelStorage, true);
+	streamWaypoints(stream, &wpField->curWaypoint, &gameState->levelStorage, true, false);
 }
 
 void loadHackMap(GameState* gameState, char* fileName) {
 	char filePath[2000];
 	assert(strlen(fileName) < arrayCount(filePath) - 100);
-	sprintf(filePath, "maps/%s", fileName);
+	sprintf(filePath, "maps/%s.hack", fileName);
 
 	IOStream streamObj = createIostream(gameState, filePath, true);
 	IOStream* stream = &streamObj;
@@ -122,7 +122,13 @@ void loadHackMap(GameState* gameState, char* fileName) {
 			} break;
 
 			case EntityType_endPortal: {
-				addEndPortal(gameState, p);
+				bool loadSameLevel = false;
+
+				if(strcmp(fileName, "level_2") == 0) {
+					loadSameLevel = true;
+				}
+
+				addEndPortal(gameState, p, loadSameLevel);
 			} break;
 
 			case EntityType_trojan: {
@@ -135,7 +141,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 			} break;
 
 			case EntityType_trawler: {
-				addTrawlerBootUp(gameState, p);
+				addTrawler(gameState, p);
 			} break;
 
 			case EntityType_checkPoint: {
@@ -261,12 +267,20 @@ bool loadCheckPoint(GameState* gameState) {
 	return true;
 }
 
-void loadLevel(GameState* gameState, char** maps, s32 numMaps, s32* mapFileIndex, bool firstLevelLoad) {
-	if (gameState->loadNextLevel) {
+void loadLevel(GameState* gameState, s32* mapFileIndex, bool firstLevelLoad, bool loadNextLevel) {
+	//TODO: no need to print the name of every map just to load one map
+	char maps[13][100];
+	sprintf(maps[0], "edit");
+
+	for(s32 i = 1; i < arrayCount(maps); i++) {
+		sprintf(maps[i], "level_%d", i);
+	}
+
+	if (loadNextLevel) {
 		firstLevelLoad = true;
 		gameState->loadNextLevel = false;
 		(*mapFileIndex)++;
-		(*mapFileIndex) %= numMaps;
+		(*mapFileIndex) %= arrayCount(maps);
 	}
 	else if(loadCheckPoint(gameState)) {
 		return;
@@ -770,13 +784,8 @@ int main(int argc, char* argv[]) {
 	initPauseMenu(gameState);
 	initMainMenu(gameState);
 
-	char* mapFileNames[] = {
-		//"level_1.hack",
-		"edit.hack",
-	};
-
 	s32 mapFileIndex = 0;
-	loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, true);
+	loadLevel(gameState, &mapFileIndex, true, false);
 
 	#if SHOW_MAIN_MENU
 	gameState->screenType = ScreenType_mainMenu;
@@ -819,6 +828,8 @@ int main(int argc, char* argv[]) {
 
 		glClearColor(0, 0, 0, 1);
 		glClear(GL_COLOR_BUFFER_BIT);
+
+		dtForFrame = 1.0 / 60.0;
 
 		dtForFrame *= gameState->timeField->doubleValues[gameState->timeField->selectedIndex];
 		if (dtForFrame > maxDtForFrame) dtForFrame = maxDtForFrame;
@@ -1185,9 +1196,12 @@ int main(int argc, char* argv[]) {
 
 		{ //NOTE: This reloads the game
 			bool resetLevel = gameState->reloadCurrentLevel || input->r.justPressed || levelResetRequested;
+			bool loadNextLevel = gameState->loadNextLevel != 0;
 
-			if(resetLevel || gameState->loadNextLevel) {
-				loadLevel(gameState, mapFileNames, arrayCount(mapFileNames), &mapFileIndex, false);
+			if(input->c.justPressed) loadNextLevel = true;
+
+			if(resetLevel || loadNextLevel) {
+				loadLevel(gameState, &mapFileIndex, false, loadNextLevel);
 			}
 		}
 	

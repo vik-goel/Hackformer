@@ -69,13 +69,13 @@ void main() {
 
 	gl_FragColor = vec4(result, texColor.a * tint.a);
 #else 
-	result *= texColor.xyz * tint.xyz; 
+	result = texColor.xyz * tint.xyz; 
 	vec3 gamma = vec3(1.0 / 2.2);
 	vec3 gammaCorrectedResult = pow(result.xyz, gamma);
 
-	gammaCorrectedResult.x = gammaCorrectedResult.x / (gammaCorrectedResult.x + 1.0);
-	gammaCorrectedResult.y = gammaCorrectedResult.y / (gammaCorrectedResult.y + 1.0);
-	gammaCorrectedResult.z = gammaCorrectedResult.z / (gammaCorrectedResult.z + 1.0);
+	//gammaCorrectedResult.x = gammaCorrectedResult.x / (gammaCorrectedResult.x + 1.0);
+	//gammaCorrectedResult.y = gammaCorrectedResult.y / (gammaCorrectedResult.y + 1.0);
+	//gammaCorrectedResult.z = gammaCorrectedResult.z / (gammaCorrectedResult.z + 1.0);
 
 	gl_FragColor = vec4(gammaCorrectedResult, texColor.a * tint.a);
 #endif

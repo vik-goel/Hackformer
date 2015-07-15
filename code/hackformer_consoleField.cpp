@@ -772,11 +772,13 @@ bool drawConsoleField(ConsoleField* field, RenderGroup* group, Input* input, Fie
 			V2 nameP = fieldP + v2(0.14, -0.04);
 			pushText(group, &spec->consoleFont, field->name, nameP, color, TextAlignment_center);
 
-			char tweakCostStr[25];
-			sprintf(tweakCostStr, "%d", field->tweakCost);
+			if(hasValues(field) || spec->hackAbilities.moveFields || spec->hackAbilities.cloneFields) {
+				char tweakCostStr[25];
+				sprintf(tweakCostStr, "%d", field->tweakCost);
 
-			V2 costP = fieldP + v2(-1.13, -0.05);
-			pushText(group, &spec->consoleFont, tweakCostStr, costP, color, TextAlignment_center);
+				V2 costP = fieldP + v2(-1.13, -0.05);
+				pushText(group, &spec->consoleFont, tweakCostStr, costP, color, TextAlignment_center);
+			}
 		}
 	}
 

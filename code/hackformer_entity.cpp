@@ -376,7 +376,7 @@ void setEntityP(Entity* entity, V2 newP, GameState* gameState) {
 bool affectedByGravity(Entity* entity, ConsoleField* movementField) {
 	bool result = true;
 
-	bool32 noMovementByDefault = isSet(entity, EntityFlag_noMovementByDefault);
+	bool32 noMovementByDefault = isSet(entity, EntityFlag_noMovementByDefault) && !getField(entity, ConsoleField_crushesEntities);
 
 	if(noMovementByDefault) {
 		result = false;
@@ -878,10 +878,10 @@ void addKeyboardField(Entity* entity, GameState* gameState) {
 	double keyboardJumpHeightFieldValues[] = {1, 3, 5, 7, 9}; 
 
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", keyboardSpeedFieldValues, 
-												   arrayCount(keyboardSpeedFieldValues), 2, 1));
+												   arrayCount(keyboardSpeedFieldValues), 2, 3));
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "jump_height", keyboardJumpHeightFieldValues, 
-													    arrayCount(keyboardJumpHeightFieldValues), 2, 1));
-	addChildToConsoleField(result, createBoolField(gameState, "double_jump", false, 3));
+													    arrayCount(keyboardJumpHeightFieldValues), 2, 3));
+	addChildToConsoleField(result, createBoolField(gameState, "double_jump", false, 8));
 
 	addField(entity, result);
 }
@@ -907,7 +907,7 @@ void addCrushesEntitiesField(Entity* entity, GameState* gameState) {
 void addDisappearsField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "disappears_on_hit", ConsoleField_disappearsOnHit, 10);
 
-	double time[] = {0.1, 0.5, 1, 1.5, 2}; 
+	double time[] = {0.1, 0.25, 0.5, 1, 1.5}; 
 
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "disappear_time", time, 
 												   arrayCount(time), 2, 1));
@@ -961,7 +961,7 @@ void addPatrolField(Entity* entity, GameState* gameState) {
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", patrolSpeedFieldValues, 
 	 											   arrayCount(patrolSpeedFieldValues), 2, 1));
 
-	addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
+	//addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
 
 	addField(entity, result);
 }
@@ -993,7 +993,7 @@ void addSeekTargetField(Entity* entity, GameState* gameState) {
 	 												    arrayCount(seekTargetSpeedFieldValues), 2, 1));
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "sight_radius", seekTargetRadiusFieldValues, 
 													    arrayCount(seekTargetRadiusFieldValues), 2, 2));
-	addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
+	//addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
 
 	addField(entity, result);
 }
@@ -1014,7 +1014,7 @@ ConsoleField* addFollowsWaypointsField(Entity* entity, GameState* gameState) {
 	
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", followsWaypointsSpeedFieldValues, 
 	 												    arrayCount(followsWaypointsSpeedFieldValues), 2, 1));
-	addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
+	//addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "waypoint_delay", waypointDelays, 
 	 												    arrayCount(waypointDelays), 2, 1));
 
@@ -1092,8 +1092,8 @@ void addShootField(Entity* entity, GameState* gameState, double speedModifier, E
 void addSpotlightField(Entity* entity, GameState* gameState) {
 	ConsoleField* result = createConsoleField(gameState, "spotlight", ConsoleField_spotlight, 15);
 
-	double sightRadii[] = {2, 4, 6, 8, 10};
-	double fovs[] = {15, 30, 45, 60, 75};
+	double sightRadii[] = {2, 5, 7, 9, 12};
+	double fovs[] = {30, 45, 60, 75, 90};
 	
 	addChildToConsoleField(result, createPrimitiveField(double, gameState, "sight_radius", sightRadii, 
 													    arrayCount(sightRadii), 2, 2));
@@ -1229,7 +1229,7 @@ Texture* getStandTex(CharacterAnim* characterAnim, GameState* gameState) {
 	return standTex;
 }
 
-Entity* addEndPortal(GameState* gameState, V2 p) {
+Entity* addEndPortal(GameState* gameState, V2 p, bool loadSameLevel) {
 	Entity* result = addEntity(gameState, EntityType_endPortal, DrawOrder_endPortal, p, v2(2, 2));
 
 	double hitboxWidth = result->renderSize.x;
@@ -1252,6 +1252,11 @@ Entity* addEndPortal(GameState* gameState, V2 p) {
 	hitbox->originalCollisionPoints[10] = v2(-0.434028 * halfHitboxWidth, -0.399306 * halfHitboxHeight);
 	hitbox->originalCollisionPoints[11] = v2(-0.594618 * halfHitboxWidth, -0.677083 * halfHitboxHeight);
 
+	if(loadSameLevel) {
+		result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
+		setFlags(result, EntityFlag_hackable);
+		addField(result, createBoolField(gameState, "load_same_level", loadSameLevel, 1));
+	}
 
 	result->defaultTex = gameState->endPortal;
 	result->emissivity = 0.75f;
@@ -1343,11 +1348,15 @@ Hitbox getTileHitboxWithoutOverhang(Entity* entity) {
 	return result;
 }
 
-void initTile(Entity* tile, GameState* gameState, s32 tileIndex, bool32 flipX, bool32 flipY) {
+void initTile(Entity* tile, GameState* gameState, s32 tileIndex, bool32 flipX, bool32 flipY, bool ignoresGravity) {
 	setFlags(tile, EntityFlag_hackable);
 
 	addField(tile, createUnlimitedIntField(gameState, "x_offset", 0, 1));
 	addField(tile, createUnlimitedIntField(gameState, "y_offset", 0, 1));
+
+	if(ignoresGravity) {
+		setFlags(tile, EntityFlag_noMovementByDefault);
+	}
 
 	if(flipX) {
 		setFlags(tile, EntityFlag_facesLeft|EntityFlag_flipX);
@@ -1394,9 +1403,9 @@ void initTile(Entity* tile, GameState* gameState, s32 tileIndex, bool32 flipX, b
 Entity* addTile(GameState* gameState, V2 p, s32 tileIndex, bool32 flipX, bool32 flipY) {
 	Entity* result = addEntity(gameState, EntityType_tile, DrawOrder_tile, 
 								p, v2(0, 0));
-	initTile(result, gameState, tileIndex, flipX, flipY);
+	initTile(result, gameState, tileIndex, flipX, flipY, true);
 
-	setFlags(result, EntityFlag_noMovementByDefault|EntityFlag_removeWhenOutsideLevel);
+	setFlags(result, EntityFlag_removeWhenOutsideLevel);
 	return result;
 }
 
@@ -1404,7 +1413,7 @@ Entity* addHeavyTile(GameState* gameState, V2 p, bool32 flipX, bool32 flipY) {
 	Entity* result = addEntity(gameState, EntityType_heavyTile, DrawOrder_heavyTile, 
 								p, v2(0, 0));
 
-	initTile(result, gameState, Tile_heavy, flipX, flipY);
+	initTile(result, gameState, Tile_heavy, flipX, flipY, false);
 	addCrushesEntitiesField(result, gameState);
 
 	return result;
@@ -1414,9 +1423,9 @@ Entity* addDisappearingTile(GameState* gameState, V2 p, bool32 flipX, bool32 fli
 	Entity* result = addEntity(gameState, EntityType_disappearingTile, DrawOrder_tile, 
 								p, v2(0, 0));
 
-	setFlags(result, EntityFlag_noMovementByDefault|EntityFlag_removeWhenOutsideLevel);
+	setFlags(result, EntityFlag_removeWhenOutsideLevel);
 
-	initTile(result, gameState, Tile_disappear, flipX, flipY);
+	initTile(result, gameState, Tile_disappear, flipX, flipY, true);
 	addDisappearsField(result, gameState);
 
 	return result;
@@ -1428,9 +1437,9 @@ Entity* addDroppingTile(GameState* gameState, V2 p, bool32 flipX, bool32 flipY) 
 	Entity* result = addEntity(gameState, EntityType_droppingTile, DrawOrder_tile, 
 								p, v2(0, 0));
 
-	setFlags(result, EntityFlag_noMovementByDefault|EntityFlag_removeWhenOutsideLevel);
+	setFlags(result, EntityFlag_removeWhenOutsideLevel);
 
-	initTile(result, gameState, Tile_middle, flipX, flipY);
+	initTile(result, gameState, Tile_middle, flipX, flipY, true);
 	addDroppingField(result, gameState);
 
 	return result;
@@ -1469,6 +1478,7 @@ Entity* addText(GameState* gameState, V2 p, Messages* messages) {
 	s32 selectedIndexValues[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 	addField(result, createPrimitiveField(s32, gameState, "selected_index", selectedIndexValues, messages->count,
 										 messages->selectedIndex, 1));
+
 
 	return result;
 }
@@ -1922,6 +1932,16 @@ bool32 isPickupFieldSolid(Entity* pickupField) {
 	return solid;
 }
 
+bool isMob(Entity* entity) {
+	bool result = entity->type == EntityType_shrike ||
+				  entity->type == EntityType_motherShip ||
+				  entity->type == EntityType_trawler ||
+				  entity->type == EntityType_trojan ||
+				  entity->type == EntityType_player;
+
+	return result;
+}
+
 bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState, bool penetrationTest) {
 	bool result = true;
 
@@ -1938,13 +1958,6 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState, bool penetratio
 			result = getMovementField(a) != NULL;
 		} break;
 
-		case EntityType_player: {
-			if (b->type == EntityType_trojan ||
-				b->type == EntityType_motherShip ||
-				b->type == EntityType_trawler ||
-				b->type == EntityType_shrike) result = false;
-		} break;
-
 		case EntityType_hackEnergy: {
 			if (b->type != EntityType_player) result = false;
 		} break;
@@ -1958,14 +1971,6 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState, bool penetratio
 			//NOTE: These are the 2 other pieces of the laser (base, top)
 			if (a->ref == b->ref + 1 || 
 				!isSet(a, EntityFlag_laserOn)) result = false;
-		} break;
-
-		case EntityType_disappearingTile:
-		case EntityType_droppingTile:
-		case EntityType_tile: {
-			if (isNonHeavyTile(b) && 
-				getMovementField(a) == NULL && 
-				getMovementField(b) == NULL) result = false;
 		} break;
 
 		case EntityType_pickupField: {
@@ -1986,7 +1991,13 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState, bool penetratio
 		} break;
 
 		default:
-			if(isProjectile(a)) {
+			if(isTileType(a) && isTileType(b)) {
+				result = getMovementField(a) || 
+						 getMovementField(b) || 
+						 affectedByGravity(a, NULL) || 
+						 affectedByGravity(b, NULL);
+			}
+			else if(isProjectile(a)) {
 				if (b->ref == a->spawnerRef) result = false;
 				else {
 					//NOTE: If a bullet is shot from a laser base/top, it should not collide with the laser beam
@@ -1995,6 +2006,9 @@ bool collidesWithRaw(Entity* a, Entity* b, GameState* gameState, bool penetratio
 					if(shooter && shooter->type == EntityType_laserBase && shooter->ref + 1 == b->ref)
 					    result = false;
 				}
+			}
+			else if(isMob(a) && isMob(b)) {
+				result = false;
 			}
 		break;
 	}
@@ -2203,7 +2217,7 @@ bool crushEntity(Entity* entity, double amt, Entity* heavyTile, GameState* gameS
 
 			double squishedHeight = height - squishAmount;
 
-			if(squishedHeight > 0) {
+			if(squishedHeight > 0.01) {
 				double heightRatio = squishedHeight / height;
 				entity->renderSize.y *= heightRatio;
 
@@ -2299,7 +2313,7 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 		   || hitEntity->type == EntityType_trojan
 		   || hitEntity->type == EntityType_shrike
 		   || hitEntity->type == EntityType_motherShip
-		   //|| hitEntity->type == EntityType_player
+		   || hitEntity->type == EntityType_player
 		 ) {
 		 	killed = true;
 			setFlags(hitEntity, EntityFlag_remove);
@@ -2355,7 +2369,12 @@ void onCollide(Entity* entity, Entity* hitEntity, GameState* gameState, bool* so
 
 		case EntityType_endPortal: {
 			if (hitEntity->type == EntityType_player) {
-				gameState->loadNextLevel = true;
+				ConsoleField* loadSameLevelField = getField(entity, ConsoleField_bool);
+				if(loadSameLevelField && loadSameLevelField->selectedIndex) {
+					gameState->reloadCurrentLevel = true;
+				} else {
+					gameState->loadNextLevel = true;
+				}
 			}
 		} break;
 
@@ -3418,7 +3437,7 @@ V2 computePath(GameState* gameState, Entity* start, Entity* goal) {
 }
 
 void centerCameraAround(Entity* entity, GameState* gameState) {
-	double maxCameraX = gameState->mapSize.x - gameState->windowSize.x;
+	double maxCameraX = max(0, gameState->mapSize.x - gameState->windowSize.x);
 	double x = clamp((double)(entity->p.x - gameState->windowSize.x / 2.0), 0, maxCameraX);
 
 	gameState->camera.newP = v2(x, 0);
@@ -3751,7 +3770,7 @@ V2 accelerateEntity(Entity* entity, double xMoveAcceleration) {
 	return result;
 }
 
-bool tryPatrolMove(Entity* entity, GameState* gameState, double xMoveAcceleration, double dt, V2 ddP) {
+bool tryPatrolMove(Entity* entity, GameState* gameState, double xMoveAcceleration, double dt, V2 ddP, bool undergoesGravity) {
 	V2 oldP = entity->p;
 	double oldWheelRotation = entity->wheelRotation;
 
@@ -3767,7 +3786,7 @@ bool tryPatrolMove(Entity* entity, GameState* gameState, double xMoveAcceleratio
 
 	bool shouldChangeDirection = (movement.x == 0);
 
-	if(!shouldChangeDirection && !isSet(entity, EntityFlag_noMovementByDefault)) {
+	if(!shouldChangeDirection && undergoesGravity) {
 		Hitbox* hitbox = entity->hitboxes;
 		R2 bounds = r2(entity->p, entity->p);
 
@@ -3795,7 +3814,7 @@ bool tryPatrolMove(Entity* entity, GameState* gameState, double xMoveAcceleratio
 		if (!offOfGround) {
 			V2 entityP = entity->p;
 
-			double width = getRectWidth(bounds);
+			double width = getRectWidth(bounds) * 0.66;
 			if(movingLeft) width *= -1;
 			V2 translation = v2(width, 0);
 			setEntityP(entity, entityP + translation, gameState);
@@ -3927,14 +3946,15 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 
 
 			case ConsoleField_movesBackAndForth: {
-				bool shouldPatrol = !doingOtherAction && dt > 0 && isSet(entity, EntityFlag_grounded|EntityFlag_noMovementByDefault); 
+				bool undergoesGravity = affectedByGravity(entity, movementField);
+				bool shouldPatrol = !doingOtherAction && dt > 0 && (isSet(entity, EntityFlag_grounded) || !undergoesGravity); 
 
 				if (shouldPatrol) {
-					bool shouldChangeDirection = tryPatrolMove(entity, gameState, xMoveAcceleration, dt, ddP);
+					bool shouldChangeDirection = tryPatrolMove(entity, gameState, xMoveAcceleration, dt, ddP, undergoesGravity);
 
 					if (shouldChangeDirection) {
 						if(toggleEntityFacingDirection(entity, gameState)) {
-							shouldChangeDirection = tryPatrolMove(entity, gameState, xMoveAcceleration, dt, ddP);
+							shouldChangeDirection = tryPatrolMove(entity, gameState, xMoveAcceleration, dt, ddP, undergoesGravity);
 							
 							if (shouldChangeDirection) {
 								toggleFlags(entity, EntityFlag_facesLeft);
@@ -3971,10 +3991,11 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 
 
 			case ConsoleField_seeksTarget: {
-				ConsoleField* alertnessField = getField(movementField->children, movementField->numChildren, ConsoleField_Alertness);
-				assert(alertnessField);
+				//ConsoleField* alertnessField = getField(movementField->children, movementField->numChildren, ConsoleField_Alertness);
+				//assert(alertnessField);
 
-				Alertness alertness = (Alertness)alertnessField->selectedIndex;
+				//Alertness alertness = (Alertness)alertnessField->selectedIndex;
+				Alertness alertness = Alertness_patrolling;
 
 				if (!doingOtherAction && !gameState->doingInitialSim && alertness > Alertness_asleep) {
 					ConsoleField* sightRadiusField = movementField->children[1];
@@ -3995,10 +4016,12 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 
 
 			case ConsoleField_followsWaypoints: {
-				ConsoleField* alertnessField = getField(movementField->children, movementField->numChildren, ConsoleField_Alertness);
-				assert(alertnessField);
+				// ConsoleField* alertnessField = getField(movementField->children, movementField->numChildren, ConsoleField_Alertness);
+				// assert(alertnessField);
 
-				Alertness alertness = (Alertness)alertnessField->selectedIndex;
+				// Alertness alertness = (Alertness)alertnessField->selectedIndex;
+
+				Alertness alertness = Alertness_patrolling;
 
 				if(!doingOtherAction && alertness > Alertness_asleep) {
 					Waypoint* cur = movementField->curWaypoint;
@@ -4018,8 +4041,8 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 					if(movementField->waypointDelay > 0) {
 						movementField->waypointDelay += dt;
 
-						assert(movementField->numChildren >= 3);
-						ConsoleField* delayField = movementField->children[2];
+						assert(movementField->numChildren >= 2);
+						ConsoleField* delayField = movementField->children[1];
 						double delay = delayField->doubleValues[delayField->selectedIndex];
 
 						if(movementField->waypointDelay >= delay) {
@@ -4205,10 +4228,10 @@ s32 isSpawnPossible(ConsoleField* field, Entity* entity, GameState* gameState, b
 void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 	bool hacking = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
 
-	{
-		Entity* player = getEntityByRef(gameState, gameState->playerRef);
-		if(player && player->currentAnim == gameState->playerHack) hacking = true;
-	}
+	// {
+	// 	Entity* player = getEntityByRef(gameState, gameState->playerRef);
+	// 	if(player && player->currentAnim == gameState->playerHack) hacking = true;
+	// }
 
 	bool shouldDrawCollisionBounds = getEntityByRef(gameState, gameState->consoleEntityRef) != NULL;
 
@@ -4585,13 +4608,6 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 
 		//NOTE: Individual entity logic here
 		switch(entity->type) {
-
-			case EntityType_player: {
-				if(gameState->input.c.justPressed) {
-					setFlags(entity, EntityFlag_remove);
-				}
-
-			} break;
 
 			case EntityType_background: {
 				#if DRAW_BACKGROUND

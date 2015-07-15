@@ -879,13 +879,20 @@ int main(int argc, char* argv[]) {
 
 							lastPoint = wp;
 							wp = wp->next;
+
+							if(wp == movingEntity->waypoints) break;
 						}
 					}
 				}
 
+				s32 count = 0;
 				for(Waypoint* wp = movingEntity->waypoints; wp; wp = wp->next) {
 					R2 wpBounds = rectCenterRadius(wp->p, wpSize);
 					pushFilledRect(renderGroup, wpBounds, BLUE, true);
+
+					if(count != 0 && wp == movingEntity->waypoints) break;
+
+					count++;
 				}
 			}
 		}
@@ -935,8 +942,13 @@ int main(int argc, char* argv[]) {
 
 					V2 dCenter = center - oldCenter;
 
+					s32 count = 0;
 					for (Waypoint* wp = movingEntity->waypoints; wp; wp = wp->next) {
 						wp->p += dCenter;
+
+						if(count != 0 && wp == movingEntity->waypoints) break;
+
+						count++;
 					}
 
 

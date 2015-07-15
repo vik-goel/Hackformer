@@ -89,7 +89,7 @@ void streamConsoleField(IOStream* stream, ConsoleField** fieldPtr) {
 		} break;
 
 		case ConsoleField_followsWaypoints: {
-			streamWaypoints(stream, &field->curWaypoint, &gameState->levelStorage, false);
+			streamWaypoints(stream, &field->curWaypoint, &gameState->levelStorage, false, false);
 			streamElem(stream, field->waypointDelay);
 		} break;
 

@@ -885,6 +885,10 @@ void streamMessages(IOStream* stream, Messages** messagesPtr, MemoryArena* arena
 		} else {
 			messages = pushStruct(arena, Messages);
 			messages->count = count;
+
+			for(s32 i = 0; i < count; i++) {
+				messages->textures[i].texId = 0;
+			}
 		}
 	}
 	else {
@@ -912,7 +916,7 @@ struct Waypoint {
 	Waypoint* next;
 };
 
-void streamWaypoints(IOStream* stream, Waypoint** waypointPtr, MemoryArena* arena, bool fromHackFile) {
+void streamWaypoints(IOStream* stream, Waypoint** waypointPtr, MemoryArena* arena, bool fromHackFile, bool inEditor) {
 	s32 count;
 
 	if(stream->reading) {
@@ -922,6 +926,11 @@ void streamWaypoints(IOStream* stream, Waypoint** waypointPtr, MemoryArena* aren
 
 		for(s32 i = 0; i < count; i++) {
 			points[i].next = points + ((i + 1) % count);
+
+			if(inEditor && i == count - 1) {
+				points[i].next = NULL;
+			}
+
 			streamV2(stream, &points[i].p);
 
 			if(!fromHackFile) {
