@@ -62,8 +62,7 @@ void streamConsoleField(IOStream* stream, ConsoleField** fieldPtr) {
 
 	if(stream->reading) {
 		if(type < 0) {
-			freeConsoleField(field, gameState);
-			*fieldPtr = NULL;
+			freeConsoleField(fieldPtr, gameState);
 			return;
 		} else {
 			freeConsoleField_(field, gameState);
@@ -484,8 +483,7 @@ void streamEntityChanges(IOStream* stream, Entity* entity) {
 
 	if(stream->reading) {
 		for(s32 i = 0; i < entity->numFields; i++) {
-			freeConsoleField(entity->fields[i], stream->gameState);
-			entity->fields[i] = NULL;
+			freeConsoleField(entity->fields + i, stream->gameState);
 		}
 	}
 

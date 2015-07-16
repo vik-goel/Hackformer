@@ -28,10 +28,14 @@ typedef int8_t bool8;
 #include "glew.h"
 
 #include "SDL.h"
-#include "SDL_image.h"
 #include "SDL_ttf.h"
 #include "SDL_opengl.h"
 #include "SDL_mixer.h"
+
+#if 0
+#define STB_IMAGE_IMPLEMENTATION
+#endif
+#include "../build/stb_image.h"
 
 #include "hackformer_math.h"
 #include "hackformer_packBuilder.h"
@@ -204,11 +208,15 @@ MemoryArena* subArena(MemoryArena* arena, size_t size) {
 }
 
 struct Assets {
+	FILE* fileHandle;
 	SDL_RWops* assetFileHandle;
 	s32 assetFileOffsets[Asset_count];
 };
 
 void initAssets(Assets* assets) {
+	assets->fileHandle = fopen("assets.bin", "rb");
+	assert(assets->fileHandle);
+
 	assets->assetFileHandle = SDL_RWFromFile("assets.bin", "rb");
 	assert(assets->assetFileHandle);
 
@@ -434,11 +442,6 @@ SDL_Window* createWindow(s32 windowWidth, s32 windowHeight) {
 
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
 	SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
-
-	if (IMG_Init(IMG_INIT_PNG) != IMG_INIT_PNG) {
-		fprintf(stderr, "Failed to initialize SDL_image.");
-		InvalidCodePath;
-	}
 
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);

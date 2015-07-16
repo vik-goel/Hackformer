@@ -1,5 +1,8 @@
 #include "hackformer_editor.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "../build/stb_image.h"
+
 #include "hackformer_renderer.cpp"
 
 V2 unprojectP(Camera* camera, V2 p) {
@@ -101,8 +104,7 @@ void setTile(EditorState* state, V2 gridSize, TileSpec* value) {
 }
 
 bool entityGetsWaypoints(Entity* entity) {
-	bool result = entity->type == EntityType_trojan ||
-				  entity->type == EntityType_shrike;
+	bool result = entity->type == EntityType_trojan;
 	return result;
 }
 
@@ -282,7 +284,7 @@ void streamHackFile(IOStream* stream, EditorState* state) {
 		}
 
 		if(entityGetsWaypoints(entity)) {
-			streamWaypoints(stream, &entity->waypoints, &state->arena, true);
+			streamWaypoints(stream, &entity->waypoints, &state->arena, true, true);
 		}
 	}	
 

@@ -153,15 +153,15 @@ void freeTexture(Texture* texture) {
 	}
 }
 
-GLuint generateTexture(SDL_Surface* image, bool srgb = false) {
+Texture createTex(RenderGroup* group, s32 width, s32 height, s32 numComponents, void* pixels, bool srgb) {
+	Texture result = {};
+
 	glEnable(GL_TEXTURE_2D);
 
-	GLuint result = 0;
+	glGenTextures(1, &result.texId);
+	assert(result.texId);
 
-	glGenTextures(1, &result);
-	assert(result);
-
-	glBindTexture(GL_TEXTURE_2D, result);
+	glBindTexture(GL_TEXTURE_2D, result.texId);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -171,9 +171,9 @@ GLuint generateTexture(SDL_Surface* image, bool srgb = false) {
 
 	GLenum format;
 
-	if (image->format->BytesPerPixel == 3) {
+	if (numComponents == 3) {
 		format = GL_RGB;
-	} else if (image->format->BytesPerPixel == 4) {
+	} else if (numComponents == 4) {
 		format = GL_RGBA;
 	} else {
 		InvalidCodePath;
@@ -181,51 +181,56 @@ GLuint generateTexture(SDL_Surface* image, bool srgb = false) {
 
 	GLint internalFormal = srgb ? GL_SRGB8_ALPHA8 : GL_RGBA;
 
-	glTexImage2D(GL_TEXTURE_2D, 0, internalFormal, image->w, image->h, 0, format, GL_UNSIGNED_BYTE, image->pixels);
+	glTexImage2D(GL_TEXTURE_2D, 0, internalFormal, width, height, 0, format, GL_UNSIGNED_BYTE, pixels);
 
-	return result;
-}
-
-Texture createTexFromSurface(SDL_Surface* image, RenderGroup* group, bool stencil) {
-	Texture result = {};
-
-	result.texId = generateTexture(image, !stencil);
 	result.uv = r2(v2(0, 0), v2(1, 1));
-	result.size = v2(image->w, image->h) * (1.0 / group->pixelsPerMeter);
-
-	SDL_FreeSurface(image);
+	result.size = v2(width, height) * (1.0 / group->pixelsPerMeter);
+	
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	return result;
 }
 
-Texture* loadPNGTexture(RenderGroup* group, SDL_RWops* readStream, bool stencil) {
-	SDL_Surface* diffuse = IMG_LoadPNG_RW(readStream);
+Texture createTexFromSurface(SDL_Surface* image, RenderGroup* group, bool stencil) {
+	Texture result = createTex(group, image->w, image->h, image->format->BytesPerPixel, image->pixels, !stencil);
+	SDL_FreeSurface(image);
+	return result;
+}
 
-	if (!diffuse) {
-		fprintf(stderr, "Failed to load diffuse texture");
-		InvalidCodePath;
-	}
-
+Texture* loadPNGTexture(RenderGroup* group, FILE* file, bool stencil) {
 	Texture* result = group->textures + *group->texturesCount;
-	*result = createTexFromSurface(diffuse, group, stencil);
-
 	*group->texturesCount = *group->texturesCount + 1;
 	assert(*group->texturesCount < MAX_TEXTURES);
+
+	int width;
+	int height;
+	int numComponents;
+	int requestedComponents = 0;
+
+	//TODO: STB_MALLOC could be redefined to just push into a memory arena since the memory is just freed right after
+	//		anyways
+	void* pixels = stbi_load_from_file(file, &width, &height, &numComponents, requestedComponents);
+	assert(pixels);
+	*result = createTex(group, width, height, numComponents, pixels, !stencil);
+	stbi_image_free(pixels);
 
 	return result;
 }
 
 Texture* loadPNGTexture(RenderGroup* group, char* fileName, bool stencil) {
-	SDL_RWops* readStream = SDL_RWFromFile(fileName, "rb");
+	FILE* readStream = fopen(fileName, "rb");
 	assert(readStream);
+
 	Texture* result = loadPNGTexture(group, readStream, stencil);
 	return result;
 }
 
 //stencil is false by default
 Texture* loadPNGTexture(RenderGroup* group, AssetId id, bool stencil) {
-	SDL_RWops* readStream = seekToAssetPos(group->assets, id);
+	FILE* readStream = group->assets->fileHandle;
+	s32 seekResult = fseek(readStream, getAssetPos(group->assets, id), SEEK_SET);
+	assert(seekResult == 0);
+
 	Texture* result = loadPNGTexture(group, readStream, stencil);
 	return result;
 }
@@ -468,8 +473,8 @@ Glyph* getGlyph(CachedFont* cachedFont, RenderGroup* group, char c, double meter
 
 		SDL_PixelFormat* format = glyphSurface->format;
 		s32 maxX = 0, minX = glyphSurface->w - 1, maxY = 0, minY = glyphSurface->h - 1;
-
-		for(s32 y = 0; y < glyphSurface->h; y++) {
+	
+	for(s32 y = 0; y < glyphSurface->h; y++) {
 			for(s32 x = 0; x < glyphSurface->w; x++) {
 				void* pixelPtr = (u8*)glyphSurface->pixels + x * format->BytesPerPixel + y * glyphSurface->pitch; 
 				assert(format->BytesPerPixel == 4);

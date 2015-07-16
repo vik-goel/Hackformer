@@ -4,6 +4,42 @@
 		"selected_items":
 		[
 			[
+				"EntityType_m",
+				"EntityType_motherShip"
+			],
+			[
+				"text",
+				"textures"
+			],
+			[
+				"TILE_HEIGHT",
+				"TILE_HEIGHT_WITHOUT_OVERHANG_IN_METERS"
+			],
+			[
+				"save",
+				"saveHackFile"
+			],
+			[
+				"toggle",
+				"toggleCheckpoint"
+			],
+			[
+				"check",
+				"checkPointSave"
+			],
+			[
+				"checkP",
+				"checkPointStorage"
+			],
+			[
+				"Entityflag_c",
+				"EntityFlag_checkPointReached"
+			],
+			[
+				"che",
+				"checkPointUnreached"
+			],
+			[
 				"hack",
 				"hackSaveStorage"
 			],
@@ -82,10 +118,6 @@
 			[
 				"couldSpawn",
 				"couldSpawnShrike"
-			],
-			[
-				"save",
-				"updateSaveGameToArena"
 			],
 			[
 				"EntityType_mother",
@@ -482,56 +514,24 @@
 			[
 				"create",
 				"createBullet"
-			],
-			[
-				"dstRect",
-				"dstRectOffsetX"
-			],
-			[
-				"turret",
-				"turretTexHeight"
-			],
-			[
-				"P",
-				"PIXELS_PER_METER"
-			],
-			[
-				"TANK_S",
-				"TANK_SIZE_METERS"
-			],
-			[
-				"Til",
-				"TILE_SIZE_PIXELS"
-			],
-			[
-				"TILE",
-				"TILE_SIZE_PIXELS"
 			]
 		]
 	},
 	"buffers":
 	[
 		{
-			"file": "code/hackformer_save.h",
+			"file": "code/hackformer_renderer.cpp",
 			"settings":
 			{
-				"buffer_size": 672,
+				"buffer_size": 49956,
 				"line_ending": "Windows"
 			}
 		},
 		{
-			"file": "code/hackformer_save.cpp",
+			"file": "build/stb_image.cpp",
 			"settings":
 			{
-				"buffer_size": 16874,
-				"line_ending": "Windows"
-			}
-		},
-		{
-			"file": "code/hackformer_entity.h",
-			"settings":
-			{
-				"buffer_size": 4417,
+				"buffer_size": 220333,
 				"line_ending": "Windows"
 			}
 		},
@@ -539,7 +539,7 @@
 			"file": "code/hackformer_types.h",
 			"settings":
 			{
-				"buffer_size": 22969,
+				"buffer_size": 22454,
 				"line_ending": "Windows"
 			}
 		},
@@ -547,7 +547,23 @@
 			"file": "code/hackformer.cpp",
 			"settings":
 			{
-				"buffer_size": 42952,
+				"buffer_size": 44359,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_entity.cpp",
+			"settings":
+			{
+				"buffer_size": 163784,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_editor.h",
+			"settings":
+			{
+				"buffer_size": 1014,
 				"line_ending": "Windows"
 			}
 		},
@@ -555,7 +571,15 @@
 			"file": "code/hackformer_consoleField.h",
 			"settings":
 			{
-				"buffer_size": 4540,
+				"buffer_size": 4491,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "code/hackformer_entity.h",
+			"settings":
+			{
+				"buffer_size": 4533,
 				"line_ending": "Windows"
 			}
 		},
@@ -563,7 +587,7 @@
 			"file": "code/hackformer.h",
 			"settings":
 			{
-				"buffer_size": 6620,
+				"buffer_size": 6705,
 				"line_ending": "Windows"
 			}
 		},
@@ -571,7 +595,7 @@
 			"file": "code/hackformer_consoleField.cpp",
 			"settings":
 			{
-				"buffer_size": 39802,
+				"buffer_size": 40475,
 				"line_ending": "Windows"
 			}
 		}
@@ -634,23 +658,30 @@
 	],
 	"file_history":
 	[
-		"/W/c++former/code/hackformer_save_2.cpp",
-		"/W/c++former/code/hackformer_entity.h",
+		"/W/c++former/code/hackformer_types.h",
 		"/W/c++former/code/hackformer_entity.cpp",
-		"/W/c++former/code/hackformer_consoleField.cpp",
+		"/W/c++former/build/stb_image.cpp",
+		"/C/Users/Vik/Downloads/handmade_hero_148_source/handmade_hero_day_148_source/code/handmade_render_group.h",
+		"/C/Users/Vik/Downloads/handmade_hero_148_source/handmade_hero_day_148_source/code/handmade_optimized.cpp",
+		"/C/Users/Vik/Downloads/handmade_hero_148_source/handmade_hero_day_148_source/code/handmade.h",
+		"/C/Users/Vik/Downloads/handmade_hero_148_source/handmade_hero_day_148_source/code/handmade.cpp",
+		"/C/Users/Vik/Downloads/handmade_hero_148_source/handmade_hero_day_148_source/code/handmade_render_group.cpp",
 		"/W/c++former/code/hackformer.cpp",
 		"/W/c++former/code/hackformer_editor.cpp",
-		"/W/c++former/code/hackformer_types.h",
-		"/W/c++former/code/hackformer_editor.h",
-		"/W/c++former/code/hackformer.h",
 		"/W/c++former/code/hackformer_save.cpp",
+		"/W/c++former/res/shaders/forward.frag",
+		"/W/c++former/code/hackformer.h",
+		"/W/c++former/code/hackformer_save.h",
+		"/W/c++former/code/hackformer_consoleField.cpp",
+		"/W/c++former/code/hackformer_entity.h",
+		"/W/c++former/code/hackformer_save_2.cpp",
+		"/W/c++former/code/hackformer_editor.h",
 		"/W/c++former/code/hackformer_renderer.cpp",
 		"/W/c++former/code/hackformer_collisionDataTool.cpp",
 		"/W/c++former/code/hackformer_packBuilder.cpp",
 		"/W/c++former/code/hackformer_packBuilder.h",
 		"/W/c++former/code/hackformer_math.h",
 		"/W/c++former/code/hackformer_renderer.h",
-		"/W/c++former/res/shaders/forward.frag",
 		"/W/c++former/res/shaders/stencil.frag",
 		"/W/c++former/res/shaders/basic.frag",
 		"/W/c++former/res/shaders/basic.vert",
@@ -659,7 +690,6 @@
 		"/W/c++former/code/hackformer_animationDisplayer.cpp",
 		"/W/c++former/code/hackformer_anim",
 		"/W/c++former/code/hackformer_consoleField.h",
-		"/W/c++former/code/hackformer_save.h",
 		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/hackformer_animation_displayer_tool_build.sublime-build",
 		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/hackformer_collision_data_tool_build.sublime-build",
 		"/W/c++former/code/hackformer_animationBuilder.cpp",
@@ -755,13 +785,7 @@
 		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_075_source.zip/code/handmade_sim_region.cpp",
 		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_075_source.zip/code/handmade_entity.h",
 		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_075_source.zip/code/handmade_entity.cpp",
-		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_075_source.zip/code/handmade.cpp",
-		"/W/c++former/build/include/SDL_ttf.h",
-		"/W/c++former/build/include/begin_code.h",
-		"/C/Users/Vik/Downloads/handmade_hero_038_source/handmade_hero_day_038_source/code/handmade.h",
-		"/C/Users/Vik/Downloads/handmade_hero_038_source/handmade_hero_day_038_source/code/handmade.cpp",
-		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/SublimeLinter.sublime-settings",
-		"/C/Users/Vik/AppData/Roaming/Sublime Text 3/Packages/User/test build 1.sublime-build"
+		"/C/Users/Vik/AppData/Local/Temp/Temp1_handmade_hero_day_075_source.zip/code/handmade.cpp"
 	],
 	"find":
 	{
@@ -780,6 +804,46 @@
 		"case_sensitive": false,
 		"find_history":
 		[
+			"defaultClip",
+			"TTF_RenderText_Blended",
+			"TTF_Font*",
+			"TTF_FONT*",
+			"STB_IMAGE_IMPLEMENTATION",
+			"stbi_load_from_file",
+			"lib",
+			"cstdlib",
+			"STBI_FREE",
+			"STB_IMAGE_IMPLEMENTATION",
+			"stbi_load_from_file",
+			"stbi_image_free",
+			"DrawRectangleQuickly",
+			"DrawRectangle",
+			"STB_IMAGE_STATIC",
+			"seekToAssetPos",
+			"createTexFromSurface",
+			"EntityType_player: {",
+			"sprintf",
+			"camera",
+			"ConsoleField_movesB",
+			"ambient = ",
+			"level_2",
+			"mapFilenames",
+			"loadLevel",
+			"loadHackMap",
+			"getTotalFieldHeight",
+			"dock",
+			"drawCollision",
+			"editor",
+			"SAVE_BINARY",
+			"show5",
+			"if(spec->index",
+			"backgroundTextures",
+			"streamMessages",
+			"input->r",
+			"EntityType_checkpoint",
+			"toggleCheckpoint",
+			"getEntityByRef",
+			"subArena",
 			"readAnimation",
 			"ConsoleFlag_selected",
 			"readGameFromArena",
@@ -867,47 +931,7 @@
 			"pushSpotLight",
 			"scanField",
 			"canEntityRotate",
-			"addTrawlerBolt",
-			"groundFriction",
-			"camera",
-			"compare",
-			"rotation",
-			"playerRe",
-			"shootBasedOn",
-			"EntityType_trawler",
-			"gameState->testEntity",
-			"testEntity",
-			"EntityType_test",
-			"testEntity",
-			"EntityType_test",
-			"addTrawler",
-			"tryPatrolMove",
-			"entity->groundNormal",
-			"wheelRotation",
-			"getHitboxCenter",
-			"spawnedEntities",
-			"spawnField",
-			"spawnedEntities",
-			"addTrawler",
-			"addBootUp",
-			"spawnField",
-			"EntityType_trawler",
-			"EntityFlag_facesLeft",
-			"EntityType_trawler",
-			"breakHe",
-			"breakHere",
-			"shootTimer",
-			"spawnTimer",
-			"EntityType_bootUp",
-			"EntityType_player",
-			"pushPointLight",
-			"shootField",
-			"clickHandled",
-			"drawRenderGroup",
-			"hackEnergy",
-			"drawWaypointInformation",
-			"death",
-			"edit"
+			"addTrawlerBolt"
 		],
 		"highlight": true,
 		"in_selection": false,
@@ -973,29 +997,60 @@
 	"groups":
 	[
 		{
-			"selected": 1,
+			"selected": 3,
 			"sheets":
 			[
 				{
 					"buffer": 0,
-					"file": "code/hackformer_save.h",
+					"file": "code/hackformer_renderer.cpp",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 672,
+						"buffer_size": 49956,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								101,
-								117
+								14738,
+								14746
 							]
 						],
 						"settings":
 						{
-							"syntax": "Packages/C++/C++.tmLanguage"
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 6939.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 3,
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "build/stb_image.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 220333,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								278,
+								278
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
 						"translation.y": 0.0,
@@ -1005,107 +1060,49 @@
 					"type": "text"
 				},
 				{
-					"buffer": 1,
-					"file": "code/hackformer_save.cpp",
+					"buffer": 2,
+					"file": "code/hackformer_types.h",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 16874,
+						"buffer_size": 22454,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								10799,
-								10799
+								244,
+								244
 							]
 						],
 						"settings":
 						{
-							"syntax": "Packages/C++/C++.tmLanguage"
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 5743.0,
+						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 1,
 					"type": "text"
 				},
 				{
-					"buffer": 2,
-					"file": "code/hackformer_entity.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 4417,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								2603,
-								2603
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 1485.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 4,
-					"type": "text"
-				},
-				{
 					"buffer": 3,
-					"file": "code/hackformer_types.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 22969,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								16083,
-								16063
-							]
-						],
-						"settings":
-						{
-							"history_list_is_closing": true,
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 9534.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 8,
-					"type": "text"
-				},
-				{
-					"buffer": 4,
 					"file": "code/hackformer.cpp",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 42952,
+						"buffer_size": 44359,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								34816,
-								34816
+								42654,
+								42654
 							]
 						],
 						"settings":
@@ -1114,121 +1111,27 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 13349.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 7,
-					"type": "text"
-				}
-			]
-		},
-		{
-			"selected": 2,
-			"sheets":
-			[
-				{
-					"buffer": 5,
-					"file": "code/hackformer_consoleField.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 4540,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								2223,
-								2223
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 1738.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 5,
-					"type": "text"
-				},
-				{
-					"buffer": 3,
-					"file": "code/hackformer_types.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 22969,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								16718,
-								16718
-							]
-						],
-						"settings":
-						{
-							"history_list_is_closing": true,
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 10661.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 3,
-					"type": "text"
-				},
-				{
-					"buffer": 6,
-					"file": "code/hackformer.h",
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 6620,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								1134,
-								1134
-							]
-						],
-						"settings":
-						{
-							"syntax": "Packages/C++/C++.tmLanguage",
-							"translate_tabs_to_spaces": false
-						},
-						"translation.x": 0.0,
-						"translation.y": 360.0,
+						"translation.y": 16991.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 0,
 					"type": "text"
 				},
 				{
-					"buffer": 7,
-					"file": "code/hackformer_consoleField.cpp",
+					"buffer": 4,
+					"file": "code/hackformer_entity.cpp",
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 39802,
+						"buffer_size": 163784,
 						"regions":
 						{
 						},
 						"selection":
 						[
 							[
-								15434,
-								15434
+								46428,
+								46438
 							]
 						],
 						"settings":
@@ -1237,10 +1140,161 @@
 							"translate_tabs_to_spaces": false
 						},
 						"translation.x": 0.0,
-						"translation.y": 7529.0,
+						"translation.y": 21234.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 4,
+					"type": "text"
+				}
+			]
+		},
+		{
+			"selected": 3,
+			"sheets":
+			[
+				{
+					"buffer": 5,
+					"file": "code/hackformer_editor.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 1014,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1011,
+								984
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": -0.0,
+						"translation.y": 315.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 9,
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "code/hackformer_consoleField.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 4491,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								643,
+								643
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 7,
+					"type": "text"
+				},
+				{
+					"buffer": 7,
+					"file": "code/hackformer_entity.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 4533,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								534,
+								534
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
 					"stack_index": 6,
+					"type": "text"
+				},
+				{
+					"buffer": 8,
+					"file": "code/hackformer.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 6705,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1832,
+								1832
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 592.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 5,
+					"type": "text"
+				},
+				{
+					"buffer": 9,
+					"file": "code/hackformer_consoleField.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 40475,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								20578,
+								20578
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/C++/C++.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 10334.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 8,
 					"type": "text"
 				}
 			]
@@ -1274,7 +1328,7 @@
 		"cols":
 		[
 			0.0,
-			0.513665547741,
+			0.522519714408,
 			1.0
 		],
 		"rows":
@@ -1366,7 +1420,7 @@
 		],
 		"width": 392.0
 	},
-	"selected_group": 1,
+	"selected_group": 0,
 	"settings":
 	{
 	},

@@ -149,8 +149,7 @@ void loadHackMap(GameState* gameState, char* fileName) {
 			} break;
 		
 			case EntityType_shrike: {
-				Entity* entity = addShrikeBootUp(gameState, p);
-				loadWaypoints(stream, entity, gameState);
+				addShrike(gameState, p);
 			} break;
 
 			case EntityType_lamp_0: {
@@ -269,11 +268,10 @@ bool loadCheckPoint(GameState* gameState) {
 
 void loadLevel(GameState* gameState, s32* mapFileIndex, bool firstLevelLoad, bool loadNextLevel) {
 	//TODO: no need to print the name of every map just to load one map
-	char maps[13][100];
-	sprintf(maps[0], "edit");
+	char maps[20][100];
 
-	for(s32 i = 1; i < arrayCount(maps); i++) {
-		sprintf(maps[i], "level_%d", i);
+	for(s32 i = 0; i < arrayCount(maps); i++) {
+		sprintf(maps[i], "level_%d", i + 1);
 	}
 
 	if (loadNextLevel) {
@@ -831,7 +829,6 @@ int main(int argc, char* argv[]) {
 
 		dtForFrame = 1.0 / 60.0;
 
-		dtForFrame *= gameState->timeField->doubleValues[gameState->timeField->selectedIndex];
 		if (dtForFrame > maxDtForFrame) dtForFrame = maxDtForFrame;
 		double unpausedDtForFrame = dtForFrame;
 
@@ -1173,6 +1170,9 @@ int main(int argc, char* argv[]) {
 			R2 clipRect = intersect(windowBounds, screenBounds);
 			R2 screenSpaceClipRect = translateRect(clipRect, -camera->p);
 
+			double clipRectEpsilon = 0.005;
+			screenSpaceClipRect = scaleRect(screenSpaceClipRect, v2(1, 1) * (1 + clipRectEpsilon));
+
 			renderGroup->defaultClipRect = screenSpaceClipRect;
 		}
 
@@ -1189,7 +1189,7 @@ int main(int argc, char* argv[]) {
 				loadCompleteGame(gameState, saveFilePath);
 			}
 
-			if (input->x.justPressed) {
+			if (input->x.justPressed && false) {
 				gameState->fieldSpec.hackEnergy += 10;
 			}
 		}

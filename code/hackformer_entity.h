@@ -1,6 +1,11 @@
 #define KEYBOARD_JUMP_AIR_TOLERANCE_TIME 0.15
 #define INVALID_START_POS (v2(1, 1) * -9999999999)
 
+#define MOTHERSHIP_PROJECTILE_SIZE 1.5
+#define TROJAN_BOLT_SIZE 0.3
+#define TRAWLER_BOLT_SIZE 0.6
+#define SHRIKE_BOLT_SIZE 0.4
+
 enum EntityFlag {
 	EntityFlag_facesLeft = 1 << 0,
 	EntityFlag_noMovementByDefault = 1 << 1,

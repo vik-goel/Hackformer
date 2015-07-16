@@ -9,15 +9,18 @@ void freeConsoleField_(ConsoleField* field, GameState* gameState) {
 	}
 }
 
-void freeConsoleField(ConsoleField* field, GameState* gameState) {
+void freeConsoleField(ConsoleField** fieldPtr, GameState* gameState) {
 	//NOTE: Since the next pointer is only used in the free list and consoles in the free list should
 	//		never be freed again, the next pointer should be null. 
+	ConsoleField* field = *fieldPtr;
+	assert(field);
+
 	assert(!field->next);
 
 	freeConsoleField_(field, gameState);
 
 	for (s32 childIndex = 0; childIndex < field->numChildren; childIndex++) {
-		freeConsoleField(field->children[childIndex], gameState);
+		freeConsoleField(&field->children[childIndex], gameState);
 		field->children[childIndex] = NULL;
 	}
 
@@ -25,6 +28,8 @@ void freeConsoleField(ConsoleField* field, GameState* gameState) {
 
 	field->next = gameState->consoleFreeList;
 	gameState->consoleFreeList = field;
+
+	*fieldPtr = NULL;
 }
 
 ConsoleField* createConsoleField_(GameState* gameState) {
@@ -46,6 +51,14 @@ ConsoleField* createConsoleField_(GameState* gameState) {
 ConsoleField* createConsoleField(GameState* gameState, ConsoleField* copy) {
 	ConsoleField* result = createConsoleField_(gameState);
 	*result = *copy;
+
+	assert(copy->next == NULL);
+	assert(result->next == NULL);
+
+	for(s32 childIndex = 0; childIndex < result->numChildren; childIndex++) {
+		result->children[childIndex] = createConsoleField(gameState, copy->children[childIndex]);
+	}
+
 	return result;
 }
 
@@ -57,6 +70,8 @@ ConsoleField* createConsoleField(GameState* gameState, char* name, ConsoleFieldT
 	assert(strlen(name) < arrayCount(result->name));
 	strcpy(result->name, name);
 	result->tweakCost = tweakCost;
+
+	assert(result->next == NULL);
 		
 	return result;
 }
@@ -297,9 +312,9 @@ bool moveField(ConsoleField* field, GameState* gameState, double dt, FieldSpec* 
 	if (gameState->input.leftMouse.justPressed) {
 		if (pointInsideRect(bounds, gameState->input.mouseInMeters) && !isSet(field, ConsoleFlag_selected)) {
 			if(gameState->input.shift.pressed && spec->hackAbilities.cloneFields) {
-				if(!gameState->swapField && canFieldBeCloned(field) && spec->hackEnergy >= field->tweakCost) {
+				if(!gameState->swapField && canFieldBeCloned(field)/* && spec->hackEnergy >= field->tweakCost*/) {
 					updateSaveGame(gameState);
-					spec->hackEnergy -= field->tweakCost;
+					//spec->hackEnergy -= field->tweakCost;
 					gameState->swapField = createConsoleField(gameState, field);
 					rebaseField(gameState->swapField, gameState->swapFieldP); 
 				}
@@ -953,7 +968,7 @@ bool drawWaypointInformation(ConsoleField* field, RenderGroup* group, FieldSpec*
 					V2 movement = input->dMouseMeters;
 					double len = length(movement);
 
-					double costPerMeter = 4;
+					double costPerMeter = 2;
 					double maxLengthAfforded = spec->hackEnergy / costPerMeter;
 
 					len = min(maxLengthAfforded, len);
