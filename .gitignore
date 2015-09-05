@@ -3,3 +3,5 @@
 *.txt
 *.sublime-project
 *.sublime-workspace
+.DS_Store
+*.swp

@@ -20,22 +20,28 @@ typedef int32_t bool32;
 typedef int16_t bool16; 
 typedef int8_t bool8; 
 
+#ifdef HACKFORMER_MAC
+    #include <OpenGL/gl3.h>
+    #define STB_IMAGE_IMPLEMENTATION
+    #include "stb_image.h"
+#else 
+    #define USE_GLEW
+    #include "../build/stb_image.h"
+#endif
+
 #include <cstdlib>
 #include <cmath>
 #include <cstdio>
 #include <cassert>
 
-#include "glew.h"
-
-#include "SDL.h"
-#include "SDL_ttf.h"
-#include "SDL_opengl.h"
-#include "SDL_mixer.h"
-
-#if 0
-#define STB_IMAGE_IMPLEMENTATION
+#ifdef USE_GLEW
+#include "GL/glew.h"
 #endif
-#include "../build/stb_image.h"
+
+#include "SDL2/SDL_opengl.h"
+#include "SDL2/SDL.h"
+#include "SDL2_ttf/SDL_ttf.h"
+#include "SDL2_mixer/SDL_mixer.h"
 
 #include "hackformer_math.h"
 #include "hackformer_packBuilder.h"
@@ -147,7 +153,7 @@ struct TileData {
 	AssetId regularId;
 	AssetId glowingId;
 	bool32 tall;
-	char* fileName;
+	const char* fileName;
 };
 
 
@@ -471,13 +477,17 @@ SDL_Window* createWindow(s32 windowWidth, s32 windowHeight) {
 
 	glDisable(GL_DEPTH_TEST);
 
+#ifdef USE_GLEW
 	GLenum glewStatus = glewInit();
 
 	if (glewStatus != GLEW_OK) {
 		fprintf(stderr, "Failed to initialize glew. Error: %s\n", glewGetErrorString(glewStatus));
 		InvalidCodePath;
 	}
+#endif
 
+    glViewport(0, 0, windowWidth*2, windowHeight*2);
+    
 	if (!window) {
 		fprintf(stderr, "Failed to create window. Error: %s", SDL_GetError());
 		InvalidCodePath;
@@ -628,7 +638,7 @@ void drawBackgroundTexture(BackgroundTexture* backgroundTexture, RenderGroup* gr
 
 	double bgTexWidth = (double)bg->size.x;
 	double mgTexWidth = (double)mg->size.x;
-	double mgTexHeight = (double)mg->size.y;
+	//double mgTexHeight = (double)mg->size.y;
 
 	double bgScrollRate = bgTexWidth / mgTexWidth;
 
@@ -745,7 +755,7 @@ void streamStr(IOStream* stream, char* str) {
 		str[len] = 0;
 	}
 	else {
-		s32 len = strlen(str);
+		s32 len = (s32)strlen(str);
 		writeElem_(stream, &len, sizeof(len));
 		writeElem_(stream, str, len);
 	}
@@ -773,7 +783,7 @@ void writeS32(FILE* file, s32 value) {
 
 void writeString(FILE* file, char* value, bool otherMode = false) {
 	fprintf(file, " \"");
-	fprintf(file, value);
+	fprintf(file, "%s", value);
 	fprintf(file, "\" ");
 }
 
@@ -803,7 +813,7 @@ void writeV2(FILE* file, R2 value) {
 
 size_t readSize_t(FILE* file) {
 	size_t result = 0;
-	fscanf (file, "%u", &result);
+	fscanf (file, "%zu", &result);
 
 	return result;  
 }
@@ -853,12 +863,11 @@ s32 readS32(FILE* file) {
 void readString(FILE* file, char* buffer) {
 	char tempBuffer[1024];
 	s32 offset = 0;
-	bool32 firstWord = true;
 
 	while(true) {
 		fscanf (file, "%s", tempBuffer);
 
-		s32 strSize = strlen(tempBuffer); 
+		s32 strSize = (s32)strlen(tempBuffer);
 		memcpy(buffer + offset, tempBuffer, strSize);
 
 		offset += strSize;

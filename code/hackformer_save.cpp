@@ -117,6 +117,9 @@ void streamConsoleField(IOStream* stream, ConsoleField** fieldPtr) {
 			streamElem(stream, field->scanStart);
 			streamElem(stream, field->decreasingScanAngle);
 		} break;
+            
+        default: {
+        } break;
 	}
 
 	streamElem(stream, field->selectedIndex);
@@ -200,7 +203,7 @@ void streamTextureObject_(IOStream* stream, void** nodePtr, void* array, size_t 
 	}
 	else {
 		if(*nodePtr) {
-			s32 index = ((size_t)*nodePtr - (size_t)array) / nodeSize;
+			s32 index = (s32)(((size_t)*nodePtr - (size_t)array) / nodeSize);
 			streamElem(stream, index);
 		}
 		else {
@@ -316,7 +319,7 @@ void streamEntity(IOStream* stream, Entity* entity, s32 entityIndex, bool stream
 			s32 offset = -1;
 
 			if(entity->checkPointSave) {
-				offset = (size_t)entity->checkPointSave - (size_t)gameState->checkPointStorage.base;
+				offset = (s32)((size_t)entity->checkPointSave - (size_t)gameState->checkPointStorage.base);
 			}
 
 			writeElem(stream, offset);

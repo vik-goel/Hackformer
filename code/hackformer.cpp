@@ -292,14 +292,14 @@ void loadLevel(GameState* gameState, s32* mapFileIndex, bool firstLevelLoad, boo
 	{
 		double gravityValues[] = {-9.8, -4.9, 0, 4.9, 9.8};
 		s32 gravityFieldModifyCost = 10;
-		gameState->gravityField = createPrimitiveField(double, gameState, "gravity", gravityValues, arrayCount(gravityValues), 0, gravityFieldModifyCost);
+		gameState->gravityField = createPrimitiveField(double, gameState, (char*)"gravity", gravityValues, arrayCount(gravityValues), 0, gravityFieldModifyCost);
 		gameState->gravityField->p = v2(2.25, gameState->windowSize.y - topFieldYOffset);
 	}
 
 	{
 		double timeValues[] = {0, 0.2, 0.5, 1, 2};
 		s32 timeFieldModifyCost = 10;
-		gameState->timeField = createPrimitiveField(double, gameState, "time", timeValues, arrayCount(timeValues), 3, timeFieldModifyCost);
+		gameState->timeField = createPrimitiveField(double, gameState, (char*)"time", timeValues, arrayCount(timeValues), 3, timeFieldModifyCost);
 		gameState->timeField->p = v2(gameState->windowSize.x - 2.4, gameState->windowSize.y - topFieldYOffset);
 	}
 
@@ -764,7 +764,6 @@ int main(int argc, char* argv[]) {
 
 	RenderGroup* renderGroup = gameState->renderGroup;
 	Input* input = &gameState->input;
-	FieldSpec* spec = &gameState->fieldSpec;
 	Dock* dock = &gameState->dock;
 	PauseMenu* pauseMenu = &gameState->pauseMenu;
 	MainMenu* mainMenu = &gameState->mainMenu;
@@ -800,11 +799,11 @@ int main(int argc, char* argv[]) {
 	u32 currentTime;
 
 	char* saveFilePath = NULL;
-	char* saveFileName = "test_save.txt";
+	char* saveFileName = (char*)"test_save.txt";
 
-	s32 fps = 0;
+	//s32 fps = 0;
 	u32 frameTime = 0;
-	u32 fpsTimer = SDL_GetTicks();
+	//u32 fpsTimer = SDL_GetTicks();
 
 	while(running) {
 		currentTime = SDL_GetTicks();
@@ -1189,9 +1188,9 @@ int main(int argc, char* argv[]) {
 				loadCompleteGame(gameState, saveFilePath);
 			}
 
-			if (input->x.justPressed && false) {
-				gameState->fieldSpec.hackEnergy += 10;
-			}
+//			if (input->x.justPressed) {
+//				gameState->fieldSpec.hackEnergy += 10;
+//			}
 		}
 
 		{ //NOTE: This reloads the game

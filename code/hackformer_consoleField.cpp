@@ -267,6 +267,9 @@ void onAddConsoleFieldToEntity(Entity* entity, ConsoleField* field, bool exchang
 				ignoreAllPenetratingEntities(entity, gameState);
 			}
 		} break;
+        
+        default: {
+        } break;
 	}
 
 	switch(field->type) {
@@ -292,6 +295,9 @@ void onAddConsoleFieldToEntity(Entity* entity, ConsoleField* field, bool exchang
 		case ConsoleField_bodyguard: {
 			entity->startPos = INVALID_START_POS;
 		} break;
+            
+        default: {
+        } break;
 	}
 }
 
@@ -936,11 +942,7 @@ bool drawWaypointInformation(ConsoleField* field, RenderGroup* group, FieldSpec*
 			Waypoint* w = field->curWaypoint;
 			assert(w);
 
-			double alphaDouble = field->childYOffs / getMaxChildYOffset(field, spec) * field->alpha;
-			int alpha = (int)(alphaDouble * 255.0 + 0.5);
-
 			double waypointSize = 0.125;
-			double lineThickness = 0.025;
 			double lineDashSize = 0.3;
 			double lineSpaceSize = lineDashSize * 0.5;
 			double arrowSize = 0.15;
@@ -1056,8 +1058,6 @@ bool drawTileFields(Entity* entity, FieldSpec* spec, GameState* gameState, doubl
 	assert(isTileType(entity));
 
 	bool clickHandled = false;
-
-	Input* input = &gameState->input;
 
 	//NOTE: This draws the first two fields of the tile, xOffset and yOffset,
 	//		differently
