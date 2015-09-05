@@ -9,7 +9,79 @@
 
 struct V2 {
 	double x, y;
+    
+    bool operator==(V2 b) {
+        bool result = (x == b.x) && (y == b.y);
+        return result;
+    }
+    
+    bool operator!=(V2 b) {
+        bool result = x != b.x || y != b.y;
+        return result;
+    }
+    
+    V2 operator+(V2 b) {
+        V2 result = {};
+        
+        result.x = x + b.x;
+        result.y = y + b.y;
+        
+        return result;
+    }
+    
+    V2 operator-() {
+        V2 result = {};
+        
+        result.x = -x;
+        result.y = -y;
+        
+        return result;
+    }
+    
+    V2 operator-(V2 b) {
+        V2 result = {};
+        
+        result.x = x - b.x;
+        result.y = y - b.y;
+        
+        return result;
+    }
+    
+    
+    V2 operator*(double b) {
+        V2 result = {};
+        
+        result.x = x * b;
+        result.y = y * b;
+        
+        return result;
+    }
+    
+    void operator+=(V2 b) {
+        x += b.x;
+        y += b.y;
+    }
+    
+    void operator-=(V2 b) {
+        x -= b.x;
+        y -= b.y;
+    }
+    
+    void operator*=(double b) {
+        x *= b;
+        y *= b;
+    }
 };
+
+void operator*=(double b, V2 a) {
+    a *= b;
+}
+
+V2 operator*(double b, V2 a) {
+    V2 result = {};
+    result = a * b;
+    return result;
+}
 
 struct V3 {
 	union {
@@ -20,7 +92,85 @@ struct V3 {
 	};
 
 	double z;
+    
+    bool operator==(V3 b) {
+        bool result = (x == b.x) && (y == b.y) && (z == b.z);
+        return result;
+    }
+    
+    bool operator!=(V3 b) {
+        bool result = x != b.x || y != b.y || z != b.z;
+        return result;
+    }
+    
+    V3 operator+(V3 b) {
+        V3 result = {};
+        
+        result.x = x + b.x;
+        result.y = y + b.y;
+        result.z = z + b.z;
+        
+        return result;
+    }
+    
+    V3 operator-() {
+        V3 result = {};
+        
+        result.x = -x;
+        result.y = -y;
+        result.z = -z;
+        
+        return result;
+    }
+    
+    V3 operator-(V3 b) {
+        V3 result = {};
+        
+        result.x = x - b.x;
+        result.y = y - b.y;
+        result.z = z - b.z;
+        
+        return result;
+    }
+    
+    V3 operator*(double b) {
+        V3 result = {};
+        
+        result.x = x * b;
+        result.y = y * b;
+        result.z = z * b;
+        
+        return result;
+    }
+    
+    void operator+=(V3 b) {
+        x += b.x;
+        y += b.y;
+        z += b.z;
+    }
+    
+    void operator-=(V3 b) {
+        x -= b.x;
+        y -= b.y;
+        z -= b.z;
+    }
+    
+    void operator*=(double b) {
+        x *= b;
+        y *= b;
+        z *= b;
+    }
 };
+
+V3 operator*(double b, V3 a) {
+    V3 result = {};
+    result = a * b;
+    return result;
+}
+
+void operator*=(double b, V3 a) {
+    a *= b;
+}
 
 struct R2 {
 	V2 min;
@@ -30,7 +180,7 @@ struct R2 {
 //NOTE: Scalar operations here
 
 bool epsilonEquals(double a, double b, double epsilon) {
-	bool result = abs(a - b) <= epsilon;
+	bool result = fabs(a - b) <= epsilon;
 	return result;
 }
 
@@ -104,8 +254,8 @@ double clampPeriodicBetween(double value, double minValue, double maxValue, bool
 		value = clamp(value, minValue, maxValue, changed);
 	}
 	else if(value < minValue && value > maxValue) {
-		double minDst = abs(value - minValue);
-		double maxDst = abs(value - maxValue);
+		double minDst = fabs(value - minValue);
+		double maxDst = fabs(value - maxValue);
 
 		if(minDst < maxDst) {
 			value = minValue;
@@ -192,88 +342,17 @@ V2 v2(double x, double y) {
 }
 
 bool epsilonEquals(V2 a, V2 b, double epsilon) {
-	bool result = abs(a.x - b.x) < epsilon && abs(a.y - b.y) < epsilon;
+	bool result = fabs(a.x - b.x) < epsilon && fabs(a.y - b.y) < epsilon;
 	return result;
 }
 
-bool operator==(V2 &a, V2 &b) {
-	bool result = (a.x == b.x) && (a.y == b.y);
-	return result;
-}
-
-bool operator!=(V2 &a, V2 &b) {
-	bool result = !(a == b);
-	return result;
-}
-
-V2 operator+(V2 &a, V2 &b) {
-	V2 result = {};
-
-	result.x = a.x + b.x;
-	result.y = a.y + b.y;
-
-	return result;
-}
-
-V2 operator-(V2 &a) {
-	V2 result = {};
-
-	result.x = -a.x;
-	result.y = -a.y;
-
-	return result;
-}
-
-V2 operator-(V2 &a, V2 &b) {
-	V2 result = {};
-
-	result.x = a.x - b.x;
-	result.y = a.y - b.y;
-
-	return result;
-}
-
-V2 hadamard(V2 &a, V2& b) {
+V2 hadamard(V2 a, V2 b) {
 	V2 result = {};
 
 	result.x = a.x * b.x;
 	result.y = a.y * b.y;
 
 	return result;
-}
-
-V2 operator*(V2 &a, double b) {
-	V2 result = {};
-
-	result.x = a.x * b;
-	result.y = a.y * b;
-
-	return result;
-}
-
-V2 operator*(double b, V2 &a) {
-	V2 result = {};
-	result = a * b;
-	return result;
-}
-
-void operator+=(V2 &a, V2 &b) {
-	a.x += b.x;
-	a.y += b.y;
-}
-
-void operator-=(V2 &a, V2 &b) {
-	a.x -= b.x;
-	a.y -= b.y;
-}
-
-void operator*=(V2 &a, double b) {
-	a.x *= b;
-	a.y *= b;
-}
-
-void operator*=(double b, V2 &a) {
-	a *= b;
 }
 
 double lengthSq(V2 a) {
@@ -434,96 +513,18 @@ V3 v3(V2 xy, double z) {
 }
 
 bool epsilonEquals(V3 a, V3 b, double epsilon) {
-	bool result = abs(a.x - b.x) < epsilon && abs(a.y - b.y) < epsilon && abs(a.z - b.z) < epsilon;
+	bool result = fabs(a.x - b.x) < epsilon && fabs(a.y - b.y) < epsilon && fabs(a.z - b.z) < epsilon;
 	return result;
 }
 
-bool operator==(V3 &a, V3 &b) {
-	bool result = (a.x == b.x) && (a.y == b.y) && (a.z == b.z);
-	return result;
-}
-
-bool operator!=(V3 &a, V3 &b) {
-	bool result = !(a == b);
-	return result;
-}
-
-V3 operator+(V3 &a, V3 &b) {
-	V3 result = {};
-
-	result.x = a.x + b.x;
-	result.y = a.y + b.y;
-	result.z = a.z + b.z;
-
-	return result;
-}
-
-V3 operator-(V3 &a) {
-	V3 result = {};
-
-	result.x = -a.x;
-	result.y = -a.y;
-	result.z = -a.z;
-
-	return result;
-}
-
-V3 operator-(V3 &a, V3 &b) {
-	V3 result = {};
-
-	result.x = a.x - b.x;
-	result.y = a.y - b.y;
-	result.z = a.z - b.z;
-
-	return result;
-}
-
-V3 hadamard(V3 &a, V3& b) {
-	V3 result = {};
-
-	result.x = a.x * b.x;
-	result.y = a.y * b.y;
-	result.z = a.z * b.z;
-
-	return result;
-}
-
-V3 operator*(V3 &a, double b) {
-	V3 result = {};
-
-	result.x = a.x * b;
-	result.y = a.y * b;
-	result.z = a.z * b;
-
-	return result;
-}
-
-V3 operator*(double b, V3 &a) {
-	V3 result = {};
-	result = a * b;
-	return result;
-}
-
-void operator+=(V3 &a, V3 &b) {
-	a.x += b.x;
-	a.y += b.y;
-	a.z += b.z;
-}
-
-void operator-=(V3 &a, V3 &b) {
-	a.x -= b.x;
-	a.y -= b.y;
-	a.z -= b.z;
-}
-
-void operator*=(V3 &a, double b) {
-	a.x *= b;
-	a.y *= b;
-	a.z *= b;
-}
-
-void operator*=(double b, V3 &a) {
-	a *= b;
+V3 hadamard(V3 a, V3 b) {
+    V3 result = {};
+    
+    result.x = a.x * b.x;
+    result.y = a.y * b.y;
+    result.z = a.z * b.z;
+    
+    return result;
 }
 
 double lengthSq(V3 a) {
@@ -630,8 +631,8 @@ R2 scaleRect(R2 rect, V2 amt) {
 	V2 originalSize = getRectSize(rect);
 	V2 scaledSize = hadamard(originalSize, amt);
 
-	scaledSize.x = abs(scaledSize.x);
-	scaledSize.y = abs(scaledSize.y);
+	scaledSize.x = fabs(scaledSize.x);
+	scaledSize.y = fabs(scaledSize.y);
 
 	V2 center = getRectCenter(rect);
 

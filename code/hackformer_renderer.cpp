@@ -106,10 +106,11 @@ ForwardShader createForwardShader(RenderGroup* group, V2 windowSize) {
 
 	result.ambientUniform = glGetUniformLocation(result.shader.program, "ambient");
 
-	char* uniformPrefix = "pointLights[";
 	char uniformName[128];
 
 	for(s32 lightIndex = 0; lightIndex < arrayCount(result.pointLightUniforms); lightIndex++) {
+        const char* uniformPrefix = "pointLights[";
+        
 		PointLightUniforms* lightUniforms = result.pointLightUniforms + lightIndex;
 
 		sprintf(uniformName, "%s%d].p", uniformPrefix, lightIndex);
@@ -122,9 +123,9 @@ ForwardShader createForwardShader(RenderGroup* group, V2 windowSize) {
 		lightUniforms->range = glGetUniformLocation(result.shader.program, uniformName);
 	}
 
-	uniformPrefix = "spotLights[";
-
 	for(s32 lightIndex = 0; lightIndex < arrayCount(result.spotLightUniforms); lightIndex++) {
+        const char* uniformPrefix = "spotLights[";
+        
 		SpotLightUniforms* lightUniforms = result.spotLightUniforms + lightIndex;
 
 		sprintf(uniformName, "%s%d].base.p", uniformPrefix, lightIndex);
@@ -255,7 +256,7 @@ TTF_Font* loadFont(RenderGroup* group, AssetId id, s32 fontSize, MemoryArena* ar
 	TTF_Font* font = TTF_OpenFontRW(readStream, 0, fontSize);
 
 	if (!font) {
-		const char* error = TTF_GetError();
+		//const char* error = TTF_GetError();
 		fprintf(stderr, "Failed to load font with id: %d\n", id);
 		InvalidCodePath;
 	}
@@ -446,10 +447,10 @@ void bindShader(RenderGroup* group, Shader* shader) {
 }
 
 void setClipRect(double pixelsPerMeter, R2 rect) {
-	GLint x = (GLint)(rect.min.x * pixelsPerMeter);
-	GLint y = (GLint)(rect.min.y * pixelsPerMeter);
-	GLsizei width = (GLsizei)(getRectWidth(rect) * pixelsPerMeter);
-	GLsizei height = (GLsizei)(getRectHeight(rect) * pixelsPerMeter);
+	GLint x = (GLint)(rect.min.x * pixelsPerMeter)*2;
+	GLint y = (GLint)(rect.min.y * pixelsPerMeter)*2;
+	GLsizei width = (GLsizei)(getRectWidth(rect) * pixelsPerMeter)*2;
+	GLsizei height = (GLsizei)(getRectHeight(rect) * pixelsPerMeter)*2;
 
 	glEnable(GL_SCISSOR_TEST);
 	glScissor(x, y, width, height);
@@ -602,7 +603,7 @@ RenderGroup* createRenderGroup(size_t size, MemoryArena* arena, double pixelsPer
 	return result;
 }
 
-void sendTexCoord(V2 uvMin, V2 uvMax, s32 orientation) {
+void sendTexCoord(V2 uvMin, V2 uvMax, s32 orientation) {    
 	switch(orientation) {
 		case Orientation_0: {
 			glTexCoord2f((GLfloat)uvMax.x, (GLfloat)uvMax.y); 
@@ -816,8 +817,6 @@ void drawFillQuad(RenderGroup* group, V2 p1, V2 p2, V2 p3, V2 p4) {
 
 void drawOutlinedRect(RenderGroup* group, R2 rect, Color color, double thickness) {
 	V2 halfThickness = v2(thickness, thickness) * 0.5;
-	double width = getRectWidth(rect);
-	double height = getRectHeight(rect);
 
 	V2 bottomMinCorner = rect.min - halfThickness;
 	V2 bottomMaxCorner = v2(rect.max.x, rect.min.y) + halfThickness;
@@ -1511,8 +1510,6 @@ s32 renderElemCompare(const void* a, const void* b) {
 }
 
 bool isPointLightVisible(RenderGroup* group, PointLight* light) {
-	double colorDepth = 1.0 / 256.0;
-
 	R2 maxLightBounds = addRadiusTo(group->windowBounds, v2(1, 1) * light->range);
 
 	//TODO: Account for z
@@ -1592,7 +1589,7 @@ void drawRenderGroup(RenderGroup* group, FieldSpec* fieldSpec) {
 		drawRenderElem(group, fieldSpec, elemPtr, group->ambient, false);
 	}
 
-	u32 groupByteIndex = group->sortAddressCutoff;
+	size_t groupByteIndex = group->sortAddressCutoff;
 
 	bindShader(group, &group->basicShader);
 

@@ -303,8 +303,8 @@ void storeEntityReferenceInFreeList(EntityReference* reference, GameState* gameS
 void freeEntityReference(EntityReference* reference, GameState* gameState) {
 	EntityReference* nextReference = reference->next;	
 
-	if (reference->next) {
-		storeEntityReferenceInFreeList(reference->next, gameState);
+	if (nextReference) {
+		storeEntityReferenceInFreeList(nextReference, gameState);
 	}
 
 	reference->entity = NULL;
@@ -825,7 +825,7 @@ void removeFieldsIfSet(ConsoleField** fields, s32* numFields) {
 	for (s32 fieldIndex = 0; fieldIndex < *numFields; fieldIndex++) {
 		ConsoleField* field = fields[fieldIndex];
 
-		if (field->children) {
+		if (field->numChildren) {
 			removeFieldsIfSet(field->children, &field->numChildren);
 		}
 
@@ -873,26 +873,26 @@ void addChildToConsoleField(ConsoleField* parent, ConsoleField* child) {
 }
 
 void addKeyboardField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "keyboard_controlled", ConsoleField_keyboardControlled, 5);
+	ConsoleField* result = createConsoleField(gameState, (char*)"keyboard_controlled", ConsoleField_keyboardControlled, 5);
 
 	double keyboardSpeedFieldValues[] = {25, 40, 50, 60, 75}; 
 	double keyboardJumpHeightFieldValues[] = {2, 3.5, 5, 6.5, 8}; 
 
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", keyboardSpeedFieldValues, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"speed", keyboardSpeedFieldValues,
 												   arrayCount(keyboardSpeedFieldValues), 2, 3));
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "jump_height", keyboardJumpHeightFieldValues, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"jump_height", keyboardJumpHeightFieldValues,
 													    arrayCount(keyboardJumpHeightFieldValues), 2, 4));
-	addChildToConsoleField(result, createBoolField(gameState, "double_jump", false, 8));
+	addChildToConsoleField(result, createBoolField(gameState, (char*)"double_jump", false, 8));
 
 	addField(entity, result);
 }
 
 void addBodyguardField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "bodyguard", ConsoleField_bodyguard, 10);
+	ConsoleField* result = createConsoleField(gameState, (char*)"bodyguard", ConsoleField_bodyguard, 10);
 
 	double speedFieldValues[] = {0, 2, 4, 6, 8}; 
 
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", speedFieldValues, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"speed", speedFieldValues,
 												   arrayCount(speedFieldValues), 2, 1));
 
 	entity->startPos = INVALID_START_POS;
@@ -901,51 +901,51 @@ void addBodyguardField(Entity* entity, GameState* gameState) {
 }
 
 void addCrushesEntitiesField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "crushes_entities", ConsoleField_crushesEntities, 20);
+	ConsoleField* result = createConsoleField(gameState, (char*)"crushes_entities", ConsoleField_crushesEntities, 20);
 	addField(entity, result);
 }
 
 void addDisappearsField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "disappears_on_hit", ConsoleField_disappearsOnHit, 10);
+	ConsoleField* result = createConsoleField(gameState, (char*)"disappears_on_hit", ConsoleField_disappearsOnHit, 10);
 
 	double time[] = {0.1, 0.25, 0.5, 1, 1.5}; 
 
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "disappear_time", time, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"disappear_time", time,
 												   arrayCount(time), 2, 1));
 
 	addField(entity, result);
 }
 
 void addDroppingField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "drops_on_hit", ConsoleField_dropsOnHit, 10);
+	ConsoleField* result = createConsoleField(gameState, (char*)"drops_on_hit", ConsoleField_dropsOnHit, 10);
 
 	addField(entity, result);
 }
 
 void addCloaksField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "cloaks", ConsoleField_cloaks, 10);
+	ConsoleField* result = createConsoleField(gameState, (char*)"cloaks", ConsoleField_cloaks, 10);
 
 	double cloakTime[] = {0.1, 0.5, 1, 1.5, 2}; 
 	double uncloakTime[] = {0.1, 0.5, 1, 1.5, 2}; 
 
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "cloak_time", cloakTime, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"cloak_time", cloakTime,
 												   arrayCount(cloakTime), 2, 1));
 
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "uncloak_time", uncloakTime, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"uncloak_time", uncloakTime,
 											   arrayCount(uncloakTime), 2, 1));
 
 	addField(entity, result);
 }
 
 void addBobsVerticallyField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "bobs_vertically", ConsoleField_bobsVertically, 4);
+	ConsoleField* result = createConsoleField(gameState, (char*)"bobs_vertically", ConsoleField_bobsVertically, 4);
 
 	double speedFieldValues[] = {0, 1.5, 3, 4.5, 6}; 
 	double maxBobHeight[] = {0, 0.5, 1, 1.5, 2}; 
 
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", speedFieldValues, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"speed", speedFieldValues,
 												   arrayCount(speedFieldValues), 2, 1));
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "max_bob_height", maxBobHeight, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"max_bob_height", maxBobHeight,
 													    arrayCount(maxBobHeight), 2, 1));
 
 	result->bobbingUp = true;
@@ -955,11 +955,11 @@ void addBobsVerticallyField(Entity* entity, GameState* gameState) {
 }
 
 void addPatrolField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "patrols", ConsoleField_movesBackAndForth, 3);
+	ConsoleField* result = createConsoleField(gameState, (char*)"patrols", ConsoleField_movesBackAndForth, 3);
 
 	double patrolSpeedFieldValues[] = {0, 20, 40, 60, 80}; 
 	
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", patrolSpeedFieldValues, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"speed", patrolSpeedFieldValues,
 	 											   arrayCount(patrolSpeedFieldValues), 2, 1));
 
 	//addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
@@ -968,15 +968,15 @@ void addPatrolField(Entity* entity, GameState* gameState) {
 }
 
 void addScansForTargetsField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "scans_for_targets", ConsoleField_scansForTargets, 10);
+	ConsoleField* result = createConsoleField(gameState, (char*)"scans_for_targets", ConsoleField_scansForTargets, 10);
 
 	double scanSpeed[] = {0, 45, 90, 135, 180};
 	s32 scanFOV[] = {0, 45, 90, 135, 180, 225, 270, 315, 360}; 
 	
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "scan_speed", scanSpeed, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"scan_speed", scanSpeed,
 	 											   arrayCount(scanSpeed), 2, 1));
 
-	addChildToConsoleField(result, createPrimitiveField(s32, gameState, "swivel_extent", scanFOV, 
+	addChildToConsoleField(result, createPrimitiveField(s32, gameState, (char*)"swivel_extent", scanFOV,
  											   arrayCount(scanFOV), 3, 1));
 
 	result->scanStart = entity->spotLightAngle;
@@ -985,14 +985,14 @@ void addScansForTargetsField(Entity* entity, GameState* gameState) {
 }
 
 void addSeekTargetField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "seeks_target", ConsoleField_seeksTarget, 3);
+	ConsoleField* result = createConsoleField(gameState, (char*)"seeks_target", ConsoleField_seeksTarget, 3);
 
 	double seekTargetSpeedFieldValues[] = {5, 10, 15, 20, 25}; 
 	double seekTargetRadiusFieldValues[] = {4, 8, 12, 16, 20}; 
 	
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", seekTargetSpeedFieldValues, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"speed", seekTargetSpeedFieldValues,
 	 												    arrayCount(seekTargetSpeedFieldValues), 2, 1));
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "sight_radius", seekTargetRadiusFieldValues, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"sight_radius", seekTargetRadiusFieldValues,
 													    arrayCount(seekTargetRadiusFieldValues), 2, 2));
 	//addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
 
@@ -1008,15 +1008,15 @@ Waypoint* createWaypoint(GameState* gameState, V2 p, Waypoint* next = NULL) {
 }
 
 ConsoleField* addFollowsWaypointsField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "follows_waypoints", ConsoleField_followsWaypoints, 3);
+	ConsoleField* result = createConsoleField(gameState, (char*)"follows_waypoints", ConsoleField_followsWaypoints, 3);
 
 	double followsWaypointsSpeedFieldValues[] = {1, 2, 3, 4, 5}; 
 	double waypointDelays[] = {0, 0.5, 1, 1.5, 2};
 	
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "speed", followsWaypointsSpeedFieldValues, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"speed", followsWaypointsSpeedFieldValues,
 	 												    arrayCount(followsWaypointsSpeedFieldValues), 2, 1));
 	//addChildToConsoleField(result, createEnumField(Alertness, gameState, "alertness", Alertness_patrolling, 5));
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "waypoint_delay", waypointDelays, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"waypoint_delay", waypointDelays,
 	 												    arrayCount(waypointDelays), 2, 1));
 
 	result->curWaypoint = NULL;
@@ -1028,23 +1028,23 @@ ConsoleField* addFollowsWaypointsField(Entity* entity, GameState* gameState) {
 }
 
 void addGivesEnergyField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "gives_energy", ConsoleField_givesEnergy, 1);
+	ConsoleField* result = createConsoleField(gameState, (char*)"gives_energy", ConsoleField_givesEnergy, 1);
 
-	addChildToConsoleField(result, createUnlimitedIntField(gameState, "amount", 5, 1));
+	addChildToConsoleField(result, createUnlimitedIntField(gameState, (char*)"amount", 5, 1));
 
 	addField(entity, result);
 }
 
 void addSpawnsTrawlersField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "spawns_trawlers", ConsoleField_spawnsTrawlers, 20);
+	ConsoleField* result = createConsoleField(gameState, (char*)"spawns_trawlers", ConsoleField_spawnsTrawlers, 20);
 
 	double spawnDelays[] = {0.25, 0.5, 1, 2, 3};
 	s32 spawnLimits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "spawn_delay", spawnDelays, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"spawn_delay", spawnDelays,
  												    arrayCount(spawnDelays), 2, 4));
 
-	addChildToConsoleField(result, createPrimitiveField(s32, gameState, "spawn_limit", spawnLimits, 
+	addChildToConsoleField(result, createPrimitiveField(s32, gameState, (char*)"spawn_limit", spawnLimits,
 												    arrayCount(spawnLimits), 3, 4));
 
 	result->spawnTimer = getDoubleValue(result->children[0]);
@@ -1053,15 +1053,15 @@ void addSpawnsTrawlersField(Entity* entity, GameState* gameState) {
 }
 
 void addSpawnsShrikesField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "spawns_shrikes", ConsoleField_spawnsShrikes, 20);
+	ConsoleField* result = createConsoleField(gameState, (char*)"spawns_shrikes", ConsoleField_spawnsShrikes, 20);
 
 	double spawnDelays[] = {0.25, 0.5, 1, 2, 3};
 	s32 spawnLimits[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "spawn_delay", spawnDelays, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"spawn_delay", spawnDelays,
  												    arrayCount(spawnDelays), 2, 4));
 
-	addChildToConsoleField(result, createPrimitiveField(s32, gameState, "spawn_limit", spawnLimits, 
+	addChildToConsoleField(result, createPrimitiveField(s32, gameState, (char*)"spawn_limit", spawnLimits,
 												    arrayCount(spawnLimits), 3, 4));
 
 	result->spawnTimer = getDoubleValue(result->children[0]);
@@ -1070,7 +1070,7 @@ void addSpawnsShrikesField(Entity* entity, GameState* gameState) {
 }
 
 void addShootField(Entity* entity, GameState* gameState, double speedModifier, EntityType type) {
-	ConsoleField* result = createConsoleField(gameState, "shoots_at_target", ConsoleField_shootsAtTarget, 4);
+	ConsoleField* result = createConsoleField(gameState, (char*)"shoots_at_target", ConsoleField_shootsAtTarget, 4);
 
 	double bulletSpeedFieldValues[] = {2, 4, 6, 8, 10}; 
 	double sightRadii[] = {1, 2, 3, 4, 5};
@@ -1079,10 +1079,10 @@ void addShootField(Entity* entity, GameState* gameState, double speedModifier, E
 		bulletSpeedFieldValues[i] *= speedModifier;
 	}
 
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "bullet_speed", bulletSpeedFieldValues, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"bullet_speed", bulletSpeedFieldValues,
 													    arrayCount(bulletSpeedFieldValues), 2, 1));
 
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "detect_radius", sightRadii, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"detect_radius", sightRadii,
 													    arrayCount(sightRadii), 2, 1));
 
 	result->shootEntityType = type;
@@ -1091,42 +1091,42 @@ void addShootField(Entity* entity, GameState* gameState, double speedModifier, E
 }
 
 void addSpotlightField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "spotlight", ConsoleField_spotlight, 15);
+	ConsoleField* result = createConsoleField(gameState, (char*)"spotlight", ConsoleField_spotlight, 15);
 
 	double sightRadii[] = {2, 5, 7, 9, 12};
 	double fovs[] = {30, 45, 60, 75, 90};
 	
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "sight_radius", sightRadii, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"sight_radius", sightRadii,
 													    arrayCount(sightRadii), 2, 2));
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "field_of_view", fovs, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"field_of_view", fovs,
 													    arrayCount(fovs), 2, 1));
 	addField(entity, result);
 }
 
 void addLightField(Entity* entity, GameState* gameState, V3 color) {
-	ConsoleField* result = createConsoleField(gameState, "light", ConsoleField_light, 3);
+	ConsoleField* result = createConsoleField(gameState, (char*)"light", ConsoleField_light, 3);
 
 	result->lightColor = color;
 
 	double radii[] = {1.5, 3, 4.5, 6, 7.5};
 	
-	addChildToConsoleField(result, createPrimitiveField(double, gameState, "radius", radii, 
+	addChildToConsoleField(result, createPrimitiveField(double, gameState, (char*)"radius", radii,
 													    arrayCount(radii), 2, 2));
 
-	addChildToConsoleField(result, createBoolField(gameState, "enabled", true, 4));
+	addChildToConsoleField(result, createBoolField(gameState, (char*)"enabled", true, 4));
 
 	addField(entity, result);
 }
 
 void addIsTargetField(Entity* entity, GameState* gameState) {
-	ConsoleField* field = createConsoleField(gameState, "is_target", ConsoleField_isShootTarget, 60);
+	ConsoleField* field = createConsoleField(gameState, (char*)"is_target", ConsoleField_isShootTarget, 60);
 
 	addField(entity, field);
 	addTargetRef(entity->ref, gameState);
 }
 
 void addGuardTargetField(Entity* entity, GameState* gameState) {
-	ConsoleField* result = createConsoleField(gameState, "guarded", ConsoleField_guarded, 30);
+	ConsoleField* result = createConsoleField(gameState, (char*)"guarded", ConsoleField_guarded, 30);
 
 	addField(entity, result);
 	addGuardedTargetRef(entity->ref, gameState);
@@ -1174,7 +1174,7 @@ Entity* addPlayer(GameState* gameState, V2 p) {
 
 	addKeyboardField(result, gameState);
 	
-	addField(result, createConsoleField(gameState, "camera_followed", ConsoleField_cameraFollows, 2));
+	addField(result, createConsoleField(gameState, (char*)"camera_followed", ConsoleField_cameraFollows, 2));
 	addIsTargetField(result, gameState);
 
 	result->characterAnim = gameState->playerAnim;
@@ -1213,7 +1213,7 @@ Entity* addCheckPoint(GameState* gameState, V2 p) {
 	result->defaultTex = gameState->checkPointUnreached;
 	result->emissivity = 1;
 
-	addField(result, createBoolField(gameState, "reached", false, 5));
+	addField(result, createBoolField(gameState, (char*)"reached", false, 5));
 
 	return result;
 }
@@ -1256,7 +1256,7 @@ Entity* addEndPortal(GameState* gameState, V2 p, bool loadSameLevel) {
 	if(loadSameLevel) {
 		result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
 		setFlags(result, EntityFlag_hackable);
-		addField(result, createBoolField(gameState, "load_same_level", loadSameLevel, 1));
+		addField(result, createBoolField(gameState, (char*)"load_same_level", loadSameLevel, 1));
 	}
 
 	result->defaultTex = gameState->endPortal;
@@ -1272,8 +1272,8 @@ Entity* addPickupField(GameState* gameState, Entity* parent, ConsoleField* field
 	result->clickBox = rectCenterDiameter(v2(0, 0), result->renderSize);
 
 	addField(result, field);
-	addField(result, createBoolField(gameState, "solid", false, 1));
-	addField(result, createBoolField(gameState, "can_pickup", false, 1));
+	addField(result, createBoolField(gameState, (char*)"solid", false, 1));
+	addField(result, createBoolField(gameState, (char*)"can_pickup", false, 1));
 
 	result->emissivity = 1.0f;
 	setFlags(result, EntityFlag_removeWhenOutsideLevel|
@@ -1352,8 +1352,8 @@ Hitbox getTileHitboxWithoutOverhang(Entity* entity) {
 void initTile(Entity* tile, GameState* gameState, s32 tileIndex, bool32 flipX, bool32 flipY, bool ignoresGravity) {
 	setFlags(tile, EntityFlag_hackable);
 
-	addField(tile, createUnlimitedIntField(gameState, "x_offset", 0, 1));
-	addField(tile, createUnlimitedIntField(gameState, "y_offset", 0, 1));
+	addField(tile, createUnlimitedIntField(gameState, (char*)"x_offset", 0, 1));
+	addField(tile, createUnlimitedIntField(gameState, (char*)"y_offset", 0, 1));
 
 	if(ignoresGravity) {
 		setFlags(tile, EntityFlag_noMovementByDefault);
@@ -1477,7 +1477,7 @@ Entity* addText(GameState* gameState, V2 p, Messages* messages) {
 					 EntityFlag_hackable);
 
 	s32 selectedIndexValues[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-	addField(result, createPrimitiveField(s32, gameState, "selected_index", selectedIndexValues, messages->count,
+	addField(result, createPrimitiveField(s32, gameState, (char*)"selected_index", selectedIndexValues, messages->count,
 										 messages->selectedIndex, 1));
 
 
@@ -1498,7 +1498,7 @@ void initProjectile(Entity* entity, V2 target, s32 shooterRef, double speed, Tex
 	setFlags(entity, EntityFlag_removeWhenOutsideLevel|
 					 EntityFlag_hackable);
 
-	addField(entity, createConsoleField(gameState, "kills_enemies", ConsoleField_killsOnHit, 5));
+	addField(entity, createConsoleField(gameState, (char*)"kills_enemies", ConsoleField_killsOnHit, 5));
 
 	entity->defaultTex = texture;
 }
@@ -1628,7 +1628,7 @@ Entity* addMotherShipProjectileDeath(GameState* gameState, Entity* motherShipPro
 Entity* addLaserBase_(GameState* gameState, V2 baseP, double height) {
 	Entity* result = addEntity(gameState, EntityType_laserBase, DrawOrder_laserBase, baseP, v2(0.9, 0.65));
 
-	addField(result, createBoolField(gameState, "enabled", true, 2));
+	addField(result, createBoolField(gameState, (char*)"enabled", true, 2));
 	addPatrolField(result, gameState);
 
 	giveEntityRectangularCollisionBounds(result, gameState, 0, 0, result->renderSize.x, result->renderSize.y);
@@ -1673,10 +1673,10 @@ Entity* addLaserController(GameState* gameState, V2 baseP, double height) {
 	//		and the other laser pieces)
 
 	Entity* base = addLaserBase_(gameState, baseP, height);
-	V2 topP = baseP + v2(0, height);
+	//V2 topP = baseP + v2(0, height);
 	// Entity* top = addLaserPiece_(gameState, topP, false);
 
-	V2 p = (baseP + topP) * 0.5;
+	//V2 p = (baseP + topP) * 0.5;
 
 	V2 laserSize = v2(base->renderSize.x, height - base->renderSize.y / 2);
 	V2 laserP = base->p + v2(0, height / 2);
@@ -2581,8 +2581,7 @@ void ignoreAllPenetratingEntities(Entity* entity, GameState* gameState) {
 
 	getCollisionTime(entity, gameState, delta, false, 1, true);
 
-	RefNode* ref = entity->ignorePenetrationList;
-	s32 breakHere = 5;
+//	RefNode* ref = entity->ignorePenetrationList;
 
 	// NOTE: Most of this code is pasted from getCollisionTime
 	// s32 partitionCenterX = (s32)(entity->p.x / gameState->chunkSize.x);
@@ -2709,10 +2708,6 @@ void projectPointOntoHitbox(V2 point, Hitbox* hitbox, V2 hitboxOffset, V2 direct
 void getPolygonCollisionTime(Hitbox* moving, Hitbox* fixed, Entity* movingEntity, Entity* fixedEntity, GameState* gameState,
 							 GetCollisionTimeResult* result, V2 delta, bool solidCollision) {
 
-	if(movingEntity->type == EntityType_tile && getMovementField(movingEntity)) {
-		s32 breakHere = 5;
-	}
-
 	V2 movingOffset = getHitboxCenter(moving, movingEntity);
 	V2 fixedOffset = getHitboxCenter(fixed, fixedEntity);
 
@@ -2783,7 +2778,7 @@ GetCollisionTimeResult getCollisionTime(Entity* entity, GameState* gameState, V2
 
 							while(colliderHitboxList) {
 								R2 colliderHitbox = getBoundingBox(collider, colliderHitboxList);
-								R2 paddedColliderHitbox = addRadiusTo(colliderHitbox, v2(abs(delta.x), abs(delta.y)));
+								R2 paddedColliderHitbox = addRadiusTo(colliderHitbox, v2(fabs(delta.x), fabs(delta.y)));
 
 								Hitbox* entityHitboxList = entity->hitboxes;
 
@@ -2904,7 +2899,6 @@ V2 moveRaw(Entity* entity, GameState* gameState, V2 delta, V2* ddP, double rotat
 
 	for (s32 moveIteration = 0; moveIteration < 4 && remainingCollisionTime > 0; moveIteration++) {
 		if(delta == v2(0, 0)) break;
-		V2 loopStartP = entity->p;
 
 		GetCollisionTimeResult collisionResult = getCollisionTime(entity, gameState, delta, true, remainingCollisionTime);
 		assert(collisionResult.collisionTime >= 0 && collisionResult.collisionTime <= remainingCollisionTime);
@@ -3370,7 +3364,6 @@ V2 computePath(GameState* gameState, Entity* start, Entity* goal) {
 			}
 
 			if (current == goalNode) {
-				V2 prevPoint = goal->p;
 				PathNode* node = current;
 				PathNode* prevNode = NULL;
 
@@ -3614,7 +3607,7 @@ Entity* getClosestTargetInSight(Entity* entity, GameState* gameState, double sig
 
 	RefNode* targetNode = gameState->targetRefs;
 	Entity* target = NULL;
-	double targetDst;
+	double targetDst = 0;
 
 	while(targetNode) {
 		Entity* testTarget = getEntityByRef(gameState, targetNode->ref);
@@ -3786,6 +3779,8 @@ bool shootBasedOnShootingField(Entity* entity, GameState* gameState, double dt, 
 						case EntityType_motherShip:
 							spawnOffset = v2(0, -1.75);
 							break;
+                        default: {
+                        } break;
 					}
 
 					if (isSet(entity, EntityFlag_facesLeft)) {
@@ -4264,7 +4259,7 @@ void moveEntityBasedOnMovementField(Entity* entity, GameState* gameState, double
 
 	if(defaultMove) {
 		if(isProjectile(entity) ||
-		   entity->type == EntityType_heavyTile && entity->startPos != entity->p) {
+		   (entity->type == EntityType_heavyTile && entity->startPos != entity->p)) {
 			ddP.y = 0;
 		} 
 
@@ -4469,6 +4464,9 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 					#endif
 					}
 				} break;
+                    
+                default: {
+                } break;
 			}
 		}
 
@@ -4863,6 +4861,8 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 			// 	entity->rotation = entity->spotLightAngle + PI / 2.0;
 			// } break;
 
+            default: {
+            } break;
 		} //End of switch statement on entity type
 
 
@@ -4988,7 +4988,7 @@ void updateAndRenderEntities(GameState* gameState, double dtForFrame) {
 					else if(isSet(entity, EntityFlag_jumped) && characterAnim->jump) {
 						entity->nextAnim = characterAnim->jump;
 					}
-					else if(abs(entity->dP.x) > 0.1f && characterAnim->walk) {
+					else if(fabs(entity->dP.x) > 0.1f && characterAnim->walk) {
 						entity->nextAnim = characterAnim->walk;
 					}
 					else if (characterAnim->stand) {
