@@ -447,10 +447,17 @@ void bindShader(RenderGroup* group, Shader* shader) {
 }
 
 void setClipRect(double pixelsPerMeter, R2 rect) {
-	GLint x = (GLint)(rect.min.x * pixelsPerMeter)*2;
-	GLint y = (GLint)(rect.min.y * pixelsPerMeter)*2;
-	GLsizei width = (GLsizei)(getRectWidth(rect) * pixelsPerMeter)*2;
-	GLsizei height = (GLsizei)(getRectHeight(rect) * pixelsPerMeter)*2;
+	GLint x = (GLint)(rect.min.x * pixelsPerMeter);
+	GLint y = (GLint)(rect.min.y * pixelsPerMeter);
+	GLsizei width = (GLsizei)(getRectWidth(rect) * pixelsPerMeter);
+	GLsizei height = (GLsizei)(getRectHeight(rect) * pixelsPerMeter);
+
+	#ifdef HACKFORMER_MAC
+		x *= 2;
+		y *= 2;
+		width *= 2;
+		height *= 2;
+	#endif
 
 	glEnable(GL_SCISSOR_TEST);
 	glScissor(x, y, width, height);

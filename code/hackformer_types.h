@@ -486,8 +486,12 @@ SDL_Window* createWindow(s32 windowWidth, s32 windowHeight) {
 	}
 #endif
 
+#ifdef HACKFORMER_MAC
     glViewport(0, 0, windowWidth*2, windowHeight*2);
-    
+#else    
+    glViewport(0, 0, windowWidth, windowHeight);
+#endif
+
 	if (!window) {
 		fprintf(stderr, "Failed to create window. Error: %s", SDL_GetError());
 		InvalidCodePath;
