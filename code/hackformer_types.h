@@ -220,9 +220,7 @@ void initAssets(Assets* assets) {
 	assets->assetFileHandle = SDL_RWFromFile("assets.bin", "rb");
 	assert(assets->assetFileHandle);
 
-	for(s32 assetIndex = 1; assetIndex < Asset_count; assetIndex++) {
-		SDL_RWread(assets->assetFileHandle, assets->assetFileOffsets + assetIndex, sizeof(s32), 1);
-	}
+	SDL_RWread(assets->assetFileHandle, assets->assetFileOffsets + 1, sizeof(s32), Asset_count - 1);
 }
 
 struct Key {
@@ -359,7 +357,7 @@ void pollInput(Input* input, bool* running, double windowHeight, double pixelsPe
 	while(SDL_PollEvent(&event) > 0) {
 		switch(event.type) {
 			case SDL_QUIT:
-			*running = false;
+				*running = false;
 			break;
 			case SDL_KEYDOWN:
 			case SDL_KEYUP: {
@@ -434,8 +432,10 @@ bool controlZJustPressed(Input* input) {
 
 SDL_Window* createWindow(s32 windowWidth, s32 windowHeight) {
 	//TODO: Proper error handling if any of these libraries does not load
-	//TODO: Only initialize what is needed
-	if (SDL_Init(SDL_INIT_EVERYTHING) < 0) {
+	
+	u32 initFlags = SDL_INIT_EVENTS|SDL_INIT_AUDIO;
+
+	if (SDL_Init(initFlags) < 0) {
 		fprintf(stderr, "Failed to initialize SDL. Error: %s", SDL_GetError());
 		InvalidCodePath;
 	}
@@ -453,7 +453,7 @@ SDL_Window* createWindow(s32 windowWidth, s32 windowHeight) {
 	SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
 	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
 
-	#if 1
+	#if 0
 	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1); 
 	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
 	#endif

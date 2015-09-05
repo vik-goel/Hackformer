@@ -9,7 +9,9 @@ enum AssetId {
 	Asset_entityFont,
 
 	Asset_menuMusic,
-	Asset_levelMusic,
+	Asset_levelMusic_0,
+	Asset_levelMusic_1,
+	Asset_levelMusic_2,
 
 	Asset_attribute,
 	Asset_behaviour,

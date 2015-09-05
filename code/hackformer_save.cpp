@@ -470,10 +470,11 @@ void streamConsoleFieldChanges(IOStream* stream, ConsoleField** fieldPtr) {
 }
 
 void streamEntityChanges(IOStream* stream, Entity* entity) {
-	streamV2(stream, &entity->p);
+	streamV2(stream, &entity->p); 
 	streamElem(stream, entity->rotation);
 	streamElem(stream, entity->tileXOffset);
 	streamElem(stream, entity->tileYOffset);
+	streamElem(stream, entity->flags);
 	
 	if(entity->messages) {
 		streamElem(stream, entity->messages->selectedIndex);

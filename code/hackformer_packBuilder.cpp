@@ -1,6 +1,6 @@
 struct FieldSpec {};
 
-#define SAVE_BINARY
+#define STB_IMAGE_IMPLEMENTATION
 #include "hackformer_types.h"
 #include "hackformer_renderer.h"
 
@@ -45,8 +45,10 @@ int main(int argc, char** argv) {
 		"fonts/PTS55f.ttf",
 		"fonts/Roboto-Regular.ttf",
 
-		"music/hackformer_theme.mp3",
-		"music/hackformerlevel0.mp3",
+		"music/hackformer_theme.ogg",
+		"music/lonely_druid.ogg",
+		"music/low_security.ogg",
+		"music/giveaway_01.ogg",
 
 		"attributes/attribute.png",
 		"attributes/behaviour.png",
@@ -188,7 +190,8 @@ int main(int argc, char** argv) {
 	s32 offset = sizeof(s32) * assetCount;
 
 	for(s32 i = 0; i < assetCount; i++) {
-		writeS32(file, offset);
+		size_t written = fwrite(&offset, sizeof(offset), 1, file);
+		assert(written == 1);
 		s32 fileSize = getFileSize((char*)filePaths[i]);
 		offset += fileSize;
 	}

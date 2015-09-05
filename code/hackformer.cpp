@@ -456,6 +456,7 @@ void clearInput(Input* input) {
 
 Music loadMusic(MusicState* state, AssetId id) {
 	Music result = {};
+
 	SDL_RWops* readStream = getFilePtrFromMem(state->assets, id, state->arena);
 	result.data = Mix_LoadMUS_RW(readStream, SDL_FALSE);
 
@@ -464,6 +465,7 @@ Music loadMusic(MusicState* state, AssetId id) {
 		InvalidCodePath;
 	}
 
+	const char* s = Mix_GetError();
 	return result;
 }
 
@@ -481,7 +483,7 @@ void initMusic(MusicState* musicState, GameState* gameState) {
 	musicState->assets = &gameState->assets;
 	musicState->arena = &gameState->permanentStorage;
 
-	s32 mixerFlags = MIX_INIT_MP3;
+	s32 mixerFlags = MIX_INIT_OGG;
 	s32 mixerInitStatus = Mix_Init(mixerFlags);
 
 	if(mixerFlags != mixerInitStatus) {
@@ -489,13 +491,13 @@ void initMusic(MusicState* musicState, GameState* gameState) {
 		InvalidCodePath;
 	}
 
-	if (Mix_OpenAudio(48000, AUDIO_S16SYS, 2, 1024) < 0) {
+	if (Mix_OpenAudio(48000, AUDIO_U16LSB, 2, 1024) < 0) {
 		fprintf(stderr, "Error initializing SDL_mixer: %s\n", Mix_GetError());
 		InvalidCodePath;
 	}
 
 	musicState->menuMusic = loadMusic(musicState, Asset_menuMusic);
-	musicState->gameMusic = loadMusic(musicState, Asset_levelMusic);
+	musicState->gameMusic = loadMusic(musicState, Asset_levelMusic_1);
 #endif
 }
 
@@ -646,7 +648,7 @@ void loadImages(GameState* gameState) {
 		AnimNode* hackNode = createAnimNode(gameState, &gameState->playerHack);
 		hackNode->intro = loadAnimation(renderGroup, Asset_playerHacking, 256, 256, 0.07f, false);
 		hackNode->main = createAnimation(hackNode->intro.frames + (hackNode->intro.numFrames - 1));
-		hackNode->outro = createReversedAnimation(&hackNode->intro);
+		//hackNode->outro = createReversedAnimation(&hackNode->intro);
 	}
 
 	{
@@ -758,9 +760,6 @@ int main(int argc, char* argv[]) {
 	SDL_Window* window = createWindow(windowWidth, windowHeight);
 	SDL_ShowCursor(0);
 	GameState* gameState = createGameState(windowWidth, windowHeight);
-	MusicState* musicState = &gameState->musicState;
-
-	initMusic(musicState, gameState);
 
 	RenderGroup* renderGroup = gameState->renderGroup;
 	Input* input = &gameState->input;
@@ -781,6 +780,9 @@ int main(int argc, char* argv[]) {
 	initDock(gameState);
 	initPauseMenu(gameState);
 	initMainMenu(gameState);
+
+	MusicState* musicState = &gameState->musicState;
+	initMusic(musicState, gameState);
 
 	s32 mapFileIndex = 0;
 	loadLevel(gameState, &mapFileIndex, true, false);
