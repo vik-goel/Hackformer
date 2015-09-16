@@ -2,7 +2,6 @@
 
 Clean Up
 ---------
-- re-enable projectile player, collision
 - set metersToPixels dynamically based on screen resolution
 - test remove when outside level to see that it works
 - Heavy tiles should be able to smash entities into the ceiling
@@ -36,13 +35,6 @@ STEALTH
 - Enemies react to noises that they hear
 - Enemies can alert other enemies
 
-ABILITIES (should be able to have any subset of these active for any given level)
-Editing fields
-Moving tiles, heavy tiles
-Moving fields
-Cloning fields
-Global hacks (gravity, time)
-
 Editor
 -------
 - Adding text
@@ -68,7 +60,7 @@ struct Input;
 #define SHOW_COLLISION_BOUNDS 0
 #define SHOW_CLICK_BOUNDS 0
 #define DRAW_ENTITIES 1
-#define PLAY_MUSIC 1
+#define PLAY_MUSIC 0
 #define SHOW_MAIN_MENU 0
 #define ENABLE_LIGHTING 0
 #define DRAW_BACKGROUND 1

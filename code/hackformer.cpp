@@ -465,7 +465,7 @@ Music loadMusic(MusicState* state, AssetId id) {
 		InvalidCodePath;
 	}
 
-	const char* s = Mix_GetError();
+	//const char* s = Mix_GetError();
 	return result;
 }
 

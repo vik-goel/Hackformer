@@ -1,4 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
+#define GL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED
+
 
 #define arrayCount(array) sizeof(array) / sizeof(array[0])
 #define InvalidCodePath assert(!"Invalid Code Path")
@@ -246,7 +248,7 @@ struct Input {
 
 	union {
 		//NOTE: The number of keys in the array must always be equal to the number of keys in the struct below
-		Key keys[33];
+		Key keys[34];
 
 		//TODO: The members of this struct may not be packed such that they align perfectly with the array of keys
 		struct {
@@ -270,6 +272,7 @@ struct Input {
 			Key ctrl;
 			Key shift;
 			Key esc;
+            Key command;
 			Key pause;
 			Key leftMouse;
 			Key rightMouse;
@@ -333,6 +336,9 @@ void initInputKeyCodes(Input* input) {
 
 	input->ctrl.keyCode1 = SDLK_RCTRL;
 	input->ctrl.keyCode2 = SDLK_LCTRL;
+    
+    input->command.keyCode1 = SDLK_RGUI;
+    input->command.keyCode2 = SDLK_LGUI;
 
 	#define INIT_NUM_KEY(n){input->num[n].keyCode1 = SDLK_##n; input->num[n].keyCode2 = SDLK_KP_##n;}
 
@@ -427,12 +433,22 @@ void pollInput(Input* input, bool* running, double windowHeight, double pixelsPe
 	}
 }
 
+bool doubleKeyJustPressed(Input* input, Key* key1, Key* key2) {
+    bool result = false;
+    
+    result |= key1->pressed && key2->justPressed;
+    result |= key1->justPressed && key2->pressed;
+    
+    return result;
+}
+
 bool controlZJustPressed(Input* input) {
-	bool result = false;
+	bool result = doubleKeyJustPressed(input, &input->ctrl, &input->z);
 
-	result |= input->ctrl.pressed && input->z.justPressed;
-	result |= input->ctrl.justPressed && input->z.pressed;
-
+#ifdef HACKFORMER_MAC
+    result |= doubleKeyJustPressed(input, &input->command, &input->z);
+#endif
+    
 	return result;
 }
 
